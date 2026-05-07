@@ -1,0 +1,7 @@
+{
+  "name": "4Athletes",
+  "description": "A comprehensive athletic performance tracking application featuring workout logging, analytics, team management, and body metrics.",
+  "requestFramePermissions": [
+    "camera"
+  ]
+}

@@ -1,0 +1,23 @@
+﻿Analyzing flutter_mobile...
+
+  error - lib\screens\home_screen.dart:619:11 - Expected an identifier. - missing_identifier
+  error - lib\screens\home_screen.dart:619:11 - Expected to find ')'. - expected_token
+  error - lib\screens\home_screen.dart:619:11 - Expected to find ','. - expected_token
+  error - lib\screens\home_screen.dart:660:7 - Expected to find ';'. - expected_token
+  error - lib\screens\home_screen.dart:660:8 - Expected an identifier. - missing_identifier
+  error - lib\screens\home_screen.dart:660:8 - Unexpected text ';'. Try removing the text. - unexpected_token
+  error - lib\screens\home_screen.dart:724:7 - Expected to find ';'. - expected_token
+  error - lib\screens\home_screen.dart:724:8 - Expected an identifier. - missing_identifier
+  error - lib\screens\home_screen.dart:724:8 - Expected to find ';'. - expected_token
+  error - lib\screens\home_screen.dart:724:8 - Unexpected text ';'. Try removing the text. - unexpected_token
+  error - lib\screens\home_screen.dart:725:5 - Expected an identifier. - missing_identifier
+  error - lib\screens\home_screen.dart:725:5 - Unexpected text ';'. Try removing the text. - unexpected_token
+warning - lib\screens\analytics_screen.dart:81:11 - The value of the local variable 'heightUnit' isn't used. Try removing the variable or using it. - unused_local_variable
+warning - lib\screens\home_screen.dart:660:8 - Dead code. Try removing the code, or fixing the code before it so that it can be reached. - dead_code
+warning - lib\screens\home_screen.dart:661:7 - The label 'floatingActionButton' isn't used. Try removing the label, or using it in either a 'break' or 'continue' statement. - unused_label
+   info - lib\screens\analytics_screen.dart:576:11 - Use 'const' with the constructor to improve performance. Try adding the 'const' keyword to the constructor invocation. - prefer_const_constructors
+   info - lib\screens\home_screen.dart:596:17 - Use 'const' with the constructor to improve performance. Try adding the 'const' keyword to the constructor invocation. - prefer_const_constructors
+   info - lib\screens\home_screen.dart:598:29 - Use 'const' literals as arguments to constructors of '@immutable' classes. Try adding 'const' before the literal. - prefer_const_literals_to_create_immutables
+   info - lib\screens\home_screen.dart:725:6 - Unnecessary empty statement. Try removing the empty statement or restructuring the code. - empty_statements
+
+19 issues found.

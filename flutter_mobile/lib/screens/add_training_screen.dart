@@ -1,0 +1,1117 @@
+import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'package:provider/provider.dart';
+
+import '../core/theme.dart';
+import '../models/models.dart';
+import '../providers/app_state.dart';
+// sports.dart removed
+import '../data/exercises.dart';
+import '../widgets/custom_card.dart';
+
+class AddTrainingScreen extends StatefulWidget {
+  final String sportId;
+  final String sportName;
+  final TrainingSession? initialSession;
+
+  const AddTrainingScreen({
+    super.key,
+    required this.sportId,
+    required this.sportName,
+    this.initialSession,
+  });
+
+  @override
+  State<AddTrainingScreen> createState() => _AddTrainingScreenState();
+}
+
+class _AddTrainingScreenState extends State<AddTrainingScreen> {
+  late DateTime _date;
+  late TimeOfDay _startTime;
+  late TimeOfDay _endTime;
+  double _effort = 5.0;
+
+  // Pain Monitoring
+  List<String> _painZones = [];
+  String _otherPain = '';
+
+  // Sport Specific States
+  // Skiing
+  final List<String> _specialties = [];
+  String _freeSkiingChanges = '';
+  String _freeSkiingLaps = '';
+  String _gatedSkiingChanges = '';
+  String _gatedSkiingLaps = '';
+  String _snowCondition = '';
+  String _weatherCondition = '';
+
+
+  // Running
+  String _runDistance = '';
+  String _runPace = '';
+  String _runAvgHr = '';
+  String _runMaxHr = '';
+  String _runElevation = '';
+  String _runCadence = '';
+
+  String _runSurface = '';
+
+  // Football
+  // String _fbType = 'training'; // match or training
+  // String _fbGoals = '';
+  // String _fbAssists = '';
+  // String _fbResult = '';
+  // String _fbOpponent = '';
+  // String _fbPosition = '';
+
+  // Tennis
+  // String _tennisType = 'practice';
+  // String _tennisResult = '';
+  // String _tennisScore = '';
+  // String _tennisSurface = '';
+  // String _tennisOpponent = '';
+  // String _tennisAces = '';
+
+  // Cycling
+  // String _cycType = 'road';
+  // String _cycDistance = '';
+  // String _cycAvgSpeed = '';
+  // String _cycPower = '';
+  // String _cycCadence = '';
+  // String _cycElevation = '';
+  // String _cycAvgHr = '';
+
+  // Strength / Stretching / Athletic
+  final List<Map<String, dynamic>> _wlExercises = [];
+  final List<Map<String, dynamic>> _stretchExercises = [];
+  final List<Map<String, dynamic>> _athleticExercises = [];
+
+  bool _showExercisePicker = false;
+  String _exerciseSearch = '';
+  String _exerciseCategoryFilter = 'all';
+
+  @override
+  void initState() {
+    super.initState();
+    final init = widget.initialSession;
+    _date = init != null ? DateTime.parse(init.date) : DateTime.now();
+    _startTime = init != null
+        ? _parseTime(init.startTime)
+        : const TimeOfDay(hour: 9, minute: 0);
+    _endTime = init != null
+        ? _parseTime(init.endTime)
+        : const TimeOfDay(hour: 10, minute: 30);
+    _effort = init?.effort.toDouble() ?? 5.0;
+
+    if (init?.details != null && init!.details!['painZones'] != null) {
+      _painZones = List<String>.from(init.details!['painZones']);
+      final other = _painZones.firstWhere((z) => z.startsWith('Altro:'),
+          orElse: () => '');
+      if (other.isNotEmpty) {
+        _otherPain = other.replaceFirst('Altro: ', '');
+        _painZones[_painZones.indexOf(other)] = 'Altro';
+      }
+    }
+
+    if (init?.details != null && init!.sportId == 'alpine_skiing') {
+      if (init.details!['specialties'] != null) {
+        _specialties.addAll(List<String>.from(init.details!['specialties']));
+      }
+      if (init.details!['freeSkiing'] != null) {
+        _freeSkiingLaps = init.details!['freeSkiing']['laps']?.toString() ?? '';
+        _freeSkiingChanges = init.details!['freeSkiing']['changes']?.toString() ?? '';
+      }
+      if (init.details!['gatedSkiing'] != null) {
+        _gatedSkiingLaps = init.details!['gatedSkiing']['laps']?.toString() ?? '';
+        _gatedSkiingChanges = init.details!['gatedSkiing']['changes']?.toString() ?? '';
+      }
+    }
+  }
+
+  TimeOfDay _parseTime(String time) {
+    if (time.isEmpty) return TimeOfDay.now();
+    final parts = time.split(':');
+    if (parts.length >= 2) {
+      return TimeOfDay(
+          hour: int.tryParse(parts[0]) ?? 0,
+          minute: int.tryParse(parts[1]) ?? 0);
+    }
+    return TimeOfDay.now();
+  }
+
+  String _formatTime(TimeOfDay time) {
+    return '${time.hour.toString().padLeft(2, '0')}:${time.minute.toString().padLeft(2, '0')}';
+  }
+
+  int _calculateDuration() {
+    final start = _startTime.hour * 60 + _startTime.minute;
+    final end = _endTime.hour * 60 + _endTime.minute;
+    int diff = end - start;
+    if (diff < 0) diff += 24 * 60;
+    return diff;
+  }
+
+  void _saveSession() {
+    final duration = _calculateDuration();
+    final isSkiing = widget.sportId == 'alpine_skiing';
+    // ignore unused sport type booleans — kept for future section expansion
+    // ignore: unused_local_variable
+    final isRunning =
+        widget.sportId.contains('running') || widget.sportId == 'track_field';
+    // ignore: unused_local_variable
+    final isWeightlifting = [
+      'weightlifting',
+      'powerlifting',
+      'crossfit',
+      'bodybuilding'
+    ].contains(widget.sportId);
+    // ignore: unused_local_variable
+    final isFootball =
+        ['soccer', 'am_football', 'rugby'].contains(widget.sportId);
+    // ignore: unused_local_variable
+    final isTennis =
+        ['tennis', 'padel', 'pickleball', 'squash'].contains(widget.sportId);
+    // ignore: unused_local_variable
+    final isCycling =
+        widget.sportId.contains('cycling') || widget.sportId == 'spinning';
+    // ignore: unused_local_variable
+    final isStretching =
+        ['stretching', 'yoga', 'pilates'].contains(widget.sportId);
+    // ignore: unused_local_variable
+    final isAthletic = ['athletic_prep', 'other'].contains(widget.sportId);
+
+    // Map raw pain zones back
+    final formattedPainZones = _painZones
+        .map((z) => z == 'Altro' ? 'Altro: $_otherPain' : z)
+        .toList();
+
+    // Map details
+    final details = <String, dynamic>{
+      'painZones': formattedPainZones,
+      if (isSkiing) 'specialties': _specialties,
+      if (isSkiing)
+        'freeSkiing': {'changes': _freeSkiingChanges, 'laps': _freeSkiingLaps},
+      if (isSkiing)
+        'gatedSkiing': {
+          'changes': _gatedSkiingChanges,
+          'laps': _gatedSkiingLaps
+        },
+      if (isSkiing) 'snowCondition': _snowCondition,
+      if (isSkiing) 'weatherCondition': _weatherCondition,
+    };
+
+    final session = TrainingSession(
+      id: widget.initialSession?.id ??
+          DateTime.now().millisecondsSinceEpoch.toString(),
+      date: _date.toIso8601String().split('T')[0],
+      sportId: widget.sportId,
+      duration: duration.toString(),
+      effort: _effort.toInt(),
+      startTime: _formatTime(_startTime),
+      endTime: _formatTime(_endTime),
+      details: details,
+    );
+
+    Provider.of<AppState>(context, listen: false).addSession(session);
+    // Pop all the way back to the Home screen
+    Navigator.of(context).popUntil((route) => route.isFirst);
+  }
+
+  String _categoryLabel(String cat) {
+    switch (cat) {
+      case 'barbell': return 'Bilanciere';
+      case 'dumbbell': return 'Manubri';
+      case 'cable': return 'Cavi';
+      case 'machine': return 'Macchinario';
+      case 'bodyweight': return 'Corpo Libero';
+      case 'kettlebell': return 'Kettlebell';
+      case 'band': return 'Elastico';
+      default: return cat;
+    }
+  }
+
+  Widget _buildField(String label, String value, Function(String) onChanged,
+      {TextInputType type = TextInputType.text, String suffix = ''}) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(label,
+            style: const TextStyle(
+                fontSize: 10,
+                fontWeight: FontWeight.bold,
+                color: AppTheme.textMediumEmphasis)),
+        const SizedBox(height: 6),
+        Container(
+          decoration: BoxDecoration(
+            color: AppTheme.surface,
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: Colors.white.withValues(alpha: 0.05)),
+          ),
+          child: Row(
+            children: [
+              Expanded(
+                child: TextFormField(
+                  initialValue: value,
+                  keyboardType: type,
+                  onChanged: onChanged,
+                  style: const TextStyle(
+                      color: Colors.white, fontWeight: FontWeight.bold),
+                  decoration: const InputDecoration(
+                    border: InputBorder.none,
+                    focusedBorder: InputBorder.none,
+                    enabledBorder: InputBorder.none,
+                    contentPadding:
+                        EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                    isDense: true,
+                  ),
+                ),
+              ),
+              if (suffix.isNotEmpty)
+                Padding(
+                  padding: const EdgeInsets.only(right: 16),
+                  child: Text(suffix,
+                      style: const TextStyle(
+                          color: AppTheme.textMediumEmphasis, fontSize: 12)),
+                )
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildChoiceChips(String label, List<String> options, String selected,
+      Function(String) onSelect) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(label,
+            style: const TextStyle(
+                fontSize: 10,
+                fontWeight: FontWeight.bold,
+                color: AppTheme.textMediumEmphasis)),
+        const SizedBox(height: 8),
+        Wrap(
+          spacing: 8,
+          runSpacing: 8,
+          children: options.map((opt) {
+            final isSel = selected == opt;
+            return GestureDetector(
+              onTap: () {
+                HapticFeedback.lightImpact();
+                onSelect(opt);
+              },
+              child: Container(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                decoration: BoxDecoration(
+                  color: isSel
+                      ? AppTheme.secondary.withValues(alpha: 0.2)
+                      : AppTheme.surface,
+                  borderRadius: BorderRadius.circular(16),
+                  border: Border.all(
+                      color: isSel
+                          ? AppTheme.secondary
+                          : Colors.white.withValues(alpha: 0.05)),
+                ),
+                child: Text(
+                  opt,
+                  style: TextStyle(
+                    color: isSel
+                        ? AppTheme.secondary
+                        : AppTheme.textMediumEmphasis,
+                    fontWeight: isSel ? FontWeight.bold : FontWeight.normal,
+                    fontSize: 12,
+                  ),
+                ),
+              ),
+            );
+          }).toList(),
+        ),
+      ],
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    // sport parameter provided directly by widget
+
+    final isSkiing = widget.sportId == 'alpine_skiing';
+    final isRunning =
+        widget.sportId.contains('running') || widget.sportId == 'track_field';
+    final isWeightlifting = [
+      'weightlifting',
+      'powerlifting',
+      'crossfit',
+      'bodybuilding'
+    ].contains(widget.sportId);
+    // ignore: unused_local_variable
+    final isFootball =
+        ['soccer', 'am_football', 'rugby'].contains(widget.sportId);
+    // ignore: unused_local_variable
+    final isTennis =
+        ['tennis', 'padel', 'pickleball', 'squash'].contains(widget.sportId);
+    // ignore: unused_local_variable
+    final isCycling =
+        widget.sportId.contains('cycling') || widget.sportId == 'spinning';
+    final isStretching =
+        ['stretching', 'yoga', 'pilates'].contains(widget.sportId);
+    final isAthletic = ['athletic_prep', 'other'].contains(widget.sportId);
+
+    // Dynamic Effort Color based on React logic
+    Color effortColor;
+    if (_effort <= 3) {
+      effortColor = Colors.green;
+    } else if (_effort <= 7)
+      effortColor = Colors.orange;
+    else
+      effortColor = Colors.red;
+
+    return Scaffold(
+      appBar: AppBar(
+        leading: IconButton(
+          icon: const Icon(Icons.close),
+          onPressed: () {
+          HapticFeedback.lightImpact();
+          Navigator.of(context).pop();
+        },
+        ),
+        title: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Text('Aggiungi ', style: TextStyle(fontSize: 16)),
+            Text(widget.sportName,
+                style: const TextStyle(
+                    fontSize: 16,
+                    color: AppTheme.secondary,
+                    fontWeight: FontWeight.bold)),
+          ],
+        ),
+      ),
+      body: Stack(
+        children: [
+          ListView(
+            padding: const EdgeInsets.only(
+                left: 16, right: 16, top: 16, bottom: 100),
+            children: [
+              // Date & Time
+              CustomCard(
+                child: Column(
+                  children: [
+                    ListTile(
+                      leading: const Icon(Icons.calendar_today,
+                          color: AppTheme.primary),
+                      title: const Text('Data', style: TextStyle(fontSize: 14)),
+                      trailing: Text(
+                        "${_date.day.toString().padLeft(2, '0')}/${_date.month.toString().padLeft(2, '0')}/${_date.year}",
+                        style: const TextStyle(fontWeight: FontWeight.bold),
+                      ),
+                      onTap: () async {
+                        HapticFeedback.lightImpact();
+                        final d = await showDatePicker(
+                          context: context,
+                          initialDate: _date,
+                          firstDate: DateTime(2020),
+                          lastDate:
+                              DateTime.now().add(const Duration(days: 30)),
+                        );
+                        if (d != null) setState(() => _date = d);
+                      },
+                    ),
+                    Divider(color: Colors.white.withValues(alpha: 0.05), height: 1),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: ListTile(
+                            leading: const Icon(Icons.access_time,
+                                color: AppTheme.primary),
+                            title: const Text('Inizio',
+                                style: TextStyle(fontSize: 12)),
+                            subtitle: Text(_formatTime(_startTime),
+                                style: const TextStyle(
+                                    fontWeight: FontWeight.bold,
+                                    color: Colors.white)),
+                            onTap: () async {
+                              HapticFeedback.lightImpact();
+                              final t = await showTimePicker(
+                              if (t != null) setState(() => _startTime = t);
+                            },
+                          ),
+                        ),
+                        Container(
+                            width: 1,
+                            height: 40,
+                            color: Colors.white.withValues(alpha: 0.05)),
+                        Expanded(
+                          child: ListTile(
+                            leading: const Icon(Icons.access_time_filled,
+                                color: AppTheme.primary),
+                            title: const Text('Fine',
+                                style: TextStyle(fontSize: 12)),
+                            subtitle: Text(_formatTime(_endTime),
+                                style: const TextStyle(
+                                    fontWeight: FontWeight.bold,
+                                    color: Colors.white)),
+                            onTap: () async {
+                              HapticFeedback.lightImpact();
+                              final t = await showTimePicker(
+                              if (t != null) setState(() => _endTime = t);
+                            },
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+
+              const SizedBox(height: 24),
+
+              // ================= SPORT SPECIFIC SECTIONS ================= //
+
+              if (isRunning) ...[
+                const Text('Dettagli Corsa',
+                    style:
+                        TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+                const SizedBox(height: 12),
+                Row(
+                  children: [
+                    Expanded(
+                        child: _buildField('DISTANZA', _runDistance,
+                            (v) => setState(() => _runDistance = v),
+                            type: TextInputType.number, suffix: 'km')),
+                    const SizedBox(width: 12),
+                    Expanded(
+                        child: _buildField('PASSO MEDIO', _runPace,
+                            (v) => setState(() => _runPace = v),
+                            suffix: '/km')),
+                  ],
+                ),
+                const SizedBox(height: 12),
+                Row(
+                  children: [
+                    Expanded(
+                        child: _buildField('FC MEDIA', _runAvgHr,
+                            (v) => setState(() => _runAvgHr = v),
+                            type: TextInputType.number, suffix: 'bpm')),
+                    const SizedBox(width: 12),
+                    Expanded(
+                        child: _buildField('FC MAX', _runMaxHr,
+                            (v) => setState(() => _runMaxHr = v),
+                            type: TextInputType.number, suffix: 'bpm')),
+                  ],
+                ),
+                const SizedBox(height: 12),
+                Row(
+                  children: [
+                    Expanded(
+                        child: _buildField('DISLIVELLO', _runElevation,
+                            (v) => setState(() => _runElevation = v),
+                            type: TextInputType.number, suffix: 'm')),
+                    const SizedBox(width: 12),
+                    Expanded(
+                        child: _buildField('CADENZA', _runCadence,
+                            (v) => setState(() => _runCadence = v),
+                            type: TextInputType.number, suffix: 'spm')),
+                  ],
+                ),
+                const SizedBox(height: 12),
+                _buildChoiceChips(
+                    'SUPERFICIE',
+                    ['Asfalto', 'Sterrato', 'Misto', 'Pista', 'Tapis Roulant'],
+                    _runSurface,
+                    (v) => setState(() => _runSurface = v)),
+                const SizedBox(height: 24),
+              ],
+
+              if (isSkiing) ...[
+                const Text('Dettagli Sci',
+                    style:
+                        TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+                const SizedBox(height: 12),
+                _buildChoiceChips(
+                    'SPECIALITÀ',
+                    [
+                      'Slalom (SL)',
+                      'Gigante (GS)',
+                      'SuperG (SG)',
+                      'Discesa (DH)'
+                    ],
+                    _specialties.isEmpty ? '' : _specialties[0], (v) {
+                  setState(() {
+                    _specialties.clear();
+                    _specialties.add(v);
+                  });
+                }),
+                const SizedBox(height: 16),
+                const Text('Campo Libero', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 13)),
+                const SizedBox(height: 12),
+                Row(
+                  children: [
+                    Expanded(
+                        child: _buildField('GIRI TOTALI', _freeSkiingLaps,
+                            (v) => setState(() => _freeSkiingLaps = v),
+                            type: TextInputType.number)),
+                    const SizedBox(width: 12),
+                    Expanded(
+                        child: _buildField('CAMBI PER GIRO', _freeSkiingChanges,
+                            (v) => setState(() => _freeSkiingChanges = v),
+                            type: TextInputType.number)),
+                  ],
+                ),
+                const SizedBox(height: 16),
+                const Text('Lavoro nei Pali', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 13)),
+                const SizedBox(height: 12),
+                Row(
+                  children: [
+                    Expanded(
+                        child: _buildField('GIRI TOTALI', _gatedSkiingLaps,
+                            (v) => setState(() => _gatedSkiingLaps = v),
+                            type: TextInputType.number)),
+                    const SizedBox(width: 12),
+                    Expanded(
+                        child: _buildField('CAMBI PER GIRO', _gatedSkiingChanges,
+                            (v) => setState(() => _gatedSkiingChanges = v),
+                            type: TextInputType.number)),
+                  ],
+                ),
+                const SizedBox(height: 12),
+                _buildChoiceChips(
+                    'NEVE',
+                    [
+                      'Dura/Ghiacciata',
+                      'Compatta',
+                      'Morbida',
+                      'Primaverile',
+                      'Fresca'
+                    ],
+                    _snowCondition,
+                    (v) => setState(() => _snowCondition = v)),
+                const SizedBox(height: 12),
+                _buildChoiceChips(
+                    'METEO',
+                    ['Sole', 'Nuvolo', 'Nevicata', 'Nebbia', 'Vento'],
+                    _weatherCondition,
+                    (v) => setState(() => _weatherCondition = v)),
+                const SizedBox(height: 24),
+              ],
+
+              if (isWeightlifting || isAthletic || isStretching) ...[
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    const Text('Esercizi',
+                        style: TextStyle(
+                            fontSize: 18, fontWeight: FontWeight.bold)),
+                    TextButton.icon(
+                      onPressed: () =>
+                          setState(() => _showExercisePicker = true),
+                      icon: const Icon(Icons.add, size: 16),
+                      label: const Text('AGGIUNGI',
+                          style: TextStyle(fontWeight: FontWeight.bold)),
+                    )
+                  ],
+                ),
+                const SizedBox(height: 12),
+                if (_wlExercises.isEmpty &&
+                    _athleticExercises.isEmpty &&
+                    _stretchExercises.isEmpty)
+                  Container(
+                    padding: const EdgeInsets.all(24),
+                    decoration: BoxDecoration(
+                        color: AppTheme.card,
+                        borderRadius: BorderRadius.circular(16)),
+                    child: const Center(
+                        child: Text(
+                            'Nessun esercizio aggiunto. Clicca Aggiungi per iniziare.',
+                            style:
+                                TextStyle(color: AppTheme.textMediumEmphasis),
+                            textAlign: TextAlign.center)),
+                  ),
+                
+                if (_wlExercises.isNotEmpty)
+                  ..._wlExercises.asMap().entries.map((entry) {
+                    int exIdx = entry.key;
+                    var ex = entry.value;
+                    List<dynamic> sets = ex['sets'] ?? [];
+                    double maxLoad = Provider.of<AppState>(context).userProfile?.oneRepMax?[ex['id']] ?? 0.0;
+
+                    return CustomCard(
+                      margin: const EdgeInsets.only(bottom: 16),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Container(
+                            padding: const EdgeInsets.all(12),
+                            decoration: BoxDecoration(
+                              color: Colors.white.withValues(alpha: 0.05),
+                              borderRadius: const BorderRadius.vertical(top: Radius.circular(16)),
+                            ),
+                            child: Row(
+                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                              children: [
+                                Text(ex['name'], style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+                                IconButton(
+                                  icon: const Icon(Icons.delete_outline, size: 20, color: AppTheme.textMediumEmphasis),
+                                  padding: EdgeInsets.zero,
+                                  constraints: const BoxConstraints(),
+                                  onPressed: () => setState(() => _wlExercises.removeAt(exIdx)),
+                                )
+                              ],
+                            ),
+                          ),
+                          Padding(
+                            padding: const EdgeInsets.all(12),
+                            child: Column(
+                              children: [
+                                Row(
+                                  children: [
+                                    const SizedBox(width: 32, child: Text('SET', textAlign: TextAlign.center, style: TextStyle(fontSize: 10, color: AppTheme.textMediumEmphasis))),
+                                    const SizedBox(width: 8),
+                                    const Expanded(child: Text('KG (LOAD)', textAlign: TextAlign.center, style: TextStyle(fontSize: 10, color: AppTheme.textMediumEmphasis))),
+                                    const SizedBox(width: 8),
+                                    const Expanded(child: Text('REPS', textAlign: TextAlign.center, style: TextStyle(fontSize: 10, color: AppTheme.textMediumEmphasis))),
+                                    const SizedBox(width: 8),
+                                    const SizedBox(width: 40, child: Text('% 1RM', textAlign: TextAlign.center, style: TextStyle(fontSize: 10, color: AppTheme.textMediumEmphasis))),
+                                    const SizedBox(width: 32),
+                                  ],
+                                ),
+                                const SizedBox(height: 8),
+                                ...sets.asMap().entries.map((setEntry) {
+                                  int setIdx = setEntry.key;
+                                  var setMap = setEntry.value;
+                                  double load = (setMap['kg'] as num).toDouble();
+                                  String pctStr = '-';
+                                  if (maxLoad > 0 && load > 0) {
+                                    pctStr = '${((load / maxLoad) * 100).toStringAsFixed(0)}%';
+                                  }
+
+                                  return Padding(
+                                    padding: const EdgeInsets.only(bottom: 8),
+                                    child: Row(
+                                      children: [
+                                        SizedBox(
+                                          width: 32,
+                                          child: Container(
+                                            padding: const EdgeInsets.symmetric(vertical: 6),
+                                            decoration: BoxDecoration(color: AppTheme.surface, borderRadius: BorderRadius.circular(4)),
+                                            child: Text('${setIdx + 1}', textAlign: TextAlign.center, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12)),
+                                          ),
+                                        ),
+                                        const SizedBox(width: 8),
+                                        Expanded(
+                                          child: SizedBox(
+                                            height: 36,
+                                            child: TextFormField(
+                                              keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                                              textAlign: TextAlign.center,
+                                              style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold),
+                                              decoration: InputDecoration(
+                                                contentPadding: EdgeInsets.zero,
+                                                filled: true,
+                                                fillColor: AppTheme.surface,
+                                                border: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: BorderSide.none),
+                                              ),
+                                              onChanged: (v) {
+                                                double newKg = double.tryParse(v.replaceAll(',', '.')) ?? 0;
+                                                setState(() {
+                                                  _wlExercises[exIdx]['sets'][setIdx]['kg'] = newKg;
+                                                });
+                                              },
+                                            ),
+                                          ),
+                                        ),
+                                        const SizedBox(width: 8),
+                                        Expanded(
+                                          child: SizedBox(
+                                            height: 36,
+                                            child: TextFormField(
+                                              keyboardType: TextInputType.number,
+                                              textAlign: TextAlign.center,
+                                              style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold),
+                                              decoration: InputDecoration(
+                                                contentPadding: EdgeInsets.zero,
+                                                filled: true,
+                                                fillColor: AppTheme.surface,
+                                                border: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: BorderSide.none),
+                                              ),
+                                              onChanged: (v) {
+                                                int newReps = int.tryParse(v) ?? 0;
+                                                setState(() {
+                                                  _wlExercises[exIdx]['sets'][setIdx]['reps'] = newReps;
+                                                });
+                                              },
+                                            ),
+                                          ),
+                                        ),
+                                        const SizedBox(width: 8),
+                                        SizedBox(
+                                          width: 40,
+                                          child: Text(pctStr, textAlign: TextAlign.center, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: AppTheme.textMediumEmphasis)),
+                                        ),
+                                        SizedBox(
+                                          width: 32,
+                                          child: IconButton(
+                                            icon: const Icon(Icons.close, size: 16, color: AppTheme.textMediumEmphasis),
+                                            onPressed: () {
+                                              setState(() {
+                                                _wlExercises[exIdx]['sets'].removeAt(setIdx);
+                                              });
+                                            },
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  );
+                                }),
+                                const SizedBox(height: 8),
+                                TextButton(
+                                  onPressed: () {
+                                    setState(() {
+                                      _wlExercises[exIdx]['sets'].add({'kg': 0.0, 'reps': 0});
+                                    });
+                                  },
+                                  child: const Text('+ Add Set', style: TextStyle(fontSize: 12, color: AppTheme.textMediumEmphasis)),
+                                )
+                              ],
+                            ),
+                          )
+                        ],
+                      ),
+                    );
+                  }),
+                const SizedBox(height: 24),
+              ],
+
+              // ================= PAIN & RPE SECTIONS ================= //
+
+              const Text('Monitoraggio Dolore',
+                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+              const SizedBox(height: 12),
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: [
+                  'Nessuno',
+                  'Schiena',
+                  'Ginocchio',
+                  'Altro'
+                ].map((zone) {
+                  final isSel = _painZones.contains(zone);
+                  return GestureDetector(
+                    onTap: () {
+                      HapticFeedback.lightImpact();
+                      setState(() {
+                        if (zone == 'Nessuno') {
+                          _painZones.clear();
+                          _painZones.add('Nessuno');
+                        } else {
+                          _painZones.remove('Nessuno');
+                          if (isSel) {
+                            _painZones.remove(zone);
+                          } else {
+                            _painZones.add(zone);
+                          }
+                        }
+                      });
+                    },
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 16, vertical: 10),
+                      decoration: BoxDecoration(
+                        color: isSel
+                            ? AppTheme.error.withValues(alpha: 0.2)
+                            : AppTheme.surface,
+                        borderRadius: BorderRadius.circular(16),
+                        border: Border.all(
+                            color: isSel
+                                ? AppTheme.error
+                                : Colors.white.withValues(alpha: 0.05)),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          if (isSel)
+                            const Icon(Icons.local_hospital,
+                                size: 14, color: AppTheme.error),
+                          if (isSel) const SizedBox(width: 6),
+                          Text(
+                            zone,
+                            style: TextStyle(
+                                color: isSel
+                                    ? AppTheme.error
+                                    : AppTheme.textMediumEmphasis,
+                                fontWeight:
+                                    isSel ? FontWeight.bold : FontWeight.normal,
+                                fontSize: 12),
+                          ),
+                        ],
+                      ),
+                    ),
+                  );
+                }).toList(),
+              ),
+              if (_painZones.contains('Altro')) ...[
+                const SizedBox(height: 12),
+                TextField(
+                  onChanged: (v) => setState(() => _otherPain = v),
+                  decoration: InputDecoration(
+                    hintText: 'Specifica dove fa male...',
+                    filled: true,
+                    fillColor: AppTheme.surface,
+                    border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                        borderSide: BorderSide.none),
+                  ),
+                ),
+              ],
+
+              const SizedBox(height: 32),
+
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  const Text('RPE (Sforzo Perceputo)',
+                      style:
+                          TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+                  Text(
+                    _effort.toInt().toString(),
+                    style: TextStyle(
+                        fontSize: 32,
+                        fontWeight: FontWeight.bold,
+                        color: effortColor),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 16),
+              SliderTheme(
+                data: SliderTheme.of(context).copyWith(
+                  activeTrackColor: effortColor,
+                  thumbColor: effortColor,
+                  inactiveTrackColor: Colors.white.withValues(alpha: 0.1),
+                  trackHeight: 8,
+                ),
+                child: Slider(
+                  value: _effort,
+                  min: 1,
+                  max: 10,
+                  divisions: 9,
+                  onChanged: (v) => setState(() => _effort = v),
+                ),
+              ),
+              const Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Text('1 - Riposo',
+                      style: TextStyle(
+                          color: AppTheme.textMediumEmphasis, fontSize: 12)),
+                  Text('10 - Massimale',
+                      style: TextStyle(
+                          color: AppTheme.textMediumEmphasis, fontSize: 12)),
+                ],
+              ),
+
+              const SizedBox(height: 40),
+            ],
+          ),
+
+          if (_showExercisePicker)
+            Container(
+              color: Colors.black.withValues(alpha: 0.85),
+              alignment: Alignment.center,
+              padding: const EdgeInsets.all(16),
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  CustomCard(
+                    padding: EdgeInsets.zero,
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        // Header
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                          decoration: BoxDecoration(
+                            color: Colors.white.withValues(alpha: 0.04),
+                            borderRadius: const BorderRadius.vertical(top: Radius.circular(16)),
+                          ),
+                          child: Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            children: [
+                              const Text('Seleziona Esercizio',
+                                  style: TextStyle(fontSize: 17, fontWeight: FontWeight.bold)),
+                              IconButton(
+                                icon: const Icon(Icons.close, size: 20),
+                                padding: EdgeInsets.zero,
+                                constraints: const BoxConstraints(),
+                                onPressed: () => setState(() {
+                                  _showExercisePicker = false;
+                                  _exerciseSearch = '';
+                                  _exerciseCategoryFilter = 'all';
+                                }),
+                              ),
+                            ],
+                          ),
+                        ),
+                        Padding(
+                          padding: const EdgeInsets.fromLTRB(12, 12, 12, 0),
+                          child: TextField(
+                            decoration: InputDecoration(
+                              hintText: 'Cerca esercizio o muscolo...',
+                              prefixIcon: const Icon(Icons.search, size: 18),
+                              contentPadding: const EdgeInsets.symmetric(vertical: 0, horizontal: 12),
+                              filled: true,
+                              fillColor: AppTheme.surface,
+                              border: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(12),
+                                borderSide: BorderSide.none,
+                              ),
+                            ),
+                            onChanged: (v) => setState(() => _exerciseSearch = v),
+                          ),
+                        ),
+                        // Category filter chips
+                        const SizedBox(height: 8),
+                        SizedBox(
+                          height: 36,
+                          child: ListView(
+                            scrollDirection: Axis.horizontal,
+                            padding: const EdgeInsets.symmetric(horizontal: 12),
+                            children: [
+                              ...[
+                                ('all', 'Tutti', Icons.grid_view_rounded),
+                                ('barbell', 'Bilanciere', Icons.fitness_center),
+                                ('dumbbell', 'Manubri', Icons.sports_gymnastics),
+                                ('cable', 'Cavi', Icons.cable),
+                                ('machine', 'Macchinari', Icons.settings),
+                                ('bodyweight', 'Corpo Libero', Icons.accessibility_new),
+                                ('kettlebell', 'Kettlebell', Icons.sports_handball),
+                                ('band', 'Elastici', Icons.lens_blur),
+                              ].map((item) {
+                                final isActive = _exerciseCategoryFilter == item.$1;
+                                return GestureDetector(
+                                  onTap: () => setState(() => _exerciseCategoryFilter = item.$1),
+                                  child: Container(
+                                    margin: const EdgeInsets.only(right: 8),
+                                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+                                    decoration: BoxDecoration(
+                                      color: isActive ? AppTheme.secondary.withValues(alpha: 0.2) : AppTheme.surface,
+                                      borderRadius: BorderRadius.circular(20),
+                                      border: Border.all(
+                                        color: isActive ? AppTheme.secondary : Colors.transparent,
+                                      ),
+                                    ),
+                                    child: Row(
+                                      children: [
+                                        Icon(item.$3, size: 12, color: isActive ? AppTheme.secondary : AppTheme.textMediumEmphasis),
+                                        const SizedBox(width: 4),
+                                        Text(
+                                          item.$2,
+                                          style: TextStyle(
+                                            fontSize: 11,
+                                            color: isActive ? AppTheme.secondary : AppTheme.textMediumEmphasis,
+                                            fontWeight: isActive ? FontWeight.bold : FontWeight.normal,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                );
+                              }),
+                            ],
+                          ),
+                        ),
+                        const SizedBox(height: 8),
+                        // Exercise list
+                        Builder(builder: (context) {
+                          final filtered = exerciseDatabase.where((ex) {
+                            final q = _exerciseSearch.toLowerCase();
+                            final matchesSearch = q.isEmpty ||
+                                ex.name.toLowerCase().contains(q) ||
+                                ex.targetMuscle.toLowerCase().contains(q);
+                            final matchesCat = _exerciseCategoryFilter == 'all' ||
+                                ex.category == _exerciseCategoryFilter;
+                            return matchesSearch && matchesCat;
+                          }).toList();
+
+                          return Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Padding(
+                                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+                                child: Text(
+                                  '${filtered.length} esercizi',
+                                  style: const TextStyle(fontSize: 11, color: AppTheme.textMediumEmphasis),
+                                ),
+                              ),
+                              SizedBox(
+                                height: 280,
+                                child: ListView.builder(
+                                  itemCount: filtered.length,
+                                  itemBuilder: (context, i) {
+                                    final ex = filtered[i];
+                                    return ListTile(
+                                      dense: true,
+                                      title: Text(ex.name, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600)),
+                                      subtitle: Text('${ex.targetMuscle}  •  ${_categoryLabel(ex.category)}',
+                                          style: const TextStyle(fontSize: 11, color: AppTheme.textMediumEmphasis)),
+                                      trailing: const Icon(Icons.add_circle, color: AppTheme.secondary, size: 22),
+                                      onTap: () {
+                                        setState(() {
+                                          _wlExercises.add({
+                                            'name': ex.name,
+                                            'id': ex.id,
+                                            'sets': [{'kg': 0.0, 'reps': 0}]
+                                          });
+                                          _showExercisePicker = false;
+                                          _exerciseSearch = '';
+                                          _exerciseCategoryFilter = 'all';
+                                        });
+                                      },
+                                    );
+                                  },
+                                ),
+                              ),
+                            ],
+                          );
+                        }),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+
+          // Bottom sticky Save Button
+          Align(
+            alignment: Alignment.bottomCenter,
+            child: Container(
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  colors: [
+                    AppTheme.background,
+                    AppTheme.background.withValues(alpha: 0.0)
+                  ],
+                  begin: Alignment.bottomCenter,
+                  end: Alignment.topCenter,
+                ),
+              ),
+              child: SafeArea(
+                child: SizedBox(
+                  width: double.infinity,
+                  height: 56,
+                  child: ElevatedButton(
+                    onPressed: _saveSession,
+                    child: const Text('SALVA ALLENAMENTO'),
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
