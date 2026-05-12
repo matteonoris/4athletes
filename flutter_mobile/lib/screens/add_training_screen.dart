@@ -136,6 +136,27 @@ class _AddTrainingScreenState extends State<AddTrainingScreen> {
           _gatedSkiingChanges = d['gatedSkiing']['changes']?.toString() ?? '';
         }
       }
+
+      // Restore weightlifting / powerlifting / crossfit / bodybuilding exercises
+      if (d['exercises'] != null) {
+        final exList = d['exercises'] as List<dynamic>;
+        for (var ex in exList) {
+          final exMap = Map<String, dynamic>.from(ex as Map);
+          // Normalize sets: ensure each set has proper num types
+          if (exMap['sets'] != null) {
+            exMap['sets'] = (exMap['sets'] as List<dynamic>).map((s) {
+              final setMap = Map<String, dynamic>.from(s as Map);
+              return {
+                'kg': (setMap['kg'] as num?)?.toDouble() ?? 0.0,
+                'reps': (setMap['reps'] as num?)?.toInt() ?? 0,
+              };
+            }).toList();
+          } else {
+            exMap['sets'] = [];
+          }
+          _wlExercises.add(exMap);
+        }
+      }
     }
   }
 
@@ -672,7 +693,15 @@ class _AddTrainingScreenState extends State<AddTrainingScreen> {
                     int exIdx = entry.key;
                     var ex = entry.value;
                     List<dynamic> sets = ex['sets'] ?? [];
-                    double maxLoad = Provider.of<AppState>(context).userProfile?.oneRepMax?[ex['id']] ?? 0.0;
+                    // Use the most recent PR by date (not the highest value)
+                    final appState = Provider.of<AppState>(context);
+                    final exercisePrLogs = appState.prLogs
+                        .where((l) => l.exerciseId == ex['id'])
+                        .toList()
+                      ..sort((a, b) => b.date.compareTo(a.date));
+                    final double maxLoad = exercisePrLogs.isNotEmpty
+                        ? exercisePrLogs.first.weight
+                        : 0.0;
 
                     return CustomCard(
                       margin: const EdgeInsets.only(bottom: 16),

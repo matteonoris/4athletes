@@ -4,11 +4,15 @@ import 'package:phosphor_flutter/phosphor_flutter.dart';
 import '../core/theme.dart';
 import '../models/models.dart';
 import '../widgets/custom_card.dart';
+import 'add_training_screen.dart';
 
 class ActivityDetailsScreen extends StatelessWidget {
   final TrainingSession session;
+  /// Optional: display name for the sport (e.g. "POWERLIFTING").
+  /// If not provided it is derived from sportId.
+  final String? sportName;
 
-  const ActivityDetailsScreen({super.key, required this.session});
+  const ActivityDetailsScreen({super.key, required this.session, this.sportName});
 
   String _formatKey(String key) {
     // Basic formatting for camelCase keys
@@ -118,9 +122,32 @@ class ActivityDetailsScreen extends StatelessWidget {
         session.details!['painZones'] != null &&
         (session.details!['painZones'] as List).isNotEmpty;
 
+    final displayName = sportName ??
+        (session.sportId[0].toUpperCase() +
+            session.sportId.substring(1).replaceAll('_', ' '));
+
     return Scaffold(
       appBar: AppBar(
         title: const Text('Dettaglio Attività'),
+        actions: [
+          IconButton(
+            icon: const Icon(PhosphorIconsRegular.pencilSimple,
+                color: AppTheme.primary),
+            tooltip: 'Modifica allenamento',
+            onPressed: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (_) => AddTrainingScreen(
+                    sportId: session.sportId,
+                    sportName: displayName.toUpperCase(),
+                    initialSession: session,
+                  ),
+                ),
+              );
+            },
+          ),
+        ],
       ),
       body: ListView(
         padding: const EdgeInsets.all(24),

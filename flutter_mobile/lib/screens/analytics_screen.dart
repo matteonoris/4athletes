@@ -44,6 +44,14 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
     return filtered.isNotEmpty ? filtered.first.value : 0.0;
   }
 
+  // Get Latest PR by date (not the highest — just the most recently added)
+  double _getLatestPR(List<PRLog> logs, String exerciseId) {
+    final filtered = logs.where((l) => l.exerciseId == exerciseId).toList()
+      ..sort(
+          (a, b) => DateTime.parse(b.date).compareTo(DateTime.parse(a.date)));
+    return filtered.isNotEmpty ? filtered.first.weight : 0.0;
+  }
+
   // Process Logs with Trends Helper
   List<Map<String, dynamic>> _getProcessedLogs(
       List<BodyMetricLog> bodyLogs, String type) {
@@ -343,28 +351,28 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
                 onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const AnalyticsDetailsScreen(title: 'Back Squat', type: 'pr', exerciseId: 'back_squat'))),
                 child: _MaxLoadCard(
                     title: 'Back Squat', 
-                    val: user?.oneRepMax?['back_squat'] ?? 0, 
+                    val: _getLatestPR(appState.prLogs, 'back_squat'), 
                     unit: weightUnit),
               ),
               GestureDetector(
                 onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const AnalyticsDetailsScreen(title: 'Deadlift', type: 'pr', exerciseId: 'deadlift'))),
                 child: _MaxLoadCard(
                     title: 'Deadlift', 
-                    val: user?.oneRepMax?['deadlift'] ?? 0, 
+                    val: _getLatestPR(appState.prLogs, 'deadlift'), 
                     unit: weightUnit),
               ),
               GestureDetector(
                 onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const AnalyticsDetailsScreen(title: 'Bench Press', type: 'pr', exerciseId: 'bp'))),
                 child: _MaxLoadCard(
                     title: 'Bench Press',
-                    val: user?.oneRepMax?['bp'] ?? 0,
+                    val: _getLatestPR(appState.prLogs, 'bp'),
                     unit: weightUnit),
               ),
               GestureDetector(
                 onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const AnalyticsDetailsScreen(title: 'Clean & Jerk', type: 'pr', exerciseId: 'clean_jerk'))),
                 child: _MaxLoadCard(
                     title: 'Clean & Jerk',
-                    val: user?.oneRepMax?['clean_jerk'] ?? 0,
+                    val: _getLatestPR(appState.prLogs, 'clean_jerk'),
                     unit: weightUnit),
               ),
             ],
