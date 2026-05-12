@@ -1,9 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'dart:async';
+import 'package:provider/provider.dart';
 
+import 'dart:io';
 import '../core/theme.dart';
 import '../models/models.dart';
 import '../providers/app_state.dart';
+import '../services/health_service.dart';
 import 'auth_screen.dart';
 
 class ProfileScreen extends StatefulWidget {
@@ -35,16 +39,22 @@ class _ProfileScreenState extends State<ProfileScreen> {
         .pushReplacement(MaterialPageRoute(builder: (_) => const AuthScreen()));
   }
 
-  void _saveProfile() {
-    if (_draftProfile != null) {
-      Provider.of<AppState>(context, listen: false)
-          .updateProfile(_draftProfile!);
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-            content: Text('Profilo salvato con successo!'),
-            backgroundColor: AppTheme.success),
-      );
-    }
+  Timer? _debounce;
+
+  @override
+  void dispose() {
+    _debounce?.cancel();
+    super.dispose();
+  }
+
+  void _triggerAutoSave() {
+    if (_debounce?.isActive ?? false) _debounce!.cancel();
+    _debounce = Timer(const Duration(milliseconds: 1000), () {
+      if (_draftProfile != null) {
+        Provider.of<AppState>(context, listen: false)
+            .updateProfile(_draftProfile!);
+      }
+    });
   }
 
   void _showDeviceModal() {
@@ -68,17 +78,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
       appBar: AppBar(
         title:
             const Text('Impostazioni Profilo', style: TextStyle(fontSize: 16)),
-        actions: [
-          TextButton(
-            onPressed: _saveProfile,
-            child: const Text('SALVA',
-                style: TextStyle(
-                    color: AppTheme.secondary,
-                    fontWeight: FontWeight.bold,
-                    fontSize: 14)),
-          ),
-          const SizedBox(width: 8),
-        ],
         bottom: PreferredSize(
           preferredSize: const Size.fromHeight(1),
           child: Container(color: Colors.white.withValues(alpha: 0.05), height: 1),
@@ -191,53 +190,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 const SizedBox(height: 12),
                 Row(
                   children: [
-                    // Weight (Read-only since it's tracked in logs)
-                    Expanded(
-                      child: Container(
-                        padding: const EdgeInsets.all(16),
-                        decoration: BoxDecoration(
-                          color: AppTheme.card.withValues(alpha: 0.5),
-                          borderRadius: BorderRadius.circular(12),
-                          border:
-                              Border.all(color: Colors.white.withValues(alpha: 0.05)),
-                        ),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            const Row(
-                              children: [
-                                Icon(Icons.monitor,
-                                    size: 14,
-                                    color: AppTheme.textMediumEmphasis),
-                                SizedBox(width: 4),
-                                Text('PESO',
-                                    style: TextStyle(
-                                        fontSize: 10,
-                                        fontWeight: FontWeight.bold,
-                                        color: AppTheme.textMediumEmphasis)),
-                              ],
-                            ),
-                            const SizedBox(height: 4),
-                            Row(
-                              crossAxisAlignment: CrossAxisAlignment.baseline,
-                              textBaseline: TextBaseline.alphabetic,
-                              children: [
-                                Text('${p.weight}',
-                                    style: const TextStyle(
-                                        fontSize: 20,
-                                        fontWeight: FontWeight.bold)),
-                                const SizedBox(width: 2),
-                                Text(p.unitSystem == 'metric' ? 'kg' : 'lbs',
-                                    style: const TextStyle(
-                                        fontSize: 12,
-                                        color: AppTheme.textMediumEmphasis)),
-                              ],
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
-                    const SizedBox(width: 12),
+
                     // Height (Editable)
                     Expanded(
                       child: Container(
@@ -286,9 +239,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
                                       fillColor: Colors.transparent,
                                       filled: false,
                                     ),
-                                    onChanged: (val) => setState(() =>
-                                        p.height =
-                                            double.tryParse(val) ?? p.height),
+                                    onChanged: (val) {
+                                      setState(() => p.height = double.tryParse(val) ?? p.height);
+                                      _triggerAutoSave();
+                                    },
                                   ),
                                 ),
                                 Text(p.unitSystem == 'metric' ? 'cm' : 'ft',
@@ -350,8 +304,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
                                       fillColor: Colors.transparent,
                                       filled: false,
                                     ),
-                                    onChanged: (val) => setState(() =>
-                                        p.maxHr = int.tryParse(val) ?? p.maxHr),
+                                    onChanged: (val) {
+                                      setState(() => p.maxHr = int.tryParse(val) ?? p.maxHr);
+                                      _triggerAutoSave();
+                                    },
                                   ),
                                 ),
                                 const Text('bpm',
@@ -396,8 +352,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
                           const SizedBox(height: 6),
                           TextFormField(
                             initialValue: p.firstName,
-                            onChanged: (val) =>
-                                setState(() => p.firstName = val),
+                            onChanged: (val) {
+                              setState(() => p.firstName = val);
+                              _triggerAutoSave();
+                            },
                             decoration: InputDecoration(
                               filled: true,
                               fillColor: AppTheme.card,
@@ -424,8 +382,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
                           const SizedBox(height: 6),
                           TextFormField(
                             initialValue: p.lastName,
-                            onChanged: (val) =>
-                                setState(() => p.lastName = val),
+                            onChanged: (val) {
+                              setState(() => p.lastName = val);
+                              _triggerAutoSave();
+                            },
                             decoration: InputDecoration(
                               filled: true,
                               fillColor: AppTheme.card,
@@ -453,7 +413,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     const SizedBox(height: 6),
                     TextFormField(
                       initialValue: p.email,
-                      onChanged: (val) => setState(() => p.email = val),
+                      onChanged: (val) {
+                        setState(() => p.email = val);
+                        _triggerAutoSave();
+                      },
                       decoration: InputDecoration(
                         filled: true,
                         fillColor: AppTheme.card,
@@ -480,7 +443,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     const SizedBox(height: 6),
                     TextFormField(
                       initialValue: p.birthDate,
-                      onChanged: (val) => setState(() => p.birthDate = val),
+                      onChanged: (val) {
+                        setState(() => p.birthDate = val);
+                        _triggerAutoSave();
+                      },
                       decoration: InputDecoration(
                         filled: true,
                         fillColor: AppTheme.card,
@@ -522,8 +488,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     children: [
                       // Notifications
                       ListTile(
-                        onTap: () => setState(() =>
-                            p.notificationsEnabled = !p.notificationsEnabled),
+                        onTap: () {
+                          setState(() => p.notificationsEnabled = !p.notificationsEnabled);
+                          _triggerAutoSave();
+                        },
                         leading: Container(
                           padding: const EdgeInsets.all(8),
                           decoration: BoxDecoration(
@@ -537,8 +505,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
                                 fontWeight: FontWeight.w500, fontSize: 14)),
                         trailing: Switch(
                           value: p.notificationsEnabled,
-                          onChanged: (val) =>
-                              setState(() => p.notificationsEnabled = val),
+                          onChanged: (val) {
+                            setState(() => p.notificationsEnabled = val);
+                            _triggerAutoSave();
+                          },
                           activeThumbColor: AppTheme.secondary,
                         ),
                       ),
@@ -588,12 +558,18 @@ class _ProfileScreenState extends State<ProfileScreen> {
                                   'metric',
                                   'Metric (kg, cm)',
                                   p.unitSystem,
-                                  (val) => setState(() => p.unitSystem = val!)),
+                                  (val) {
+                                    setState(() => p.unitSystem = val!);
+                                    _triggerAutoSave();
+                                  }),
                               _buildRadioItem(
                                   'imperial',
                                   'Imperial (lbs, ft)',
                                   p.unitSystem,
-                                  (val) => setState(() => p.unitSystem = val!)),
+                                  (val) {
+                                    setState(() => p.unitSystem = val!);
+                                    _triggerAutoSave();
+                                  }),
                             ],
                           ),
                         ),
@@ -637,9 +613,15 @@ class _ProfileScreenState extends State<ProfileScreen> {
                           child: Column(
                             children: [
                               _buildRadioItem('en', 'English', p.language,
-                                  (val) => setState(() => p.language = val!)),
+                                  (val) {
+                                    setState(() => p.language = val!);
+                                    _triggerAutoSave();
+                                  }),
                               _buildRadioItem('it', 'Italiano', p.language,
-                                  (val) => setState(() => p.language = val!)),
+                                  (val) {
+                                    setState(() => p.language = val!);
+                                    _triggerAutoSave();
+                                  }),
                             ],
                           ),
                         ),
@@ -758,8 +740,34 @@ class _DeviceManagementModal extends StatelessWidget {
   }
 
   void _connectDevice(
-      BuildContext context, String provider, String name, String type) {
-    // Simulate Connect
+      BuildContext context, String provider, String name, String type) async {
+    if (provider == 'health_connect') {
+      bool success = await HealthService().requestPermissions();
+      if (success) {
+        final state = Provider.of<AppState>(context, listen: false);
+        final p = state.userProfile!;
+        p.connectedDevices.add(ConnectedDevice(
+          id: '${provider}_${DateTime.now().millisecondsSinceEpoch}',
+          name: name,
+          provider: provider,
+          type: type,
+          status: 'connected',
+          lastSync: 'Adesso',
+        ));
+        state.updateProfile(p);
+        
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+            content: Text('Connesso con successo!'),
+            backgroundColor: AppTheme.success));
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+            content: Text('Permessi negati o errore di connessione.'),
+            backgroundColor: AppTheme.error));
+      }
+      return;
+    }
+
+    // Simulate Connect for other mocks
     final state = Provider.of<AppState>(context, listen: false);
     final p = state.userProfile!;
     p.connectedDevices.add(ConnectedDevice(
@@ -782,18 +790,11 @@ class _DeviceManagementModal extends StatelessWidget {
     // Providers standard definition
     final integrators = [
       {
-        'id': 'garmin',
-        'name': 'Garmin Connect',
+        'id': 'health_connect',
+        'name': Platform.isIOS ? 'Apple Health' : 'Google Health Connect',
         'type': 'api',
-        'color': const Color(0xFF007cc3),
-        'icon': Icons.show_chart
-      },
-      {
-        'id': 'whoop',
-        'name': 'Whoop',
-        'type': 'api',
-        'color': const Color(0xFFFF3B30),
-        'icon': Icons.show_chart
+        'color': Platform.isIOS ? const Color(0xFFFFFFFF) : const Color(0xFF4285F4),
+        'icon': Icons.favorite
       },
       {
         'id': 'polar',
@@ -801,20 +802,6 @@ class _DeviceManagementModal extends StatelessWidget {
         'type': 'ble',
         'color': const Color(0xFFE60012),
         'icon': Icons.favorite
-      },
-      {
-        'id': 'apple',
-        'name': 'Apple Health',
-        'type': 'api',
-        'color': const Color(0xFFFFFFFF),
-        'icon': Icons.favorite
-      },
-      {
-        'id': 'amazfit',
-        'name': 'Amazfit / Zepp',
-        'type': 'api',
-        'color': const Color(0xFF2ECC71),
-        'icon': Icons.watch
       },
       {
         'id': 'generic',

@@ -96,7 +96,18 @@ class _AuthScreenState extends State<AuthScreen> with SingleTickerProviderStateM
     try {
       final response = await appState.signInWithGoogle();
       if (response != null && response.user != null) {
-        _navigateToNext();
+        if (appState.isNewGoogleUser) {
+          setState(() {
+            _isLogin = false;
+            _signupStep = 4;
+            _firstNameCtrl.text = appState.userProfile?.firstName ?? '';
+            _lastNameCtrl.text = appState.userProfile?.lastName ?? '';
+            _emailCtrl.text = appState.userProfile?.email ?? '';
+            _animationController.forward(from: 0);
+          });
+        } else {
+          _navigateToNext();
+        }
       }
     } catch (e) {
       if (!mounted) return;

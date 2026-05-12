@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../core/theme.dart';
 import '../providers/app_state.dart';
@@ -10,6 +11,7 @@ import 'coach_athlete_detail_screen.dart';
 import 'activity_select.dart';
 import 'profile_screen.dart';
 import 'teams_screen.dart';
+
 
 class CoachDashboardScreen extends StatefulWidget {
   const CoachDashboardScreen({super.key});
@@ -573,15 +575,41 @@ class _CoachReportView extends StatefulWidget {
 
 class _CoachReportViewState extends State<_CoachReportView> {
   String _searchQuery = '';
-  bool _sortByHours = false;
+  bool _isLoading = true;
+  List<Map<String, dynamic>> _athletes = [];
 
-  final List<Map<String, dynamic>> _allAthletes = [
-    {'initial': 'S', 'name': 'Sarah Jenkins', 'extraHours': 1, 'attendance': '100%'},
-    {'initial': 'M', 'name': 'Mike Thompson', 'extraHours': 2, 'attendance': '95%'},
-    {'initial': 'A', 'name': 'Alex Rivera', 'extraHours': 0, 'attendance': '80%'},
-    {'initial': 'J', 'name': 'Jessica Lee', 'extraHours': 3, 'attendance': '100%'},
-    {'initial': 'D', 'name': 'Davide Rossi', 'extraHours': 1, 'attendance': '90%'},
-  ];
+
+  @override
+  void initState() {
+    super.initState();
+    _loadAthletes();
+  }
+
+  Future<void> _loadAthletes() async {
+    try {
+      final supabase = Supabase.instance.client;
+      // Load all profiles with role 'athlete'
+      final data = await supabase
+          .from('profiles')
+          .select('id, first_name, last_name, role')
+          .eq('role', 'athlete');
+      
+      if (mounted) {
+        setState(() {
+          _athletes = (data as List).map((p) => {
+            'id': p['id'] as String,
+            'name': '${p['first_name'] ?? ''} ${p['last_name'] ?? ''}'.trim(),
+            'initial': ((p['first_name'] as String? ?? 'A').isNotEmpty ? (p['first_name'] as String)[0] : 'A').toUpperCase(),
+          }).toList();
+          _isLoading = false;
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() => _isLoading = false);
+      }
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -602,27 +630,15 @@ class _CoachReportViewState extends State<_CoachReportView> {
                 Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    const Text('GIORNATE TOTALI', style: TextStyle(color: AppTheme.textMediumEmphasis, fontWeight: FontWeight.bold, fontSize: 12, letterSpacing: 1.2)),
+                    const Text('ATLETI TOTALI', style: TextStyle(color: AppTheme.textMediumEmphasis, fontWeight: FontWeight.bold, fontSize: 12, letterSpacing: 1.2)),
                     const SizedBox(height: 4),
-                    const Text('1', style: TextStyle(color: Colors.white, fontSize: 32, fontWeight: FontWeight.w900)),
-                    const SizedBox(height: 12),
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                      decoration: BoxDecoration(color: Colors.white.withValues(alpha: 0.05), borderRadius: BorderRadius.circular(6)),
-                      child: const Row(
-                        children: [
-                          Text('SL', style: TextStyle(color: AppTheme.textMediumEmphasis, fontWeight: FontWeight.bold, fontSize: 12)),
-                          SizedBox(width: 8),
-                          Text('1', style: TextStyle(color: AppTheme.primary, fontWeight: FontWeight.bold, fontSize: 12)),
-                        ],
-                      ),
-                    ),
+                    Text(_athletes.length.toString(), style: const TextStyle(color: Colors.white, fontSize: 32, fontWeight: FontWeight.w900)),
                   ],
                 ),
                 Container(
                   padding: const EdgeInsets.all(10),
                   decoration: BoxDecoration(color: AppTheme.background, borderRadius: BorderRadius.circular(12)),
-                  child: const Icon(Icons.calendar_month, color: AppTheme.primary),
+                  child: const Icon(Icons.people, color: AppTheme.primary),
                 ),
               ],
             ),
@@ -636,11 +652,7 @@ class _CoachReportViewState extends State<_CoachReportView> {
                   height: 48,
                   decoration: BoxDecoration(color: AppTheme.card, borderRadius: BorderRadius.circular(12)),
                   child: TextField(
-                    onChanged: (val) {
-                      setState(() {
-                        _searchQuery = val;
-                      });
-                    },
+                    onChanged: (val) => setState(() => _searchQuery = val),
                     style: const TextStyle(color: Colors.white),
                     decoration: const InputDecoration(
                       hintText: 'Cerca atleta...',
@@ -652,70 +664,58 @@ class _CoachReportViewState extends State<_CoachReportView> {
                   ),
                 ),
               ),
-              const SizedBox(width: 12),
-              GestureDetector(
-                onTap: () {
-                  setState(() {
-                    _sortByHours = !_sortByHours;
-                  });
-                },
-                child: Container(
-                  height: 48,
-                  padding: const EdgeInsets.symmetric(horizontal: 16),
-                  decoration: BoxDecoration(color: _sortByHours ? AppTheme.primary : AppTheme.card, borderRadius: BorderRadius.circular(12)),
-                  child: Row(
-                    children: [
-                      Icon(Icons.schedule, color: _sortByHours ? Colors.white : AppTheme.textMediumEmphasis, size: 16),
-                      const SizedBox(width: 8),
-                      Text('Ore', style: TextStyle(color: _sortByHours ? Colors.white : AppTheme.textMediumEmphasis, fontWeight: FontWeight.bold)),
-                    ],
-                  ),
-                ),
-              ),
             ],
           ),
           const SizedBox(height: 24),
           
           Row(
-            children: [
-              const Icon(Icons.people_outline, color: AppTheme.textMediumEmphasis, size: 16),
-              const SizedBox(width: 8),
-              const Text('ALPINE ELITE SQUAD', style: TextStyle(color: AppTheme.textMediumEmphasis, fontWeight: FontWeight.bold, fontSize: 12, letterSpacing: 1.2)),
+            children: const [
+              Icon(Icons.people_outline, color: AppTheme.textMediumEmphasis, size: 16),
+              SizedBox(width: 8),
+              Text('LISTA ATLETI', style: TextStyle(color: AppTheme.textMediumEmphasis, fontWeight: FontWeight.bold, fontSize: 12, letterSpacing: 1.2)),
             ],
           ),
           const SizedBox(height: 16),
-          ..._buildFilteredAthleteList(),
+
+          if (_isLoading)
+            const Center(child: CircularProgressIndicator(color: AppTheme.primary))
+          else if (_athletes.isEmpty)
+            Container(
+              padding: const EdgeInsets.all(32),
+              decoration: BoxDecoration(color: AppTheme.card, borderRadius: BorderRadius.circular(16)),
+              child: const Center(
+                child: Text('Nessun atleta trovato', style: TextStyle(color: AppTheme.textMediumEmphasis)),
+              ),
+            )
+          else
+            ..._buildFilteredAthleteList(),
         ],
       ),
     );
   }
 
   List<Widget> _buildFilteredAthleteList() {
-    var filtered = _allAthletes.where((a) {
+    var filtered = _athletes.where((a) {
       return a['name'].toString().toLowerCase().contains(_searchQuery.toLowerCase());
     }).toList();
-
-    if (_sortByHours) {
-      filtered.sort((a, b) => b['extraHours'].compareTo(a['extraHours']));
-    }
 
     return filtered.map((a) {
       return _buildAthleteItem(
         context,
-        a['initial'],
-        a['name'],
-        a['extraHours'],
-        a['attendance'],
+        a['initial'] as String,
+        a['name'] as String,
+        a['id'] as String,
       );
     }).toList();
   }
 
-  Widget _buildAthleteItem(BuildContext context, String initial, String name, int extraHours, String attendance) {
+  Widget _buildAthleteItem(BuildContext context, String initial, String name, String athleteId) {
     return GestureDetector(
       onTap: () {
         Navigator.push(context, MaterialPageRoute(builder: (_) => CoachAthleteDetailScreen(
           athleteName: name,
           initial: initial,
+          athleteId: athleteId,
         )));
       },
       child: Container(
@@ -736,18 +736,10 @@ class _CoachReportViewState extends State<_CoachReportView> {
                 children: [
                   Text(name, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16)),
                   const SizedBox(height: 4),
-                  Row(
-                    children: [
-                      const Icon(Icons.fitness_center, color: AppTheme.textMediumEmphasis, size: 12),
-                      const SizedBox(width: 4),
-                      Text('${extraHours}h Extra • $attendance Presenza', style: const TextStyle(color: AppTheme.textMediumEmphasis, fontSize: 13)),
-                    ],
-                  ),
+                  const Text('Tocca per vedere i dettagli', style: TextStyle(color: AppTheme.textMediumEmphasis, fontSize: 12)),
                 ],
               ),
             ),
-            Text('${3 + extraHours}h', style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 18)),
-            const SizedBox(width: 8),
             const Icon(Icons.chevron_right, color: AppTheme.textMediumEmphasis),
           ],
         ),
@@ -755,6 +747,7 @@ class _CoachReportViewState extends State<_CoachReportView> {
     );
   }
 }
+
 
 // ----------------------------------------------------
 // 3. TRAINING VIEW (Lista Eventi)

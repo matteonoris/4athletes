@@ -157,7 +157,8 @@ class _BodyMetricsScreenState extends State<BodyMetricsScreen> {
   @override
   Widget build(BuildContext context) {
     final appState = Provider.of<AppState>(context);
-    final logs = appState.bodyLogs.where((l) => l.type == _selectedType).toList();
+    final logs = appState.bodyLogs.where((l) => l.type == _selectedType).toList()
+      ..sort((a, b) => DateTime.parse(a.date).compareTo(DateTime.parse(b.date)));
     
     final now = DateTime.now();
     final cutoff = now.subtract(Duration(days: _selectedDays));

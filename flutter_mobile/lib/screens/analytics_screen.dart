@@ -344,32 +344,28 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
                 child: _MaxLoadCard(
                     title: 'Back Squat', 
                     val: user?.oneRepMax?['back_squat'] ?? 0, 
-                    unit: weightUnit, 
-                    hasPr: true),
+                    unit: weightUnit),
               ),
               GestureDetector(
                 onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const AnalyticsDetailsScreen(title: 'Deadlift', type: 'pr', exerciseId: 'deadlift'))),
                 child: _MaxLoadCard(
                     title: 'Deadlift', 
                     val: user?.oneRepMax?['deadlift'] ?? 0, 
-                    unit: weightUnit, 
-                    hasPr: false),
+                    unit: weightUnit),
               ),
               GestureDetector(
-                onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const AnalyticsDetailsScreen(title: 'Bench Press', type: 'pr', exerciseId: 'bench_press'))),
+                onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const AnalyticsDetailsScreen(title: 'Bench Press', type: 'pr', exerciseId: 'bp'))),
                 child: _MaxLoadCard(
                     title: 'Bench Press',
-                    val: user?.oneRepMax?['bench_press'] ?? 0,
-                    unit: weightUnit,
-                    hasPr: true),
+                    val: user?.oneRepMax?['bp'] ?? 0,
+                    unit: weightUnit),
               ),
               GestureDetector(
-                onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const AnalyticsDetailsScreen(title: 'Clean & Jerk', type: 'pr', exerciseId: 'clean_and_jerk'))),
+                onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const AnalyticsDetailsScreen(title: 'Clean & Jerk', type: 'pr', exerciseId: 'clean_jerk'))),
                 child: _MaxLoadCard(
                     title: 'Clean & Jerk',
-                    val: user?.oneRepMax?['clean_and_jerk'] ?? 0,
-                    unit: weightUnit,
-                    hasPr: false),
+                    val: user?.oneRepMax?['clean_jerk'] ?? 0,
+                    unit: weightUnit),
               ),
             ],
           ),
@@ -584,17 +580,16 @@ class _MaxLoadCard extends StatelessWidget {
   final String title;
   final double val;
   final String unit;
-  final bool hasPr;
 
   const _MaxLoadCard({
     required this.title,
     required this.val,
     required this.unit,
-    required this.hasPr,
   });
 
   @override
   Widget build(BuildContext context) {
+    final bool hasPr = val > 0;
     return CustomCard(
       padding: const EdgeInsets.all(12),
       child: Column(
@@ -631,13 +626,16 @@ class _MaxLoadCard extends StatelessWidget {
             text: TextSpan(
               children: [
                 TextSpan(
-                    text: val.toStringAsFixed(0),
-                    style: const TextStyle(
-                        fontSize: 20, fontWeight: FontWeight.bold)),
-                TextSpan(
-                    text: ' $unit',
-                    style: const TextStyle(
-                        fontSize: 12, color: AppTheme.textMediumEmphasis)),
+                    text: hasPr ? val.toStringAsFixed(0) : '--',
+                    style: TextStyle(
+                        fontSize: 20,
+                        fontWeight: FontWeight.bold,
+                        color: hasPr ? Colors.white : AppTheme.textMediumEmphasis)),
+                if (hasPr)
+                  TextSpan(
+                      text: ' $unit',
+                      style: const TextStyle(
+                          fontSize: 12, color: AppTheme.textMediumEmphasis)),
               ],
             ),
           ),

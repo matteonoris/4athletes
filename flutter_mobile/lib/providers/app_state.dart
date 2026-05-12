@@ -5,6 +5,7 @@ import 'dart:convert';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 import '../models/models.dart';
+import '../services/health_service.dart';
 
 class AppState extends ChangeNotifier {
   SharedPreferences? _prefs;
@@ -14,6 +15,9 @@ class AppState extends ChangeNotifier {
 
   bool _isInitialized = false;
   bool get isInitialized => _isInitialized;
+
+  bool _isNewGoogleUser = false;
+  bool get isNewGoogleUser => _isNewGoogleUser;
 
   bool _isLoggedIn = false;
   bool get isLoggedIn => _isLoggedIn;
@@ -52,6 +56,7 @@ class AppState extends ChangeNotifier {
 
     if (_isLoggedIn) {
       await _loadAllData();
+      await syncHealthWorkouts();
     }
 
     _isInitialized = true;
@@ -75,6 +80,7 @@ class AppState extends ChangeNotifier {
     _prefs!.setBool('isLoggedIn', true);
     await _saveUserProfile();
     await _loadAllData();
+    await syncHealthWorkouts();
     notifyListeners();
   }
 
@@ -124,16 +130,17 @@ class AppState extends ChangeNotifier {
         final profileData = await _supabase.from('profiles').select().eq('id', userId).maybeSingle();
         
         if (profileData == null) {
-          // Create new profile for first-time login
-          final newUserProfile = UserProfile(
+          _isNewGoogleUser = true;
+          // Create a temp profile to be completed
+          _userProfile = UserProfile(
             firstName: googleUser.displayName?.split(' ').first ?? 'New',
             lastName: googleUser.displayName?.split(' ').last ?? 'User',
             email: googleUser.email,
-            birthDate: '2000-01-01',
+            birthDate: '', // Empty, so it can be requested
             role: 'athlete',
-            weight: 70.0,
-            height: 175.0,
-            maxHr: 190,
+            weight: 0.0,
+            height: 0.0,
+            maxHr: 0,
             avatarUrl: googleUser.photoUrl ?? '',
             unitSystem: 'metric',
             language: 'it',
@@ -141,22 +148,9 @@ class AppState extends ChangeNotifier {
             connectedDevices: [],
             oneRepMax: {},
           );
-          
-          await _supabase.from('profiles').insert({
-            'id': userId,
-            'first_name': newUserProfile.firstName,
-            'last_name': newUserProfile.lastName,
-            'email': newUserProfile.email,
-            'birth_date': newUserProfile.birthDate,
-            'role': newUserProfile.role,
-            'weight': newUserProfile.weight,
-            'height': newUserProfile.height,
-            'max_hr': newUserProfile.maxHr,
-            'avatar_url': newUserProfile.avatarUrl,
-          });
-          
-          _userProfile = newUserProfile;
+          // Do NOT save to db or set isLoggedIn=true yet
         } else {
+          _isNewGoogleUser = false;
           // Load existing profile
           _userProfile = UserProfile(
             firstName: profileData['first_name'] ?? '',
@@ -174,11 +168,11 @@ class AppState extends ChangeNotifier {
             connectedDevices: [],
             oneRepMax: {},
           );
+          _isLoggedIn = true;
+          _prefs!.setBool('isLoggedIn', true);
+          await _loadAllData();
+          await syncHealthWorkouts();
         }
-
-        _isLoggedIn = true;
-        _prefs!.setBool('isLoggedIn', true);
-        await _loadAllData();
         notifyListeners();
       }
       
@@ -446,6 +440,87 @@ class AppState extends ChangeNotifier {
     }
   }
 
+  /// Load sessions for a specific athlete (used by coaches to view athlete details)
+  Future<List<TrainingSession>> loadSessionsForAthlete(String athleteId) async {
+    try {
+      final data = await _supabase
+          .from('training_sessions')
+          .select()
+          .eq('user_id', athleteId)
+          .order('date', ascending: false);
+      return (data as List).map((e) => TrainingSession(
+        id: e['id'],
+        sportId: e['sport_id'],
+        date: e['date'],
+        startTime: e['start_time'],
+        endTime: e['end_time'],
+        duration: e['duration'],
+        effort: e['effort'],
+        eventId: e['event_id'],
+        details: e['details'],
+      )).toList();
+    } catch (e) {
+      debugPrint('Error loading sessions for athlete $athleteId: $e');
+      return [];
+    }
+  }
+
+  /// Load the profile of a specific athlete (used by coaches)
+  Future<UserProfile?> loadAthleteProfile(String athleteId) async {
+    try {
+      final data = await _supabase.from('profiles').select().eq('id', athleteId).maybeSingle();
+      if (data == null) return null;
+      return UserProfile(
+        firstName: data['first_name'] ?? '',
+        lastName: data['last_name'] ?? '',
+        email: data['email'] ?? '',
+        birthDate: data['birth_date'] ?? '2000-01-01',
+        role: data['role'] ?? 'athlete',
+        weight: (data['weight'] as num?)?.toDouble() ?? 70.0,
+        height: (data['height'] as num?)?.toDouble() ?? 175.0,
+        maxHr: data['max_hr'] ?? 190,
+        avatarUrl: data['avatar_url'] ?? '',
+        skiClub: data['ski_club'],
+        gender: data['gender'],
+        skillLevel: data['skill_level'],
+        oneRepMax: data['one_rep_max'] != null
+            ? Map<String, double>.from(data['one_rep_max'].map((k, v) => MapEntry(k.toString(), (v as num).toDouble())))
+            : null,
+        connectedDevices: [],
+        unitSystem: 'metric',
+        language: 'it',
+        notificationsEnabled: false,
+      );
+    } catch (e) {
+      debugPrint('Error loading athlete profile $athleteId: $e');
+      return null;
+    }
+  }
+
+  Future<void> syncHealthWorkouts() async {
+    if (_userProfile == null) return;
+    
+    // Check if health connect is enabled in user profile
+    final hasHealthConnect = _userProfile!.connectedDevices.any((d) => d.provider == 'health_connect');
+    if (!hasHealthConnect) return;
+
+    try {
+      final healthSessions = await HealthService().fetchRecentWorkouts(days: 7);
+      
+      for (var session in healthSessions) {
+        // Check if session already exists by external_id
+        final exists = _sessions.any((s) => 
+            s.details != null && s.details!['external_id'] == session.details!['external_id']);
+            
+        if (!exists) {
+          addSession(session);
+        }
+      }
+    } catch (e) {
+      debugPrint('Error syncing health workouts: $e');
+    }
+  }
+
   void addBodyLog(BodyMetricLog log) async {
     try {
       final response = await _supabase.from('body_metric_logs').insert({
@@ -495,12 +570,12 @@ class AppState extends ChangeNotifier {
       _prLogs.add(log);
       _prLogs.sort((a, b) => a.date.compareTo(b.date));
 
-      if (_userProfile!.oneRepMax != null) {
-        final currentMax = _userProfile!.oneRepMax![log.exerciseId] ?? 0.0;
-        if (log.weight > currentMax) {
-          _userProfile!.oneRepMax![log.exerciseId] = log.weight;
-          _saveUserProfile();
-        }
+      // Initialize oneRepMax map if null
+      _userProfile!.oneRepMax ??= {};
+      final currentMax = _userProfile!.oneRepMax![log.exerciseId] ?? 0.0;
+      if (log.weight > currentMax) {
+        _userProfile!.oneRepMax![log.exerciseId] = log.weight;
+        _saveUserProfile();
       }
       notifyListeners();
     } catch (e) {
@@ -510,8 +585,25 @@ class AppState extends ChangeNotifier {
 
   void deletePRLog(String id) async {
     try {
+      // Find which exercise this log belongs to before deleting
+      final deletedLog = _prLogs.firstWhere((l) => l.id == id, orElse: () => PRLog(id: '', exerciseId: '', date: '', weight: 0));
+      final exerciseId = deletedLog.exerciseId;
+
       await _supabase.from('pr_logs').delete().eq('id', id);
       _prLogs.removeWhere((l) => l.id == id);
+
+      // Recalculate max for this exercise from remaining logs
+      if (exerciseId.isNotEmpty && _userProfile != null) {
+        _userProfile!.oneRepMax ??= {};
+        final remaining = _prLogs.where((l) => l.exerciseId == exerciseId).toList();
+        if (remaining.isEmpty) {
+          _userProfile!.oneRepMax!.remove(exerciseId);
+        } else {
+          final newMax = remaining.map((l) => l.weight).reduce((a, b) => a > b ? a : b);
+          _userProfile!.oneRepMax![exerciseId] = newMax;
+        }
+        _saveUserProfile();
+      }
       notifyListeners();
     } catch (e) {
       debugPrint('Error deleting PR log: $e');

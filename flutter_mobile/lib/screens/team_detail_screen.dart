@@ -49,20 +49,32 @@ class _TeamDetailScreenState extends State<TeamDetailScreen> {
   double _parseDurationToHours(String duration) {
     if (duration.isEmpty) return 0.0;
     try {
-      if (duration.contains(':')) {
+      if (duration.contains('h')) {
+        // e.g. "1h 30m"
+        final parts = duration.split('h');
+        double hours = double.parse(parts[0].replaceAll(RegExp(r'[^0-9.]'), ''));
+        double mins = 0.0;
+        if (parts.length > 1 && parts[1].isNotEmpty) {
+          String minStr = parts[1].replaceAll(RegExp(r'[^0-9.]'), '');
+          if (minStr.isNotEmpty) {
+            mins = double.parse(minStr);
+          }
+        }
+        return hours + (mins / 60.0);
+      } else if (duration.contains(':')) {
         final parts = duration.split(':');
         if (parts.length >= 2) {
           return double.parse(parts[0]) + (double.parse(parts[1]) / 60.0);
         }
-      } else if (duration.toLowerCase().contains('min')) {
+      } else if (duration.toLowerCase().contains('min') || duration.toLowerCase().contains('m')) {
         String numStr = duration.replaceAll(RegExp(r'[^0-9.]'), '');
         return double.parse(numStr) / 60.0;
       } else {
         String numStr = duration.replaceAll(RegExp(r'[^0-9.]'), '');
-        return double.parse(numStr);
+        return double.parse(numStr) / 60.0; // Assume minutes if no unit is provided
       }
     } catch (_) {}
-    return 1.0;
+    return 0.0;
   }
 
   void _generateTeamData(AppState appState) {

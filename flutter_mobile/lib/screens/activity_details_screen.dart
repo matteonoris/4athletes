@@ -65,9 +65,47 @@ class ActivityDetailsScreen extends StatelessWidget {
             ],
           );
         } else if (e.value is List) {
-          final listStr = (e.value as List).join(', ');
-          return _buildDetailRow(context, _formatKey(e.key),
-              listStr.isEmpty ? 'Nessuno' : listStr);
+          final list = e.value as List;
+          if (list.isNotEmpty && list.first is Map) {
+            return Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const SizedBox(height: 12),
+                Text(_formatKey(e.key), style: const TextStyle(fontWeight: FontWeight.bold, color: AppTheme.secondary)),
+                const SizedBox(height: 8),
+                ...list.map((item) {
+                  final mapItem = item as Map<String, dynamic>;
+                  if (mapItem.containsKey('name') && mapItem.containsKey('sets')) {
+                    final sets = mapItem['sets'] as List;
+                    return Padding(
+                      padding: const EdgeInsets.only(bottom: 12.0),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text('- ${mapItem['name']}', style: const TextStyle(fontWeight: FontWeight.bold)),
+                          ...sets.asMap().entries.map((setEntry) {
+                            final setIdx = setEntry.key;
+                            final setVal = setEntry.value as Map<String, dynamic>;
+                            return Padding(
+                              padding: const EdgeInsets.only(left: 16.0, top: 4.0),
+                              child: Text('Set ${setIdx + 1}: ${setVal['kg']} kg x ${setVal['reps']} reps', style: const TextStyle(fontSize: 12, color: AppTheme.textMediumEmphasis)),
+                            );
+                          }),
+                        ],
+                      ),
+                    );
+                  }
+                  return Padding(
+                    padding: const EdgeInsets.only(bottom: 8.0, left: 16.0),
+                    child: _buildDetailsMap(context, mapItem),
+                  );
+                }),
+              ],
+            );
+          } else {
+            final listStr = list.join(', ');
+            return _buildDetailRow(context, _formatKey(e.key), listStr.isEmpty ? 'Nessuno' : listStr);
+          }
         }
         return _buildDetailRow(context, _formatKey(e.key), e.value.toString());
       }).toList(),

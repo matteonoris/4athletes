@@ -47,14 +47,14 @@ class _AddTrainingScreenState extends State<AddTrainingScreen> {
 
 
   // Running
-  String _runDistance = '';
-  String _runPace = '';
-  String _runAvgHr = '';
-  String _runMaxHr = '';
-  String _runElevation = '';
-  String _runCadence = '';
-
-  String _runSurface = '';
+  // Endurance
+  String _enduranceDistance = '';
+  String _endurancePace = '';
+  String _enduranceAvgHr = '';
+  String _enduranceMaxHr = '';
+  String _enduranceElevation = '';
+  String _enduranceCadence = '';
+  String _enduranceSurface = '';
 
   // Football
   // String _fbType = 'training'; // match or training
@@ -113,17 +113,28 @@ class _AddTrainingScreenState extends State<AddTrainingScreen> {
       }
     }
 
-    if (init?.details != null && init!.sportId == 'alpine_skiing') {
-      if (init.details!['specialties'] != null) {
-        _specialties.addAll(List<String>.from(init.details!['specialties']));
-      }
-      if (init.details!['freeSkiing'] != null) {
-        _freeSkiingLaps = init.details!['freeSkiing']['laps']?.toString() ?? '';
-        _freeSkiingChanges = init.details!['freeSkiing']['changes']?.toString() ?? '';
-      }
-      if (init.details!['gatedSkiing'] != null) {
-        _gatedSkiingLaps = init.details!['gatedSkiing']['laps']?.toString() ?? '';
-        _gatedSkiingChanges = init.details!['gatedSkiing']['changes']?.toString() ?? '';
+    if (init?.details != null) {
+      final d = init!.details!;
+      _enduranceDistance = d['distance']?.toString().replaceAll(' km', '') ?? '';
+      _endurancePace = d['pace']?.toString().replaceAll(' /km', '').replaceAll(' km/h', '') ?? '';
+      _enduranceAvgHr = d['avgHeartRate']?.toString().replaceAll(' bpm', '') ?? '';
+      _enduranceMaxHr = d['maxHeartRate']?.toString().replaceAll(' bpm', '') ?? '';
+      _enduranceElevation = d['elevation']?.toString().replaceAll(' m', '') ?? '';
+      _enduranceCadence = d['cadence']?.toString().replaceAll(' spm', '').replaceAll(' rpm', '') ?? '';
+      _enduranceSurface = d['surface']?.toString() ?? '';
+
+      if (init.sportId == 'alpine_skiing') {
+        if (d['specialties'] != null) {
+          _specialties.addAll(List<String>.from(d['specialties']));
+        }
+        if (d['freeSkiing'] != null) {
+          _freeSkiingLaps = d['freeSkiing']['laps']?.toString() ?? '';
+          _freeSkiingChanges = d['freeSkiing']['changes']?.toString() ?? '';
+        }
+        if (d['gatedSkiing'] != null) {
+          _gatedSkiingLaps = d['gatedSkiing']['laps']?.toString() ?? '';
+          _gatedSkiingChanges = d['gatedSkiing']['changes']?.toString() ?? '';
+        }
       }
     }
   }
@@ -180,6 +191,14 @@ class _AddTrainingScreenState extends State<AddTrainingScreen> {
     // ignore: unused_local_variable
     final isAthletic = ['athletic_prep', 'other'].contains(widget.sportId);
 
+    final enduranceSports = [
+      'running', 'cycling', 'marathon', 'triathlon', 'rowing', 'hiking', 
+      'walking', 'trail_running', 'cross_country_skiing', 'swimming', 'spinning'
+    ];
+    final isEndurance = enduranceSports.contains(widget.sportId) || 
+                       widget.sportId.contains('running') || 
+                       widget.sportId.contains('cycling');
+
     // Map raw pain zones back
     final formattedPainZones = _painZones
         .map((z) => z == 'Altro' ? 'Altro: $_otherPain' : z)
@@ -198,6 +217,18 @@ class _AddTrainingScreenState extends State<AddTrainingScreen> {
         },
       if (isSkiing) 'snowCondition': _snowCondition,
       if (isSkiing) 'weatherCondition': _weatherCondition,
+      if (isEndurance) 'distance': _enduranceDistance.isNotEmpty ? '$_enduranceDistance km' : null,
+      if (isEndurance) 'pace': _endurancePace.isNotEmpty ? '$_endurancePace ${isRunning ? "/km" : "km/h"}' : null,
+      if (isEndurance) 'avgHeartRate': _enduranceAvgHr.isNotEmpty ? '$_enduranceAvgHr bpm' : null,
+      if (isEndurance) 'maxHeartRate': _enduranceMaxHr.isNotEmpty ? '$_enduranceMaxHr bpm' : null,
+      if (isEndurance) 'elevation': _enduranceElevation.isNotEmpty ? '$_enduranceElevation m' : null,
+      if (isEndurance) 'cadence': _enduranceCadence.isNotEmpty ? '$_enduranceCadence ${isRunning ? "spm" : "rpm"}' : null,
+      if (isEndurance) 'surface': _enduranceSurface.isNotEmpty ? _enduranceSurface : null,
+      // Weightlifting / powerlifting / crossfit / bodybuilding exercises
+      if (isWeightlifting && _wlExercises.isNotEmpty) 'exercises': _wlExercises,
+      // Athletic prep / stretching exercises
+      if (isAthletic && _athleticExercises.isNotEmpty) 'exercises': _athleticExercises,
+      if (isStretching && _stretchExercises.isNotEmpty) 'exercises': _stretchExercises,
     };
 
     final session = TrainingSession(
@@ -337,23 +368,23 @@ class _AddTrainingScreenState extends State<AddTrainingScreen> {
     // sport parameter provided directly by widget
 
     final isSkiing = widget.sportId == 'alpine_skiing';
-    final isRunning =
-        widget.sportId.contains('running') || widget.sportId == 'track_field';
+    final enduranceSports = [
+      'running', 'cycling', 'marathon', 'triathlon', 'rowing', 'hiking', 
+      'walking', 'trail_running', 'cross_country_skiing', 'swimming', 'spinning'
+    ];
+    final isRunning = widget.sportId.contains('running') || widget.sportId == 'track_field';
+    final isEndurance = enduranceSports.contains(widget.sportId) || 
+                       widget.sportId.contains('running') || 
+                       widget.sportId.contains('cycling');
+    final isCycling = widget.sportId.contains('cycling') || widget.sportId == 'spinning';
     final isWeightlifting = [
       'weightlifting',
       'powerlifting',
       'crossfit',
       'bodybuilding'
     ].contains(widget.sportId);
-    // ignore: unused_local_variable
-    final isFootball =
-        ['soccer', 'am_football', 'rugby'].contains(widget.sportId);
-    // ignore: unused_local_variable
-    final isTennis =
-        ['tennis', 'padel', 'pickleball', 'squash'].contains(widget.sportId);
-    // ignore: unused_local_variable
-    final isCycling =
-        widget.sportId.contains('cycling') || widget.sportId == 'spinning';
+    final isFootball = ['soccer', 'am_football', 'rugby'].contains(widget.sportId);
+    final isTennis = ['tennis', 'padel', 'pickleball', 'squash'].contains(widget.sportId);
     final isStretching =
         ['stretching', 'yoga', 'pilates'].contains(widget.sportId);
     final isAthletic = ['athletic_prep', 'other'].contains(widget.sportId);
@@ -434,6 +465,9 @@ class _AddTrainingScreenState extends State<AddTrainingScreen> {
                             onTap: () async {
                               HapticFeedback.lightImpact();
                               final t = await showTimePicker(
+                                context: context,
+                                initialTime: _startTime,
+                              );
                               if (t != null) setState(() => _startTime = t);
                             },
                           ),
@@ -455,6 +489,9 @@ class _AddTrainingScreenState extends State<AddTrainingScreen> {
                             onTap: () async {
                               HapticFeedback.lightImpact();
                               final t = await showTimePicker(
+                                context: context,
+                                initialTime: _endTime,
+                              );
                               if (t != null) setState(() => _endTime = t);
                             },
                           ),
@@ -469,35 +506,35 @@ class _AddTrainingScreenState extends State<AddTrainingScreen> {
 
               // ================= SPORT SPECIFIC SECTIONS ================= //
 
-              if (isRunning) ...[
-                const Text('Dettagli Corsa',
+              if (isEndurance) ...[
+                const Text('Dettagli Resistenza',
                     style:
                         TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
                 const SizedBox(height: 12),
                 Row(
                   children: [
                     Expanded(
-                        child: _buildField('DISTANZA', _runDistance,
-                            (v) => setState(() => _runDistance = v),
+                        child: _buildField('DISTANZA', _enduranceDistance,
+                            (v) => setState(() => _enduranceDistance = v),
                             type: TextInputType.number, suffix: 'km')),
                     const SizedBox(width: 12),
                     Expanded(
-                        child: _buildField('PASSO MEDIO', _runPace,
-                            (v) => setState(() => _runPace = v),
-                            suffix: '/km')),
+                        child: _buildField(isRunning ? 'PASSO MEDIO' : 'VELOCITÀ MEDIA', _endurancePace,
+                            (v) => setState(() => _endurancePace = v),
+                            suffix: isRunning ? '/km' : 'km/h')),
                   ],
                 ),
                 const SizedBox(height: 12),
                 Row(
                   children: [
                     Expanded(
-                        child: _buildField('FC MEDIA', _runAvgHr,
-                            (v) => setState(() => _runAvgHr = v),
+                        child: _buildField('FC MEDIA', _enduranceAvgHr,
+                            (v) => setState(() => _enduranceAvgHr = v),
                             type: TextInputType.number, suffix: 'bpm')),
                     const SizedBox(width: 12),
                     Expanded(
-                        child: _buildField('FC MAX', _runMaxHr,
-                            (v) => setState(() => _runMaxHr = v),
+                        child: _buildField('FC MAX', _enduranceMaxHr,
+                            (v) => setState(() => _enduranceMaxHr = v),
                             type: TextInputType.number, suffix: 'bpm')),
                   ],
                 ),
@@ -505,24 +542,25 @@ class _AddTrainingScreenState extends State<AddTrainingScreen> {
                 Row(
                   children: [
                     Expanded(
-                        child: _buildField('DISLIVELLO', _runElevation,
-                            (v) => setState(() => _runElevation = v),
+                        child: _buildField('DISLIVELLO', _enduranceElevation,
+                            (v) => setState(() => _enduranceElevation = v),
                             type: TextInputType.number, suffix: 'm')),
                     const SizedBox(width: 12),
                     Expanded(
-                        child: _buildField('CADENZA', _runCadence,
-                            (v) => setState(() => _runCadence = v),
-                            type: TextInputType.number, suffix: 'spm')),
+                        child: _buildField(isRunning ? 'CADENZA' : 'CADENZA MEDIA', _enduranceCadence,
+                            (v) => setState(() => _enduranceCadence = v),
+                            type: TextInputType.number, suffix: isRunning ? 'spm' : 'rpm')),
                   ],
                 ),
                 const SizedBox(height: 12),
                 _buildChoiceChips(
-                    'SUPERFICIE',
-                    ['Asfalto', 'Sterrato', 'Misto', 'Pista', 'Tapis Roulant'],
-                    _runSurface,
-                    (v) => setState(() => _runSurface = v)),
+                    'SUPERFICIE / TERRENO',
+                    ['Asfalto', 'Sterrato', 'Misto', 'Pista', 'Tapis Roulant', 'Sentiero', 'Indoor'],
+                    _enduranceSurface,
+                    (v) => setState(() => _enduranceSurface = v)),
                 const SizedBox(height: 24),
               ],
+
 
               if (isSkiing) ...[
                 const Text('Dettagli Sci',
@@ -651,11 +689,41 @@ class _AddTrainingScreenState extends State<AddTrainingScreen> {
                               mainAxisAlignment: MainAxisAlignment.spaceBetween,
                               children: [
                                 Text(ex['name'], style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
-                                IconButton(
-                                  icon: const Icon(Icons.delete_outline, size: 20, color: AppTheme.textMediumEmphasis),
-                                  padding: EdgeInsets.zero,
-                                  constraints: const BoxConstraints(),
-                                  onPressed: () => setState(() => _wlExercises.removeAt(exIdx)),
+                                Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    if (exIdx > 0)
+                                      IconButton(
+                                        icon: const Icon(Icons.keyboard_arrow_up, size: 20, color: AppTheme.textMediumEmphasis),
+                                        padding: EdgeInsets.zero,
+                                        constraints: const BoxConstraints(),
+                                        onPressed: () {
+                                          setState(() {
+                                            final item = _wlExercises.removeAt(exIdx);
+                                            _wlExercises.insert(exIdx - 1, item);
+                                          });
+                                        },
+                                      ),
+                                    if (exIdx < _wlExercises.length - 1)
+                                      IconButton(
+                                        icon: const Icon(Icons.keyboard_arrow_down, size: 20, color: AppTheme.textMediumEmphasis),
+                                        padding: EdgeInsets.zero,
+                                        constraints: const BoxConstraints(),
+                                        onPressed: () {
+                                          setState(() {
+                                            final item = _wlExercises.removeAt(exIdx);
+                                            _wlExercises.insert(exIdx + 1, item);
+                                          });
+                                        },
+                                      ),
+                                    const SizedBox(width: 8),
+                                    IconButton(
+                                      icon: const Icon(Icons.delete_outline, size: 20, color: AppTheme.textMediumEmphasis),
+                                      padding: EdgeInsets.zero,
+                                      constraints: const BoxConstraints(),
+                                      onPressed: () => setState(() => _wlExercises.removeAt(exIdx)),
+                                    ),
+                                  ],
                                 )
                               ],
                             ),
@@ -703,6 +771,7 @@ class _AddTrainingScreenState extends State<AddTrainingScreen> {
                                           child: SizedBox(
                                             height: 36,
                                             child: TextFormField(
+                                              initialValue: setMap['kg'] > 0 ? setMap['kg'].toString() : '',
                                               keyboardType: const TextInputType.numberWithOptions(decimal: true),
                                               textAlign: TextAlign.center,
                                               style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold),
@@ -726,6 +795,7 @@ class _AddTrainingScreenState extends State<AddTrainingScreen> {
                                           child: SizedBox(
                                             height: 36,
                                             child: TextFormField(
+                                              initialValue: setMap['reps'] > 0 ? setMap['reps'].toString() : '',
                                               keyboardType: TextInputType.number,
                                               textAlign: TextAlign.center,
                                               style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold),
