@@ -1,0 +1,6 @@
+Benvenuto in 4athletes — la prima beta pubblica.
+
+• Accedi con Google o email + password.
+• Modalità Atleta: registra sessioni, record personali, metriche fisiche e dati sui salti.
+• Modalità Allenatore: gestisci i team, pianifica le sessioni sul calendario condiviso e segui i progressi degli atleti.
+• Importazione opzionale degli allenamenti da Apple Health.

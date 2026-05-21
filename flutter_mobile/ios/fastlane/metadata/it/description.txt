@@ -1,0 +1,26 @@
+4athletes è l'app di allenamento per gli atleti e gli allenatori che si allenano insieme.
+
+Gli atleti registrano ogni sessione, segnano i record personali e vedono i propri progressi crescere nel tempo. Gli allenatori vedono gli stessi dati in tempo reale, pianificano le sessioni di squadra e mantengono ogni atleta nella stessa direzione. Un'app, due viste, zero fogli di calcolo.
+
+PER GLI ATLETI
+• Registra sessioni di forza, condizione e sport-specifiche.
+• Tieni traccia di serie, ripetizioni, carichi, RPE e note per ogni esercizio.
+• Salva i record personali e guarda salire il tuo massimale.
+• Registra le metriche fisiche — peso, altezza e altro — nel tempo.
+• Salva i dati dei salti e analizza la tua esplosività.
+• Importa automaticamente gli allenamenti da Apple Health (opzionale).
+• Esplora i trend in grafici: storico dei record, volume settimanale, carico di allenamento.
+
+PER GLI ALLENATORI
+• Gestisci uno o più team da un'unica dashboard.
+• Pianifica le sessioni sul calendario condiviso con i tuoi atleti.
+• Entra nel profilo di ogni atleta per rivedere sessioni, record e metriche.
+• Invia comunicazioni e tieni sotto controllo ogni team che alleni.
+
+UNA SOLA SQUADRA, UNA SOLA PIATTAFORMA
+Atleti e allenatori entrano nella stessa app e scelgono il proprio ruolo all'onboarding. Gli atleti vivono un'esperienza pensata per l'allenamento; gli allenatori ottengono gli strumenti di pianificazione e analisi che servono. I dati passano automaticamente dai log dell'atleta alla dashboard dell'allenatore — niente più screenshot, fogli o chat.
+
+PRIVACY AL CENTRO
+I tuoi dati di allenamento sono tuoi. Accedi con email o Google. L'importazione da Apple Health è opzionale e si attiva solo se la abiliti tu. Gli allenatori vedono solo gli atleti del proprio team.
+
+Pensato per allenarsi sul serio. Provalo gratis.
