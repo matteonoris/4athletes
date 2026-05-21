@@ -760,7 +760,7 @@ class _DashboardViewState extends State<_DashboardView> {
             const SizedBox(height: 24),
 
             // Height Chart
-            if (heightLogs.isNotEmpty)
+            if (heightLogs.isNotEmpty && user.age < 18)
             GestureDetector(
                 onTap: () => Navigator.push(
                   context,

@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:phosphor_flutter/phosphor_flutter.dart';
+import 'package:provider/provider.dart';
 
 import '../core/theme.dart';
 import '../models/models.dart';
+import '../providers/app_state.dart';
 import '../widgets/custom_card.dart';
 import 'add_training_screen.dart';
 
@@ -11,8 +13,9 @@ class ActivityDetailsScreen extends StatelessWidget {
   /// Optional: display name for the sport (e.g. "POWERLIFTING").
   /// If not provided it is derived from sportId.
   final String? sportName;
+  final List<PRLog>? prLogs;
 
-  const ActivityDetailsScreen({super.key, required this.session, this.sportName});
+  const ActivityDetailsScreen({super.key, required this.session, this.sportName, this.prLogs});
 
   String _formatKey(String key) {
     // Basic formatting for camelCase keys
@@ -43,7 +46,7 @@ class ActivityDetailsScreen extends StatelessWidget {
     );
   }
 
-  Widget _buildDetailsMap(BuildContext context, Map<String, dynamic> data) {
+  Widget _buildDetailsMap(BuildContext context, Map<String, dynamic> data, List<PRLog> prLogs) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: data.entries.map((e) {
@@ -64,7 +67,7 @@ class ActivityDetailsScreen extends StatelessWidget {
                       left: BorderSide(color: AppTheme.secondary, width: 2)),
                 ),
                 child:
-                    _buildDetailsMap(context, e.value as Map<String, dynamic>),
+                    _buildDetailsMap(context, e.value as Map<String, dynamic>, prLogs),
               ),
             ],
           );
@@ -81,6 +84,15 @@ class ActivityDetailsScreen extends StatelessWidget {
                   final mapItem = item as Map<String, dynamic>;
                   if (mapItem.containsKey('name') && mapItem.containsKey('sets')) {
                     final sets = mapItem['sets'] as List;
+                    final exerciseId = mapItem['id'] ?? '';
+                    final exercisePrLogs = prLogs
+                        .where((l) => l.exerciseId == exerciseId)
+                        .toList()
+                      ..sort((a, b) => b.date.compareTo(a.date));
+                    final double maxLoad = exercisePrLogs.isNotEmpty
+                        ? exercisePrLogs.first.weight
+                        : 0.0;
+
                     return Padding(
                       padding: const EdgeInsets.only(bottom: 12.0),
                       child: Column(
@@ -90,9 +102,14 @@ class ActivityDetailsScreen extends StatelessWidget {
                           ...sets.asMap().entries.map((setEntry) {
                             final setIdx = setEntry.key;
                             final setVal = setEntry.value as Map<String, dynamic>;
+                            final load = (setVal['kg'] as num?)?.toDouble() ?? 0.0;
+                            String pctStr = '';
+                            if (maxLoad > 0 && load > 0) {
+                              pctStr = ' (${((load / maxLoad) * 100).toStringAsFixed(0)}% 1RM)';
+                            }
                             return Padding(
                               padding: const EdgeInsets.only(left: 16.0, top: 4.0),
-                              child: Text('Set ${setIdx + 1}: ${setVal['kg']} kg x ${setVal['reps']} reps', style: const TextStyle(fontSize: 12, color: AppTheme.textMediumEmphasis)),
+                              child: Text('Set ${setIdx + 1}: ${setVal['kg']} kg x ${setVal['reps']} reps$pctStr', style: const TextStyle(fontSize: 12, color: AppTheme.textMediumEmphasis)),
                             );
                           }),
                         ],
@@ -101,7 +118,7 @@ class ActivityDetailsScreen extends StatelessWidget {
                   }
                   return Padding(
                     padding: const EdgeInsets.only(bottom: 8.0, left: 16.0),
-                    child: _buildDetailsMap(context, mapItem),
+                    child: _buildDetailsMap(context, mapItem, prLogs),
                   );
                 }),
               ],
@@ -221,7 +238,7 @@ class ActivityDetailsScreen extends StatelessWidget {
                       style:
                           TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
                   const SizedBox(height: 16),
-                  _buildDetailsMap(context, session.details!),
+                  _buildDetailsMap(context, session.details!, prLogs ?? Provider.of<AppState>(context, listen: false).prLogs),
                 ],
               ),
             ),

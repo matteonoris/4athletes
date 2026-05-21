@@ -61,6 +61,7 @@ class UserProfile {
   String? skillLevel;
   List<ConnectedDevice> connectedDevices;
   Map<String, double>? oneRepMax;
+  String? teamId;
 
   UserProfile({
     required this.firstName,
@@ -80,6 +81,7 @@ class UserProfile {
     this.skillLevel,
     required this.connectedDevices,
     this.oneRepMax,
+    this.teamId,
   });
 
   UserProfile copyWith({
@@ -100,6 +102,7 @@ class UserProfile {
     String? skillLevel,
     List<ConnectedDevice>? connectedDevices,
     Map<String, double>? oneRepMax,
+    String? teamId,
   }) {
     return UserProfile(
       firstName: firstName ?? this.firstName,
@@ -120,6 +123,7 @@ class UserProfile {
       connectedDevices: connectedDevices ?? List.from(this.connectedDevices),
       oneRepMax: oneRepMax ??
           (this.oneRepMax != null ? Map.from(this.oneRepMax!) : null),
+      teamId: teamId ?? this.teamId,
     );
   }
 
@@ -163,6 +167,7 @@ class UserProfile {
           ? Map<String, double>.from((json['oneRepMax'] as Map)
               .map((k, v) => MapEntry(k.toString(), (v as num).toDouble())))
           : null,
+      teamId: json['teamId'],
     );
   }
 
@@ -184,6 +189,7 @@ class UserProfile {
         'skillLevel': skillLevel,
         'connectedDevices': connectedDevices.map((e) => e.toJson()).toList(),
         'oneRepMax': oneRepMax,
+        'teamId': teamId,
       };
 }
 
@@ -337,6 +343,8 @@ class CalendarEvent {
   String endTime;
   String? location;
   String? notes;
+  String? sportCategory; // 'ski' | 'dryland'
+  String? drylandSpecialty;
   Map<String, dynamic>? technicalDetails;
   List<Map<String, dynamic>>? attendees;
 
@@ -350,6 +358,8 @@ class CalendarEvent {
     required this.endTime,
     this.location,
     this.notes,
+    this.sportCategory,
+    this.drylandSpecialty,
     this.technicalDetails,
     this.attendees,
   });
@@ -357,14 +367,16 @@ class CalendarEvent {
   factory CalendarEvent.fromJson(Map<String, dynamic> json) {
     return CalendarEvent(
       id: json['id'],
-      teamId: json['teamId'],
-      type: json['type'],
-      title: json['title'],
-      date: json['date'],
-      startTime: json['startTime'],
-      endTime: json['endTime'],
+      teamId: json['teamId'] ?? '',
+      type: json['type'] ?? '',
+      title: json['title'] ?? '',
+      date: json['date'] ?? '',
+      startTime: json['startTime'] ?? '',
+      endTime: json['endTime'] ?? '',
       location: json['location'],
       notes: json['notes'],
+      sportCategory: json['sportCategory'],
+      drylandSpecialty: json['drylandSpecialty'],
       technicalDetails: json['technicalDetails'],
       attendees: json['attendees'] != null
           ? List<Map<String, dynamic>>.from(json['attendees'])
@@ -382,6 +394,8 @@ class CalendarEvent {
         'endTime': endTime,
         'location': location,
         'notes': notes,
+        'sportCategory': sportCategory,
+        'drylandSpecialty': drylandSpecialty,
         'technicalDetails': technicalDetails,
         'attendees': attendees,
       };

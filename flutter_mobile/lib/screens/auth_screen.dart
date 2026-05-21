@@ -68,10 +68,8 @@ class _AuthScreenState extends State<AuthScreen> with SingleTickerProviderStateM
   void _submitLogin() {
     final appState = Provider.of<AppState>(context, listen: false);
     if (_emailCtrl.text.isNotEmpty && _passCtrl.text.isNotEmpty) {
-      if (_emailCtrl.text.contains('coach')) {
-        appState.userProfile?.role = 'coach';
-      }
-      appState.login(appState.userProfile ?? _createMockProfile('athlete'));
+      final role = _emailCtrl.text.toLowerCase().contains('coach') ? 'coach' : 'athlete';
+      appState.login(appState.userProfile ?? _createMockProfile(role));
       _navigateToNext();
     }
   }

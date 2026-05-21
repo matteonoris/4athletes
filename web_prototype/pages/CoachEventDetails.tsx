@@ -1,6 +1,6 @@
 
 import React, { useState } from 'react';
-import { ArrowLeft, Activity, Trophy, Info, Users, CheckCircle, Zap, Snowflake, Search, CheckSquare, Square } from 'lucide-react';
+import { ArrowLeft, Activity, Trophy, Info, Users, CheckCircle, Zap, Snowflake, Search, CheckSquare, Square, Dumbbell } from 'lucide-react';
 import { CalendarEvent, Team } from '../types';
 
 interface Props {
@@ -21,6 +21,8 @@ const CoachEventDetails: React.FC<Props> = ({ event, teams, onSave, onBack }) =>
   // Local state for editing
   const [editedEvent, setEditedEvent] = useState<CalendarEvent>({
       ...event,
+      sportCategory: event.sportCategory || 'ski',
+      drylandSpecialty: event.drylandSpecialty || '',
       technicalDetails: event.technicalDetails || {
         snowCondition: '',
         weatherCondition: '',
@@ -30,6 +32,14 @@ const CoachEventDetails: React.FC<Props> = ({ event, teams, onSave, onBack }) =>
       },
       attendees: event.attendees || []
   });
+
+  const todayStr = new Date().toISOString().split('T')[0];
+  const isPast = editedEvent.date < todayStr;
+
+  const showTechnicalTab = isPast && editedEvent.sportCategory !== 'dryland';
+  if (activeTab === 'technical' && !showTechnicalTab) {
+      setActiveTab('info');
+  }
 
   const getFilteredAttendees = () => {
       if (!editedEvent.attendees) return [];
@@ -102,12 +112,14 @@ const CoachEventDetails: React.FC<Props> = ({ event, teams, onSave, onBack }) =>
           >
               <Info className="w-4 h-4 mx-auto mb-1" /> Info
           </button>
-          <button 
-            onClick={() => setActiveTab('technical')}
-            className={`flex-1 pb-3 text-xs font-bold uppercase tracking-wider border-b-2 transition-colors ${activeTab === 'technical' ? 'border-secondary text-white' : 'border-transparent text-gray-500'}`}
-          >
-              <Activity className="w-4 h-4 mx-auto mb-1" /> Tecnica
-          </button>
+          {showTechnicalTab && (
+              <button 
+                onClick={() => setActiveTab('technical')}
+                className={`flex-1 pb-3 text-xs font-bold uppercase tracking-wider border-b-2 transition-colors ${activeTab === 'technical' ? 'border-secondary text-white' : 'border-transparent text-gray-500'}`}
+              >
+                  <Activity className="w-4 h-4 mx-auto mb-1" /> Tecnica
+              </button>
+          )}
           <button 
             onClick={() => setActiveTab('attendees')}
             className={`flex-1 pb-3 text-xs font-bold uppercase tracking-wider border-b-2 transition-colors ${activeTab === 'attendees' ? 'border-secondary text-white' : 'border-transparent text-gray-500'}`}
@@ -134,6 +146,57 @@ const CoachEventDetails: React.FC<Props> = ({ event, teams, onSave, onBack }) =>
                           <Trophy className="w-4 h-4" /> Match
                       </button>
                   </div>
+
+                  <div className="space-y-1">
+                      <label className="text-[10px] font-bold uppercase text-gray-500">Tipo Attività</label>
+                      <div className="flex bg-white/5 p-1 rounded-xl">
+                          <button 
+                            type="button"
+                            onClick={() => setEditedEvent({...editedEvent, sportCategory: 'ski'})}
+                            className={`flex-1 py-3 rounded-lg text-sm font-bold flex items-center justify-center gap-2 transition-all ${editedEvent.sportCategory === 'ski' ? 'bg-secondary text-white shadow-lg' : 'text-gray-400'}`}
+                          >
+                              <Snowflake className="w-4 h-4" /> Sci
+                          </button>
+                          <button 
+                            type="button"
+                            onClick={() => setEditedEvent({...editedEvent, sportCategory: 'dryland'})}
+                            className={`flex-1 py-3 rounded-lg text-sm font-bold flex items-center justify-center gap-2 transition-all ${editedEvent.sportCategory === 'dryland' ? 'bg-amber-500 text-white shadow-lg' : 'text-gray-400'}`}
+                          >
+                              <Dumbbell className="w-4 h-4" /> Atletico / Altro
+                          </button>
+                      </div>
+                  </div>
+
+                  {editedEvent.sportCategory === 'ski' && !isPast && (
+                      <div className="space-y-2">
+                          <label className="text-[10px] font-bold uppercase text-gray-500">Specialità Sci</label>
+                          <div className="flex gap-2">
+                              {['SL', 'GS', 'SG', 'DH'].map(s => (
+                                  <button 
+                                    key={s}
+                                    type="button"
+                                    onClick={() => toggleSpecialty(s)}
+                                    className={`flex-1 py-2 rounded-lg text-xs font-bold border ${editedEvent.technicalDetails?.specialties.includes(s) ? 'bg-secondary border-secondary text-white' : 'bg-surface border-white/10 text-gray-500'}`}
+                                  >
+                                      {s}
+                                  </button>
+                              ))}
+                          </div>
+                      </div>
+                  )}
+
+                  {editedEvent.sportCategory === 'dryland' && (
+                      <div className="space-y-1">
+                          <label className="text-[10px] font-bold uppercase text-gray-500">Specialità Atletica / Altro</label>
+                          <input 
+                            type="text" 
+                            value={editedEvent.drylandSpecialty || ''}
+                            onChange={e => setEditedEvent({...editedEvent, drylandSpecialty: e.target.value})}
+                            className="w-full bg-surface border border-white/10 rounded-xl p-3 text-white focus:ring-1 focus:ring-secondary text-sm"
+                            placeholder="Es. Forza esplosiva, Corsa, Circuit training..."
+                          />
+                      </div>
+                  )}
 
                   <div className="space-y-1">
                       <label className="text-[10px] font-bold uppercase text-gray-500">Titolo</label>
@@ -333,7 +396,7 @@ const CoachEventDetails: React.FC<Props> = ({ event, teams, onSave, onBack }) =>
                                   <span className="font-bold text-sm">{athlete.name}</span>
                               </div>
                               
-                              {athlete.isPresent && (
+                              {athlete.isPresent && isPast && editedEvent.sportCategory !== 'dryland' && (
                                   <div className="flex items-center gap-2">
                                       <label className="text-[9px] uppercase font-bold text-gray-500">Giri</label>
                                       <input 

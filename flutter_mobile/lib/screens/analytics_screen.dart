@@ -493,15 +493,17 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
               unitSystem: unitSystem,
               onDelete: (id) => appState.deleteBodyLog(id)),
           const SizedBox(height: 24),
-          _HistorySection(
-              title: 'Storico Altezza',
-              icon: PhosphorIconsRegular.ruler,
-              iconColor: Colors.purpleAccent,
-              logsInfo: recentHeightLogs,
-              type: 'height',
-              unitSystem: unitSystem,
-              onDelete: (id) => appState.deleteBodyLog(id)),
-          const SizedBox(height: 24),
+          if (user == null || user.age < 18) ...[
+            _HistorySection(
+                title: 'Storico Altezza',
+                icon: PhosphorIconsRegular.ruler,
+                iconColor: Colors.purpleAccent,
+                logsInfo: recentHeightLogs,
+                type: 'height',
+                unitSystem: unitSystem,
+                onDelete: (id) => appState.deleteBodyLog(id)),
+            const SizedBox(height: 24),
+          ],
           _HistorySection(
               title: 'Storico Massa Grassa',
               icon: PhosphorIconsRegular.percent,

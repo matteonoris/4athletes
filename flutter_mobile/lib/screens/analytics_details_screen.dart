@@ -425,8 +425,10 @@ class _AnalyticsDetailsScreenState extends State<AnalyticsDetailsScreen> {
                 sideTitles: SideTitles(
                   showTitles: true,
                   reservedSize: 22,
+                  interval: 1.0,
                   getTitlesWidget: (val, meta) {
-                    int idx = val.toInt();
+                    final idx = val.round();
+                    if (val != idx.toDouble()) return const SizedBox.shrink();
                     if (idx >= 0 &&
                         idx < logs.length &&
                         (idx == 0 ||

@@ -157,6 +157,9 @@ class _BodyMetricsScreenState extends State<BodyMetricsScreen> {
   @override
   Widget build(BuildContext context) {
     final appState = Provider.of<AppState>(context);
+    final user = appState.userProfile;
+    final showHeightChip = user == null || user.age < 18;
+
     final logs = appState.bodyLogs.where((l) => l.type == _selectedType).toList()
       ..sort((a, b) => DateTime.parse(a.date).compareTo(DateTime.parse(b.date)));
     
@@ -189,8 +192,10 @@ class _BodyMetricsScreenState extends State<BodyMetricsScreen> {
           Row(
             children: [
               _buildTypeChip('weight', 'Peso'),
-              const SizedBox(width: 12),
-              _buildTypeChip('height', 'Altezza'),
+              if (showHeightChip) ...[
+                const SizedBox(width: 12),
+                _buildTypeChip('height', 'Altezza'),
+              ],
             ],
           ),
           const SizedBox(height: 24),

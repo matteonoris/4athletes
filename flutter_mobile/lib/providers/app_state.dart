@@ -167,6 +167,7 @@ class AppState extends ChangeNotifier {
             notificationsEnabled: _prefs!.getBool('notificationsEnabled') ?? true,
             connectedDevices: [],
             oneRepMax: {},
+            teamId: profileData['team_id'],
           );
           _isLoggedIn = true;
           _prefs!.setBool('isLoggedIn', true);
@@ -218,6 +219,7 @@ class AppState extends ChangeNotifier {
           unitSystem: _prefs!.getString('unitSystem') ?? 'metric',
           language: _prefs!.getString('language') ?? 'it',
           notificationsEnabled: _prefs!.getBool('notificationsEnabled') ?? true,
+          teamId: data['team_id'],
         );
       }
     } catch (e) {
@@ -315,10 +317,12 @@ class AppState extends ChangeNotifier {
         type: e['type'],
         title: e['title'],
         date: e['date'],
-        startTime: e['start_time'],
-        endTime: e['end_time'],
+        startTime: e['start_time'] ?? '',
+        endTime: e['end_time'] ?? '',
         location: e['location'],
         notes: e['notes'],
+        sportCategory: e['sport_category'],
+        drylandSpecialty: e['dryland_specialty'],
         technicalDetails: e['technical_details'],
         attendees: e['attendees'] != null ? List<Map<String, dynamic>>.from(e['attendees']) : null,
       )).toList();
@@ -364,6 +368,7 @@ class AppState extends ChangeNotifier {
           'skill_level': _userProfile!.skillLevel,
           'one_rep_max': _userProfile!.oneRepMax,
           'connected_devices': _userProfile!.connectedDevices.map((e) => e.toJson()).toList(),
+          'team_id': _userProfile!.teamId,
         });
         
         // Save local settings
@@ -461,6 +466,67 @@ class AppState extends ChangeNotifier {
       )).toList();
     } catch (e) {
       debugPrint('Error loading sessions for athlete $athleteId: $e');
+      return [];
+    }
+  }
+
+  /// Load body metric logs (weight/height/fat) for a specific athlete (coach view)
+  Future<List<BodyMetricLog>> loadBodyLogsForAthlete(String athleteId) async {
+    try {
+      final data = await _supabase
+          .from('body_metric_logs')
+          .select()
+          .eq('user_id', athleteId)
+          .order('date', ascending: true);
+      return (data as List).map((e) => BodyMetricLog(
+        id: e['id'],
+        date: e['date'],
+        type: e['type'],
+        value: (e['value'] as num).toDouble(),
+      )).toList();
+    } catch (e) {
+      debugPrint('Error loading body logs for athlete $athleteId: $e');
+      return [];
+    }
+  }
+
+  /// Load jump logs for a specific athlete (coach view)
+  Future<List<JumpLog>> loadJumpLogsForAthlete(String athleteId) async {
+    try {
+      final data = await _supabase
+          .from('jump_logs')
+          .select()
+          .eq('user_id', athleteId)
+          .order('date', ascending: true);
+      return (data as List).map((e) => JumpLog(
+        id: e['id'],
+        date: e['date'],
+        type: e['type'],
+        value: (e['value'] as num).toDouble(),
+      )).toList();
+    } catch (e) {
+      debugPrint('Error loading jump logs for athlete $athleteId: $e');
+      return [];
+    }
+  }
+
+  /// Load PR logs for a specific athlete (coach view)
+  Future<List<PRLog>> loadPRLogsForAthlete(String athleteId) async {
+    try {
+      final data = await _supabase
+          .from('pr_logs')
+          .select()
+          .eq('user_id', athleteId)
+          .order('date', ascending: true);
+      return (data as List).map((e) => PRLog(
+        id: e['id'],
+        exerciseId: e['exercise_id'],
+        date: e['date'],
+        weight: (e['weight'] as num).toDouble(),
+        note: e['note'],
+      )).toList();
+    } catch (e) {
+      debugPrint('Error loading PR logs for athlete $athleteId: $e');
       return [];
     }
   }
@@ -651,6 +717,8 @@ class AppState extends ChangeNotifier {
           'end_time': event.endTime,
           'location': event.location,
           'notes': event.notes,
+          'sport_category': event.sportCategory,
+          'dryland_specialty': event.drylandSpecialty,
           'technical_details': event.technicalDetails,
           'attendees': event.attendees,
         }).select().single();
@@ -666,6 +734,8 @@ class AppState extends ChangeNotifier {
           'end_time': event.endTime,
           'location': event.location,
           'notes': event.notes,
+          'sport_category': event.sportCategory,
+          'dryland_specialty': event.drylandSpecialty,
           'technical_details': event.technicalDetails,
           'attendees': event.attendees,
         }).eq('id', event.id);

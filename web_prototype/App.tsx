@@ -69,6 +69,7 @@ const INITIAL_COACH_EVENTS: CalendarEvent[] = [
       startTime: '09:00',
       endTime: '11:00',
       location: 'Main Slope',
+      sportCategory: 'ski',
       technicalDetails: {
           snowCondition: 'hard',
           weatherCondition: 'sunny',
@@ -77,6 +78,19 @@ const INITIAL_COACH_EVENTS: CalendarEvent[] = [
           gatedSkiing: { laps: '6', changes: '45' }
       },
       attendees: MOCK_ATHLETES.map(a => ({ ...a, isPresent: true }))
+    },
+    {
+      id: 'e2',
+      teamId: 't1',
+      type: 'training',
+      title: 'Athletic Prep & Core Strength',
+      date: new Date().toISOString().split('T')[0],
+      startTime: '15:00',
+      endTime: '16:30',
+      location: 'Gym Center',
+      sportCategory: 'dryland',
+      drylandSpecialty: 'Core & Power',
+      attendees: MOCK_ATHLETES.map(a => ({ ...a, isPresent: a.id !== '3' })) // Alex Rivera is absent
     }
 ];
 
@@ -418,16 +432,19 @@ function App() {
         return `${h}h ${m}m`;
       };
 
+      const isDryland = event.sportCategory === 'dryland';
       const newSession: TrainingSession = {
           id: `sync-${event.id}`,
           eventId: event.id,
-          sportId: 'alpine_skiing', 
+          sportId: isDryland ? 'athletic_prep' : 'alpine_skiing', 
           date: event.date,
           startTime: event.startTime,
           endTime: event.endTime,
           duration: calculateDuration(event.startTime, event.endTime),
           effort: 0, 
-          details: {
+          details: isDryland ? {
+              specialties: event.drylandSpecialty ? [event.drylandSpecialty] : ['Atletico']
+          } : {
               specialties: event.technicalDetails?.specialties || [],
               snowCondition: event.technicalDetails?.snowCondition,
               weatherCondition: event.technicalDetails?.weatherCondition,
@@ -591,6 +608,7 @@ function App() {
             setView={setView} 
             unitSystem={userProfile.unitSystem} 
             language={userProfile.language} 
+            birthDate={userProfile.birthDate} 
             sessions={sessions} 
             bodyLogs={bodyLogs}
             jumpLogs={jumpLogs}

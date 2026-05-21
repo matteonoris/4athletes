@@ -5,10 +5,13 @@ import '../core/theme.dart';
 import '../models/models.dart';
 import '../providers/app_state.dart';
 
+import 'package:supabase_flutter/supabase_flutter.dart';
+
 class CoachEventDetailsScreen extends StatefulWidget {
   final CalendarEvent? event;
+  final Team? selectedTeam;
 
-  const CoachEventDetailsScreen({super.key, this.event});
+  const CoachEventDetailsScreen({super.key, this.event, this.selectedTeam});
 
   @override
   State<CoachEventDetailsScreen> createState() =>
@@ -40,6 +43,8 @@ class _CoachEventDetailsScreenState extends State<CoachEventDetailsScreen>
 
   // State for interactive Athletes list
   List<Map<String, dynamic>> _athletes = [];
+  bool _isLoadingAthletes = false;
+  String? _currentTeamId;
 
   // Text Controllers
   late TextEditingController _titleCtrl;
@@ -58,6 +63,88 @@ class _CoachEventDetailsScreenState extends State<CoachEventDetailsScreen>
   late TextEditingController _paliPorteCtrl;
   late TextEditingController _paliGiriCtrl;
 
+  void _loadMockAthletes() {
+    final e = widget.event;
+    final squad = [
+      'Sarah Jenkins',
+      'Mike Thompson',
+      'Alex Rivera',
+      'Jessica Lee',
+      'Davide Rossi'
+    ];
+    setState(() {
+      _athletes = squad.map((name) {
+        Map<String, dynamic>? attendee;
+        if (e != null && e.attendees != null) {
+          try {
+            attendee = e.attendees!.firstWhere((a) => a['name'] == name);
+          } catch (_) {
+            attendee = null;
+          }
+        }
+
+        return {
+          'id': null,
+          'name': name,
+          'selected': attendee != null ? (attendee['isPresent'] ?? false) : false,
+          'laps': attendee != null ? (attendee['laps'] ?? 6) : 6,
+        };
+      }).toList();
+    });
+  }
+
+  Future<void> _fetchAthletesForTeam(String teamId) async {
+    setState(() {
+      _isLoadingAthletes = true;
+    });
+    try {
+      final supabase = Supabase.instance.client;
+      final data = await supabase
+          .from('profiles')
+          .select()
+          .eq('team_id', teamId)
+          .eq('role', 'athlete');
+
+      final e = widget.event;
+      final List<Map<String, dynamic>> loadedAthletes = [];
+      
+      for (var row in data) {
+        final String athleteId = row['id'];
+        final String firstName = row['first_name'] ?? '';
+        final String lastName = row['last_name'] ?? '';
+        final String fullName = '$firstName $lastName'.trim();
+        final String nameToShow = fullName.isNotEmpty ? fullName : (row['email'] ?? 'Atleta');
+
+        Map<String, dynamic>? attendee;
+        if (e != null && e.attendees != null) {
+          try {
+            attendee = e.attendees!.firstWhere((a) => a['id'] == athleteId || a['name'] == nameToShow);
+          } catch (_) {
+            attendee = null;
+          }
+        }
+
+        loadedAthletes.add({
+          'id': athleteId,
+          'name': nameToShow,
+          'selected': attendee != null ? (attendee['isPresent'] ?? false) : false,
+          'laps': attendee != null ? (attendee['laps'] ?? 6) : 6,
+        });
+      }
+
+      setState(() {
+        _athletes = loadedAthletes;
+        _isLoadingAthletes = false;
+      });
+    } catch (err) {
+      debugPrint('Error fetching athletes: $err');
+      setState(() {
+        _isLoadingAthletes = false;
+      });
+      _loadMockAthletes();
+    }
+  }
+
   @override
   void initState() {
     super.initState();
@@ -65,13 +152,13 @@ class _CoachEventDetailsScreenState extends State<CoachEventDetailsScreen>
 
     // Initialize properties from event or use defaults
     final e = widget.event;
+    final t = widget.selectedTeam;
     _eventType = e?.type == 'race' ? 1 : 0;
     _titleCtrl =
         TextEditingController(text: e?.title ?? 'Technical Slalom Drills');
     _dateCtrl = TextEditingController(text: e?.date ?? '2026-04-18');
     _startCtrl = TextEditingController(text: e?.startTime ?? '09:00');
     _endCtrl = TextEditingController(text: e?.endTime ?? '11:55');
-    _teamCtrl = TextEditingController(text: 'Alpine Elite Squad'); // Mock team
     _locationCtrl = TextEditingController(text: e?.location ?? 'Main Slope');
 
     var tech = e?.technicalDetails ?? {};
@@ -94,28 +181,40 @@ class _CoachEventDetailsScreenState extends State<CoachEventDetailsScreen>
     _paliPorteCtrl =
         TextEditingController(text: tech['gatedSkiing']?['changes'] ?? '45');
 
-    // Initialize athletes list
-    final squad = [
-      'Sarah Jenkins',
-      'Mike Thompson',
-      'Alex Rivera',
-      'Jessica Lee',
-      'Davide Rossi'
-    ];
-    _athletes = squad.map((name) {
-      Map<String, dynamic>? attendee;
-      try {
-        attendee = e?.attendees?.firstWhere((a) => a['name'] == name);
-      } catch (_) {
-        attendee = null;
-      }
+    // Retrieve active appState
+    final appState = Provider.of<AppState>(context, listen: false);
 
-      return {
-        'name': name,
-        'selected': attendee != null ? (attendee['isPresent'] ?? false) : false,
-        'laps': attendee != null ? (attendee['laps'] ?? 6) : 6,
-      };
-    }).toList();
+    // Determine the active teamId and name
+    String teamName = 'Alpine Elite Squad';
+    if (t != null) {
+      _currentTeamId = t.id;
+      teamName = t.name;
+    } else if (e != null) {
+      _currentTeamId = e.teamId;
+      try {
+        final matchedTeam = appState.teams.firstWhere((team) => team.id == e.teamId);
+        teamName = matchedTeam.name;
+      } catch (_) {
+        teamName = 'Team ID: ${e.teamId}';
+      }
+    } else {
+      if (appState.teams.isNotEmpty) {
+        _currentTeamId = appState.teams.first.id;
+        teamName = appState.teams.first.name;
+      } else {
+        _currentTeamId = null;
+        teamName = 'Nessun Team';
+      }
+    }
+
+    _teamCtrl = TextEditingController(text: teamName);
+
+    // Fetch team athletes or fallback to mock data
+    if (_currentTeamId != null) {
+      _fetchAthletesForTeam(_currentTeamId!);
+    } else {
+      _loadMockAthletes();
+    }
   }
 
   @override
@@ -155,7 +254,7 @@ class _CoachEventDetailsScreenState extends State<CoachEventDetailsScreen>
     // Generate new event object
     final event = CalendarEvent(
       id: widget.event?.id ?? DateTime.now().millisecondsSinceEpoch.toString(),
-      teamId: 't1',
+      teamId: _currentTeamId ?? 't1',
       type: _eventType == 0 ? 'training' : 'race',
       title: _titleCtrl.text,
       date: _dateCtrl.text,
@@ -177,7 +276,7 @@ class _CoachEventDetailsScreenState extends State<CoachEventDetailsScreen>
       },
       attendees: _athletes.where((a) => a['selected'] == true).map((a) {
         return {
-          'id': a['name'],
+          'id': a['id'] ?? a['name'],
           'name': a['name'],
           'isPresent': true,
           'laps': a['laps']
@@ -702,6 +801,11 @@ class _CoachEventDetailsScreenState extends State<CoachEventDetailsScreen>
   }
 
   Widget _buildAthletesTab() {
+    if (_isLoadingAthletes) {
+      return const Center(
+        child: CircularProgressIndicator(color: AppTheme.primary),
+      );
+    }
     final filteredAthletes = _athletes
         .where(
             (a) => a['name'].toLowerCase().contains(_searchQuery.toLowerCase()))

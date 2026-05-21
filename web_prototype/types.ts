@@ -58,6 +58,8 @@ export interface CalendarEvent {
   endTime: string;
   location?: string;
   notes?: string;
+  sportCategory?: 'ski' | 'dryland';
+  drylandSpecialty?: string;
   // New specific fields
   technicalDetails?: {
     snowCondition: string;

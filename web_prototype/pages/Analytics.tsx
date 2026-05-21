@@ -9,6 +9,7 @@ interface Props {
   setView: (view: ViewState) => void;
   unitSystem: UnitSystem;
   language: Language;
+  birthDate?: string;
   sessions?: TrainingSession[];
   bodyLogs?: BodyMetricLog[];
   jumpLogs?: JumpLog[];
@@ -24,6 +25,7 @@ const Analytics: React.FC<Props> = ({
     setView, 
     unitSystem, 
     language, 
+    birthDate,
     sessions = [], 
     bodyLogs = [], 
     jumpLogs = [],
@@ -37,6 +39,19 @@ const Analytics: React.FC<Props> = ({
   const t = translations[language];
   const [editingLog, setEditingLog] = useState<BodyMetricLog | null>(null);
   const [editValue, setEditValue] = useState('');
+
+  // --- AGE CALCULATION ---
+  const isUnder18 = (() => {
+    if (!birthDate) return true;
+    const birth = new Date(birthDate);
+    const today = new Date();
+    let age = today.getFullYear() - birth.getFullYear();
+    const m = today.getMonth() - birth.getMonth();
+    if (m < 0 || (m === 0 && today.getDate() < birth.getDate())) {
+        age--;
+    }
+    return age < 18;
+  })();
 
   // Conversion Helpers
   const cmToUnit = (cm: number) => unitSystem === 'metric' ? cm : Math.round(cm / 30.48 * 10) / 10; 
@@ -432,30 +447,32 @@ const Analytics: React.FC<Props> = ({
           </section>
 
           {/* Height History */}
-          <section>
-             <div className="flex justify-between items-center mb-3">
-                 <div className="flex items-center gap-2">
-                    <Ruler className="w-4 h-4 text-purple-400" />
-                    <h3 className="text-base font-bold">{t.height} History</h3>
-                 </div>
-                 <button 
-                    onClick={() => handleViewAllMetrics('height')}
-                    className="text-secondary text-xs font-bold uppercase flex items-center hover:underline"
-                 >
-                    {t.viewAll} <ChevronRight className="w-3 h-3" />
-                 </button>
-             </div>
-             
-             <div className="space-y-2">
-                 {recentHeightLogs.length > 0 ? (
-                     recentHeightLogs.map(item => renderHistoryItem(item, 'height'))
-                 ) : (
-                     <div className="p-4 bg-card border border-white/5 rounded-xl text-center">
-                         <p className="text-gray-500 text-sm italic">No height data.</p>
-                     </div>
-                 )}
-             </div>
-          </section>
+          {isUnder18 && (
+            <section>
+               <div className="flex justify-between items-center mb-3">
+                   <div className="flex items-center gap-2">
+                      <Ruler className="w-4 h-4 text-purple-400" />
+                      <h3 className="text-base font-bold">{t.height} History</h3>
+                   </div>
+                   <button 
+                      onClick={() => handleViewAllMetrics('height')}
+                      className="text-secondary text-xs font-bold uppercase flex items-center hover:underline"
+                   >
+                      {t.viewAll} <ChevronRight className="w-3 h-3" />
+                   </button>
+               </div>
+               
+               <div className="space-y-2">
+                   {recentHeightLogs.length > 0 ? (
+                       recentHeightLogs.map(item => renderHistoryItem(item, 'height'))
+                   ) : (
+                       <div className="p-4 bg-card border border-white/5 rounded-xl text-center">
+                           <p className="text-gray-500 text-sm italic">No height data.</p>
+                       </div>
+                   )}
+               </div>
+            </section>
+          )}
       </div>
 
     </div>

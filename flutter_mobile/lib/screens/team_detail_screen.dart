@@ -1,11 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:phosphor_flutter/phosphor_flutter.dart';
-import 'package:provider/provider.dart';
 import 'package:share_plus/share_plus.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../models/models.dart';
-import '../providers/app_state.dart';
 
 class TeamDetailScreen extends StatefulWidget {
   final Team team;
@@ -22,17 +21,52 @@ class _TeamDetailScreenState extends State<TeamDetailScreen> {
   bool _showFilters = true;
 
   final List<Map<String, dynamic>> _teamAthletes = [];
-
-  final List<String> _subtitles = [
-    'Slalom Specialist',
-    'All-Rounder',
-    'Junior',
-    'Speed Team'
-  ];
+  bool _isLoading = true;
+  List<Map<String, dynamic>> _rawTeammates = [];
+  List<Map<String, dynamic>> _rawSessions = [];
 
   @override
   void initState() {
     super.initState();
+    _loadLeaderboardData();
+  }
+
+  Future<void> _loadLeaderboardData() async {
+    setState(() {
+      _isLoading = true;
+    });
+
+    try {
+      final supabase = Supabase.instance.client;
+      final athletesResponse = await supabase
+          .from('profiles')
+          .select()
+          .eq('team_id', widget.team.id)
+          .eq('role', 'athlete');
+
+      final List<Map<String, dynamic>> athletes = List<Map<String, dynamic>>.from(athletesResponse);
+
+      List<Map<String, dynamic>> sessions = [];
+      if (athletes.isNotEmpty) {
+        final athleteIds = athletes.map((a) => a['id'] as String).toList();
+        final sessionsResponse = await supabase
+            .from('training_sessions')
+            .select()
+            .inFilter('user_id', athleteIds);
+        sessions = List<Map<String, dynamic>>.from(sessionsResponse);
+      }
+
+      setState(() {
+        _rawTeammates = athletes;
+        _rawSessions = sessions;
+        _isLoading = false;
+      });
+    } catch (e) {
+      debugPrint('Error loading leaderboard data: $e');
+      setState(() {
+        _isLoading = false;
+      });
+    }
   }
 
   DateTime _getFilterStartDate() {
@@ -77,80 +111,66 @@ class _TeamDetailScreenState extends State<TeamDetailScreen> {
     return 0.0;
   }
 
-  void _generateTeamData(AppState appState) {
+  void _generateTeamData() {
     _teamAthletes.clear();
-
-    double oreFuoriSci = 0.0;
-    int cambiTotale = 0;
-    int cambiSL = 0;
-    int cambiGS = 0;
-    int cambiSG = 0;
-    int cambiDH = 0;
-
     final startDate = _getFilterStartDate();
 
-    for (var session in appState.sessions) {
-      DateTime? sessionDate = DateTime.tryParse(session.date);
-      if (sessionDate == null || sessionDate.isBefore(startDate)) continue;
+    for (var athlete in _rawTeammates) {
+      final athleteId = athlete['id'];
+      double oreFuoriSci = 0.0;
+      int cambiTotale = 0;
+      int cambiSL = 0;
+      int cambiGS = 0;
+      int cambiSG = 0;
+      int cambiDH = 0;
 
-      bool isAlpineSkiing = session.sportId == 'alpine_skiing' || session.sportId == 'skiing' || session.sportId == 'snowboarding';
+      final athleteSessions = _rawSessions.where((s) => s['user_id'] == athleteId);
 
-      if (!isAlpineSkiing) {
-        oreFuoriSci += _parseDurationToHours(session.duration);
-      } else {
-        int cambia = 0;
-        if (session.details != null && session.details!['gatedSkiing'] != null) {
-          int ch = int.tryParse(session.details!['gatedSkiing']['changes'].toString()) ?? 0;
-          int laps = int.tryParse(session.details!['gatedSkiing']['laps'].toString()) ?? 1;
-          cambia = ch * laps;
-        }
+      for (var session in athleteSessions) {
+        final dateStr = session['date'] ?? '';
+        DateTime? sessionDate = DateTime.tryParse(dateStr);
+        if (sessionDate == null || sessionDate.isBefore(startDate)) continue;
 
-        cambiTotale += cambia;
+        final sportId = session['sport_id'] ?? '';
+        bool isAlpineSkiing = sportId == 'alpine_skiing' || sportId == 'skiing' || sportId == 'snowboarding';
+        final durationStr = session['duration']?.toString() ?? '0';
+        final details = session['details'] as Map<String, dynamic>?;
 
-        if (session.details != null && session.details!['specialties'] != null) {
-          List<dynamic> specs = session.details!['specialties'];
-          for (var s in specs) {
-            String specStr = s.toString().toUpperCase();
-            if (specStr.contains('SL')) cambiSL += cambia;
-            if (specStr.contains('GS')) cambiGS += cambia;
-            if (specStr.contains('SG')) cambiSG += cambia;
-            if (specStr.contains('DH')) cambiDH += cambia;
+        if (!isAlpineSkiing) {
+          oreFuoriSci += _parseDurationToHours(durationStr);
+        } else {
+          int cambia = 0;
+          if (details != null && details['gatedSkiing'] != null) {
+            int ch = int.tryParse(details['gatedSkiing']['changes'].toString()) ?? 0;
+            int laps = int.tryParse(details['gatedSkiing']['laps'].toString()) ?? 1;
+            cambia = ch * laps;
+          }
+
+          cambiTotale += cambia;
+
+          if (details != null && details['specialties'] != null) {
+            List<dynamic> specs = details['specialties'];
+            for (var s in specs) {
+              String specStr = s.toString().toUpperCase();
+              if (specStr.contains('SL')) cambiSL += cambia;
+              if (specStr.contains('GS')) cambiGS += cambia;
+              if (specStr.contains('SG')) cambiSG += cambia;
+              if (specStr.contains('DH')) cambiDH += cambia;
+            }
           }
         }
       }
-    }
 
-    if (appState.userProfile?.role != 'coach') {
       _teamAthletes.add({
-        'name': '${appState.userProfile?.firstName ?? "Tu"} ${appState.userProfile?.lastName ?? ""}'.trim(),
-        'avatar': appState.userProfile?.avatarUrl ?? '',
-        'subtitle': _subtitles[1],
+        'name': '${athlete['first_name'] ?? ''} ${athlete['last_name'] ?? ''}'.trim(),
+        'avatar': athlete['avatar_url'] ?? '',
+        'subtitle': athlete['skill_level'] ?? 'Athlete',
         'Ore': oreFuoriSci,
         'Tot. Dir': cambiTotale.toDouble(),
         'Cambi SL': cambiSL.toDouble(),
         'Cambi GS': cambiGS.toDouble(),
         'Cambi SG': cambiSG.toDouble(),
         'Cambi DH': cambiDH.toDouble(),
-      });
-    }
-
-    int mocksToGenerate = widget.team.members - 1;
-    if (mocksToGenerate < 0) mocksToGenerate = 0;
-
-    List<String> mockNames = ['Sarah Jenkins', 'Mike Thompson', 'Davide Rossi', 'Jessica Lee', 'Luca Neri', 'Andrea Verdi', 'Marta Neri', 'Fabio Gialli'];
-    double mockMulti = _multiplier;
-
-    for (int i = 0; i < mocksToGenerate; i++) {
-      _teamAthletes.add({
-        'name': mockNames[i % mockNames.length] + (i >= mockNames.length ? ' $i' : ''),
-        'avatar': '',
-        'subtitle': _subtitles[i % _subtitles.length],
-        'Ore': (16.4 - (i * 0.2)) * mockMulti,
-        'Tot. Dir': (100.0 + (i * 40 % 150)) * mockMulti,
-        'Cambi SL': (40.0 + (i * 15 % 70)) * mockMulti,
-        'Cambi GS': (30.0 + (i * 10 % 50)) * mockMulti,
-        'Cambi SG': (20.0 + (i * 5 % 30)) * mockMulti,
-        'Cambi DH': (10.0 + (i * 2 % 15)) * mockMulti,
       });
     }
   }
@@ -188,12 +208,6 @@ class _TeamDetailScreenState extends State<TeamDetailScreen> {
     );
   }
 
-  // Multiplier per testare i filtri tempo
-  double get _multiplier {
-    if (_timeFilter == 'Last 7 Days') return 1.0;
-    if (_timeFilter == 'This Month') return 3.0;
-    return 10.0; // Season
-  }
 
   double _getTotalValue() {
     double total = 0;
@@ -205,8 +219,7 @@ class _TeamDetailScreenState extends State<TeamDetailScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final appState = Provider.of<AppState>(context);
-    _generateTeamData(appState);
+    _generateTeamData();
 
     final sortedAthletes = List<Map<String, dynamic>>.from(_teamAthletes);
     sortedAthletes.sort((a, b) {
@@ -238,7 +251,7 @@ class _TeamDetailScreenState extends State<TeamDetailScreen> {
                     color: Colors.white,
                     fontSize: 18)),
             const SizedBox(height: 2),
-            Text('${widget.team.members} MEMBERS',
+            Text('${_isLoading ? widget.team.members : sortedAthletes.length} MEMBERS',
                 style: const TextStyle(
                     color: Color(0xFF1A9DF0),
                     fontWeight: FontWeight.bold,
@@ -498,159 +511,188 @@ class _TeamDetailScreenState extends State<TeamDetailScreen> {
           ),
 
           // LEADERBOARD ITEMS
-          SliverList(
-            delegate: SliverChildBuilderDelegate(
-              (context, index) {
-                final athlete = sortedAthletes[index];
-                double val = _getCategoryValue(athlete, _categoryFilter);
-                bool isFirst = index == 0;
-
-                return Container(
-                  margin:
-                      const EdgeInsets.only(bottom: 12, left: 16, right: 16),
-                  decoration: BoxDecoration(
-                    color: const Color(0xFF1C2229),
-                    borderRadius: BorderRadius.circular(16),
+          _isLoading
+              ? const SliverToBoxAdapter(
+                  child: Padding(
+                    padding: EdgeInsets.symmetric(vertical: 60),
+                    child: Center(
+                      child: CircularProgressIndicator(
+                        color: Color(0xFF1A9DF0),
+                      ),
+                    ),
                   ),
-                  child: Stack(
-                    children: [
-                      // Highlight on left for #1
-                      if (isFirst) ...[
-                        Positioned(
-                          left: 0,
-                          top: 0,
-                          bottom: 0,
-                          child: Container(
-                              width: 3,
-                              decoration: const BoxDecoration(
-                                color: Color(0xFF1A9DF0),
-                                borderRadius: BorderRadius.only(
-                                    topLeft: Radius.circular(16),
-                                    bottomLeft: Radius.circular(16)),
-                              )),
-                        ),
-                      ],
-                      Padding(
-                        padding: const EdgeInsets.all(16.0),
-                        child: Row(
-                          children: [
-                            // Rank / Trophy
-                            SizedBox(
-                              width: 28,
-                              child: Center(
-                                child: index == 0
-                                    ? const Icon(Icons.emoji_events_outlined,
-                                        color: Color(0xFFFFD700), size: 24)
-                                    : Text('${index + 1}',
-                                        style: TextStyle(
-                                            fontSize: 18,
-                                            fontWeight: FontWeight.w900,
-                                            color: index == 1
-                                                ? Colors.white
-                                                : (index == 2
-                                                    ? const Color(0xFFCD7F32)
-                                                    : const Color(
-                                                        0xFF424750)))),
-                              ),
+                )
+              : sortedAthletes.isEmpty
+                  ? const SliverToBoxAdapter(
+                      child: Padding(
+                        padding: EdgeInsets.symmetric(vertical: 60, horizontal: 16),
+                        child: Center(
+                          child: Text(
+                            'Nessun atleta in questo team.',
+                            style: TextStyle(
+                              color: Colors.grey,
+                              fontSize: 14,
                             ),
-                            const SizedBox(width: 12),
-                            // Avatar
-                            Container(
-                              width: 44,
-                              height: 44,
-                              decoration: BoxDecoration(
-                                color: const Color(0xFF2A313C),
-                                borderRadius: BorderRadius.circular(12),
-                                image: athlete['avatar']?.isNotEmpty == true
-                                    ? DecorationImage(
-                                        image: NetworkImage(athlete['avatar']),
-                                        fit: BoxFit.cover)
-                                    : null,
-                              ),
-                              child: athlete['avatar']?.isEmpty == true
-                                  ? Center(
-                                      child: Text(athlete['name'][0],
-                                          style: const TextStyle(
-                                              fontWeight: FontWeight.bold,
-                                              color: Colors.white)))
-                                  : null,
-                            ),
-                            const SizedBox(width: 16),
-                            // Profile Info and Progress Bar
-                            Expanded(
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text(athlete['name'],
-                                      style: const TextStyle(
-                                          fontWeight: FontWeight.bold,
-                                          color: Colors.white,
-                                          fontSize: 14)),
-                                  const SizedBox(height: 2),
-                                  Text(athlete['subtitle'] ?? 'Athlete',
-                                      style: const TextStyle(
-                                          color: Colors.grey, fontSize: 11)),
-                                  const SizedBox(height: 8),
-                                  LayoutBuilder(
-                                      builder: (context, constraints) {
-                                    double percentage = val / maxValue;
-                                    if (percentage > 1.0) percentage = 1.0;
-                                    return Stack(
-                                      children: [
-                                        Container(
-                                          height: 4,
-                                          width: constraints.maxWidth,
-                                          decoration: BoxDecoration(
-                                              color: const Color(0xFF2A313C),
-                                              borderRadius:
-                                                  BorderRadius.circular(2)),
-                                        ),
-                                        Container(
-                                          height: 4,
-                                          width:
-                                              constraints.maxWidth * percentage,
-                                          decoration: BoxDecoration(
-                                              color: isFirst
-                                                  ? const Color(0xFF1A9DF0)
-                                                  : const Color(0xFF4A5565),
-                                              borderRadius:
-                                                  BorderRadius.circular(2)),
-                                        ),
-                                      ],
-                                    );
-                                  }),
-                                ],
-                              ),
-                            ),
-                            const SizedBox(width: 16),
-                            // Value
-                            Row(
-                              crossAxisAlignment: CrossAxisAlignment.baseline,
-                              textBaseline: TextBaseline.alphabetic,
-                              children: [
-                                Text(val.toStringAsFixed(1),
-                                    style: TextStyle(
-                                        fontSize: 18,
-                                        fontWeight: FontWeight.w900,
-                                        color: isFirst
-                                            ? const Color(0xFF1A9DF0)
-                                            : Colors.white)),
-                                const SizedBox(width: 2),
-                                Text(_getCategoryUnit(_categoryFilter),
-                                    style: const TextStyle(
-                                        fontSize: 12, color: Colors.grey)),
-                              ],
-                            ),
-                          ],
+                          ),
                         ),
                       ),
-                    ],
-                  ),
-                );
-              },
-              childCount: sortedAthletes.length,
-            ),
-          ),
+                    )
+                  : SliverList(
+                      delegate: SliverChildBuilderDelegate(
+                        (context, index) {
+                          final athlete = sortedAthletes[index];
+                          double val = _getCategoryValue(athlete, _categoryFilter);
+                          bool isFirst = index == 0;
+
+                          return Container(
+                            margin:
+                                const EdgeInsets.only(bottom: 12, left: 16, right: 16),
+                            decoration: BoxDecoration(
+                              color: const Color(0xFF1C2229),
+                              borderRadius: BorderRadius.circular(16),
+                            ),
+                            child: Stack(
+                              children: [
+                                // Highlight on left for #1
+                                if (isFirst) ...[
+                                  Positioned(
+                                    left: 0,
+                                    top: 0,
+                                    bottom: 0,
+                                    child: Container(
+                                        width: 3,
+                                        decoration: const BoxDecoration(
+                                          color: Color(0xFF1A9DF0),
+                                          borderRadius: BorderRadius.only(
+                                              topLeft: Radius.circular(16),
+                                              bottomLeft: Radius.circular(16)),
+                                        )),
+                                  ),
+                                ],
+                                Padding(
+                                  padding: const EdgeInsets.all(16.0),
+                                  child: Row(
+                                    children: [
+                                      // Rank / Trophy
+                                      SizedBox(
+                                        width: 28,
+                                        child: Center(
+                                          child: index == 0
+                                              ? const Icon(Icons.emoji_events_outlined,
+                                                  color: Color(0xFFFFD700), size: 24)
+                                              : Text('${index + 1}',
+                                                  style: TextStyle(
+                                                      fontSize: 18,
+                                                      fontWeight: FontWeight.w900,
+                                                      color: index == 1
+                                                          ? Colors.white
+                                                          : (index == 2
+                                                              ? const Color(0xFFCD7F32)
+                                                              : const Color(
+                                                                  0xFF424750)))),
+                                        ),
+                                      ),
+                                      const SizedBox(width: 12),
+                                      // Avatar
+                                      Container(
+                                        width: 44,
+                                        height: 44,
+                                        decoration: BoxDecoration(
+                                          color: const Color(0xFF2A313C),
+                                          borderRadius: BorderRadius.circular(12),
+                                          image: athlete['avatar']?.isNotEmpty == true
+                                              ? DecorationImage(
+                                                  image: NetworkImage(athlete['avatar']),
+                                                  fit: BoxFit.cover)
+                                              : null,
+                                        ),
+                                        child: athlete['avatar']?.isEmpty == true
+                                            ? Center(
+                                                child: Text(
+                                                    athlete['name'] != null && athlete['name'].isNotEmpty
+                                                        ? athlete['name'][0]
+                                                        : 'A',
+                                                    style: const TextStyle(
+                                                        fontWeight: FontWeight.bold,
+                                                        color: Colors.white)))
+                                            : null,
+                                      ),
+                                      const SizedBox(width: 16),
+                                      // Profile Info and Progress Bar
+                                      Expanded(
+                                        child: Column(
+                                          crossAxisAlignment: CrossAxisAlignment.start,
+                                          children: [
+                                            Text(athlete['name'],
+                                                style: const TextStyle(
+                                                    fontWeight: FontWeight.bold,
+                                                    color: Colors.white,
+                                                    fontSize: 14)),
+                                            const SizedBox(height: 2),
+                                            Text(athlete['subtitle'] ?? 'Athlete',
+                                                style: const TextStyle(
+                                                    color: Colors.grey, fontSize: 11)),
+                                            const SizedBox(height: 8),
+                                            LayoutBuilder(
+                                                builder: (context, constraints) {
+                                              double percentage = val / maxValue;
+                                              if (percentage > 1.0) percentage = 1.0;
+                                              return Stack(
+                                                children: [
+                                                  Container(
+                                                    height: 4,
+                                                    width: constraints.maxWidth,
+                                                    decoration: BoxDecoration(
+                                                        color: const Color(0xFF2A313C),
+                                                        borderRadius:
+                                                            BorderRadius.circular(2)),
+                                                  ),
+                                                  Container(
+                                                    height: 4,
+                                                    width:
+                                                        constraints.maxWidth * percentage,
+                                                    decoration: BoxDecoration(
+                                                        color: isFirst
+                                                            ? const Color(0xFF1A9DF0)
+                                                            : const Color(0xFF4A5565),
+                                                        borderRadius:
+                                                            BorderRadius.circular(2)),
+                                                  ),
+                                                ],
+                                              );
+                                            }),
+                                          ],
+                                        ),
+                                      ),
+                                      const SizedBox(width: 16),
+                                      // Value
+                                      Row(
+                                        crossAxisAlignment: CrossAxisAlignment.baseline,
+                                        textBaseline: TextBaseline.alphabetic,
+                                        children: [
+                                          Text(val.toStringAsFixed(1),
+                                              style: TextStyle(
+                                                  fontSize: 18,
+                                                  fontWeight: FontWeight.w900,
+                                                  color: isFirst
+                                                      ? const Color(0xFF1A9DF0)
+                                                      : Colors.white)),
+                                          const SizedBox(width: 2),
+                                          Text(_getCategoryUnit(_categoryFilter),
+                                              style: const TextStyle(
+                                                  fontSize: 12, color: Colors.grey)),
+                                        ],
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ],
+                            ),
+                          );
+                        },
+                        childCount: sortedAthletes.length,
+                      ),
+                    ),
 
           const SliverToBoxAdapter(child: SizedBox(height: 40)),
         ],

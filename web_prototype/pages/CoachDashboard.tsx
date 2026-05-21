@@ -22,7 +22,7 @@ type CalendarMode = 'week' | 'month';
 type SortMode = 'hours' | 'changes';
 type ReportViewMode = 'overview' | 'session_detail' | 'chart_detail';
 type ChartType = 'weight' | 'height';
-type TimeRange = '1M' | '3M' | '6M' | '1Y';
+type TimeRange = '1M' | '3M' | '6M' | '1Y' | 'ALL';
 
 // --- SUB-COMPONENTS ---
 
@@ -156,6 +156,7 @@ const ChartDetailView: React.FC<{ type: ChartType; data: any[]; onBack: () => vo
             case '3M': cutoff.setMonth(now.getMonth() - 3); break;
             case '6M': cutoff.setMonth(now.getMonth() - 6); break;
             case '1Y': cutoff.setFullYear(now.getFullYear() - 1); break;
+            case 'ALL': cutoff = new Date(0); break;
         }
         return data.filter(d => new Date(d.date) >= cutoff);
     }, [data, chartTimeRange]);
@@ -170,7 +171,7 @@ const ChartDetailView: React.FC<{ type: ChartType; data: any[]; onBack: () => vo
             </div>
             
             <div className="p-4 flex justify-center gap-2">
-                {(['1M', '3M', '6M', '1Y'] as TimeRange[]).map(r => (
+                {(['1M', '3M', '6M', '1Y', 'ALL'] as TimeRange[]).map(r => (
                     <button 
                       key={r}
                       onClick={() => setChartTimeRange(r)}
@@ -182,8 +183,20 @@ const ChartDetailView: React.FC<{ type: ChartType; data: any[]; onBack: () => vo
             </div>
 
             <div className="flex-1 p-4 overflow-y-auto">
-                <div className="h-64 w-full bg-card rounded-2xl border border-white/5 p-4">
-                    {type === 'weight' ? (
+                <div className="h-64 w-full bg-card rounded-2xl border border-white/5 p-4 flex items-center justify-center">
+                    {filteredData.length === 0 ? (
+                        <div className="text-center">
+                            <p className="text-gray-400 text-sm">Nessun dato registrato in questo periodo.</p>
+                            {chartTimeRange !== 'ALL' && (
+                                <button 
+                                    onClick={() => setChartTimeRange('ALL')}
+                                    className="mt-3 text-xs text-secondary hover:underline font-bold"
+                                >
+                                    Mostra tutti i dati
+                                </button>
+                            )}
+                        </div>
+                    ) : type === 'weight' ? (
                         <WeightChart data={filteredData.map(d => ({...d, date: new Date(d.date).toLocaleDateString('it-IT', {day:'2-digit', month:'short'}), bodyFat: 15}))} />
                     ) : (
                         <HeightChart data={filteredData.map(d => ({...d, date: new Date(d.date).toLocaleDateString('it-IT', {month:'short'})}))} />
@@ -352,12 +365,22 @@ const CalendarView: React.FC<{
                                     onClick={() => onEventSelect(event.id)}
                                     className="bg-card border border-white/5 p-4 rounded-2xl relative overflow-hidden group cursor-pointer hover:border-white/20 transition active:scale-[0.98]"
                                 >
-                                    <div className={`absolute left-0 top-0 bottom-0 w-1 ${event.type === 'match' ? 'bg-orange-500' : 'bg-secondary'}`}></div>
+                                    <div className={`absolute left-0 top-0 bottom-0 w-1 ${event.type === 'match' ? 'bg-orange-500' : event.sportCategory === 'dryland' ? 'bg-amber-500' : 'bg-secondary'}`}></div>
                                     <div className="pl-3">
                                         <div className="flex justify-between items-start">
                                             <div className="flex items-center gap-2 mb-1">
                                                 <span className="text-xs font-bold text-gray-500 uppercase">{event.startTime} - {event.endTime}</span>
-                                                {event.type === 'match' && <span className="bg-orange-500/20 text-orange-500 text-[9px] font-bold px-1.5 py-0.5 rounded uppercase">Gara</span>}
+                                                {event.type === 'match' ? (
+                                                    <span className="bg-orange-500/20 text-orange-500 text-[9px] font-bold px-1.5 py-0.5 rounded uppercase">Gara</span>
+                                                ) : event.sportCategory === 'dryland' ? (
+                                                    <span className="bg-amber-500/20 text-amber-500 text-[9px] font-bold px-1.5 py-0.5 rounded uppercase flex items-center gap-1">
+                                                        <Dumbbell className="w-2.5 h-2.5" /> Atletico
+                                                    </span>
+                                                ) : (
+                                                    <span className="bg-sky-500/20 text-sky-400 text-[9px] font-bold px-1.5 py-0.5 rounded uppercase flex items-center gap-1">
+                                                        <Snowflake className="w-2.5 h-2.5" /> Sci
+                                                    </span>
+                                                )}
                                             </div>
                                             {team && <span className="text-[10px] font-bold text-gray-600 bg-white/5 px-2 py-0.5 rounded">{team.name}</span>}
                                         </div>
@@ -396,6 +419,12 @@ interface AthleteStats {
     teamId: string;
     avatarUrl?: string;
     attendancePct: number;
+    skiAttendancePct: number;
+    drylandAttendancePct: number;
+    skiEventsCount: number;
+    skiAttendedCount: number;
+    drylandEventsCount: number;
+    drylandAttendedCount: number;
     totalHours: number; 
     nonSkiHours: number; 
     totalChanges: number;
@@ -481,32 +510,54 @@ const CoachDashboard: React.FC<Props> = ({ setView, userProfile, teams, events, 
           let totalChanges = 0;
           const multiplier = 0.8 + Math.random() * 0.4; 
 
-          events.forEach(e => {
-              const isPresent = e.attendees?.find(at => at.id === a.id)?.isPresent ?? true; 
-              if (isPresent && e.teamId === a.teamId) {
-                  attendedEvents++;
-                  const [h1, m1] = e.startTime.split(':').map(Number);
-                  const [h2, m2] = e.endTime.split(':').map(Number);
-                  const duration = (h2 + m2/60) - (h1 + m1/60);
-                  skiHours += duration > 0 ? duration : 2;
+          let skiEventsCount = 0;
+          let skiAttendedCount = 0;
+          let drylandEventsCount = 0;
+          let drylandAttendedCount = 0;
 
-                  if (e.technicalDetails) {
-                      const details = e.technicalDetails;
-                      const laps = parseInt(details.gatedSkiing.laps || '0') || 0;
-                      const turns = parseInt(details.gatedSkiing.changes || '0') || 0;
-                      const sessionChanges = laps * turns * multiplier; 
-                      totalChanges += Math.floor(sessionChanges);
-                      
-                      if (details.specialties && details.specialties.length > 0) {
-                          details.specialties.forEach(s => {
-                             if (s === 'SL' || s === 'GS' || s === 'SG' || s === 'DH') {
-                                 skiChanges[s] += Math.floor(sessionChanges / details.specialties.length);
-                             }
-                          });
+          events.forEach(e => {
+              if (e.teamId === a.teamId) {
+                  const isDryland = e.sportCategory === 'dryland';
+                  if (isDryland) {
+                      drylandEventsCount++;
+                  } else {
+                      skiEventsCount++;
+                  }
+
+                  const isPresent = e.attendees?.find(at => at.id === a.id)?.isPresent ?? true; 
+                  if (isPresent) {
+                      attendedEvents++;
+                      if (isDryland) {
+                          drylandAttendedCount++;
+                      } else {
+                          skiAttendedCount++;
+                          const [h1, m1] = e.startTime.split(':').map(Number);
+                          const [h2, m2] = e.endTime.split(':').map(Number);
+                          const duration = (h2 + m2/60) - (h1 + m1/60);
+                          skiHours += duration > 0 ? duration : 2;
+
+                          if (e.technicalDetails) {
+                              const details = e.technicalDetails;
+                              const laps = parseInt(details.gatedSkiing.laps || '0') || 0;
+                              const turns = parseInt(details.gatedSkiing.changes || '0') || 0;
+                              const sessionChanges = laps * turns * multiplier; 
+                              totalChanges += Math.floor(sessionChanges);
+                              
+                              if (details.specialties && details.specialties.length > 0) {
+                                  details.specialties.forEach(s => {
+                                     if (s === 'SL' || s === 'GS' || s === 'SG' || s === 'DH') {
+                                         skiChanges[s] += Math.floor(sessionChanges / details.specialties.length);
+                                     }
+                                  });
+                              }
+                          }
                       }
                   }
               }
           });
+
+          const skiAttendancePct = skiEventsCount > 0 ? Math.round((skiAttendedCount / skiEventsCount) * 100) : 100;
+          const drylandAttendancePct = drylandEventsCount > 0 ? Math.round((drylandAttendedCount / drylandEventsCount) * 100) : 100;
 
           const nonSkiHours = Math.floor(attendedEvents * 1.5 * multiplier); 
           const mockSessions: TrainingSession[] = [];
@@ -563,6 +614,12 @@ const CoachDashboard: React.FC<Props> = ({ setView, userProfile, teams, events, 
               name: a.name,
               teamId: a.teamId,
               attendancePct: Math.round((attendedEvents / (events.filter(e => e.teamId === a.teamId).length || 1)) * 100),
+              skiAttendancePct,
+              drylandAttendancePct,
+              skiEventsCount,
+              skiAttendedCount,
+              drylandEventsCount,
+              drylandAttendedCount,
               totalHours: parseFloat((skiHours + nonSkiHours).toFixed(1)),
               nonSkiHours: parseFloat(nonSkiHours.toFixed(1)),
               totalChanges,
@@ -656,14 +713,25 @@ const CoachDashboard: React.FC<Props> = ({ setView, userProfile, teams, events, 
                       const isPast = new Date(event.date) < new Date();
                       return (
                           <div key={event.id} onClick={() => onEventSelect(event.id)} className={`bg-card border border-white/5 p-4 rounded-xl relative overflow-hidden cursor-pointer hover:border-white/20 active:scale-[0.99] transition ${isPast ? 'opacity-75' : ''}`}>
-                              <div className={`absolute left-0 top-0 bottom-0 w-1 ${event.type === 'match' ? 'bg-orange-500' : 'bg-secondary'}`}></div>
+                              <div className={`absolute left-0 top-0 bottom-0 w-1 ${event.type === 'match' ? 'bg-orange-500' : event.sportCategory === 'dryland' ? 'bg-amber-500' : 'bg-secondary'}`}></div>
                               <div className="pl-3">
                                   <div className="flex justify-between items-start mb-1">
                                       <div className="flex items-center gap-2">
                                           <span className="text-xs text-white font-bold font-mono bg-white/10 px-1.5 py-0.5 rounded">{event.date}</span>
-                                          {event.technicalDetails?.specialties?.map(s => (
-                                              <span key={s} className="text-[9px] font-bold uppercase bg-secondary/20 text-secondary px-1.5 py-0.5 rounded">{s}</span>
-                                          ))}
+                                          {event.sportCategory === 'dryland' ? (
+                                              <span className="text-[9px] font-bold uppercase bg-amber-500/20 text-amber-500 px-1.5 py-0.5 rounded flex items-center gap-1">
+                                                  <Dumbbell className="w-2 h-2" /> {event.drylandSpecialty || 'Atletico'}
+                                              </span>
+                                          ) : (
+                                              <>
+                                                  <span className="text-[9px] font-bold uppercase bg-sky-500/20 text-sky-400 px-1.5 py-0.5 rounded flex items-center gap-1">
+                                                      <Snowflake className="w-2 h-2" /> Sci
+                                                  </span>
+                                                  {event.technicalDetails?.specialties?.map(s => (
+                                                      <span key={s} className="text-[9px] font-bold uppercase bg-secondary/20 text-secondary px-1.5 py-0.5 rounded">{s}</span>
+                                                  ))}
+                                              </>
+                                          )}
                                       </div>
                                       {isPast && <span className="text-[9px] font-bold uppercase text-gray-500">Completato</span>}
                                   </div>
@@ -871,20 +939,36 @@ const CoachReports: React.FC<{
                 </div>
 
                 <div className="flex-1 overflow-y-auto p-4 space-y-6">
-                    <div className="grid grid-cols-3 gap-2">
-                        <div className="bg-card p-3 rounded-xl border border-white/5 text-center">
-                            <p className="text-[10px] text-gray-500 uppercase font-bold mb-1">Presenza</p>
-                            <p className={`text-xl font-black ${athlete.attendancePct > 80 ? 'text-green-500' : athlete.attendancePct > 50 ? 'text-yellow-500' : 'text-red-500'}`}>
-                                {athlete.attendancePct}%
+                    <div className="grid grid-cols-2 gap-2">
+                        <div className="bg-card p-3 rounded-xl border border-white/5 text-center flex flex-col justify-center">
+                            <div className="flex items-center justify-center gap-1 mb-1 text-sky-400">
+                                <Snowflake className="w-3.5 h-3.5" />
+                                <span className="text-[10px] uppercase font-bold text-gray-500">Presenza Sci</span>
+                            </div>
+                            <p className={`text-xl font-black ${athlete.skiAttendancePct > 80 ? 'text-green-500' : athlete.skiAttendancePct > 50 ? 'text-yellow-500' : 'text-red-500'}`}>
+                                {athlete.skiAttendancePct}%
                             </p>
+                            <span className="text-[10px] text-gray-500 font-medium">({athlete.skiAttendedCount}/{athlete.skiEventsCount})</span>
+                        </div>
+                        <div className="bg-card p-3 rounded-xl border border-white/5 text-center flex flex-col justify-center">
+                            <div className="flex items-center justify-center gap-1 mb-1 text-amber-500">
+                                <Dumbbell className="w-3.5 h-3.5" />
+                                <span className="text-[10px] uppercase font-bold text-gray-500">Presenza Atletico</span>
+                            </div>
+                            <p className={`text-xl font-black ${athlete.drylandAttendancePct > 80 ? 'text-green-500' : athlete.drylandAttendancePct > 50 ? 'text-yellow-500' : 'text-red-500'}`}>
+                                {athlete.drylandAttendancePct}%
+                            </p>
+                            <span className="text-[10px] text-gray-500 font-medium">({athlete.drylandAttendedCount}/{athlete.drylandEventsCount})</span>
                         </div>
                         <div className="bg-card p-3 rounded-xl border border-white/5 text-center">
                             <p className="text-[10px] text-gray-500 uppercase font-bold mb-1">Extra Sci</p>
                             <p className="text-xl font-black text-orange-500">{athlete.nonSkiHours}h</p>
+                            <span className="text-[10px] text-gray-500 font-medium">Ore Totali</span>
                         </div>
                         <div className="bg-card p-3 rounded-xl border border-white/5 text-center">
                             <p className="text-[10px] text-gray-500 uppercase font-bold mb-1">Tot. Cambi</p>
                             <p className="text-xl font-black text-secondary">{athlete.totalChanges}</p>
+                            <span className="text-[10px] text-gray-500 font-medium">Numero Giri</span>
                         </div>
                     </div>
 
@@ -896,8 +980,8 @@ const CoachReports: React.FC<{
                         <div className="space-y-3">
                             {Object.entries(athlete.changesBySpec).map(([spec, count]) => {
                                 if (count === 0) return null;
-                                const max = Math.max(...Object.values(athlete.changesBySpec)) || 1;
-                                const width = (count / max) * 100;
+                                const max = Math.max(...(Object.values(athlete.changesBySpec) as number[])) || 1;
+                                const width = ((count as number) / max) * 100;
                                 return (
                                     <div key={spec} className="flex items-center gap-3 text-xs">
                                         <div className="w-8 font-bold">{spec}</div>
@@ -1052,13 +1136,14 @@ const CoachReports: React.FC<{
                                                 <span className="text-sm font-black text-secondary">{athlete.totalChanges}</span>
                                             )}
                                         </div>
-                                        <div className="flex items-center gap-2 text-xs text-gray-500">
-                                            <span className="flex items-center gap-1">
-                                                <Dumbbell className="w-3 h-3" /> {athlete.nonSkiHours}h Extra
-                                            </span>
-                                            <span className="w-1 h-1 bg-gray-600 rounded-full"></span>
-                                            <span>{athlete.attendancePct}% Presenza</span>
-                                        </div>
+                                         <div className="flex items-center flex-wrap gap-x-2 gap-y-1 text-xs text-gray-500">
+                                             <span className="flex items-center gap-1 bg-sky-500/10 text-sky-400 px-1.5 py-0.5 rounded">
+                                                 <Snowflake className="w-2.5 h-2.5" /> Sci: {athlete.skiAttendancePct}%
+                                             </span>
+                                             <span className="flex items-center gap-1 bg-amber-500/10 text-amber-500 px-1.5 py-0.5 rounded">
+                                                 <Dumbbell className="w-2.5 h-2.5" /> Atletico: {athlete.drylandAttendancePct}%
+                                             </span>
+                                         </div>
                                     </div>
                                     <ChevronRight className="w-4 h-4 text-gray-600" />
                                 </div>

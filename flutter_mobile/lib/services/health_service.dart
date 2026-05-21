@@ -30,17 +30,36 @@ class HealthService {
 
   Future<bool> requestPermissions() async {
     try {
+      // Configure health plugin before use
+      await _health.configure();
+
+      // On Android, check the status of Google Health Connect SDK
       if (Platform.isAndroid) {
-        // Request specific activity recognition permission for Android
-        final status = await Permission.activityRecognition.request();
-        if (status.isDenied) return false;
+        final status = await _health.getHealthConnectSdkStatus();
+        if (status == HealthConnectSdkStatus.sdkUnavailableProviderUpdateRequired) {
+          debugPrint("Health Connect is not installed or outdated. Directing user to Play Store...");
+          await _health.installHealthConnect();
+          return false;
+        } else if (status == HealthConnectSdkStatus.sdkUnavailable) {
+          debugPrint("Health Connect is unavailable on this device.");
+          return false;
+        }
       }
-      
+
       // Request permissions from Health Connect / Apple Health
       bool hasPermissions = await _health.hasPermissions(_dataTypes, permissions: _permissions) ?? false;
       
       if (!hasPermissions) {
         hasPermissions = await _health.requestAuthorization(_dataTypes, permissions: _permissions);
+      }
+      
+      if (Platform.isAndroid && hasPermissions) {
+        // Add a delay to allow the permission dialog transition to finish
+        await Future.delayed(const Duration(milliseconds: 500));
+        
+        // Request specific activity recognition permission for Android
+        final status = await Permission.activityRecognition.request();
+        if (status.isDenied) return false;
       }
       
       return hasPermissions;

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:provider/provider.dart';
 import 'package:phosphor_flutter/phosphor_flutter.dart';
 import 'package:flutter/services.dart';
@@ -356,24 +357,52 @@ class _JoinTeamModalState extends State<_JoinTeamModal> {
   }
 
   void _handleJoin() async {
-    if (_codeCtrl.text.length < 4) return;
+    final code = _codeCtrl.text.trim().toUpperCase();
+    if (code.length < 4) return;
 
     setState(() => _joinStatus = 'loading');
 
-    // Simulate API delay
-    await Future.delayed(const Duration(milliseconds: 1200));
+    try {
+      final supabase = Supabase.instance.client;
+      final appState = Provider.of<AppState>(context, listen: false);
 
-    if (!mounted) return;
+      // 1. Fetch team by invite code
+      final teamResponse = await supabase
+          .from('teams')
+          .select()
+          .eq('invite_code', code)
+          .maybeSingle();
 
-    // Fake validation
-    if (_codeCtrl.text.toUpperCase() == 'ROME88' ||
-        _codeCtrl.text.toUpperCase() == 'MIL400') {
+      if (teamResponse == null) {
+        setState(() => _joinStatus = 'error');
+        return;
+      }
+
+      final String teamId = teamResponse['id'];
+      final int currentMembers = teamResponse['members'] ?? 0;
+
+      // 2. Update user profile team_id
+      await supabase
+          .from('profiles')
+          .update({'team_id': teamId})
+          .eq('id', appState.userId);
+
+      // 3. Increment team members count
+      await supabase
+          .from('teams')
+          .update({'members': currentMembers + 1})
+          .eq('id', teamId);
+
+      // 4. Reload app state to sync
+      await appState.init();
+
+      if (!mounted) return;
       setState(() => _joinStatus = 'success');
       await Future.delayed(const Duration(milliseconds: 1000));
       if (!mounted) return;
       Navigator.of(context).pop();
-      // Optionally trigger something else
-    } else {
+    } catch (e) {
+      debugPrint('Error joining team: $e');
       setState(() => _joinStatus = 'error');
     }
   }

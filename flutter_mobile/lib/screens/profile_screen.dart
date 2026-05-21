@@ -743,6 +743,9 @@ class _DeviceManagementModal extends StatelessWidget {
       BuildContext context, String provider, String name, String type) async {
     if (provider == 'health_connect') {
       bool success = await HealthService().requestPermissions();
+      
+      if (!context.mounted) return;
+      
       if (success) {
         final state = Provider.of<AppState>(context, listen: false);
         final p = state.userProfile!;

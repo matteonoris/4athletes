@@ -1,13 +1,19 @@
 import 'package:flutter/material.dart';
+import 'package:fl_chart/fl_chart.dart';
 import 'package:provider/provider.dart';
+import 'package:phosphor_flutter/phosphor_flutter.dart';
+
 import '../core/theme.dart';
 import '../models/models.dart';
 import '../providers/app_state.dart';
+import 'analytics_details_screen.dart';
+import 'coach_body_metric_detail_screen.dart';
+import 'activity_details_screen.dart';
 
 class CoachAthleteDetailScreen extends StatefulWidget {
   final String athleteName;
   final String initial;
-  final String athleteId; // Supabase UUID of the athlete
+  final String athleteId;
 
   const CoachAthleteDetailScreen({
     super.key,
@@ -17,32 +23,51 @@ class CoachAthleteDetailScreen extends StatefulWidget {
   });
 
   @override
-  State<CoachAthleteDetailScreen> createState() => _CoachAthleteDetailScreenState();
+  State<CoachAthleteDetailScreen> createState() =>
+      _CoachAthleteDetailScreenState();
 }
 
 class _CoachAthleteDetailScreenState extends State<CoachAthleteDetailScreen> {
-  List<TrainingSession>? _sessions;
-  UserProfile? _athleteProfile;
+  List<TrainingSession> _sessions = [];
+  UserProfile? _profile;
+  List<BodyMetricLog> _bodyLogs = [];
+  List<JumpLog> _jumpLogs = [];
+  List<PRLog> _prLogs = [];
   bool _isLoading = true;
   String? _error;
+
+  // Presenze (from coach events)
+  int _presencePercent = 0;
+  int _extraSciMinutes = 0;
+  int _totalCambi = 0;
 
   @override
   void initState() {
     super.initState();
-    _loadData();
+    _loadAll();
   }
 
-  Future<void> _loadData() async {
+  Future<void> _loadAll() async {
     final appState = Provider.of<AppState>(context, listen: false);
     try {
       final results = await Future.wait([
-        appState.loadSessionsForAthlete(widget.athleteId),
         appState.loadAthleteProfile(widget.athleteId),
+        appState.loadSessionsForAthlete(widget.athleteId),
+        appState.loadBodyLogsForAthlete(widget.athleteId),
+        appState.loadJumpLogsForAthlete(widget.athleteId),
+        appState.loadPRLogsForAthlete(widget.athleteId),
       ]);
+
+      final sessions = results[1] as List<TrainingSession>;
+      _computePresence(appState, sessions);
+
       if (mounted) {
         setState(() {
-          _sessions = results[0] as List<TrainingSession>;
-          _athleteProfile = results[1] as UserProfile?;
+          _profile = results[0] as UserProfile?;
+          _sessions = sessions;
+          _bodyLogs = results[2] as List<BodyMetricLog>;
+          _jumpLogs = results[3] as List<JumpLog>;
+          _prLogs = results[4] as List<PRLog>;
           _isLoading = false;
         });
       }
@@ -56,458 +81,530 @@ class _CoachAthleteDetailScreenState extends State<CoachAthleteDetailScreen> {
     }
   }
 
-  String _sportLabel(String sportId) {
+  void _computePresence(AppState appState, List<TrainingSession> sessions) {
+    final skiEvents = appState.coachEvents;
+    final total = skiEvents.length;
+    int present = 0;
+    for (final ev in skiEvents) {
+      final attendees = ev.attendees ?? [];
+      if (attendees.any((a) =>
+          a['id'] == widget.athleteId ||
+          a['name'] == widget.athleteName)) {
+        present++;
+      }
+    }
+    _presencePercent = total > 0 ? (present / total * 100).round() : 0;
+
+    int extraMin = 0;
+    int cambi = 0;
+    for (final s in sessions) {
+      if (s.sportId != 'alpine_skiing') {
+        extraMin += int.tryParse(s.duration.toString()) ?? 0;
+      } else {
+        final details = s.details;
+        if (details != null) {
+          final runs = details['runs'];
+          if (runs is List) cambi += runs.length;
+          final c = details['cambi'];
+          if (c is int) cambi += c;
+          if (c is double) cambi += c.toInt();
+        }
+      }
+    }
+    _extraSciMinutes = extraMin;
+    _totalCambi = cambi;
+  }
+
+  // ─── Jump helpers ────────────────────────────────────────────
+  double _latestJump(String type) {
+    final filtered = _jumpLogs.where((j) => j.type == type).toList()
+      ..sort((a, b) => DateTime.parse(b.date).compareTo(DateTime.parse(a.date)));
+    return filtered.isNotEmpty ? filtered.first.value : 0;
+  }
+
+  double _latestPR(String exerciseId) {
+    final filtered = _prLogs.where((l) => l.exerciseId == exerciseId).toList()
+      ..sort((a, b) => DateTime.parse(b.date).compareTo(DateTime.parse(a.date)));
+    return filtered.isNotEmpty ? filtered.first.weight : 0;
+  }
+
+  List<BodyMetricLog> _logsOf(String type) =>
+      _bodyLogs.where((l) => l.type == type).toList()
+        ..sort((a, b) => DateTime.parse(a.date).compareTo(DateTime.parse(b.date)));
+
+  // ─── Sport helpers ───────────────────────────────────────────
+  String _sportLabel(String id) {
     const map = {
-      'alpine_skiing': 'Sci Alpino',
+      'alpine_skiing': 'Alpine Skiing',
       'weightlifting': 'Weightlifting',
       'powerlifting': 'Powerlifting',
       'crossfit': 'CrossFit',
       'bodybuilding': 'Bodybuilding',
-      'running': 'Corsa',
+      'running': 'Running Road',
       'trail_running': 'Trail Running',
-      'cycling': 'Ciclismo',
-      'swimming': 'Nuoto',
+      'cycling': 'Cycling',
+      'swimming': 'Swimming',
       'athletic_prep': 'Preparazione Atletica',
       'stretching': 'Stretching',
       'yoga': 'Yoga',
       'pilates': 'Pilates',
       'other': 'Altro',
     };
-    return map[sportId] ?? sportId;
+    return map[id] ?? id;
   }
 
-  IconData _sportIcon(String sportId) {
-    if (sportId == 'alpine_skiing' || sportId.contains('ski')) return Icons.ac_unit;
-    if (['weightlifting', 'powerlifting', 'crossfit', 'bodybuilding'].contains(sportId)) return Icons.fitness_center;
-    if (sportId.contains('running') || sportId == 'track_field') return Icons.directions_run;
-    if (sportId.contains('cycling') || sportId == 'spinning') return Icons.directions_bike;
-    if (sportId == 'swimming') return Icons.pool;
-    if (['stretching', 'yoga', 'pilates'].contains(sportId)) return Icons.self_improvement;
+  IconData _sportIcon(String id) {
+    if (id == 'alpine_skiing') return Icons.ac_unit;
+    if (['weightlifting', 'powerlifting', 'crossfit', 'bodybuilding', 'athletic_prep'].contains(id)) return Icons.fitness_center;
+    if (id.contains('running')) return Icons.directions_run;
+    if (id.contains('cycling')) return Icons.directions_bike;
+    if (id == 'swimming') return Icons.pool;
     return Icons.sports;
   }
 
-  Color _sportColor(String sportId) {
-    if (sportId == 'alpine_skiing' || sportId.contains('ski')) return AppTheme.primary;
-    if (['weightlifting', 'powerlifting', 'crossfit', 'bodybuilding'].contains(sportId)) return const Color(0xFFFF7A00);
-    if (sportId.contains('running')) return Colors.green;
-    if (sportId.contains('cycling')) return Colors.cyan;
+  Color _sportColor(String id) {
+    if (id == 'alpine_skiing') return AppTheme.primary;
+    if (['weightlifting', 'powerlifting', 'crossfit', 'bodybuilding', 'athletic_prep'].contains(id)) return const Color(0xFFFF7A00);
+    if (id.contains('running')) return Colors.greenAccent;
     return AppTheme.secondary;
   }
 
-  bool _isWeightlifting(String sportId) {
-    return ['weightlifting', 'powerlifting', 'crossfit', 'bodybuilding', 'athletic_prep'].contains(sportId);
+  String _formatDuration(int minutes) {
+    if (minutes == 0) return '0h';
+    final h = minutes ~/ 60;
+    final m = minutes % 60;
+    if (h == 0) return '${m}m';
+    if (m == 0) return '${h}h';
+    return '${h}h ${m}m';
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: AppTheme.background,
-      appBar: AppBar(
-        backgroundColor: AppTheme.background,
-        elevation: 0,
-        leading: IconButton(
-          icon: Container(
-            padding: const EdgeInsets.all(8),
-            decoration: const BoxDecoration(color: AppTheme.card, shape: BoxShape.circle),
-            child: const Icon(Icons.arrow_back, color: Colors.white, size: 20),
-          ),
-          onPressed: () => Navigator.pop(context),
-        ),
-        title: Row(
-          children: [
-            CircleAvatar(
-              radius: 18,
-              backgroundColor: AppTheme.primary.withValues(alpha: 0.2),
-              child: Text(widget.initial,
-                  style: const TextStyle(color: AppTheme.primary, fontWeight: FontWeight.bold)),
-            ),
-            const SizedBox(width: 12),
-            Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(widget.athleteName,
-                    style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 18)),
-                if (_athleteProfile != null)
-                  Text(
-                    '${_athleteProfile!.weight.toStringAsFixed(0)} kg  •  ${_athleteProfile!.height.toStringAsFixed(0)} cm',
-                    style: const TextStyle(color: AppTheme.textMediumEmphasis, fontSize: 12),
-                  ),
-              ],
-            ),
-          ],
-        ),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.refresh, color: AppTheme.textMediumEmphasis),
-            onPressed: () {
-              setState(() => _isLoading = true);
-              _loadData();
-            },
-          ),
-        ],
-      ),
       body: _isLoading
           ? const Center(child: CircularProgressIndicator(color: AppTheme.primary))
           : _error != null
-              ? Center(
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      const Icon(Icons.error_outline, color: AppTheme.error, size: 48),
-                      const SizedBox(height: 16),
-                      Text(_error!, style: const TextStyle(color: AppTheme.textMediumEmphasis)),
-                      const SizedBox(height: 16),
-                      ElevatedButton(onPressed: _loadData, child: const Text('Riprova')),
-                    ],
-                  ),
-                )
+              ? _buildError()
               : _buildContent(),
     );
   }
 
-  Widget _buildContent() {
-    final sessions = _sessions ?? [];
-
-    // Compute summary stats
-    final totalSessions = sessions.length;
-    final wlSessions = sessions.where((s) => _isWeightlifting(s.sportId)).toList();
-    final oneRepMax = _athleteProfile?.oneRepMax;
-
-    return SingleChildScrollView(
-      padding: const EdgeInsets.all(16),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          // ── Summary cards ──
-          Row(
-            children: [
-              Expanded(child: _buildStatCard('SESSIONI', totalSessions.toString(), Colors.white)),
-              const SizedBox(width: 12),
-              Expanded(child: _buildStatCard('FORZA', wlSessions.length.toString(), const Color(0xFFFF7A00))),
-              const SizedBox(width: 12),
-              Expanded(child: _buildStatCard('RPE MEDIO',
-                  sessions.isEmpty ? '-' : (sessions.map((s) => s.effort).reduce((a, b) => a + b) / sessions.length).toStringAsFixed(1),
-                  AppTheme.primary)),
-            ],
-          ),
-          const SizedBox(height: 24),
-
-          // ── 1RM Massimali (from profile) ──
-          if (oneRepMax != null && oneRepMax.isNotEmpty) ...[
-            _buildSectionTitle(Icons.fitness_center, 'Massimali (1RM)', const Color(0xFFFF7A00)),
-            const SizedBox(height: 12),
-            Wrap(
-              spacing: 12,
-              runSpacing: 12,
-              children: oneRepMax.entries.map((entry) {
-                return _build1RMCard(entry.key, entry.value.toStringAsFixed(0));
-              }).toList(),
-            ),
-            const SizedBox(height: 24),
-          ],
-
-          // ── Training Sessions History ──
-          _buildSectionTitle(Icons.history, 'Storico Allenamenti', AppTheme.primary),
-          const SizedBox(height: 12),
-
-          if (sessions.isEmpty)
-            Container(
-              padding: const EdgeInsets.all(32),
-              decoration: BoxDecoration(
-                color: AppTheme.card,
-                borderRadius: BorderRadius.circular(16),
-              ),
-              child: const Center(
-                child: Text('Nessuna sessione registrata',
-                    style: TextStyle(color: AppTheme.textMediumEmphasis)),
-              ),
-            )
-          else
-            ...sessions.map((session) => _buildSessionCard(session)),
-
-          const SizedBox(height: 32),
-        ],
-      ),
+  Widget _buildError() {
+    return Center(
+      child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
+        const Icon(Icons.error_outline, color: AppTheme.error, size: 48),
+        const SizedBox(height: 16),
+        Text(_error!, style: const TextStyle(color: AppTheme.textMediumEmphasis)),
+        const SizedBox(height: 16),
+        ElevatedButton(onPressed: () { setState(() => _isLoading = true); _loadAll(); }, child: const Text('Riprova')),
+      ]),
     );
   }
 
-  Widget _buildSectionTitle(IconData icon, String title, Color color) {
-    return Row(
-      children: [
-        Icon(icon, color: color, size: 20),
-        const SizedBox(width: 8),
-        Text(title, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 18)),
+  Widget _buildContent() {
+    final weightLogs = _logsOf('weight');
+    final heightLogs = _logsOf('height');
+    final showHeight = heightLogs.isNotEmpty && (_profile == null || _profile!.age < 18);
+
+    // All jump types present for this athlete
+    final jumpTypes = _jumpLogs.map((j) => j.type).toSet().toList();
+
+    // PR exercises present for this athlete
+    final prExercises = _prLogs.map((l) => l.exerciseId).toSet().toList();
+
+    return CustomScrollView(
+      slivers: [
+        // ─── Sticky Header ───────────────────────────────────
+        SliverAppBar(
+          backgroundColor: AppTheme.background,
+          elevation: 0,
+          pinned: true,
+          leading: IconButton(
+            icon: Container(
+              padding: const EdgeInsets.all(8),
+              decoration: const BoxDecoration(color: AppTheme.card, shape: BoxShape.circle),
+              child: const Icon(Icons.arrow_back, color: Colors.white, size: 20),
+            ),
+            onPressed: () => Navigator.pop(context),
+          ),
+          title: Row(children: [
+            CircleAvatar(
+              radius: 18,
+              backgroundColor: AppTheme.primary.withValues(alpha: 0.2),
+              child: Text(widget.initial,
+                  style: const TextStyle(color: AppTheme.primary, fontWeight: FontWeight.bold, fontSize: 16)),
+            ),
+            const SizedBox(width: 10),
+            Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Text(widget.athleteName,
+                  style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16)),
+              if (_profile?.skiClub != null)
+                Text(_profile!.skiClub!,
+                    style: const TextStyle(color: AppTheme.textMediumEmphasis, fontSize: 11)),
+            ]),
+          ]),
+          actions: [
+            IconButton(
+              icon: const Icon(Icons.refresh, color: AppTheme.textMediumEmphasis),
+              onPressed: () { setState(() => _isLoading = true); _loadAll(); },
+            ),
+          ],
+        ),
+
+        SliverToBoxAdapter(
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(16, 8, 16, 32),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // ─── Stats Row ─────────────────────────────
+                _buildStatsRow(),
+                const SizedBox(height: 20),
+
+                // ─── Peso & Altezza mini charts ────────────
+                if (weightLogs.isNotEmpty || showHeight) ...[
+                  Row(children: [
+                    if (weightLogs.isNotEmpty)
+                      Expanded(child: _buildMiniChart(
+                        title: 'Peso',
+                        icon: PhosphorIconsRegular.scales,
+                        logs: weightLogs,
+                        color: AppTheme.secondary,
+                        unit: 'kg',
+                        onTap: () => Navigator.push(context, MaterialPageRoute(
+                          builder: (_) => CoachBodyMetricDetailScreen(
+                            title: 'Peso', type: 'weight',
+                            logs: weightLogs, athleteName: widget.athleteName,
+                          ),
+                        )),
+                      )),
+                    if (weightLogs.isNotEmpty && showHeight)
+                      const SizedBox(width: 12),
+                    if (showHeight)
+                      Expanded(child: _buildMiniChart(
+                        title: 'Altezza',
+                        icon: PhosphorIconsRegular.ruler,
+                        logs: heightLogs,
+                        color: Colors.purpleAccent,
+                        unit: 'cm',
+                        onTap: () => Navigator.push(context, MaterialPageRoute(
+                          builder: (_) => CoachBodyMetricDetailScreen(
+                            title: 'Altezza', type: 'height',
+                            logs: heightLogs, athleteName: widget.athleteName,
+                          ),
+                        )),
+                      )),
+                  ]),
+                  const SizedBox(height: 20),
+                ],
+
+                // ─── Profilo Salto ─────────────────────────
+                if (jumpTypes.isNotEmpty) ...[
+                  _buildSectionTitle(Icons.trending_up, 'Profilo Salto', AppTheme.secondary),
+                  const SizedBox(height: 12),
+                  _buildJumpGrid(jumpTypes),
+                  const SizedBox(height: 20),
+                ],
+
+                // ─── Massimali 1RM ─────────────────────────
+                if (prExercises.isNotEmpty) ...[
+                  _buildSectionTitle(PhosphorIconsRegular.barbell, 'Massimali (1RM)', const Color(0xFFFF7A00)),
+                  const SizedBox(height: 12),
+                  _buildPRGrid(prExercises),
+                  const SizedBox(height: 20),
+                ],
+
+                // ─── Storico Attività ──────────────────────
+                _buildSectionTitle(Icons.history, 'Storico Attività', AppTheme.primary),
+                const SizedBox(height: 12),
+                if (_sessions.isEmpty)
+                  Container(
+                    padding: const EdgeInsets.all(32),
+                    decoration: BoxDecoration(color: AppTheme.card, borderRadius: BorderRadius.circular(16)),
+                    child: const Center(child: Text('Nessuna sessione registrata',
+                        style: TextStyle(color: AppTheme.textMediumEmphasis))),
+                  )
+                else
+                  ..._sessions.take(10).map((s) => _buildSessionRow(s)),
+              ],
+            ),
+          ),
+        ),
       ],
     );
   }
 
+  // ─── Stats Row ─────────────────────────────────────────────────
+  Widget _buildStatsRow() {
+    final extraLabel = _formatDuration(_extraSciMinutes);
+    return Row(children: [
+      Expanded(child: _buildStatCard('PRESENZA',
+          _presencePercent > 0 ? '$_presencePercent%' : '--', AppTheme.secondary)),
+      const SizedBox(width: 10),
+      Expanded(child: _buildStatCard('EXTRA SCI', extraLabel, const Color(0xFFFF7A00))),
+      const SizedBox(width: 10),
+      Expanded(child: _buildStatCard('TOT. CAMBI',
+          _totalCambi > 0 ? '$_totalCambi' : '${_sessions.length}', AppTheme.primary)),
+    ]);
+  }
+
   Widget _buildStatCard(String label, String value, Color valueColor) {
     return Container(
-      padding: const EdgeInsets.symmetric(vertical: 20, horizontal: 12),
-      decoration: BoxDecoration(color: AppTheme.card, borderRadius: BorderRadius.circular(16)),
-      child: Column(
-        children: [
-          Text(label,
-              style: const TextStyle(
-                  color: AppTheme.textMediumEmphasis,
-                  fontWeight: FontWeight.bold,
-                  fontSize: 10,
-                  letterSpacing: 1)),
-          const SizedBox(height: 8),
-          Text(value,
-              style: TextStyle(color: valueColor, fontWeight: FontWeight.w900, fontSize: 22)),
-        ],
+      padding: const EdgeInsets.symmetric(vertical: 18, horizontal: 10),
+      decoration: BoxDecoration(color: AppTheme.card, borderRadius: BorderRadius.circular(14)),
+      child: Column(children: [
+        Text(label,
+            style: const TextStyle(color: AppTheme.textMediumEmphasis,
+                fontWeight: FontWeight.bold, fontSize: 9, letterSpacing: 1)),
+        const SizedBox(height: 6),
+        Text(value, style: TextStyle(color: valueColor, fontWeight: FontWeight.w900, fontSize: 20)),
+      ]),
+    );
+  }
+
+  // ─── Mini inline chart ─────────────────────────────────────────
+  Widget _buildMiniChart({
+    required String title,
+    required IconData icon,
+    required List<BodyMetricLog> logs,
+    required Color color,
+    required String unit,
+    required VoidCallback onTap,
+  }) {
+    final latest = logs.last.value;
+    final spots = List.generate(logs.length,
+        (i) => FlSpot(i.toDouble(), logs[i].value));
+    double minY = logs.map((l) => l.value).reduce((a, b) => a < b ? a : b);
+    double maxY = logs.map((l) => l.value).reduce((a, b) => a > b ? a : b);
+    final pad = (maxY - minY) * 0.2 + 0.5;
+    minY = minY - pad;
+    maxY = maxY + pad;
+
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        height: 140,
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(
+          color: AppTheme.card,
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: color.withValues(alpha: 0.15)),
+        ),
+        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Row(children: [
+            Icon(icon, color: color, size: 14),
+            const SizedBox(width: 6),
+            Text(title,
+                style: TextStyle(color: color, fontWeight: FontWeight.bold, fontSize: 12)),
+            const Spacer(),
+            const Icon(Icons.chevron_right, color: AppTheme.textMediumEmphasis, size: 14),
+          ]),
+          const SizedBox(height: 4),
+          Text('${latest.toStringAsFixed(1)} $unit',
+              style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 18)),
+          const Spacer(),
+          SizedBox(
+            height: 48,
+            child: LineChart(LineChartData(
+              minY: minY, maxY: maxY,
+              gridData: const FlGridData(show: false),
+              titlesData: const FlTitlesData(show: false),
+              borderData: FlBorderData(show: false),
+              lineTouchData: const LineTouchData(enabled: false),
+              lineBarsData: [LineChartBarData(
+                spots: spots,
+                isCurved: true,
+                curveSmoothness: 0.3,
+                color: color,
+                barWidth: 2,
+                dotData: const FlDotData(show: false),
+                belowBarData: BarAreaData(
+                  show: true,
+                  color: color.withValues(alpha: 0.1),
+                ),
+              )],
+            )),
+          ),
+          const SizedBox(height: 4),
+          Text(logs.last.date,
+              style: const TextStyle(color: AppTheme.textMediumEmphasis, fontSize: 9)),
+        ]),
       ),
     );
   }
 
-  Widget _build1RMCard(String exerciseName, String weightKg) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-      decoration: BoxDecoration(color: AppTheme.card, borderRadius: BorderRadius.circular(12)),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Text(exerciseName,
-              style: const TextStyle(color: AppTheme.textMediumEmphasis, fontSize: 13, fontWeight: FontWeight.bold)),
-          const SizedBox(width: 12),
-          Text(weightKg, style: const TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.w900)),
-          const SizedBox(width: 4),
-          const Text('kg', style: TextStyle(color: AppTheme.textMediumEmphasis, fontSize: 12)),
-        ],
-      ),
-    );
-  }
+  // ─── Jump grid ─────────────────────────────────────────────────
+  static const Map<String, String> _jumpLabels = {
+    'squat_jump': 'SQUAT\nJUMP',
+    'cm_jump': 'CM\nJUMP',
+    'drop_jump': 'DROP\nJUMP',
+    '45s_jump': '45s\nJUMP',
+    'single_leg_left': 'SL\nSINISTRA',
+    'single_leg_right': 'SL\nDESTRA',
+    'single_leg': 'SINGLE\nLEG',
+  };
 
-  Widget _buildSessionCard(TrainingSession session) {
-    final isWL = _isWeightlifting(session.sportId);
-    final color = _sportColor(session.sportId);
-    final exercises = session.details?['exercises'];
-    final hasExercises = isWL && exercises != null && (exercises as List).isNotEmpty;
-
-    return Container(
-      margin: const EdgeInsets.only(bottom: 12),
-      decoration: BoxDecoration(color: AppTheme.card, borderRadius: BorderRadius.circular(16)),
-      child: Theme(
-        data: Theme.of(context).copyWith(dividerColor: Colors.transparent),
-        child: hasExercises
-            ? ExpansionTile(
-                leading: Container(
-                  padding: const EdgeInsets.all(10),
-                  decoration: BoxDecoration(
-                    color: color.withValues(alpha: 0.15),
-                    borderRadius: BorderRadius.circular(10),
-                  ),
-                  child: Icon(_sportIcon(session.sportId), color: color, size: 20),
-                ),
-                title: Text(
-                  _sportLabel(session.sportId),
-                  style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
-                ),
-                subtitle: Padding(
-                  padding: const EdgeInsets.only(top: 4),
-                  child: Text(
-                    '${session.date}  •  ${session.startTime}–${session.endTime}  •  RPE ${session.effort}',
-                    style: const TextStyle(color: AppTheme.textMediumEmphasis, fontSize: 11),
-                  ),
-                ),
-                trailing: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                      decoration: BoxDecoration(
-                        color: color.withValues(alpha: 0.15),
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                      child: Text(
-                        '${(exercises as List<dynamic>).length} esercizi',
-                        style: TextStyle(color: color, fontSize: 11, fontWeight: FontWeight.bold),
-                      ),
-                    ),
-                    const Icon(Icons.expand_more, color: AppTheme.textMediumEmphasis, size: 20),
-                  ],
-                ),
-                children: [
-                  const Divider(color: Color(0x0DFFFFFF), height: 1),
-                  _buildExerciseList(exercises),
-                ],
-              )
-            : ListTile(
-                contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                leading: Container(
-                  padding: const EdgeInsets.all(10),
-                  decoration: BoxDecoration(
-                    color: color.withValues(alpha: 0.15),
-                    borderRadius: BorderRadius.circular(10),
-                  ),
-                  child: Icon(_sportIcon(session.sportId), color: color, size: 20),
-                ),
-                title: Text(
-                  _sportLabel(session.sportId),
-                  style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
-                ),
-                subtitle: Padding(
-                  padding: const EdgeInsets.only(top: 4),
-                  child: Text(
-                    '${session.date}  •  ${session.startTime}–${session.endTime}  •  RPE ${session.effort}',
-                    style: const TextStyle(color: AppTheme.textMediumEmphasis, fontSize: 11),
-                  ),
-                ),
-                trailing: _buildEffortBadge(session.effort),
-              ),
-      ),
-    );
-  }
-
-  Widget _buildEffortBadge(int effort) {
-    Color color;
-    if (effort <= 3) color = Colors.green;
-    else if (effort <= 7) color = Colors.orange;
-    else color = Colors.red;
-
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-      decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.15),
-        borderRadius: BorderRadius.circular(8),
-      ),
-      child: Text('RPE $effort',
-          style: TextStyle(color: color, fontWeight: FontWeight.bold, fontSize: 12)),
-    );
-  }
-
-  Widget _buildExerciseList(List<dynamic> exercises) {
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: exercises.asMap().entries.map((entry) {
-          final i = entry.key;
-          final ex = entry.value as Map<String, dynamic>;
-          final sets = ex['sets'] as List<dynamic>? ?? [];
-          final name = ex['name'] as String? ?? 'Esercizio';
-
-          return Container(
-            margin: EdgeInsets.only(top: i > 0 ? 16 : 0),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                // Exercise name header
-                Row(
-                  children: [
-                    Container(
-                      width: 6,
-                      height: 6,
-                      decoration: const BoxDecoration(
-                        color: Color(0xFFFF7A00),
-                        shape: BoxShape.circle,
-                      ),
-                    ),
-                    const SizedBox(width: 8),
-                    Text(
-                      name,
-                      style: const TextStyle(
-                        color: Colors.white,
-                        fontWeight: FontWeight.bold,
-                        fontSize: 14,
-                      ),
-                    ),
-                    const SizedBox(width: 8),
-                    Text(
-                      '${sets.length} serie',
-                      style: const TextStyle(color: AppTheme.textMediumEmphasis, fontSize: 11),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 8),
-
-                // Sets table header
-                if (sets.isNotEmpty) ...[
-                  Row(
-                    children: const [
-                      SizedBox(width: 32, child: Text('SET', style: TextStyle(fontSize: 9, color: AppTheme.textMediumEmphasis, fontWeight: FontWeight.bold), textAlign: TextAlign.center)),
-                      SizedBox(width: 8),
-                      Expanded(child: Text('KG', style: TextStyle(fontSize: 9, color: AppTheme.textMediumEmphasis, fontWeight: FontWeight.bold), textAlign: TextAlign.center)),
-                      SizedBox(width: 8),
-                      Expanded(child: Text('REPS', style: TextStyle(fontSize: 9, color: AppTheme.textMediumEmphasis, fontWeight: FontWeight.bold), textAlign: TextAlign.center)),
-                      SizedBox(width: 8),
-                      Expanded(child: Text('VOLUME', style: TextStyle(fontSize: 9, color: AppTheme.textMediumEmphasis, fontWeight: FontWeight.bold), textAlign: TextAlign.center)),
-                    ],
-                  ),
-                  const SizedBox(height: 6),
-                  ...sets.asMap().entries.map((setEntry) {
-                    final si = setEntry.key;
-                    final s = setEntry.value as Map<String, dynamic>;
-                    final kg = (s['kg'] as num?)?.toDouble() ?? 0.0;
-                    final reps = (s['reps'] as num?)?.toInt() ?? 0;
-                    final volume = kg * reps;
-
-                    return Container(
-                      margin: const EdgeInsets.only(bottom: 4),
-                      padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 4),
-                      decoration: BoxDecoration(
-                        color: AppTheme.background,
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                      child: Row(
-                        children: [
-                          SizedBox(
-                            width: 32,
-                            child: Text(
-                              '${si + 1}',
-                              textAlign: TextAlign.center,
-                              style: const TextStyle(
-                                color: Colors.white,
-                                fontWeight: FontWeight.bold,
-                                fontSize: 13,
-                              ),
-                            ),
-                          ),
-                          const SizedBox(width: 8),
-                          Expanded(
-                            child: Text(
-                              kg > 0 ? '${kg % 1 == 0 ? kg.toInt() : kg} kg' : '-',
-                              textAlign: TextAlign.center,
-                              style: const TextStyle(
-                                color: Color(0xFFFF7A00),
-                                fontWeight: FontWeight.bold,
-                                fontSize: 14,
-                              ),
-                            ),
-                          ),
-                          const SizedBox(width: 8),
-                          Expanded(
-                            child: Text(
-                              reps > 0 ? '$reps' : '-',
-                              textAlign: TextAlign.center,
-                              style: const TextStyle(
-                                color: Colors.white,
-                                fontWeight: FontWeight.w600,
-                                fontSize: 13,
-                              ),
-                            ),
-                          ),
-                          const SizedBox(width: 8),
-                          Expanded(
-                            child: Text(
-                              volume > 0 ? '${volume.toStringAsFixed(0)} kg' : '-',
-                              textAlign: TextAlign.center,
-                              style: const TextStyle(
-                                color: AppTheme.textMediumEmphasis,
-                                fontSize: 12,
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-                    );
-                  }),
-                ],
-              ],
+  Widget _buildJumpGrid(List<String> types) {
+    return GridView.count(
+      crossAxisCount: 3,
+      mainAxisSpacing: 10,
+      crossAxisSpacing: 10,
+      shrinkWrap: true,
+      physics: const NeverScrollableScrollPhysics(),
+      childAspectRatio: 1.1,
+      children: types.map((t) {
+        final val = _latestJump(t);
+        final label = _jumpLabels[t] ?? t.toUpperCase().replaceAll('_', '\n');
+        return GestureDetector(
+          onTap: () => Navigator.push(context, MaterialPageRoute(
+            builder: (_) => AnalyticsDetailsScreen(
+              title: label.replaceAll('\n', ' '),
+              type: 'jump',
+              exerciseId: t,
             ),
-          );
-        }).toList(),
+          )),
+          child: Container(
+            padding: const EdgeInsets.all(8),
+            decoration: BoxDecoration(
+              color: AppTheme.card,
+              borderRadius: BorderRadius.circular(14),
+            ),
+            child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
+              RichText(
+                textAlign: TextAlign.center,
+                text: TextSpan(children: [
+                  TextSpan(
+                      text: val > 0 ? val.toStringAsFixed(0) : '--',
+                      style: const TextStyle(
+                          fontSize: 20, fontWeight: FontWeight.bold, color: Colors.white)),
+                  if (val > 0)
+                    const TextSpan(
+                        text: ' cm',
+                        style: TextStyle(fontSize: 11, color: AppTheme.textMediumEmphasis)),
+                ]),
+              ),
+              const SizedBox(height: 4),
+              Text(label,
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(
+                      fontSize: 9, fontWeight: FontWeight.bold,
+                      color: AppTheme.textMediumEmphasis)),
+            ]),
+          ),
+        );
+      }).toList(),
+    );
+  }
+
+  // ─── PR grid ───────────────────────────────────────────────────
+  static const Map<String, String> _prLabels = {
+    'back_squat': 'Back Squat',
+    'deadlift': 'Deadlift',
+    'bp': 'Bench Press',
+    'clean_jerk': 'Clean & Jerk',
+    'snatch': 'Snatch',
+    'front_squat': 'Front Squat',
+    'rdl': 'RDL',
+    'ohp': 'OHP',
+    'hip_thrust': 'Hip Thrust',
+    'clean': 'Clean',
+  };
+
+  Widget _buildPRGrid(List<String> exercises) {
+    return GridView.count(
+      crossAxisCount: 2,
+      mainAxisSpacing: 10,
+      crossAxisSpacing: 10,
+      shrinkWrap: true,
+      physics: const NeverScrollableScrollPhysics(),
+      childAspectRatio: 2.4,
+      children: exercises.map((ex) {
+        final val = _latestPR(ex);
+        final label = _prLabels[ex] ?? ex.replaceAll('_', ' ');
+        return GestureDetector(
+          onTap: () => Navigator.push(context, MaterialPageRoute(
+            builder: (_) => AnalyticsDetailsScreen(
+              title: label, type: 'pr', exerciseId: ex,
+            ),
+          )),
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+            decoration: BoxDecoration(color: AppTheme.card, borderRadius: BorderRadius.circular(12)),
+            child: Row(children: [
+              Expanded(
+                child: Text(label,
+                    style: const TextStyle(
+                        color: AppTheme.textMediumEmphasis,
+                        fontSize: 12, fontWeight: FontWeight.bold)),
+              ),
+              RichText(
+                text: TextSpan(children: [
+                  TextSpan(
+                      text: val > 0 ? val.toStringAsFixed(0) : '--',
+                      style: const TextStyle(
+                          color: Colors.white, fontSize: 18, fontWeight: FontWeight.w900)),
+                  if (val > 0)
+                    const TextSpan(
+                        text: ' kg',
+                        style: TextStyle(color: AppTheme.textMediumEmphasis, fontSize: 11)),
+                ]),
+              ),
+            ]),
+          ),
+        );
+      }).toList(),
+    );
+  }
+
+  // ─── Section title ─────────────────────────────────────────────
+  Widget _buildSectionTitle(IconData icon, String title, Color color) {
+    return Row(children: [
+      Icon(icon, color: color, size: 18),
+      const SizedBox(width: 8),
+      Text(title,
+          style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16)),
+    ]);
+  }
+
+  // ─── Session row ───────────────────────────────────────────────
+  Widget _buildSessionRow(TrainingSession session) {
+    final color = _sportColor(session.sportId);
+    return GestureDetector(
+      onTap: () => Navigator.push(context,
+          MaterialPageRoute(builder: (_) => ActivityDetailsScreen(session: session, prLogs: _prLogs))),
+      child: Container(
+        margin: const EdgeInsets.only(bottom: 10),
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
+        decoration: BoxDecoration(color: AppTheme.card, borderRadius: BorderRadius.circular(14)),
+        child: Row(children: [
+          Container(
+            padding: const EdgeInsets.all(10),
+            decoration: BoxDecoration(
+              color: color.withValues(alpha: 0.15),
+              borderRadius: BorderRadius.circular(10),
+            ),
+            child: Icon(_sportIcon(session.sportId), color: color, size: 20),
+          ),
+          const SizedBox(width: 14),
+          Expanded(
+            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Text(_sportLabel(session.sportId),
+                  style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 14)),
+              const SizedBox(height: 3),
+              Row(children: [
+                Text(session.date,
+                    style: const TextStyle(color: AppTheme.textMediumEmphasis, fontSize: 11)),
+                const SizedBox(width: 8),
+                const Icon(Icons.access_time, color: AppTheme.textMediumEmphasis, size: 11),
+                const SizedBox(width: 3),
+                Text(session.duration.toString(),
+                    style: const TextStyle(color: AppTheme.textMediumEmphasis, fontSize: 11)),
+              ]),
+            ]),
+          ),
+          const Icon(Icons.chevron_right, color: AppTheme.textMediumEmphasis, size: 18),
+        ]),
       ),
     );
   }

@@ -127,6 +127,7 @@ const AddTraining: React.FC<Props> = ({ setView, selectedSportId, onSaveSession,
   const isCycling = sport.id.includes('cycling') || sport.id === 'spinning';
   const isStretching = sport.id === 'stretching' || sport.id === 'yoga' || sport.id === 'pilates';
   const isAthletic = sport.id === 'athletic_prep' || sport.id === 'other'; // Handle generic Athletic Prep
+  const isSynced = !!initialSession?.eventId;
 
   // --- HANDLERS FOR WEIGHTLIFTING / STRETCHING / ATHLETIC ---
   const handleAddExercise = (exerciseDefId: string, name: string) => {
@@ -446,6 +447,129 @@ const AddTraining: React.FC<Props> = ({ setView, selectedSportId, onSaveSession,
             </div>
             <ChevronRight className="text-gray-600 w-5 h-5" />
         </div>
+
+        {/* Coach Specifications Card (if synced from a coach event) */}
+        {isSynced && (
+          <div className={`p-4 rounded-2xl border ${
+            isSkiing 
+              ? 'bg-gradient-to-r from-secondary/15 via-sky-500/5 to-card/50 border-secondary/30 shadow-lg shadow-secondary/5' 
+              : 'bg-gradient-to-r from-orange-500/15 via-amber-500/5 to-card/50 border-orange-500/30 shadow-lg shadow-orange-500/5'
+          } space-y-4 animate-in fade-in slide-in-from-top-4 duration-300`}>
+              <div className="flex items-center justify-between pb-2 border-b border-white/5">
+                  <div className="flex items-center gap-2.5">
+                      <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${isSkiing ? 'bg-secondary/20 text-secondary' : 'bg-orange-500/20 text-orange-500'}`}>
+                          {isSkiing ? <Trophy className="w-4 h-4" /> : <Dumbbell className="w-4 h-4" />}
+                      </div>
+                      <div>
+                          <span className="text-[10px] font-bold uppercase tracking-widest text-gray-400 block">Dettagli Allenatore</span>
+                          <span className="text-xs font-semibold text-gray-300 block">Programmato dal Coach</span>
+                      </div>
+                  </div>
+                  <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wider ${
+                      isSkiing ? 'bg-secondary/10 text-secondary border border-secondary/20' : 'bg-orange-500/10 text-orange-500 border border-orange-500/20'
+                  }`}>
+                      Sincronizzato
+                  </span>
+              </div>
+
+              {isSkiing ? (
+                  <div className="grid grid-cols-2 gap-4 text-sm">
+                      {/* Specialties */}
+                      {initialSession?.details?.specialties && initialSession.details.specialties.length > 0 && (
+                          <div className="col-span-2 space-y-1">
+                              <span className="text-[9px] text-gray-500 font-bold uppercase tracking-wider block">Specialità sciistiche</span>
+                              <div className="flex gap-1.5 flex-wrap">
+                                  {initialSession.details.specialties.map(spec => (
+                                      <span key={spec} className="px-2.5 py-1 bg-secondary/15 text-secondary border border-secondary/20 rounded-lg text-xs font-bold font-mono">
+                                          {spec}
+                                      </span>
+                                  ))}
+                              </div>
+                          </div>
+                      )}
+
+                      {/* Conditions */}
+                      {(initialSession?.details?.weatherCondition || initialSession?.details?.snowCondition) && (
+                          <div className="col-span-2 grid grid-cols-2 gap-3 bg-white/5 rounded-xl p-2.5 border border-white/5">
+                              {initialSession.details.weatherCondition && (
+                                  <div className="flex items-center gap-2">
+                                      <Cloud className="w-4 h-4 text-sky-400 shrink-0" />
+                                      <div>
+                                          <span className="text-[8px] text-gray-500 uppercase block font-bold">Meteo</span>
+                                          <span className="text-xs font-bold capitalize text-white">{initialSession.details.weatherCondition}</span>
+                                      </div>
+                                  </div>
+                              )}
+                              {initialSession.details.snowCondition && (
+                                  <div className="flex items-center gap-2">
+                                      <Snowflake className="w-4 h-4 text-cyan-400 shrink-0" />
+                                      <div>
+                                          <span className="text-[8px] text-gray-500 uppercase block font-bold">Neve</span>
+                                          <span className="text-xs font-bold capitalize text-white">{initialSession.details.snowCondition}</span>
+                                      </div>
+                                  </div>
+                              )}
+                          </div>
+                      )}
+
+                      {/* Free Skiing Volume */}
+                      {initialSession?.details?.freeSkiing && (initialSession.details.freeSkiing.laps || initialSession.details.freeSkiing.changes) && (
+                          <div className="space-y-1 bg-white/5 border border-white/5 rounded-xl p-3">
+                              <div className="flex items-center gap-1.5 text-primary">
+                                  <Activity className="w-3.5 h-3.5" />
+                                  <span className="text-[10px] font-bold uppercase tracking-wide">Campo Libero</span>
+                              </div>
+                              <div className="mt-1 text-xs space-y-0.5">
+                                  {initialSession.details.freeSkiing.laps && (
+                                      <p className="text-gray-400 font-medium">Giri: <span className="font-bold text-white">{initialSession.details.freeSkiing.laps}</span></p>
+                                  )}
+                                  {initialSession.details.freeSkiing.changes && (
+                                      <p className="text-gray-400 font-medium">Cambi: <span className="font-bold text-white">{initialSession.details.freeSkiing.changes}</span></p>
+                                  )}
+                              </div>
+                          </div>
+                      )}
+
+                      {/* Gated Skiing Volume */}
+                      {initialSession?.details?.gatedSkiing && (initialSession.details.gatedSkiing.laps || initialSession.details.gatedSkiing.changes) && (
+                          <div className="space-y-1 bg-white/5 border border-white/5 rounded-xl p-3">
+                              <div className="flex items-center gap-1.5 text-secondary">
+                                  <Zap className="w-3.5 h-3.5" />
+                                  <span className="text-[10px] font-bold uppercase tracking-wide">Pali (Volume)</span>
+                              </div>
+                              <div className="mt-1 text-xs space-y-0.5">
+                                  {initialSession.details.gatedSkiing.laps && (
+                                      <p className="text-gray-400 font-medium">Giri: <span className="font-bold text-white">{initialSession.details.gatedSkiing.laps}</span></p>
+                                  )}
+                                  {initialSession.details.gatedSkiing.changes && (
+                                      <p className="text-gray-400 font-medium">Porte: <span className="font-bold text-white">{initialSession.details.gatedSkiing.changes}</span></p>
+                                  )}
+                              </div>
+                          </div>
+                      )}
+                  </div>
+              ) : (
+                  /* Dryland/Athletic specifications */
+                  <div className="space-y-3">
+                      {initialSession?.details?.specialties && initialSession.details.specialties.length > 0 && (
+                          <div className="space-y-1">
+                              <span className="text-[9px] text-gray-500 font-bold uppercase tracking-wider block">Specialità Atletica</span>
+                              <div className="flex gap-1.5 flex-wrap">
+                                  {initialSession.details.specialties.map(spec => (
+                                      <span key={spec} className="px-3 py-1.5 bg-orange-500/10 text-orange-500 border border-orange-500/20 rounded-xl text-sm font-bold">
+                                          {spec}
+                                      </span>
+                                  ))}
+                              </div>
+                          </div>
+                      )}
+                      <p className="text-xs text-gray-400 leading-relaxed font-medium">
+                          Inserisci le tue metriche di allenamento (RPE, report dolore, esercizi svolti) per completare il log della sessione programmata dall'allenatore.
+                      </p>
+                  </div>
+              )}
+          </div>
+        )}
 
         {/* DateTime Section */}
         <section className="bg-card rounded-2xl border border-white/5 overflow-hidden">

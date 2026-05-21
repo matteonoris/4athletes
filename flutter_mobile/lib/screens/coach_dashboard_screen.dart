@@ -40,8 +40,14 @@ class _CoachDashboardScreenState extends State<CoachDashboardScreen> {
 
 
 
-  void _showTeamSelectionIfNeeded(BuildContext context, Widget screen) {
+  void _showTeamSelectionIfNeeded(BuildContext context, {required bool isSkiWorkout}) {
     final appState = Provider.of<AppState>(context, listen: false);
+    if (appState.teams.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Nessun team disponibile. Crea o unisciti a un team prima.')),
+      );
+      return;
+    }
     if (appState.teams.length > 1) {
       showDialog(
         context: context,
@@ -57,14 +63,21 @@ class _CoachDashboardScreenState extends State<CoachDashboardScreen> {
               onTap: () {
                 HapticFeedback.lightImpact();
                 Navigator.pop(ctx);
-                Navigator.push(context, MaterialPageRoute(builder: (_) => screen));
+                Widget dest = isSkiWorkout 
+                    ? CoachEventDetailsScreen(selectedTeam: t) 
+                    : const ActivitySelectScreen();
+                Navigator.push(context, MaterialPageRoute(builder: (_) => dest));
               }
             )).toList(),
           ),
         ),
       );
     } else {
-      Navigator.push(context, MaterialPageRoute(builder: (_) => screen));
+      final t = appState.teams.first;
+      Widget dest = isSkiWorkout 
+          ? CoachEventDetailsScreen(selectedTeam: t) 
+          : const ActivitySelectScreen();
+      Navigator.push(context, MaterialPageRoute(builder: (_) => dest));
     }
   }
 
@@ -141,7 +154,7 @@ class _CoachDashboardScreenState extends State<CoachDashboardScreen> {
                       onTap: () {
                         HapticFeedback.lightImpact();
                         Navigator.pop(ctx);
-                        _showTeamSelectionIfNeeded(context, const CoachEventDetailsScreen());
+                        _showTeamSelectionIfNeeded(context, isSkiWorkout: true);
                       },
                     ),
                     const SizedBox(height: 8),
@@ -152,7 +165,7 @@ class _CoachDashboardScreenState extends State<CoachDashboardScreen> {
                       onTap: () {
                         HapticFeedback.lightImpact();
                         Navigator.pop(ctx);
-                        _showTeamSelectionIfNeeded(context, const ActivitySelectScreen());
+                        _showTeamSelectionIfNeeded(context, isSkiWorkout: false);
                       },
                     ),
                   ],
@@ -578,7 +591,6 @@ class _CoachReportViewState extends State<_CoachReportView> {
   bool _isLoading = true;
   List<Map<String, dynamic>> _athletes = [];
 
-
   @override
   void initState() {
     super.initState();
@@ -588,18 +600,64 @@ class _CoachReportViewState extends State<_CoachReportView> {
   Future<void> _loadAthletes() async {
     try {
       final supabase = Supabase.instance.client;
-      // Load all profiles with role 'athlete'
-      final data = await supabase
+
+      // 1. Carica tutti gli atleti
+      final profilesData = await supabase
           .from('profiles')
           .select('id, first_name, last_name, role')
           .eq('role', 'athlete');
-      
+
+      // 2. Carica tutti gli eventi sci (con la lista presenze)
+      final eventsData = await supabase
+          .from('calendar_events')
+          .select('id, attendees');
+      final totalSkiEvents = (eventsData as List).length;
+
+      // 3. Carica le sessioni di preparazione atletica (escludendo sci)
+      final sessionsData = await supabase
+          .from('training_sessions')
+          .select('user_id, sport_id, duration')
+          .neq('sport_id', 'alpine_skiing');
+
       if (mounted) {
         setState(() {
-          _athletes = (data as List).map((p) => {
-            'id': p['id'] as String,
-            'name': '${p['first_name'] ?? ''} ${p['last_name'] ?? ''}'.trim(),
-            'initial': ((p['first_name'] as String? ?? 'A').isNotEmpty ? (p['first_name'] as String)[0] : 'A').toUpperCase(),
+          _athletes = (profilesData as List).map((p) {
+            final athleteId = p['id'] as String;
+            final name = '${p['first_name'] ?? ''} ${p['last_name'] ?? ''}'.trim();
+            final initial = ((p['first_name'] as String? ?? 'A').isNotEmpty
+                ? (p['first_name'] as String)[0]
+                : 'A').toUpperCase();
+
+            // Calcola % presenze sci
+            int skiPresences = 0;
+            for (final event in eventsData) {
+              final attendees = event['attendees'] as List? ?? [];
+              final found = attendees.any((a) =>
+                  a['id'] == athleteId ||
+                  a['name'] == name);
+              if (found) skiPresences++;
+            }
+            final presencePercent = totalSkiEvents > 0
+                ? (skiPresences / totalSkiEvents * 100).round()
+                : 0;
+
+            // Calcola ore di preparazione atletica
+            int totalMinutes = 0;
+            for (final session in sessionsData as List) {
+              if (session['user_id'] == athleteId) {
+                final durationStr = session['duration']?.toString() ?? '0';
+                totalMinutes += int.tryParse(durationStr) ?? 0;
+              }
+            }
+            final prepHours = (totalMinutes / 60).ceil();
+
+            return {
+              'id': athleteId,
+              'name': name,
+              'initial': initial,
+              'presencePercent': presencePercent,
+              'prepHours': prepHours,
+            };
           }).toList();
           _isLoading = false;
         });
@@ -705,13 +763,23 @@ class _CoachReportViewState extends State<_CoachReportView> {
         a['initial'] as String,
         a['name'] as String,
         a['id'] as String,
+        a['presencePercent'] as int,
+        a['prepHours'] as int,
       );
     }).toList();
   }
 
-  Widget _buildAthleteItem(BuildContext context, String initial, String name, String athleteId) {
+  Widget _buildAthleteItem(
+    BuildContext context,
+    String initial,
+    String name,
+    String athleteId,
+    int presencePercent,
+    int prepHours,
+  ) {
     return GestureDetector(
       onTap: () {
+        HapticFeedback.lightImpact();
         Navigator.push(context, MaterialPageRoute(builder: (_) => CoachAthleteDetailScreen(
           athleteName: name,
           initial: initial,
@@ -720,7 +788,7 @@ class _CoachReportViewState extends State<_CoachReportView> {
       },
       child: Container(
         margin: const EdgeInsets.only(bottom: 12),
-        padding: const EdgeInsets.all(16),
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
         decoration: BoxDecoration(color: AppTheme.card, borderRadius: BorderRadius.circular(16)),
         child: Row(
           children: [
@@ -735,12 +803,35 @@ class _CoachReportViewState extends State<_CoachReportView> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(name, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16)),
-                  const SizedBox(height: 4),
-                  const Text('Tocca per vedere i dettagli', style: TextStyle(color: AppTheme.textMediumEmphasis, fontSize: 12)),
+                  const SizedBox(height: 5),
+                  Row(
+                    children: [
+                      const Icon(Icons.fitness_center, color: AppTheme.textMediumEmphasis, size: 12),
+                      const SizedBox(width: 4),
+                      Text('${prepHours}h Extra',
+                          style: const TextStyle(color: AppTheme.textMediumEmphasis, fontSize: 12, fontWeight: FontWeight.w500)),
+                      const SizedBox(width: 6),
+                      Container(
+                        width: 3,
+                        height: 3,
+                        decoration: BoxDecoration(
+                          color: AppTheme.textMediumEmphasis.withValues(alpha: 0.6),
+                          shape: BoxShape.circle,
+                        ),
+                      ),
+                      const SizedBox(width: 6),
+                      Text('$presencePercent% Presenza',
+                          style: const TextStyle(color: AppTheme.textMediumEmphasis, fontSize: 12, fontWeight: FontWeight.w500)),
+                    ],
+                  ),
                 ],
               ),
             ),
-            const Icon(Icons.chevron_right, color: AppTheme.textMediumEmphasis),
+            const SizedBox(width: 12),
+            Text('${prepHours}h',
+                style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16)),
+            const SizedBox(width: 8),
+            const Icon(Icons.chevron_right, color: AppTheme.textMediumEmphasis, size: 20),
           ],
         ),
       ),
