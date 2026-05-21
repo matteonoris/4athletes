@@ -20,79 +20,14 @@ import CoachEventDetails from './pages/CoachEventDetails';
 import Auth from './pages/Auth';
 import { ViewState, UserProfile, TrainingSession, Team, BodyMetricLog, PRLog, JumpLog, JumpType, CalendarEvent } from './types';
 
-const INITIAL_SESSIONS: TrainingSession[] = [
-  {
-    id: 'mock-1',
-    sportId: 'alpine_skiing',
-    date: new Date().toISOString().split('T')[0],
-    startTime: '08:30',
-    endTime: '11:45',
-    duration: '3h 15m',
-    effort: 8,
-    details: {
-      specialties: ['GS'],
-      gatedSkiing: { changes: '40', laps: '5' }, 
-      freeSkiing: { changes: '12', laps: '3' },
-      snowCondition: 'hard',
-      weatherCondition: 'sunny'
-    }
-  }
-];
+const INITIAL_SESSIONS: TrainingSession[] = [];
 
-const INITIAL_TEAMS: Team[] = [
-  {
-    id: 't1',
-    name: 'Alpine Elite Squad',
-    members: 8,
-    category: 'Skiing',
-    inviteCode: 'ALPH12',
-    image: 'https://lh3.googleusercontent.com/aida-public/AB6AXuAD0JyqaYOUXZO3wyUmUbN3-WJd-2bq6GGaXRZcigNXV3tTFbBhH1_88tOz9qeHYORh5KJJGti1-WcCulR1ILafKnCRDW2-81Gn5S4f5UdTyIJfLD52wp5qHz-nMKrC595uqv6c0xSShLRGUPQhCKelPUlHoKGH5uxf_tsTxrJPzTMN-ISNo0S2o8cMSFxn7kK14rqLX0dGqfZruAlGaC8iyrAelKZbrvEtF_-dmfVcJEX0-wd3OY0zyYfL9HvpV0F111ZkG1jEMv3U'
-  }
-];
+const INITIAL_TEAMS: Team[] = [];
 
 // Mock Athletes for Init
-const MOCK_ATHLETES = [
-    { id: '1', name: 'Sarah Jenkins' },
-    { id: '2', name: 'Mike Thompson' },
-    { id: '3', name: 'Alex Rivera' },
-    { id: '4', name: 'Jessica Lee' },
-    { id: '5', name: 'Davide Rossi' },
-];
+const MOCK_ATHLETES: any[] = [];
 
-const INITIAL_COACH_EVENTS: CalendarEvent[] = [
-    {
-      id: 'e1',
-      teamId: 't1',
-      type: 'training',
-      title: 'Technical Slalom Drills',
-      date: new Date().toISOString().split('T')[0],
-      startTime: '09:00',
-      endTime: '11:00',
-      location: 'Main Slope',
-      sportCategory: 'ski',
-      technicalDetails: {
-          snowCondition: 'hard',
-          weatherCondition: 'sunny',
-          specialties: ['SL'],
-          freeSkiing: { laps: '4', changes: '12' },
-          gatedSkiing: { laps: '6', changes: '45' }
-      },
-      attendees: MOCK_ATHLETES.map(a => ({ ...a, isPresent: true }))
-    },
-    {
-      id: 'e2',
-      teamId: 't1',
-      type: 'training',
-      title: 'Athletic Prep & Core Strength',
-      date: new Date().toISOString().split('T')[0],
-      startTime: '15:00',
-      endTime: '16:30',
-      location: 'Gym Center',
-      sportCategory: 'dryland',
-      drylandSpecialty: 'Core & Power',
-      attendees: MOCK_ATHLETES.map(a => ({ ...a, isPresent: a.id !== '3' })) // Alex Rivera is absent
-    }
-];
+const INITIAL_COACH_EVENTS: CalendarEvent[] = [];
 
 // Global pool of "discoverable" teams for joining demo
 const ALL_AVAILABLE_TEAMS: Team[] = [
@@ -153,20 +88,7 @@ function App() {
       const saved = localStorage.getItem('prLogs');
       if (saved) return JSON.parse(saved);
 
-      // Generate initial Mock History for charts
-      const logs: PRLog[] = [
-          { id: '1', exerciseId: 'back_squat', date: '2023-08-10', weight: 130 },
-          { id: '2', exerciseId: 'back_squat', date: '2023-09-15', weight: 135 },
-          { id: '3', exerciseId: 'back_squat', date: '2023-10-20', weight: 140 },
-          { id: '4', exerciseId: 'back_squat', date: '2023-11-05', weight: 145 }, // Current
-          { id: '5', exerciseId: 'bench_press', date: '2023-09-01', weight: 95 },
-          { id: '6', exerciseId: 'bench_press', date: '2023-10-12', weight: 100 },
-          { id: '7', exerciseId: 'bench_press', date: '2023-11-01', weight: 105 },
-          { id: '8', exerciseId: 'deadlift', date: '2023-07-01', weight: 160 },
-          { id: '9', exerciseId: 'deadlift', date: '2023-09-01', weight: 170 },
-          { id: '10', exerciseId: 'deadlift', date: '2023-10-15', weight: 180 },
-      ];
-      return logs;
+      return [];
   });
 
   // Jump Logs
@@ -174,18 +96,7 @@ function App() {
     const saved = localStorage.getItem('jumpLogs');
     if (saved) return JSON.parse(saved);
 
-    // Initial Mock Data
-    return [
-      { id: 'j1', type: 'squat_jump', date: '2023-09-10', value: 40 },
-      { id: 'j2', type: 'squat_jump', date: '2023-10-12', value: 42 },
-      { id: 'j3', type: 'cm_jump', date: '2023-09-10', value: 45 },
-      { id: 'j4', type: 'cm_jump', date: '2023-10-12', value: 48 },
-      { id: 'j5', type: 'drop_jump', date: '2023-10-01', value: 35 },
-      { id: 'j6', type: '45s_jump', date: '2023-10-01', value: 50 },
-      { id: 'j7', type: '45s_jump', date: '2023-11-01', value: 52 },
-      { id: 'j8', type: 'single_leg_left', date: '2023-10-10', value: 28 },
-      { id: 'j9', type: 'single_leg_right', date: '2023-10-10', value: 26 },
-    ];
+    return [];
   });
 
   // Mock History Data
@@ -193,34 +104,7 @@ function App() {
      const saved = localStorage.getItem('bodyLogs');
      if (saved) return JSON.parse(saved);
      
-     // Generate some initial data
-     const logs: BodyMetricLog[] = [];
-     const today = new Date();
-     
-     // Weight History
-     for(let i=5; i>=0; i--) {
-        const d = new Date(today);
-        d.setMonth(d.getMonth() - i);
-        logs.push({
-            id: `w-${i}`,
-            date: d.toISOString().split('T')[0],
-            type: 'weight',
-            value: 65.5 - (i * 0.3) + (Math.random() * 0.5) // Slight fluctuation
-        });
-     }
-
-     // Height History
-     for(let i=5; i>=0; i--) {
-        const d = new Date(today);
-        d.setMonth(d.getMonth() - i);
-        logs.push({
-            id: `h-${i}`,
-            date: d.toISOString().split('T')[0],
-            type: 'height',
-            value: 172 - (i * 0.2) // Growing
-        });
-     }
-     return logs;
+     return [];
   });
 
   const [sessions, setSessions] = useState<TrainingSession[]>(INITIAL_SESSIONS);

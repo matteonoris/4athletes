@@ -74,34 +74,22 @@ class _CoachEventDetailsScreenState extends State<CoachEventDetailsScreen>
   late TextEditingController _paliPorteCtrl;
   late TextEditingController _paliGiriCtrl;
 
-  void _loadMockAthletes() {
+  void _loadEventAttendeesOnly() {
     final e = widget.event;
-    final squad = [
-      'Sarah Jenkins',
-      'Mike Thompson',
-      'Alex Rivera',
-      'Jessica Lee',
-      'Davide Rossi'
-    ];
-    setState(() {
-      _athletes = squad.map((name) {
-        Map<String, dynamic>? attendee;
-        if (e != null && e.attendees != null) {
-          try {
-            attendee = e.attendees!.firstWhere((a) => a['name'] == name);
-          } catch (_) {
-            attendee = null;
-          }
-        }
-
-        return {
-          'id': null,
-          'name': name,
-          'selected': attendee != null ? (attendee['isPresent'] ?? false) : false,
-          'laps': attendee != null ? (attendee['laps'] ?? 6) : 6,
-        };
-      }).toList();
-    });
+    if (e != null && e.attendees != null) {
+      setState(() {
+        _athletes = e.attendees!.map((a) => {
+          'id': a['id'],
+          'name': a['name'] ?? 'Atleta',
+          'selected': a['isPresent'] ?? false,
+          'laps': a['laps'] ?? 6,
+        }).toList();
+      });
+    } else {
+      setState(() {
+        _athletes = [];
+      });
+    }
   }
 
   Future<void> _fetchAthletesForTeams(List<String> teamIds) async {
@@ -153,6 +141,20 @@ class _CoachEventDetailsScreenState extends State<CoachEventDetailsScreen>
         }
       }
 
+      // Append any attendees from the event that are not in the team
+      if (e != null && e.attendees != null) {
+        for (var a in e.attendees!) {
+          if (!loadedAthletes.any((la) => la['id'] == a['id'] || la['name'] == a['name'])) {
+            loadedAthletes.add({
+              'id': a['id'],
+              'name': a['name'] ?? 'Atleta',
+              'selected': a['isPresent'] ?? false,
+              'laps': a['laps'] ?? 6,
+            });
+          }
+        }
+      }
+
       setState(() {
         _athletes = loadedAthletes;
         _isLoadingAthletes = false;
@@ -162,7 +164,7 @@ class _CoachEventDetailsScreenState extends State<CoachEventDetailsScreen>
       setState(() {
         _isLoadingAthletes = false;
       });
-      _loadMockAthletes();
+      _loadEventAttendeesOnly();
     }
   }
 
@@ -230,11 +232,11 @@ class _CoachEventDetailsScreenState extends State<CoachEventDetailsScreen>
       }
     }
 
-    // Fetch team athletes or fallback to mock data
+    // Fetch team athletes or fallback to event attendees
     if (_selectedTeams.isNotEmpty) {
       _fetchAthletesForTeams(_selectedTeams.map((t) => t.id).toList());
     } else {
-      _loadMockAthletes();
+      _loadEventAttendeesOnly();
     }
   }
 

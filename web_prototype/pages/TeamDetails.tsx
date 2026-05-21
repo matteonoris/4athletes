@@ -161,7 +161,7 @@ const TeamDetails: React.FC<Props> = ({ setView, team }) => {
             <ArrowLeft />
         </button>
         <div className="flex-1 text-center">
-            <h1 className="font-bold text-lg leading-tight truncate px-2">{team?.name || 'Alpine Elite Squad'}</h1>
+            <h1 className="font-bold text-lg leading-tight truncate px-2">{team?.name || 'Team'}</h1>
             <p className="text-[10px] font-bold text-secondary uppercase tracking-widest">{processedData.length} Members</p>
         </div>
         <button 

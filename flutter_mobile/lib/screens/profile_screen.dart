@@ -20,8 +20,6 @@ class ProfileScreen extends StatefulWidget {
 }
 
 class _ProfileScreenState extends State<ProfileScreen> {
-  UserProfile? _draftProfile;
-
   // UI Expansion States
   bool _showUnits = false;
   bool _showLang = false;
@@ -29,10 +27,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
   @override
   void initState() {
     super.initState();
-    final profile = Provider.of<AppState>(context, listen: false).userProfile;
-    if (profile != null) {
-      _draftProfile = profile.copyWith(); // Create a draft copy
-    }
   }
 
   void _logout(BuildContext context) {
@@ -52,9 +46,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
   void _triggerAutoSave() {
     if (_debounce?.isActive ?? false) _debounce!.cancel();
     _debounce = Timer(const Duration(milliseconds: 1000), () {
-      if (_draftProfile != null) {
-        Provider.of<AppState>(context, listen: false)
-            .updateProfile(_draftProfile!);
+      final appState = Provider.of<AppState>(context, listen: false);
+      if (appState.userProfile != null) {
+        appState.updateProfile(appState.userProfile!);
       }
     });
   }
@@ -120,8 +114,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
       final ImagePicker picker = ImagePicker();
       final XFile? image = await picker.pickImage(source: source);
       if (image != null) {
+        final appState = Provider.of<AppState>(context, listen: false);
         setState(() {
-          _draftProfile!.avatarUrl = image.path;
+          appState.userProfile?.avatarUrl = image.path;
         });
         _triggerAutoSave();
         if (mounted) {
@@ -154,11 +149,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
   @override
   Widget build(BuildContext context) {
-    if (_draftProfile == null) {
+    final p = Provider.of<AppState>(context).userProfile;
+    if (p == null) {
       return const Scaffold(body: Center(child: CircularProgressIndicator()));
     }
-
-    final p = _draftProfile!;
 
     return Scaffold(
       appBar: AppBar(

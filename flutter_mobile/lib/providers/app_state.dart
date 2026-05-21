@@ -32,8 +32,6 @@ class AppState extends ChangeNotifier {
   List<Team> _teams = [];
   List<Team> get teams => _teams;
 
-  List<UserProfile> get athletes => []; // Mock athletes
-
   List<BodyMetricLog> _bodyLogs = [];
   List<BodyMetricLog> get bodyLogs => _bodyLogs;
 
@@ -99,12 +97,56 @@ class AppState extends ChangeNotifier {
     notifyListeners();
   }
 
+  Future<AuthResponse?> signInWithEmailAndPassword(String email, String password) async {
+    try {
+      final response = await _supabase.auth.signInWithPassword(
+        email: email,
+        password: password,
+      );
+      if (response.user != null) {
+        _isLoggedIn = true;
+        _prefs!.setBool('isLoggedIn', true);
+        await _loadAllData();
+        await syncHealthWorkouts();
+        notifyListeners();
+      }
+      return response;
+    } catch (e) {
+      debugPrint('Error signing in with Email/Password: $e');
+      rethrow;
+    }
+  }
+
+  Future<AuthResponse?> signUpWithEmailAndPassword(String email, String password, UserProfile profile) async {
+    try {
+      final response = await _supabase.auth.signUp(
+        email: email,
+        password: password,
+      );
+      if (response.user != null) {
+        // Il nuovo utente non ha ancora un profilo su Supabase (viene creato via trigger, o salvato manualmente)
+        _userProfile = profile;
+        _isLoggedIn = true;
+        _prefs!.setBool('isLoggedIn', true);
+        await _saveUserProfile();
+        await _loadAllData();
+        await syncHealthWorkouts();
+        notifyListeners();
+      }
+      return response;
+    } catch (e) {
+      debugPrint('Error signing up with Email/Password: $e');
+      rethrow;
+    }
+  }
+
   Future<AuthResponse?> signInWithGoogle() async {
     try {
       final webClientId = dotenv.env['GOOGLE_WEB_CLIENT_ID'];
       
       final GoogleSignIn googleSignIn = GoogleSignIn(
-        serverClientId: webClientId,
+        clientId: webClientId,
+        serverClientId: kIsWeb ? null : webClientId,
       );
       
       final googleUser = await googleSignIn.signIn();
@@ -202,7 +244,7 @@ class AppState extends ChangeNotifier {
       final data = await _supabase.from('profiles').select().eq('id', userId).maybeSingle();
       if (data != null) {
         _userProfile = UserProfile(
-          firstName: data['first_name'] ?? 'Mock',
+          firstName: data['first_name'] ?? 'Utente',
           lastName: data['last_name'] ?? 'User',
           email: data['email'] ?? '',
           birthDate: data['birth_date'] ?? '2000-01-01',
@@ -248,18 +290,21 @@ class AppState extends ChangeNotifier {
 
   Future<void> _loadTeams() async {
     try {
-      // In a real app we'd query via team_members, but for now we'll load all teams
-      final data = await _supabase.from('teams').select();
-      _teams = (data as List).map((e) => Team(
-        id: e['id'],
-        name: e['name'],
-        members: e['members'] ?? 0,
-        category: e['category'],
-        image: e['image'],
-        inviteCode: e['invite_code'],
-        description: e['description'],
-        isPrivate: e['is_private'],
-      )).toList();
+      if (_userProfile?.teamId != null && _userProfile!.teamId!.isNotEmpty) {
+        final data = await _supabase.from('teams').select().eq('id', _userProfile!.teamId!);
+        _teams = (data as List).map((e) => Team(
+          id: e['id'],
+          name: e['name'],
+          members: e['members'] ?? 0,
+          category: e['category'],
+          image: e['image'],
+          inviteCode: e['invite_code'],
+          description: e['description'],
+          isPrivate: e['is_private'],
+        )).toList();
+      } else {
+        _teams = [];
+      }
     } catch (e) {
       debugPrint('Error loading teams: $e');
     }
@@ -397,6 +442,12 @@ class AppState extends ChangeNotifier {
       
       team.id = response['id'];
       _teams.add(team);
+
+      if (_userProfile != null) {
+        _userProfile!.teamId = team.id;
+        await _saveUserProfile();
+      }
+
       notifyListeners();
     } catch (e) {
       debugPrint('Error adding team: $e');
@@ -783,7 +834,7 @@ class AppState extends ChangeNotifier {
       await _supabase.from('calendar_events').delete().eq('id', id);
       _coachEvents.removeWhere((e) => e.id == id);
       
-      // Also delete the associated mock session in current user's list if present
+      // Also delete the associated session in current user's list if present
       _sessions.removeWhere((s) => s.eventId == id);
       
       notifyListeners();
@@ -805,7 +856,7 @@ class AppState extends ChangeNotifier {
       for (var athlete in presentAthletes) {
         try {
           final response = await _supabase.from('notifications').insert({
-            'user_id': userId, // Using mock user for testing
+            'user_id': athlete['id'] ?? userId, // Notify athlete, fallback to coach
             'title': 'Nuovo Allenamento Pianificato',
             'message': 'Sei stato convocato per: ${event.title} il ${event.date} alle ${event.startTime}',
             'timestamp': DateTime.now().toIso8601String(),

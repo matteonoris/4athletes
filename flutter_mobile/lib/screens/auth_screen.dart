@@ -65,28 +65,75 @@ class _AuthScreenState extends State<AuthScreen> with SingleTickerProviderStateM
     super.dispose();
   }
 
-  void _submitLogin() {
+  Future<void> _submitLogin() async {
     final appState = Provider.of<AppState>(context, listen: false);
     if (_emailCtrl.text.isNotEmpty && _passCtrl.text.isNotEmpty) {
-      final role = _emailCtrl.text.toLowerCase().contains('coach') ? 'coach' : 'athlete';
-      appState.login(appState.userProfile ?? _createMockProfile(role));
-      _navigateToNext();
+      try {
+        await appState.signInWithEmailAndPassword(_emailCtrl.text, _passCtrl.text);
+        if (mounted) _navigateToNext();
+      } catch (e) {
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Errore di login: $e'), backgroundColor: Colors.red),
+        );
+      }
     }
   }
 
-  void _submitSignup() {
+  Future<void> _submitSignup() async {
     final appState = Provider.of<AppState>(context, listen: false);
-    final profile = _createMockProfile(_role);
-    appState.login(profile);
     
-    final date = DateTime.now().toIso8601String().split('T')[0];
-    if (profile.weight > 0) {
-      appState.addBodyLog(BodyMetricLog(id: DateTime.now().millisecondsSinceEpoch.toString() + '_w', date: date, type: 'weight', value: profile.weight));
+    String dobStr = _dobCtrl.text;
+    if (dobStr.isEmpty) dobStr = '2000-01-01'; // Fallback
+    else {
+      final parts = dobStr.split('/');
+      if (parts.length == 3) {
+        dobStr = '${parts[2]}-${parts[1]}-${parts[0]}';
+      } else {
+        dobStr = '2000-01-01';
+      }
     }
-    if (profile.height > 0) {
-      appState.addBodyLog(BodyMetricLog(id: DateTime.now().millisecondsSinceEpoch.toString() + '_h', date: date, type: 'height', value: profile.height));
+
+    final weight = double.tryParse(_weightCtrl.text) ?? 0.0;
+    final height = double.tryParse(_heightCtrl.text) ?? 0.0;
+
+    final profile = UserProfile(
+      firstName: _firstNameCtrl.text.isNotEmpty ? _firstNameCtrl.text : 'Utente',
+      lastName: _lastNameCtrl.text.isNotEmpty ? _lastNameCtrl.text : 'Nuovo',
+      email: _emailCtrl.text,
+      birthDate: dobStr,
+      role: _role,
+      skiClub: '',
+      gender: _genderCtrl.text.isNotEmpty ? _genderCtrl.text : 'M',
+      weight: weight,
+      height: height,
+      maxHr: 190,
+      unitSystem: 'metric',
+      language: 'it',
+      avatarUrl: '',
+      notificationsEnabled: true,
+      connectedDevices: [],
+      oneRepMax: {},
+    );
+
+    try {
+      await appState.signUpWithEmailAndPassword(_emailCtrl.text, _passCtrl.text, profile);
+      
+      final date = DateTime.now().toIso8601String().split('T')[0];
+      if (weight > 0) {
+        appState.addBodyLog(BodyMetricLog(id: '', date: date, type: 'weight', value: weight));
+      }
+      if (height > 0) {
+        appState.addBodyLog(BodyMetricLog(id: '', date: date, type: 'height', value: height));
+      }
+      
+      if (mounted) _navigateToNext();
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Errore di registrazione: $e'), backgroundColor: Colors.red),
+      );
     }
-    _navigateToNext();
   }
 
   Future<void> _handleGoogleSignIn() async {
@@ -118,38 +165,7 @@ class _AuthScreenState extends State<AuthScreen> with SingleTickerProviderStateM
     }
   }
 
-  UserProfile _createMockProfile(String role) {
-    String dobStr = _dobCtrl.text;
-    if (dobStr.isEmpty) dobStr = '2000-01-01'; // Fallback
-    else {
-      // Very basic parsing assuming dd/mm/yyyy
-      final parts = dobStr.split('/');
-      if (parts.length == 3) {
-        dobStr = '${parts[2]}-${parts[1]}-${parts[0]}';
-      } else {
-        dobStr = '2000-01-01';
-      }
-    }
 
-    return UserProfile(
-      firstName: _isLogin ? 'Alex' : _firstNameCtrl.text.isNotEmpty ? _firstNameCtrl.text : 'Nuovo',
-      lastName: _isLogin ? 'Skier' : _lastNameCtrl.text.isNotEmpty ? _lastNameCtrl.text : 'Utente',
-      email: _isLogin ? _emailCtrl.text : _emailCtrl.text.isNotEmpty ? _emailCtrl.text : 'user@example.com',
-      birthDate: dobStr,
-      role: role,
-      skiClub: _isLogin ? 'Club 4A' : '',
-      gender: _isLogin ? 'M' : _genderCtrl.text.isNotEmpty ? _genderCtrl.text : 'M',
-      weight: _isLogin ? 70.0 : double.tryParse(_weightCtrl.text) ?? 70.0,
-      height: _isLogin ? 175.0 : double.tryParse(_heightCtrl.text) ?? 175.0,
-      maxHr: 190,
-      unitSystem: 'metric',
-      language: 'it',
-      avatarUrl: '',
-      notificationsEnabled: true,
-      connectedDevices: [],
-      oneRepMax: {},
-    );
-  }
 
   void _navigateToNext() {
     final appState = Provider.of<AppState>(context, listen: false);
@@ -188,7 +204,7 @@ class _AuthScreenState extends State<AuthScreen> with SingleTickerProviderStateM
     );
   }
 
-  Widget _buildLabeledField(String label, TextEditingController controller, String hint, {IconData? preIcon, IconData? sufIcon}) {
+  Widget _buildLabeledField(String label, TextEditingController controller, String hint, {IconData? preIcon, IconData? sufIcon, bool readOnly = false, VoidCallback? onTap}) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -196,6 +212,8 @@ class _AuthScreenState extends State<AuthScreen> with SingleTickerProviderStateM
         const SizedBox(height: 8),
         TextFormField(
           controller: controller,
+          readOnly: readOnly,
+          onTap: onTap,
           style: const TextStyle(color: Colors.white),
           decoration: InputDecoration(
             hintText: hint,
@@ -566,7 +584,49 @@ class _AuthScreenState extends State<AuthScreen> with SingleTickerProviderStateM
           ],
         ),
         const SizedBox(height: 24),
-        _buildLabeledField('DATA DI NASCITA', _dobCtrl, 'gg/mm/aaaa', preIcon: Icons.calendar_today_outlined, sufIcon: Icons.calendar_today),
+        _buildLabeledField(
+          'DATA DI NASCITA',
+          _dobCtrl,
+          'gg/mm/aaaa',
+          preIcon: Icons.calendar_today_outlined,
+          sufIcon: Icons.calendar_today,
+          readOnly: true,
+          onTap: () async {
+            DateTime initialDate = DateTime.now().subtract(const Duration(days: 365 * 18));
+            if (_dobCtrl.text.isNotEmpty) {
+               try {
+                 final parts = _dobCtrl.text.split('/');
+                 if (parts.length == 3) {
+                   initialDate = DateTime(int.parse(parts[2]), int.parse(parts[1]), int.parse(parts[0]));
+                 }
+               } catch (_) {}
+            }
+            final picked = await showDatePicker(
+              context: context,
+              initialDate: initialDate,
+              firstDate: DateTime(1900),
+              lastDate: DateTime.now(),
+              builder: (context, child) {
+                return Theme(
+                  data: ThemeData.dark().copyWith(
+                    colorScheme: const ColorScheme.dark(
+                      primary: AppTheme.primary,
+                      onPrimary: Colors.white,
+                      surface: AppTheme.card,
+                      onSurface: Colors.white,
+                    ),
+                  ),
+                  child: child!,
+                );
+              },
+            );
+            if (picked != null) {
+              setState(() {
+                _dobCtrl.text = '${picked.day.toString().padLeft(2, '0')}/${picked.month.toString().padLeft(2, '0')}/${picked.year}';
+              });
+            }
+          },
+        ),
         const SizedBox(height: 48),
         _buildFlowButton(_role == 'coach' ? 'Completa' : 'Avanti', () {
           if (_role == 'coach') {

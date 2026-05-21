@@ -357,7 +357,7 @@ class _CoachHomeViewState extends State<_CoachHomeView> {
                 if (dailyEvents.isEmpty)
                   _buildNoEventsPlaceholder()
                 else
-                  ...dailyEvents.map((e) => _buildEventCard(context, e)).toList(),
+                  ...dailyEvents.map((e) => _buildEventCard(context, e, appState)).toList(),
               ],
             ),
           ),
@@ -393,8 +393,17 @@ class _CoachHomeViewState extends State<_CoachHomeView> {
     );
   }
 
-  Widget _buildEventCard(BuildContext context, CalendarEvent event) {
+  Widget _buildEventCard(BuildContext context, CalendarEvent event, AppState appState) {
     final presentCount = event.attendees?.where((a) => a['isPresent'] == true).length ?? 0;
+    
+    String teamName = 'Team';
+    try {
+      final ids = event.teamId.split(',');
+      if (ids.isNotEmpty && ids.first.isNotEmpty) {
+        final team = appState.teams.firstWhere((t) => t.id == ids.first.trim());
+        teamName = team.name;
+      }
+    } catch (_) {}
 
     return GestureDetector(
       onTap: () {
@@ -417,7 +426,7 @@ class _CoachHomeViewState extends State<_CoachHomeView> {
                       Container(
                         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
                         decoration: BoxDecoration(color: Colors.white.withValues(alpha: 0.05), borderRadius: BorderRadius.circular(8)),
-                        child: const Text('Alpine Elite Squad', style: TextStyle(color: AppTheme.textMediumEmphasis, fontWeight: FontWeight.bold, fontSize: 12)),
+                        child: Text(teamName, style: const TextStyle(color: AppTheme.textMediumEmphasis, fontWeight: FontWeight.bold, fontSize: 12)),
                       ),
                     ],
                   ),

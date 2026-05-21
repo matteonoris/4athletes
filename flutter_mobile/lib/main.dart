@@ -58,9 +58,8 @@ class _FourAthletesAppState extends State<FourAthletesApp> {
   }
 
   void _checkFirstLaunchAndNotifications() async {
-    // Mocking the permission request and scheduled checking logic from React App.tsx
     // In a real app we would use flutter_local_notifications and permission_handler here
-    debugPrint("Initializing mock notification logic...");
+    debugPrint("Initializing notification logic...");
   }
 
   @override
