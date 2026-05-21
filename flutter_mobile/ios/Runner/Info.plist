@@ -5,7 +5,7 @@
 	<key>CFBundleDevelopmentRegion</key>
 	<string>$(DEVELOPMENT_LANGUAGE)</string>
 	<key>CFBundleDisplayName</key>
-	<string>Flutter Mobile</string>
+	<string>4athletes</string>
 	<key>CFBundleExecutable</key>
 	<string>$(EXECUTABLE_NAME)</string>
 	<key>CFBundleIdentifier</key>
@@ -50,5 +50,15 @@
 	<string>We will sync your data with the Apple Health app to give you better insights</string>
 	<key>NSHealthUpdateUsageDescription</key>
 	<string>We will sync your data with the Apple Health app to give you better insights</string>
+	
+	<!-- App Permissions -->
+	<key>NSCameraUsageDescription</key>
+	<string>Ci serve accedere alla tua fotocamera per farti scattare foto per il profilo e i caricamenti.</string>
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>Ci serve accedere alla tua libreria foto per farti caricare immagini nel tuo profilo.</string>
+	<key>NSMicrophoneUsageDescription</key>
+	<string>Ci serve accedere al tuo microfono nel caso tu debba registrare video da caricare.</string>
+	<key>ITSAppUsesNonExemptEncryption</key>
+	<false/>
 </dict>
 </plist>
