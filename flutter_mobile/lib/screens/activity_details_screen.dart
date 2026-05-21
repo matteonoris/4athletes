@@ -164,6 +164,39 @@ class ActivityDetailsScreen extends StatelessWidget {
               );
             },
           ),
+          IconButton(
+            icon: const Icon(Icons.delete_outline, color: AppTheme.error),
+            tooltip: 'Elimina allenamento',
+            onPressed: () {
+              showDialog(
+                context: context,
+                builder: (ctx) => AlertDialog(
+                  backgroundColor: AppTheme.card,
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                  title: const Text('Elimina Allenamento', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+                  content: const Text('Sei sicuro di voler eliminare questo allenamento?', style: TextStyle(color: AppTheme.textMediumEmphasis)),
+                  actions: [
+                    TextButton(
+                      onPressed: () => Navigator.pop(ctx),
+                      child: const Text('Annulla', style: TextStyle(color: AppTheme.textMediumEmphasis)),
+                    ),
+                    TextButton(
+                      onPressed: () {
+                        Provider.of<AppState>(context, listen: false).deleteSession(session.id);
+                        Navigator.pop(ctx);
+                        Navigator.pop(context);
+                        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+                          content: Text('Allenamento eliminato'),
+                          backgroundColor: AppTheme.primary,
+                        ));
+                      },
+                      child: const Text('Elimina', style: TextStyle(color: AppTheme.error, fontWeight: FontWeight.bold)),
+                    ),
+                  ],
+                ),
+              );
+            },
+          ),
         ],
       ),
       body: ListView(

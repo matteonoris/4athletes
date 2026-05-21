@@ -282,6 +282,64 @@ class _AddTrainingScreenState extends State<AddTrainingScreen> {
     }
   }
 
+  void _prefillWithLastSession() {
+    final appState = Provider.of<AppState>(context, listen: false);
+    // Find the most recent session for this sport that has exercises
+    final lastSessionIndex = appState.sessions.indexWhere(
+      (s) => s.sportId == widget.sportId && s.details != null && s.details!['exercises'] != null,
+    );
+
+    if (lastSessionIndex != -1) {
+      final lastSession = appState.sessions[lastSessionIndex];
+      final d = lastSession.details!;
+      if (d['exercises'] != null) {
+        final exList = d['exercises'] as List<dynamic>;
+        setState(() {
+          final isAthletic = ['athletic_prep', 'other'].contains(widget.sportId);
+          final isStretching = ['stretching', 'yoga', 'pilates'].contains(widget.sportId);
+
+          if (isAthletic) {
+            _athleticExercises.clear();
+          } else if (isStretching) {
+            _stretchExercises.clear();
+          } else {
+            _wlExercises.clear();
+          }
+
+          for (var ex in exList) {
+            final exMap = Map<String, dynamic>.from(ex as Map);
+            if (exMap['sets'] != null) {
+              exMap['sets'] = (exMap['sets'] as List<dynamic>).map((s) {
+                final setMap = Map<String, dynamic>.from(s as Map);
+                return {
+                  'kg': (setMap['kg'] as num?)?.toDouble() ?? 0.0,
+                  'reps': (setMap['reps'] as num?)?.toInt() ?? 0,
+                };
+              }).toList();
+            } else {
+              exMap['sets'] = [];
+            }
+
+            if (isAthletic) {
+              _athleticExercises.add(exMap);
+            } else if (isStretching) {
+              _stretchExercises.add(exMap);
+            } else {
+              _wlExercises.add(exMap);
+            }
+          }
+        });
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text("Scheda precompilata con l'ultimo allenamento!")),
+        );
+      }
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Nessun allenamento precedente trovato per questo sport.')),
+      );
+    }
+  }
+
   Widget _buildField(String label, String value, Function(String) onChanged,
       {TextInputType type = TextInputType.text, String suffix = ''}) {
     return Column(
@@ -662,12 +720,22 @@ class _AddTrainingScreenState extends State<AddTrainingScreen> {
                     const Text('Esercizi',
                         style: TextStyle(
                             fontSize: 18, fontWeight: FontWeight.bold)),
-                    TextButton.icon(
-                      onPressed: () =>
-                          setState(() => _showExercisePicker = true),
-                      icon: const Icon(Icons.add, size: 16),
-                      label: const Text('AGGIUNGI',
-                          style: TextStyle(fontWeight: FontWeight.bold)),
+                    Row(
+                      children: [
+                        TextButton.icon(
+                          onPressed: _prefillWithLastSession,
+                          icon: const Icon(Icons.history, size: 16),
+                          label: const Text('PRECOMPILA',
+                              style: TextStyle(fontWeight: FontWeight.bold)),
+                        ),
+                        TextButton.icon(
+                          onPressed: () =>
+                              setState(() => _showExercisePicker = true),
+                          icon: const Icon(Icons.add, size: 16),
+                          label: const Text('AGGIUNGI',
+                              style: TextStyle(fontWeight: FontWeight.bold)),
+                        ),
+                      ],
                     )
                   ],
                 ),

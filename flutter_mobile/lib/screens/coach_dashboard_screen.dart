@@ -23,8 +23,13 @@ class CoachDashboardScreen extends StatefulWidget {
 class _CoachDashboardScreenState extends State<CoachDashboardScreen> {
   int _currentIndex = 0;
 
-  final List<Widget> _pages = [
-    const _CoachHomeView(),
+  DateTime _selectedDay = DateTime.now();
+
+  List<Widget> get _pages => [
+    _CoachHomeView(
+      selectedDay: _selectedDay,
+      onDaySelected: (day) => setState(() => _selectedDay = day),
+    ),
     const _CoachReportView(),
     const _CoachTrainingView(),
     const TeamsScreen(),
@@ -63,9 +68,10 @@ class _CoachDashboardScreenState extends State<CoachDashboardScreen> {
               onTap: () {
                 HapticFeedback.lightImpact();
                 Navigator.pop(ctx);
-                Widget dest = isSkiWorkout 
-                    ? CoachEventDetailsScreen(selectedTeam: t) 
-                    : const ActivitySelectScreen();
+                Widget dest = CoachEventDetailsScreen(
+                    selectedTeam: t, 
+                    initialDate: _selectedDay,
+                    isSkiWorkout: isSkiWorkout);
                 Navigator.push(context, MaterialPageRoute(builder: (_) => dest));
               }
             )).toList(),
@@ -73,10 +79,10 @@ class _CoachDashboardScreenState extends State<CoachDashboardScreen> {
         ),
       );
     } else {
-      final t = appState.teams.first;
-      Widget dest = isSkiWorkout 
-          ? CoachEventDetailsScreen(selectedTeam: t) 
-          : const ActivitySelectScreen();
+      Widget dest = CoachEventDetailsScreen(
+          selectedTeam: appState.teams.first, 
+          initialDate: _selectedDay,
+          isSkiWorkout: isSkiWorkout);
       Navigator.push(context, MaterialPageRoute(builder: (_) => dest));
     }
   }
@@ -186,7 +192,14 @@ class _CoachDashboardScreenState extends State<CoachDashboardScreen> {
 // 1. HOME VIEW
 // ----------------------------------------------------
 class _CoachHomeView extends StatefulWidget {
-  const _CoachHomeView();
+  final DateTime selectedDay;
+  final ValueChanged<DateTime> onDaySelected;
+
+  const _CoachHomeView({
+    super.key,
+    required this.selectedDay,
+    required this.onDaySelected,
+  });
 
   @override
   State<_CoachHomeView> createState() => _CoachHomeViewState();
@@ -195,7 +208,6 @@ class _CoachHomeView extends StatefulWidget {
 class _CoachHomeViewState extends State<_CoachHomeView> {
   bool _isWeekView = true;
   DateTime _focusedDay = DateTime.now();
-  DateTime _selectedDay = DateTime.now();
 
   final List<String> _months = [
     'Gennaio', 'Febbraio', 'Marzo', 'Aprile', 'Maggio', 'Giugno',
@@ -212,9 +224,9 @@ class _CoachHomeViewState extends State<_CoachHomeView> {
     final dailyEvents = appState.coachEvents.where((e) {
       final eventDate = DateTime.tryParse(e.date);
       if (eventDate == null) return false;
-      return eventDate.year == _selectedDay.year &&
-             eventDate.month == _selectedDay.month &&
-             eventDate.day == _selectedDay.day;
+      return eventDate.year == widget.selectedDay.year &&
+             eventDate.month == widget.selectedDay.month &&
+             eventDate.day == widget.selectedDay.day;
     }).toList();
 
     return SafeArea(
@@ -513,9 +525,9 @@ class _CoachHomeViewState extends State<_CoachHomeView> {
   }
 
   Widget _buildInteractiveDay(String label, DateTime date, {bool compact = false, bool hasEvents = false}) {
-    bool isSelected = date.year == _selectedDay.year &&
-                     date.month == _selectedDay.month &&
-                     date.day == _selectedDay.day;
+    bool isSelected = date.year == widget.selectedDay.year &&
+                     date.month == widget.selectedDay.month &&
+                     date.day == widget.selectedDay.day;
     
     bool isToday = date.year == DateTime.now().year &&
                    date.month == DateTime.now().month &&
@@ -525,9 +537,9 @@ class _CoachHomeViewState extends State<_CoachHomeView> {
       onTap: () {
         HapticFeedback.lightImpact();
         setState(() {
-          _selectedDay = date;
           _focusedDay = date;
         });
+        widget.onDaySelected(date);
       },
       child: Column(
         children: [
@@ -600,6 +612,8 @@ class _CoachReportViewState extends State<_CoachReportView> {
   Future<void> _loadAthletes() async {
     try {
       final supabase = Supabase.instance.client;
+      final appState = Provider.of<AppState>(context, listen: false);
+      final allEvents = appState.coachEvents;
 
       // 1. Carica tutti gli atleti
       final profilesData = await supabase
@@ -607,13 +621,7 @@ class _CoachReportViewState extends State<_CoachReportView> {
           .select('id, first_name, last_name, role')
           .eq('role', 'athlete');
 
-      // 2. Carica tutti gli eventi sci (con la lista presenze)
-      final eventsData = await supabase
-          .from('calendar_events')
-          .select('id, attendees');
-      final totalSkiEvents = (eventsData as List).length;
-
-      // 3. Carica le sessioni di preparazione atletica (escludendo sci)
+      // 2. Carica le sessioni di preparazione atletica (escludendo sci)
       final sessionsData = await supabase
           .from('training_sessions')
           .select('user_id, sport_id, duration')
@@ -629,16 +637,31 @@ class _CoachReportViewState extends State<_CoachReportView> {
                 : 'A').toUpperCase();
 
             // Calcola % presenze sci
+            final skiEvents = allEvents.where((e) => e.sportCategory == 'ski').toList();
             int skiPresences = 0;
-            for (final event in eventsData) {
-              final attendees = event['attendees'] as List? ?? [];
+            for (final event in skiEvents) {
+              final attendees = event.attendees ?? [];
               final found = attendees.any((a) =>
                   a['id'] == athleteId ||
                   a['name'] == name);
               if (found) skiPresences++;
             }
-            final presencePercent = totalSkiEvents > 0
-                ? (skiPresences / totalSkiEvents * 100).round()
+            final skiPresencePercent = skiEvents.isNotEmpty
+                ? (skiPresences / skiEvents.length * 100).round()
+                : 0;
+
+            // Calcola % presenze atletica
+            final athleticEvents = allEvents.where((e) => e.sportCategory != 'ski').toList();
+            int athleticPresences = 0;
+            for (final event in athleticEvents) {
+              final attendees = event.attendees ?? [];
+              final found = attendees.any((a) =>
+                  a['id'] == athleteId ||
+                  a['name'] == name);
+              if (found) athleticPresences++;
+            }
+            final athleticPresencePercent = athleticEvents.isNotEmpty
+                ? (athleticPresences / athleticEvents.length * 100).round()
                 : 0;
 
             // Calcola ore di preparazione atletica
@@ -655,7 +678,8 @@ class _CoachReportViewState extends State<_CoachReportView> {
               'id': athleteId,
               'name': name,
               'initial': initial,
-              'presencePercent': presencePercent,
+              'skiPresencePercent': skiPresencePercent,
+              'athleticPresencePercent': athleticPresencePercent,
               'prepHours': prepHours,
             };
           }).toList();
@@ -763,7 +787,8 @@ class _CoachReportViewState extends State<_CoachReportView> {
         a['initial'] as String,
         a['name'] as String,
         a['id'] as String,
-        a['presencePercent'] as int,
+        a['skiPresencePercent'] as int,
+        a['athleticPresencePercent'] as int,
         a['prepHours'] as int,
       );
     }).toList();
@@ -774,7 +799,8 @@ class _CoachReportViewState extends State<_CoachReportView> {
     String initial,
     String name,
     String athleteId,
-    int presencePercent,
+    int skiPresencePercent,
+    int athleticPresencePercent,
     int prepHours,
   ) {
     return GestureDetector(
@@ -820,7 +846,7 @@ class _CoachReportViewState extends State<_CoachReportView> {
                         ),
                       ),
                       const SizedBox(width: 6),
-                      Text('$presencePercent% Presenza',
+                      Text('$skiPresencePercent% Sci | $athleticPresencePercent% Atletica',
                           style: const TextStyle(color: AppTheme.textMediumEmphasis, fontSize: 12, fontWeight: FontWeight.w500)),
                     ],
                   ),
@@ -843,11 +869,110 @@ class _CoachReportViewState extends State<_CoachReportView> {
 // ----------------------------------------------------
 // 3. TRAINING VIEW (Lista Eventi)
 // ----------------------------------------------------
-class _CoachTrainingView extends StatelessWidget {
+class _CoachTrainingView extends StatefulWidget {
   const _CoachTrainingView();
 
   @override
+  State<_CoachTrainingView> createState() => _CoachTrainingViewState();
+}
+
+class _CoachTrainingViewState extends State<_CoachTrainingView> {
+  String _searchQuery = '';
+  String _selectedFilter = 'Tutti';
+
+  final List<String> _filters = [
+    'Tutti',
+    'Preparazione Atletica',
+    'Allenamento Sci',
+    'SL',
+    'GS',
+    'SG',
+    'DH'
+  ];
+
+  void _showFilterModal() {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: AppTheme.card,
+      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
+      builder: (ctx) => SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.symmetric(vertical: 24, horizontal: 16),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(width: 40, height: 4, decoration: BoxDecoration(color: Colors.white.withValues(alpha: 0.2), borderRadius: BorderRadius.circular(2))),
+              const SizedBox(height: 24),
+              const Text('Filtra Allenamenti', style: TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.bold)),
+              const SizedBox(height: 24),
+              Wrap(
+                spacing: 8,
+                runSpacing: 12,
+                children: _filters.map((f) {
+                  final isSelected = _selectedFilter == f;
+                  return GestureDetector(
+                    onTap: () {
+                      HapticFeedback.lightImpact();
+                      setState(() => _selectedFilter = f);
+                      Navigator.pop(ctx);
+                    },
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                      decoration: BoxDecoration(
+                        color: isSelected ? AppTheme.primary : Colors.white.withValues(alpha: 0.05),
+                        borderRadius: BorderRadius.circular(20),
+                        border: Border.all(color: isSelected ? AppTheme.primary : Colors.white.withValues(alpha: 0.1)),
+                      ),
+                      child: Text(
+                        f,
+                        style: TextStyle(
+                          color: isSelected ? Colors.white : AppTheme.textMediumEmphasis,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ),
+                  );
+                }).toList(),
+              ),
+              const SizedBox(height: 16),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  @override
   Widget build(BuildContext context) {
+    final appState = Provider.of<AppState>(context);
+    
+    final allEvents = List<CalendarEvent>.from(appState.coachEvents);
+    allEvents.sort((a, b) => (b.date).compareTo(a.date));
+
+    final filteredEvents = allEvents.where((e) {
+      final q = _searchQuery.toLowerCase();
+      final titleMatch = e.title.toLowerCase().contains(q);
+      final locationMatch = (e.location ?? '').toLowerCase().contains(q);
+      if (_searchQuery.isNotEmpty && !titleMatch && !locationMatch) {
+        return false;
+      }
+
+      if (_selectedFilter == 'Tutti') return true;
+      if (_selectedFilter == 'Preparazione Atletica') return e.sportCategory == 'dryland';
+      if (_selectedFilter == 'Allenamento Sci') return e.sportCategory == 'ski';
+      
+      if (['SL', 'GS', 'SG', 'DH'].contains(_selectedFilter)) {
+        if (e.sportCategory != 'ski') return false;
+        final specialties = e.technicalDetails?['specialties'] as List?;
+        if (specialties != null && specialties.isNotEmpty) {
+          return specialties.contains(_selectedFilter);
+        }
+        return false;
+      }
+
+      return true;
+    }).toList();
+
     return SafeArea(
       child: ListView(
         padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 24),
@@ -861,10 +986,11 @@ class _CoachTrainingView extends StatelessWidget {
                 child: Container(
                   height: 48,
                   decoration: BoxDecoration(color: AppTheme.card, borderRadius: BorderRadius.circular(12)),
-                  child: const TextField(
-                    style: TextStyle(color: Colors.white),
-                    decoration: InputDecoration(
-                      hintText: 'Cerca per titolo, team...',
+                  child: TextField(
+                    onChanged: (val) => setState(() => _searchQuery = val),
+                    style: const TextStyle(color: Colors.white),
+                    decoration: const InputDecoration(
+                      hintText: 'Cerca per titolo, luogo...',
                       hintStyle: TextStyle(color: AppTheme.textMediumEmphasis),
                       prefixIcon: Icon(Icons.search, color: AppTheme.textMediumEmphasis),
                       border: InputBorder.none,
@@ -874,98 +1000,148 @@ class _CoachTrainingView extends StatelessWidget {
                 ),
               ),
               const SizedBox(width: 12),
-              Container(
-                height: 48,
-                width: 48,
-                decoration: BoxDecoration(color: AppTheme.card, borderRadius: BorderRadius.circular(12)),
-                child: const Icon(Icons.tune, color: AppTheme.textMediumEmphasis),
+              GestureDetector(
+                onTap: _showFilterModal,
+                child: Container(
+                  height: 48,
+                  width: 48,
+                  decoration: BoxDecoration(
+                    color: _selectedFilter != 'Tutti' ? AppTheme.primary : AppTheme.card, 
+                    borderRadius: BorderRadius.circular(12)
+                  ),
+                  child: Icon(Icons.tune, color: _selectedFilter != 'Tutti' ? Colors.white : AppTheme.textMediumEmphasis),
+                ),
               ),
             ],
           ),
           const SizedBox(height: 32),
           
-          GestureDetector(
-            onTap: () {
-              Navigator.push(context, MaterialPageRoute(builder: (_) => const CoachEventDetailsScreen()));
-            },
-            child: Stack(
+          if (filteredEvents.isEmpty)
+             const Center(
+               child: Padding(
+                 padding: EdgeInsets.all(32.0),
+                 child: Text('Nessun allenamento trovato', style: TextStyle(color: AppTheme.textMediumEmphasis)),
+               ),
+             )
+          else
+            ...filteredEvents.map((e) => _buildEventCard(context, e, appState)).toList(),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildEventCard(BuildContext context, CalendarEvent event, AppState appState) {
+    final teamName = appState.teams.firstWhere(
+      (t) => t.id == event.teamId, 
+      orElse: () => Team(id: '', name: 'N/A', members: 0, category: '', image: '', inviteCode: '')
+    ).name;
+    
+    final eventDate = DateTime.tryParse(event.date);
+    final isPast = eventDate != null && eventDate.isBefore(DateTime(DateTime.now().year, DateTime.now().month, DateTime.now().day));
+    
+    final isSki = event.sportCategory == 'ski';
+    String? specialty;
+    if (isSki) {
+      final specs = event.technicalDetails?['specialties'] as List?;
+      if (specs != null && specs.isNotEmpty) {
+        specialty = specs.first.toString();
+      }
+    } else {
+      specialty = event.drylandSpecialty;
+    }
+
+    return GestureDetector(
+      onTap: () {
+        Navigator.push(context, MaterialPageRoute(builder: (_) => CoachEventDetailsScreen(event: event)));
+      },
+      child: Stack(
+        children: [
+          Container(
+            margin: const EdgeInsets.only(bottom: 16),
+            padding: const EdgeInsets.all(20),
+            decoration: BoxDecoration(color: AppTheme.card, borderRadius: BorderRadius.circular(16)),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Container(
-                  padding: const EdgeInsets.all(20),
-                  decoration: BoxDecoration(color: AppTheme.card, borderRadius: BorderRadius.circular(16)),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Row(
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                          decoration: BoxDecoration(color: Colors.white.withValues(alpha: 0.05), borderRadius: BorderRadius.circular(6)),
+                          child: Text(event.date, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 12)),
+                        ),
+                        if (specialty != null && specialty.isNotEmpty) ...[
+                          const SizedBox(width: 8),
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
+                            decoration: BoxDecoration(color: isSki ? AppTheme.primary.withValues(alpha: 0.15) : const Color(0xFFFF7A00).withValues(alpha: 0.15), borderRadius: BorderRadius.circular(6)),
+                            child: Text(
+                              specialty.length > 4 ? specialty.substring(0, 4).toUpperCase() : specialty.toUpperCase(), 
+                              style: TextStyle(color: isSki ? AppTheme.primary : const Color(0xFFFF7A00), fontWeight: FontWeight.bold, fontSize: 12)
+                            ),
+                          ),
+                        ],
+                      ],
+                    ),
+                    Text(isPast ? 'COMPLETATO' : 'PIANIFICATO', style: TextStyle(color: isPast ? AppTheme.textMediumEmphasis : AppTheme.primary, fontWeight: FontWeight.bold, fontSize: 12, letterSpacing: 1)),
+                  ],
+                ),
+                const SizedBox(height: 16),
+                Text(event.title, style: const TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold)),
+                const SizedBox(height: 12),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Row(
                             children: [
-                              Container(
-                                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                                decoration: BoxDecoration(color: Colors.white.withValues(alpha: 0.05), borderRadius: BorderRadius.circular(6)),
-                                child: const Text('2026-04-18', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 12)),
-                              ),
-                              const SizedBox(width: 8),
-                              Container(
-                                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
-                                decoration: BoxDecoration(color: AppTheme.primary.withValues(alpha: 0.15), borderRadius: BorderRadius.circular(6)),
-                                child: const Text('SL', style: TextStyle(color: AppTheme.primary, fontWeight: FontWeight.bold, fontSize: 12)),
+                              const Icon(Icons.people_outline, color: AppTheme.textMediumEmphasis, size: 16),
+                              const SizedBox(width: 4),
+                              Expanded(
+                                child: Text(teamName, style: const TextStyle(color: AppTheme.textMediumEmphasis, fontSize: 13, fontWeight: FontWeight.bold), overflow: TextOverflow.ellipsis),
                               ),
                             ],
                           ),
-                          const Text('COMPLETATO', style: TextStyle(color: AppTheme.textMediumEmphasis, fontWeight: FontWeight.bold, fontSize: 12, letterSpacing: 1)),
-                        ],
-                      ),
-                      const SizedBox(height: 16),
-                      const Text('Technical Slalom Drills', style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold)),
-                      const SizedBox(height: 12),
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
+                          const SizedBox(height: 4),
+                          Row(
                             children: [
-                              Row(
-                                children: [
-                                  const Icon(Icons.people_outline, color: AppTheme.textMediumEmphasis, size: 16),
-                                  const SizedBox(width: 4),
-                                  const Text('Alpine Elite Squad', style: TextStyle(color: AppTheme.textMediumEmphasis, fontSize: 13, fontWeight: FontWeight.bold)),
-                                ],
-                              ),
-                              const SizedBox(height: 4),
-                              Row(
-                                children: [
-                                  const Icon(Icons.location_on_outlined, color: AppTheme.textMediumEmphasis, size: 16),
-                                  const SizedBox(width: 4),
-                                  const Text('Main Slope', style: TextStyle(color: AppTheme.textMediumEmphasis, fontSize: 13)),
-                                ],
+                              const Icon(Icons.location_on_outlined, color: AppTheme.textMediumEmphasis, size: 16),
+                              const SizedBox(width: 4),
+                              Expanded(
+                                child: Text(event.location ?? 'N/A', style: const TextStyle(color: AppTheme.textMediumEmphasis, fontSize: 13), overflow: TextOverflow.ellipsis),
                               ),
                             ],
                           ),
-                          Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                            decoration: BoxDecoration(color: AppTheme.background, borderRadius: BorderRadius.circular(8)),
-                            child: const Text('09:00 - 11:00', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 14)),
-                          ),
                         ],
                       ),
-                    ],
-                  ),
-                ),
-                Positioned(
-                  left: 0,
-                  top: 16,
-                  bottom: 16,
-                  width: 4,
-                  child: Container(
-                    decoration: BoxDecoration(
-                      color: AppTheme.primary,
-                      borderRadius: const BorderRadius.only(topRight: Radius.circular(4), bottomRight: Radius.circular(4)),
                     ),
-                  ),
+                    const SizedBox(width: 12),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                      decoration: BoxDecoration(color: AppTheme.background, borderRadius: BorderRadius.circular(8)),
+                      child: Text('${event.startTime} - ${event.endTime}', style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 14)),
+                    ),
+                  ],
                 ),
               ],
+            ),
+          ),
+          Positioned(
+            left: 0,
+            top: 16,
+            bottom: 32,
+            width: 4,
+            child: Container(
+              decoration: BoxDecoration(
+                color: isPast ? Colors.white.withValues(alpha: 0.2) : AppTheme.primary,
+                borderRadius: const BorderRadius.only(topRight: Radius.circular(4), bottomRight: Radius.circular(4)),
+              ),
             ),
           ),
         ],

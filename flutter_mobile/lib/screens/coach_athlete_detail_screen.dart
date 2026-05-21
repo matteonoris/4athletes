@@ -37,7 +37,8 @@ class _CoachAthleteDetailScreenState extends State<CoachAthleteDetailScreen> {
   String? _error;
 
   // Presenze (from coach events)
-  int _presencePercent = 0;
+  int _skiPresencePercent = 0;
+  int _athleticPresencePercent = 0;
   int _extraSciMinutes = 0;
   int _totalCambi = 0;
 
@@ -82,18 +83,33 @@ class _CoachAthleteDetailScreenState extends State<CoachAthleteDetailScreen> {
   }
 
   void _computePresence(AppState appState, List<TrainingSession> sessions) {
-    final skiEvents = appState.coachEvents;
-    final total = skiEvents.length;
-    int present = 0;
+    final allEvents = appState.coachEvents;
+    
+    // Ski presence
+    final skiEvents = allEvents.where((e) => e.sportCategory == 'ski').toList();
+    int skiPresent = 0;
     for (final ev in skiEvents) {
       final attendees = ev.attendees ?? [];
       if (attendees.any((a) =>
           a['id'] == widget.athleteId ||
           a['name'] == widget.athleteName)) {
-        present++;
+        skiPresent++;
       }
     }
-    _presencePercent = total > 0 ? (present / total * 100).round() : 0;
+    _skiPresencePercent = skiEvents.isNotEmpty ? (skiPresent / skiEvents.length * 100).round() : 0;
+
+    // Athletic presence
+    final athleticEvents = allEvents.where((e) => e.sportCategory != 'ski').toList();
+    int athleticPresent = 0;
+    for (final ev in athleticEvents) {
+      final attendees = ev.attendees ?? [];
+      if (attendees.any((a) =>
+          a['id'] == widget.athleteId ||
+          a['name'] == widget.athleteName)) {
+        athleticPresent++;
+      }
+    }
+    _athleticPresencePercent = athleticEvents.isNotEmpty ? (athleticPresent / athleticEvents.length * 100).round() : 0;
 
     int extraMin = 0;
     int cambi = 0;
@@ -339,8 +355,19 @@ class _CoachAthleteDetailScreenState extends State<CoachAthleteDetailScreen> {
   Widget _buildStatsRow() {
     final extraLabel = _formatDuration(_extraSciMinutes);
     return Row(children: [
-      Expanded(child: _buildStatCard('PRESENZA',
-          _presencePercent > 0 ? '$_presencePercent%' : '--', AppTheme.secondary)),
+      Expanded(child: Container(
+        padding: const EdgeInsets.symmetric(vertical: 18, horizontal: 10),
+        decoration: BoxDecoration(color: AppTheme.card, borderRadius: BorderRadius.circular(14)),
+        child: Column(children: [
+          const Text('PRESENZE',
+              style: TextStyle(color: AppTheme.textMediumEmphasis,
+                  fontWeight: FontWeight.bold, fontSize: 9, letterSpacing: 1)),
+          const SizedBox(height: 6),
+          Text('$_skiPresencePercent% Sci\n$_athleticPresencePercent% Atl',
+              textAlign: TextAlign.center,
+              style: const TextStyle(color: AppTheme.secondary, fontWeight: FontWeight.w900, fontSize: 13, height: 1.2)),
+        ]),
+      )),
       const SizedBox(width: 10),
       Expanded(child: _buildStatCard('EXTRA SCI', extraLabel, const Color(0xFFFF7A00))),
       const SizedBox(width: 10),
@@ -462,6 +489,8 @@ class _CoachAthleteDetailScreenState extends State<CoachAthleteDetailScreen> {
               title: label.replaceAll('\n', ' '),
               type: 'jump',
               exerciseId: t,
+              preloadedLogs: _jumpLogs,
+              isReadOnly: true,
             ),
           )),
           child: Container(
@@ -526,6 +555,8 @@ class _CoachAthleteDetailScreenState extends State<CoachAthleteDetailScreen> {
           onTap: () => Navigator.push(context, MaterialPageRoute(
             builder: (_) => AnalyticsDetailsScreen(
               title: label, type: 'pr', exerciseId: ex,
+              preloadedLogs: _prLogs,
+              isReadOnly: true,
             ),
           )),
           child: Container(

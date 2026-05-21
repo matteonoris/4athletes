@@ -445,6 +445,16 @@ class AppState extends ChangeNotifier {
     }
   }
 
+  void deleteSession(String id) async {
+    try {
+      await _supabase.from('training_sessions').delete().eq('id', id);
+      _sessions.removeWhere((s) => s.id == id);
+      notifyListeners();
+    } catch (e) {
+      debugPrint('Error deleting session: $e');
+    }
+  }
+
   /// Load sessions for a specific athlete (used by coaches to view athlete details)
   Future<List<TrainingSession>> loadSessionsForAthlete(String athleteId) async {
     try {
@@ -765,6 +775,20 @@ class AppState extends ChangeNotifier {
       notifyListeners();
     } catch (e) {
       debugPrint('Error saving coach event: $e');
+    }
+  }
+
+  void deleteCoachEvent(String id) async {
+    try {
+      await _supabase.from('calendar_events').delete().eq('id', id);
+      _coachEvents.removeWhere((e) => e.id == id);
+      
+      // Also delete the associated mock session in current user's list if present
+      _sessions.removeWhere((s) => s.eventId == id);
+      
+      notifyListeners();
+    } catch (e) {
+      debugPrint('Error deleting coach event: $e');
     }
   }
 

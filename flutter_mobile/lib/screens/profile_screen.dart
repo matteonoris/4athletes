@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'dart:async';
-import 'package:provider/provider.dart';
-
 import 'dart:io';
+import 'package:flutter/foundation.dart' show kIsWeb;
+import 'package:image_picker/image_picker.dart';
+import 'package:permission_handler/permission_handler.dart';
+
 import '../core/theme.dart';
 import '../models/models.dart';
 import '../providers/app_state.dart';
@@ -66,6 +68,90 @@ class _ProfileScreenState extends State<ProfileScreen> {
     );
   }
 
+  Future<void> _showImagePickerOptions(BuildContext context) async {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: AppTheme.surface,
+      builder: (context) {
+        return SafeArea(
+          child: Wrap(
+            children: [
+              ListTile(
+                leading: const Icon(Icons.camera_alt, color: Colors.white),
+                title: const Text('Scatta Foto', style: TextStyle(color: Colors.white)),
+                onTap: () {
+                  Navigator.pop(context);
+                  _pickImage(ImageSource.camera);
+                },
+              ),
+              ListTile(
+                leading: const Icon(Icons.photo_library, color: Colors.white),
+                title: const Text('Scegli da Galleria', style: TextStyle(color: Colors.white)),
+                onTap: () {
+                  Navigator.pop(context);
+                  _pickImage(ImageSource.gallery);
+                },
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  Future<void> _pickImage(ImageSource source) async {
+    if (!kIsWeb) {
+      if (source == ImageSource.camera) {
+        final status = await Permission.camera.request();
+        if (!status.isGranted) {
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(content: Text('Permesso fotocamera negato.', style: TextStyle(color: Colors.white)), backgroundColor: AppTheme.error),
+            );
+          }
+          return;
+        }
+      } else {
+        await Permission.photos.request();
+      }
+    }
+
+    try {
+      final ImagePicker picker = ImagePicker();
+      final XFile? image = await picker.pickImage(source: source);
+      if (image != null) {
+        setState(() {
+          _draftProfile!.avatarUrl = image.path;
+        });
+        _triggerAutoSave();
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Immagine profilo aggiornata!'), backgroundColor: AppTheme.success),
+          );
+        }
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Errore: $e', style: const TextStyle(color: Colors.white)), backgroundColor: AppTheme.error),
+        );
+      }
+    }
+  }
+
+  ImageProvider? _getAvatarImage(String url) {
+    if (url.isEmpty) return null;
+    if (kIsWeb) {
+      return NetworkImage(url);
+    } else {
+      if (url.startsWith('http') || url.startsWith('https')) {
+        return NetworkImage(url);
+      } else {
+        return FileImage(File(url));
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     if (_draftProfile == null) {
@@ -93,9 +179,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
               children: [
                 GestureDetector(
                   onTap: () {
-                    // Profile image click simulation
-                    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-                        content: Text('Simulazione cambio foto profilo...')));
+                    _showImagePickerOptions(context);
                   },
                   child: Stack(
                     children: [
@@ -114,7 +198,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                           ],
                           image: p.avatarUrl.isNotEmpty
                               ? DecorationImage(
-                                  image: NetworkImage(p.avatarUrl),
+                                  image: _getAvatarImage(p.avatarUrl)!,
                                   fit: BoxFit.cover)
                               : null,
                         ),
@@ -179,12 +263,13 @@ class _ProfileScreenState extends State<ProfileScreen> {
           ),
 
           // Vitals Grid
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const Text('Dati Fisiologici',
+          if (p.role != 'coach')
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text('Dati Fisiologici',
                     style:
                         TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
                 const SizedBox(height: 12),

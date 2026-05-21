@@ -12,12 +12,16 @@ class AnalyticsDetailsScreen extends StatefulWidget {
   final String title;
   final String type; // 'pr' | 'jump'
   final String exerciseId;
+  final List<dynamic>? preloadedLogs;
+  final bool isReadOnly;
 
   const AnalyticsDetailsScreen({
     super.key,
     required this.title,
     required this.type,
     required this.exerciseId,
+    this.preloadedLogs,
+    this.isReadOnly = false,
   });
 
   @override
@@ -188,13 +192,25 @@ class _AnalyticsDetailsScreenState extends State<AnalyticsDetailsScreen> {
 
     // Filter and sort logs
     List<dynamic> allLogs = [];
-    if (widget.type == 'pr') {
-      allLogs = appState.prLogs
-          .where((l) => l.exerciseId == widget.exerciseId)
-          .toList();
+    if (widget.preloadedLogs != null) {
+      if (widget.type == 'pr') {
+        allLogs = widget.preloadedLogs!
+            .where((l) => (l as PRLog).exerciseId == widget.exerciseId)
+            .toList();
+      } else {
+        allLogs = widget.preloadedLogs!
+            .where((l) => (l as JumpLog).type == widget.exerciseId)
+            .toList();
+      }
     } else {
-      allLogs =
-          appState.jumpLogs.where((l) => l.type == widget.exerciseId).toList();
+      if (widget.type == 'pr') {
+        allLogs = appState.prLogs
+            .where((l) => l.exerciseId == widget.exerciseId)
+            .toList();
+      } else {
+        allLogs =
+            appState.jumpLogs.where((l) => l.type == widget.exerciseId).toList();
+      }
     }
 
     allLogs.sort(
@@ -213,21 +229,22 @@ class _AnalyticsDetailsScreenState extends State<AnalyticsDetailsScreen> {
         centerTitle: true,
         backgroundColor: Colors.transparent,
         actions: [
-          Padding(
-            padding: const EdgeInsets.only(right: 16.0),
-            child: GestureDetector(
-              onTap: () => _showAddOrEditLogDialog(),
-              child: Container(
-                padding: const EdgeInsets.all(8),
-                decoration: const BoxDecoration(
-                  color: Color(0xFF1B232A), // circle bg
-                  shape: BoxShape.circle,
+          if (!widget.isReadOnly)
+            Padding(
+              padding: const EdgeInsets.only(right: 16.0),
+              child: GestureDetector(
+                onTap: () => _showAddOrEditLogDialog(),
+                child: Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: const BoxDecoration(
+                    color: Color(0xFF1B232A), // circle bg
+                    shape: BoxShape.circle,
+                  ),
+                  child: const Icon(PhosphorIconsRegular.plus,
+                      color: AppTheme.primary, size: 20),
                 ),
-                child: const Icon(PhosphorIconsRegular.plus,
-                    color: AppTheme.primary, size: 20),
               ),
-            ),
-          )
+            )
         ],
       ),
       body: ListView(
@@ -504,7 +521,7 @@ class _AnalyticsDetailsScreenState extends State<AnalyticsDetailsScreen> {
     return Padding(
       padding: const EdgeInsets.only(bottom: 12, left: 20, right: 20),
       child: GestureDetector(
-        onTap: () => _showAddOrEditLogDialog(existingLog: log),
+        onTap: widget.isReadOnly ? null : () => _showAddOrEditLogDialog(existingLog: log),
         child: CustomCard(
           color: const Color(0xFF22282D),
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 20),
@@ -537,20 +554,22 @@ class _AnalyticsDetailsScreenState extends State<AnalyticsDetailsScreen> {
                       color: AppTheme.textMediumEmphasis,
                       fontSize: 12,
                       fontWeight: FontWeight.w600)),
-              const SizedBox(width: 24),
-              GestureDetector(
-                onTap: () {
-                  final appState =
-                      Provider.of<AppState>(context, listen: false);
-                  if (widget.type == 'pr') {
-                    appState.deletePRLog(id);
-                  } else {
-                    appState.deleteJumpLog(id);
-                  }
-                },
-                child: const Icon(PhosphorIconsRegular.trash,
-                    color: AppTheme.textMediumEmphasis, size: 20),
-              ),
+              if (!widget.isReadOnly) ...[
+                const SizedBox(width: 24),
+                GestureDetector(
+                  onTap: () {
+                    final appState =
+                        Provider.of<AppState>(context, listen: false);
+                    if (widget.type == 'pr') {
+                      appState.deletePRLog(id);
+                    } else {
+                      appState.deleteJumpLog(id);
+                    }
+                  },
+                  child: const Icon(PhosphorIconsRegular.trash,
+                      color: AppTheme.textMediumEmphasis, size: 20),
+                ),
+              ],
             ],
           ),
         ),

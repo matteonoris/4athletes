@@ -18,4 +18,7 @@ const List<Sport> sportsData = [
   Sport('road_cycling', 'Ciclismo', Icons.directions_bike),
   Sport('stretching', 'Mobilità / Yoga', Icons.self_improvement),
   Sport('athletic_prep', 'Prep. Atletica', Icons.run_circle),
+  Sport('physiotherapy', 'Fisioterapia', Icons.medical_services),
+  Sport('hyperarch', 'Hyperarch Fascia Training', Icons.fitness_center),
+  Sport('tendon_isometrics', 'Isometrie Tendini', Icons.accessibility_new),
 ];

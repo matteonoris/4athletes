@@ -13,7 +13,9 @@ class SportActivity {
 }
 
 class ActivitySelectScreen extends StatefulWidget {
-  const ActivitySelectScreen({super.key});
+  final bool isPicker;
+
+  const ActivitySelectScreen({super.key, this.isPicker = false});
 
   @override
   State<ActivitySelectScreen> createState() => _ActivitySelectScreenState();
@@ -35,7 +37,7 @@ class _ActivitySelectScreenState extends State<ActivitySelectScreen> {
     'SKILL'
   ];
 
-  static final List<SportActivity> _allActivities = [
+  static final List<SportActivity> allActivities = [
     // WINTER
     SportActivity(
         'alpine_skiing', 'ALPINE SKIING', 'WINTER', PhosphorIcons.snowflake()),
@@ -150,7 +152,7 @@ class _ActivitySelectScreenState extends State<ActivitySelectScreen> {
   ];
 
   List<SportActivity> get _filteredActivities {
-    return _allActivities.where((act) {
+    return allActivities.where((act) {
       final matchesSearch =
           act.name.toLowerCase().contains(_searchQuery.toLowerCase());
       final matchesCat =
@@ -267,11 +269,15 @@ class _ActivitySelectScreenState extends State<ActivitySelectScreen> {
                     clipBehavior: Clip.antiAlias,
                     child: InkWell(
                       onTap: () {
-                        Navigator.push(
-                            context,
-                            MaterialPageRoute(
-                                builder: (_) => AddTrainingScreen(
-                                    sportId: act.id, sportName: act.name)));
+                        if (widget.isPicker) {
+                          Navigator.pop(context, act);
+                        } else {
+                          Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                  builder: (_) => AddTrainingScreen(
+                                      sportId: act.id, sportName: act.name)));
+                        }
                       },
                       child: Padding(
                         padding: const EdgeInsets.all(16.0),

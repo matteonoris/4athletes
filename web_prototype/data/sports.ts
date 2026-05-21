@@ -72,6 +72,9 @@ export const sportsData: SportDef[] = [
     { id: 'pilates', name: 'Pilates', icon: Activity, category: 'Fitness' },
     { id: 'spinning', name: 'Spinning', icon: Bike, category: 'Fitness' },
     { id: 'stair_climber', name: 'Stair Climber', icon: Mountain, category: 'Fitness' },
+    { id: 'physiotherapy', name: 'Fisioterapia', icon: Activity, category: 'Fitness' },
+    { id: 'hyperarch', name: 'Hyperarch Fascia Training', icon: Zap, category: 'Fitness' },
+    { id: 'tendon_isometrics', name: 'Isometrie Tendini', icon: Move, category: 'Fitness' },
 
     // COMBAT
     { id: 'boxing', name: 'Boxing', icon: Swords, category: 'Combat' },
