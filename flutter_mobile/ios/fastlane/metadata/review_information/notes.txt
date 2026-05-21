@@ -1,0 +1,5 @@
+4athletes is a training platform that pairs athletes and coaches on the same app. Athletes log training sessions, body metrics, personal records, and jump data; coaches manage one or more teams, view their athletes' progress, plan calendar events, and review performance over time. Onboarding asks the user to pick a role (athlete or coach) on the first screen, then collects basic profile information. Sign-in supports email/password as well as Sign in with Google.
+
+Apple Health is requested only to optionally import workouts; the rest of the app works without it.
+
+No demo account is required: please create a fresh email+password account from the sign-up flow to evaluate the athlete experience. To evaluate the coach side, choose "Allenatore/Coach" on the first onboarding screen.

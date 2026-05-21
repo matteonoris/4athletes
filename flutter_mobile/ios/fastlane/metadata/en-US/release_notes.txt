@@ -1,0 +1,6 @@
+Welcome to 4athletes — the first public beta.
+
+• Sign in with Google or email + password.
+• Athlete mode: log training sessions, personal records, body metrics, and jump data.
+• Coach mode: manage teams, plan sessions on a shared calendar, and review your athletes' progress.
+• Optional Apple Health import to bring in your existing workouts.

@@ -1,0 +1,26 @@
+4athletes is the training app for athletes and coaches who work together.
+
+Athletes log every session, set personal records, and watch their progress build over time. Coaches see the same data in real time, plan team sessions, and keep every athlete moving in the same direction. One app, two views, zero spreadsheets.
+
+FOR ATHLETES
+• Log strength, conditioning, and sport-specific sessions.
+• Track sets, reps, weights, RPE, and notes for every exercise.
+• Capture personal records and watch your one-rep max climb.
+• Log body metrics — weight, height, and more — over time.
+• Save jump data and analyze your explosive performance.
+• Auto-import workouts from Apple Health (optional).
+• Review trends in charts: PR history, weekly volume, training load.
+
+FOR COACHES
+• Manage one or many teams from a single dashboard.
+• Plan sessions on a shared calendar with your athletes.
+• Drop into any athlete's profile to review sessions, PRs, and body metrics.
+• Send announcements and stay on top of every team you run.
+
+ONE TEAM, ONE PLATFORM
+Athletes and coaches sign in to the same app and pick their role at onboarding. Athletes get a training-first experience; coaches get the planning and analytics tools they need. Data flows automatically from the athlete's logs to the coach's dashboard — no more screenshots, spreadsheets, or chat threads.
+
+PRIVACY-FIRST
+Your training data belongs to you. Sign in with email or Google. Apple Health import is optional and only runs if you turn it on. Coaches only see athletes that have joined their team.
+
+Built for serious training. Free to try.

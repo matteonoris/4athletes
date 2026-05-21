@@ -20,6 +20,7 @@ class AuthScreen extends StatefulWidget {
 class _AuthScreenState extends State<AuthScreen> with SingleTickerProviderStateMixin {
   bool _isLogin = true;
   int _signupStep = 1; // 1 to 6
+  bool _isGoogleSignup = false;
   String _role = 'athlete';
 
   // Controllers
@@ -82,7 +83,7 @@ class _AuthScreenState extends State<AuthScreen> with SingleTickerProviderStateM
 
   Future<void> _submitSignup() async {
     final appState = Provider.of<AppState>(context, listen: false);
-    
+
     String dobStr = _dobCtrl.text;
     if (dobStr.isEmpty) dobStr = '2000-01-01'; // Fallback
     else {
@@ -110,15 +111,21 @@ class _AuthScreenState extends State<AuthScreen> with SingleTickerProviderStateM
       maxHr: 190,
       unitSystem: 'metric',
       language: 'it',
-      avatarUrl: '',
+      avatarUrl: appState.userProfile?.avatarUrl ?? '',
       notificationsEnabled: true,
       connectedDevices: [],
       oneRepMax: {},
     );
 
     try {
-      await appState.signUpWithEmailAndPassword(_emailCtrl.text, _passCtrl.text, profile);
-      
+      if (_isGoogleSignup) {
+        // Google user is already authenticated with Supabase; just persist
+        // the profile they just completed and mark the session as logged in.
+        appState.login(profile);
+      } else {
+        await appState.signUpWithEmailAndPassword(_emailCtrl.text, _passCtrl.text, profile);
+      }
+
       final date = DateTime.now().toIso8601String().split('T')[0];
       if (weight > 0) {
         appState.addBodyLog(BodyMetricLog(id: '', date: date, type: 'weight', value: weight));
@@ -126,7 +133,7 @@ class _AuthScreenState extends State<AuthScreen> with SingleTickerProviderStateM
       if (height > 0) {
         appState.addBodyLog(BodyMetricLog(id: '', date: date, type: 'height', value: height));
       }
-      
+
       if (mounted) _navigateToNext();
     } catch (e) {
       if (!mounted) return;
@@ -144,7 +151,8 @@ class _AuthScreenState extends State<AuthScreen> with SingleTickerProviderStateM
         if (appState.isNewGoogleUser) {
           setState(() {
             _isLogin = false;
-            _signupStep = 4;
+            _isGoogleSignup = true;
+            _signupStep = 1;
             _firstNameCtrl.text = appState.userProfile?.firstName ?? '';
             _lastNameCtrl.text = appState.userProfile?.lastName ?? '';
             _emailCtrl.text = appState.userProfile?.email ?? '';
@@ -390,7 +398,10 @@ class _AuthScreenState extends State<AuthScreen> with SingleTickerProviderStateM
             GestureDetector(
               onTap: () {
                 HapticFeedback.lightImpact();
-                if (_signupStep > 1) {
+                if (_isGoogleSignup && _signupStep == 4) {
+                  // Skip steps 2 and 3 (irrelevant for Google sign-up).
+                  setState(() { _signupStep = 1; _animationController.forward(from: 0); });
+                } else if (_signupStep > 1) {
                   setState(() { _signupStep--; _animationController.forward(from: 0); });
                 } else {
                   setState(() { _isLogin = true; _animationController.forward(from: 0); });
@@ -666,6 +677,12 @@ class _AuthScreenState extends State<AuthScreen> with SingleTickerProviderStateM
 
   Widget _buildBottomNextButton() {
     return _buildFlowButton('Avanti', () {
+      // For Google sign-up we skip the "choose sign-up method" + email/password
+      // screens (steps 2 and 3) because the user is already authenticated.
+      if (_isGoogleSignup && _signupStep == 1) {
+        setState(() { _signupStep = 4; _animationController.forward(from: 0); });
+        return;
+      }
       if (_signupStep < (_role == 'coach' ? 4 : 5)) {
          setState(() { _signupStep++; _animationController.forward(from: 0); });
       }

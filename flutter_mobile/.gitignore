@@ -5,9 +5,11 @@
 *.swp
 .DS_Store
 .atom/
+.build/
 .buildlog/
 .history
 .svn/
+.swiftpm/
 migrate_working_dir/
 
 # IntelliJ related
@@ -44,3 +46,14 @@ app.*.map.json
 
 # Dotenv
 .env
+
+# Claude Code DTD session URI
+.dtd_uri
+
+# Fastlane
+ios/fastlane/report.xml
+ios/fastlane/README.md
+ios/fastlane/.env.*
+ios/fastlane/test_output/
+ios/fastlane/Preview.html
+*.p8

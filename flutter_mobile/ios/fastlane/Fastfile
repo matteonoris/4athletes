@@ -1,0 +1,396 @@
+# encoding: utf-8
+Encoding.default_external = Encoding::UTF_8
+Encoding.default_internal = Encoding::UTF_8
+
+default_platform(:ios)
+
+# Project root (two levels up from ios/fastlane/)
+PROJECT_ROOT = File.expand_path(File.join(__dir__, "..", ".."))
+METADATA_DIR = File.join(__dir__, "metadata")
+RELEASE_NOTES_PATH = File.join(METADATA_DIR, "en-US", "release_notes.txt")
+AGE_RATING_CONFIG = "fastlane/app_rating_config.json"
+
+# ──────────────────────────────────────────────
+# Helper: Load App Store Connect API key
+# ──────────────────────────────────────────────
+def load_api_key
+  app_store_connect_api_key(
+    key_id: ENV["ASC_KEY_ID"],
+    issuer_id: ENV["ASC_ISSUER_ID"],
+    key_filepath: ENV["ASC_KEY_FILEPATH"] || File.expand_path("~/.appstore_keys/AuthKey_#{ENV['ASC_KEY_ID']}.p8"),
+    in_house: false
+  )
+end
+
+# ──────────────────────────────────────────────
+# Helper: Read current version from pubspec.yaml
+# ──────────────────────────────────────────────
+def read_pubspec_version
+  pubspec_path = File.join(PROJECT_ROOT, "pubspec.yaml")
+  content = File.read(pubspec_path)
+  match = content.match(/^version:\s*(\d+\.\d+\.\d+)\+(\d+)/)
+  raise "Could not parse version from pubspec.yaml" unless match
+  { version_name: match[1], build_number: match[2].to_i }
+end
+
+# ──────────────────────────────────────────────
+# Helper: Write new version to pubspec.yaml
+# ──────────────────────────────────────────────
+def write_pubspec_version(version_name, build_number)
+  pubspec_path = File.join(PROJECT_ROOT, "pubspec.yaml")
+  content = File.read(pubspec_path)
+  new_content = content.gsub(
+    /^version:\s*\d+\.\d+\.\d+\+\d+/,
+    "version: #{version_name}+#{build_number}"
+  )
+  File.write(pubspec_path, new_content)
+  UI.success("Updated pubspec.yaml to #{version_name}+#{build_number}")
+end
+
+# ──────────────────────────────────────────────
+# Helper: Bump version according to bump_type
+# ──────────────────────────────────────────────
+def bump_version(bump_type)
+  current = read_pubspec_version
+  parts = current[:version_name].split(".").map(&:to_i)
+
+  case bump_type
+  when "major"
+    parts[0] += 1; parts[1] = 0; parts[2] = 0
+  when "minor"
+    parts[1] += 1; parts[2] = 0
+  when "patch"
+    parts[2] += 1
+  else
+    raise "Invalid bump_type: #{bump_type}. Use 'major', 'minor', or 'patch'."
+  end
+
+  new_version = parts.join(".")
+  new_build = current[:build_number] + 1
+  write_pubspec_version(new_version, new_build)
+
+  { version_name: new_version, build_number: new_build }
+end
+
+# ──────────────────────────────────────────────
+# Guardrail: release_notes.txt must be fresh.
+# Claude rewrites it before every release. If it
+# wasn't updated since the last tag, abort — we
+# never want to ship stale notes.
+# ──────────────────────────────────────────────
+def ensure_fresh_release_notes
+  raise "Missing release notes at #{RELEASE_NOTES_PATH}" unless File.exist?(RELEASE_NOTES_PATH)
+
+  notes = File.read(RELEASE_NOTES_PATH, encoding: "UTF-8").strip
+  raise "release_notes.txt is empty — Claude must write fresh notes before release" if notes.empty?
+
+  Dir.chdir(PROJECT_ROOT) do
+    last_tag = `git describe --tags --abbrev=0 2>/dev/null`.strip
+    next if last_tag.empty?
+
+    dirty = `git status --porcelain -- ios/fastlane/metadata/en-US/release_notes.txt`.strip
+    next unless dirty.empty?
+
+    commits_since_tag = `git rev-list #{last_tag}..HEAD -- ios/fastlane/metadata/en-US/release_notes.txt 2>/dev/null`.strip
+    next unless commits_since_tag.empty?
+
+    raise "release_notes.txt hasn't been updated since tag #{last_tag}. Claude must rewrite notes before release."
+  end
+
+  UI.success("Release notes are fresh ✓")
+end
+
+# ──────────────────────────────────────────────
+# Guardrail: review_information/phone_number.txt
+# must not be a placeholder.
+# ──────────────────────────────────────────────
+def ensure_review_info_complete
+  phone_path = File.join(METADATA_DIR, "review_information", "phone_number.txt")
+  phone = File.exist?(phone_path) ? File.read(phone_path).strip : ""
+  if phone.empty? || phone.include?("__FILL_IN")
+    raise "review_information/phone_number.txt is empty or placeholder — fill in a real phone before release."
+  end
+end
+
+# ──────────────────────────────────────────────
+# Helper: Fan out en-US release_notes.txt to
+# every App Store locale that ASC expects.
+# Missing locales cause submission to fail.
+# ──────────────────────────────────────────────
+def release_notes_for_all_locales
+  default_notes = File.read(RELEASE_NOTES_PATH, encoding: "UTF-8")
+  app_id = CredentialsManager::AppfileConfig.try_fetch_value(:app_identifier)
+  app = Spaceship::ConnectAPI::App.find(app_id)
+  version = app.get_edit_app_store_version
+  return { "en-US" => default_notes } unless version
+
+  locs = version.get_app_store_version_localizations
+  out = {}
+  locs.each do |loc|
+    per_locale_path = File.join(METADATA_DIR, loc.locale, "release_notes.txt")
+    out[loc.locale] = File.exist?(per_locale_path) ? File.read(per_locale_path, encoding: "UTF-8") : default_notes
+  end
+  UI.message("Release notes per locale: #{out.keys.join(', ')}")
+  out
+rescue => e
+  UI.important("Could not fetch ASC locales (#{e.message}). Defaulting to en-US only.")
+  { "en-US" => File.read(RELEASE_NOTES_PATH, encoding: "UTF-8") }
+end
+
+platform :ios do
+
+  # ────────────────────────────────────────────
+  # Lane: beta (upload to TestFlight)
+  # ────────────────────────────────────────────
+  desc "Bump version, build, and upload to TestFlight"
+  lane :beta do |options|
+    bump_type = options[:bump] || "patch"
+    api_key = load_api_key
+    ensure_fresh_release_notes
+
+    new_version = bump_version(bump_type)
+    UI.message("Building v#{new_version[:version_name]}+#{new_version[:build_number]}")
+
+    Bundler.with_unbundled_env do
+      Dir.chdir(PROJECT_ROOT) do
+        sh("flutter", "build", "ios",
+          "--release",
+          "--no-codesign",
+          "--build-name=#{new_version[:version_name]}",
+          "--build-number=#{new_version[:build_number].to_s}"
+        )
+
+        sh("xcodebuild", "-workspace", "ios/Runner.xcworkspace",
+          "-scheme", "Runner",
+          "-configuration", "Release",
+          "-archivePath", "build/ios/archive/Runner.xcarchive",
+          "-destination", "generic/platform=iOS",
+          "-allowProvisioningUpdates",
+          "-authenticationKeyPath", ENV["ASC_KEY_FILEPATH"],
+          "-authenticationKeyID", ENV["ASC_KEY_ID"],
+          "-authenticationKeyIssuerID", ENV["ASC_ISSUER_ID"],
+          "archive"
+        )
+
+        sh("xcodebuild", "-exportArchive",
+          "-archivePath", "build/ios/archive/Runner.xcarchive",
+          "-exportPath", "build/ios/ipa",
+          "-exportOptionsPlist", "ios/ExportOptions.plist"
+        )
+      end
+    end
+
+    ipa_path = Dir.glob(File.join(PROJECT_ROOT, "build", "ios", "ipa", "*.ipa")).first
+    raise "No IPA found in build/ios/ipa/" unless ipa_path
+
+    upload_to_testflight(
+      api_key: api_key,
+      ipa: ipa_path,
+      skip_waiting_for_build_processing: false,
+      distribute_external: true,
+      groups: ["External Testers"],
+      notify_external_testers: true,
+      changelog: File.read(RELEASE_NOTES_PATH, encoding: "UTF-8"),
+      uses_non_exempt_encryption: false
+    )
+
+    version_tag = "v#{new_version[:version_name]}+#{new_version[:build_number]}"
+    Dir.chdir(PROJECT_ROOT) do
+      sh("git", "add", "pubspec.yaml", "ios/fastlane/metadata")
+      sh("git", "commit", "-m", "chore: release #{version_tag} to TestFlight")
+      sh("git", "tag", version_tag)
+    end
+
+    UI.success("Beta #{version_tag} uploaded to TestFlight!")
+  end
+
+  # ────────────────────────────────────────────
+  # Lane: release (upload + submit for review)
+  # ────────────────────────────────────────────
+  desc "Bump version, build, upload, and submit for App Store review"
+  lane :release do |options|
+    bump_type = options[:bump] || "patch"
+    api_key = load_api_key
+    ensure_fresh_release_notes
+    ensure_review_info_complete
+
+    new_version = bump_version(bump_type)
+    UI.message("Building v#{new_version[:version_name]}+#{new_version[:build_number]}")
+
+    Bundler.with_unbundled_env do
+      Dir.chdir(PROJECT_ROOT) do
+        sh("flutter", "build", "ios",
+          "--release",
+          "--no-codesign",
+          "--build-name=#{new_version[:version_name]}",
+          "--build-number=#{new_version[:build_number].to_s}"
+        )
+
+        sh("xcodebuild", "-workspace", "ios/Runner.xcworkspace",
+          "-scheme", "Runner",
+          "-configuration", "Release",
+          "-archivePath", "build/ios/archive/Runner.xcarchive",
+          "-destination", "generic/platform=iOS",
+          "-allowProvisioningUpdates",
+          "-authenticationKeyPath", ENV["ASC_KEY_FILEPATH"],
+          "-authenticationKeyID", ENV["ASC_KEY_ID"],
+          "-authenticationKeyIssuerID", ENV["ASC_ISSUER_ID"],
+          "archive"
+        )
+
+        sh("xcodebuild", "-exportArchive",
+          "-archivePath", "build/ios/archive/Runner.xcarchive",
+          "-exportPath", "build/ios/ipa",
+          "-exportOptionsPlist", "ios/ExportOptions.plist"
+        )
+      end
+    end
+
+    ipa_path = Dir.glob(File.join(PROJECT_ROOT, "build", "ios", "ipa", "*.ipa")).first
+    raise "No IPA found in build/ios/ipa/" unless ipa_path
+
+    upload_to_app_store(
+      api_key: api_key,
+      ipa: ipa_path,
+      metadata_path: METADATA_DIR,
+      skip_metadata: false,
+      skip_screenshots: true,
+      force: true,
+      release_notes: release_notes_for_all_locales,
+      app_rating_config_path: AGE_RATING_CONFIG,
+      submit_for_review: true,
+      automatic_release: true,
+      submission_information: {
+        add_id_info_uses_idfa: false
+      },
+      precheck_include_in_app_purchases: false
+    )
+
+    version_tag = "v#{new_version[:version_name]}+#{new_version[:build_number]}"
+    Dir.chdir(PROJECT_ROOT) do
+      sh("git", "add", "pubspec.yaml", "ios/fastlane/metadata", "ios/fastlane/app_rating_config.json")
+      sh("git", "commit", "-m", "chore: release #{version_tag}")
+      sh("git", "tag", version_tag)
+    end
+
+    UI.success("Release #{version_tag} submitted for App Store review!")
+  end
+
+  # ────────────────────────────────────────────
+  # Lane: submit_review (submit an already-uploaded
+  #   build for App Store review)
+  # ────────────────────────────────────────────
+  desc "Submit an already-uploaded build for App Store review"
+  lane :submit_review do |options|
+    api_key = load_api_key
+    ensure_fresh_release_notes
+    ensure_review_info_complete
+    current = read_pubspec_version
+
+    upload_to_app_store(
+      api_key: api_key,
+      metadata_path: METADATA_DIR,
+      skip_metadata: false,
+      skip_screenshots: true,
+      skip_binary_upload: true,
+      force: true,
+      release_notes: release_notes_for_all_locales,
+      app_rating_config_path: AGE_RATING_CONFIG,
+      submit_for_review: true,
+      automatic_release: true,
+      app_version: current[:version_name],
+      build_number: (options[:build] || current[:build_number]).to_s,
+      submission_information: {
+        add_id_info_uses_idfa: false
+      },
+      precheck_include_in_app_purchases: false
+    )
+
+    UI.success("Build #{current[:build_number]} submitted for App Store review!")
+  end
+
+  # ────────────────────────────────────────────
+  # Lane: sync_metadata (push metadata changes only,
+  #   no binary upload, no review submission)
+  # ────────────────────────────────────────────
+  desc "Push metadata changes to App Store Connect without uploading a build or submitting for review"
+  lane :sync_metadata do
+    api_key = load_api_key
+    ensure_review_info_complete
+
+    upload_to_app_store(
+      api_key: api_key,
+      metadata_path: METADATA_DIR,
+      skip_metadata: false,
+      skip_screenshots: true,
+      skip_binary_upload: true,
+      force: true,
+      app_rating_config_path: AGE_RATING_CONFIG,
+      submit_for_review: false,
+      precheck_include_in_app_purchases: false
+    )
+
+    UI.success("Metadata synced to App Store Connect!")
+  end
+
+  # ────────────────────────────────────────────
+  # Lane: distribute (assign an already-uploaded
+  #   build to external groups)
+  # ────────────────────────────────────────────
+  desc "Distribute an already-uploaded build to external testers"
+  lane :distribute do |options|
+    api_key = load_api_key
+    build_number = options[:build] || read_pubspec_version[:build_number].to_s
+
+    upload_to_testflight(
+      api_key: api_key,
+      skip_submission: false,
+      distribute_external: true,
+      groups: ["External Testers"],
+      notify_external_testers: true,
+      app_identifier: CredentialsManager::AppfileConfig.try_fetch_value(:app_identifier),
+      build_number: build_number,
+      uses_non_exempt_encryption: false
+    )
+
+    UI.success("Build #{build_number} distributed to external testers!")
+  end
+
+  # ────────────────────────────────────────────
+  # Lane: build_only (just build, no upload)
+  # ────────────────────────────────────────────
+  desc "Build IPA without uploading (for testing the pipeline)"
+  lane :build_only do
+    current = read_pubspec_version
+    Bundler.with_unbundled_env do
+      Dir.chdir(PROJECT_ROOT) do
+        sh("flutter", "build", "ios",
+          "--release",
+          "--no-codesign",
+          "--build-name=#{current[:version_name]}",
+          "--build-number=#{current[:build_number].to_s}"
+        )
+
+        sh("xcodebuild", "-workspace", "ios/Runner.xcworkspace",
+          "-scheme", "Runner",
+          "-configuration", "Release",
+          "-archivePath", "build/ios/archive/Runner.xcarchive",
+          "-destination", "generic/platform=iOS",
+          "-allowProvisioningUpdates",
+          "-authenticationKeyPath", ENV["ASC_KEY_FILEPATH"],
+          "-authenticationKeyID", ENV["ASC_KEY_ID"],
+          "-authenticationKeyIssuerID", ENV["ASC_ISSUER_ID"],
+          "archive"
+        )
+
+        sh("xcodebuild", "-exportArchive",
+          "-archivePath", "build/ios/archive/Runner.xcarchive",
+          "-exportPath", "build/ios/ipa",
+          "-exportOptionsPlist", "ios/ExportOptions.plist"
+        )
+      end
+    end
+    UI.success("Build complete!")
+  end
+
+end

@@ -1,3 +1,4 @@
+import 'dart:io' show Platform;
 import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -143,9 +144,18 @@ class AppState extends ChangeNotifier {
   Future<AuthResponse?> signInWithGoogle() async {
     try {
       final webClientId = dotenv.env['GOOGLE_WEB_CLIENT_ID'];
-      
+      final iosClientId = dotenv.env['GOOGLE_IOS_CLIENT_ID'];
+
+      if (!kIsWeb && Platform.isIOS && (iosClientId == null || iosClientId.isEmpty)) {
+        throw 'Google Sign-In non è ancora configurato per iOS. Aggiungi GOOGLE_IOS_CLIENT_ID nel .env per abilitarlo.';
+      }
+
+      final String? clientIdForPlatform = kIsWeb
+          ? webClientId
+          : (Platform.isIOS ? iosClientId : null);
+
       final GoogleSignIn googleSignIn = GoogleSignIn(
-        clientId: webClientId,
+        clientId: clientIdForPlatform,
         serverClientId: kIsWeb ? null : webClientId,
       );
       
@@ -160,6 +170,9 @@ class AppState extends ChangeNotifier {
         throw 'No ID Token found.';
       }
 
+      // The GoogleSignIn iOS SDK 8.x auto-adds a nonce to the id_token that
+      // google_sign_in 6.x can't expose. Supabase project must have
+      // "Skip nonce check" enabled for the Google provider for this to work.
       final response = await _supabase.auth.signInWithIdToken(
         provider: OAuthProvider.google,
         idToken: idToken,
