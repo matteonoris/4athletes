@@ -20,7 +20,7 @@ class AuthScreen extends StatefulWidget {
 class _AuthScreenState extends State<AuthScreen> with SingleTickerProviderStateMixin {
   bool _isLogin = true;
   int _signupStep = 1; // 1 to 6
-  bool _isGoogleSignup = false;
+  bool _isSocialSignup = false; // true while completing signup after Google/Apple auth
   String _role = 'athlete';
 
   // Controllers
@@ -118,9 +118,10 @@ class _AuthScreenState extends State<AuthScreen> with SingleTickerProviderStateM
     );
 
     try {
-      if (_isGoogleSignup) {
-        // Google user is already authenticated with Supabase; just persist
-        // the profile they just completed and mark the session as logged in.
+      if (_isSocialSignup) {
+        // Google/Apple user is already authenticated with Supabase; just
+        // persist the profile they just completed and mark the session as
+        // logged in.
         appState.login(profile);
       } else {
         await appState.signUpWithEmailAndPassword(_emailCtrl.text, _passCtrl.text, profile);
@@ -151,7 +152,7 @@ class _AuthScreenState extends State<AuthScreen> with SingleTickerProviderStateM
         if (appState.isNewGoogleUser) {
           setState(() {
             _isLogin = false;
-            _isGoogleSignup = true;
+            _isSocialSignup = true;
             _signupStep = 1;
             _firstNameCtrl.text = appState.userProfile?.firstName ?? '';
             _lastNameCtrl.text = appState.userProfile?.lastName ?? '';
@@ -167,6 +168,36 @@ class _AuthScreenState extends State<AuthScreen> with SingleTickerProviderStateM
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text('Errore durante il login con Google: $e'),
+          backgroundColor: Colors.red,
+        ),
+      );
+    }
+  }
+
+  Future<void> _handleAppleSignIn() async {
+    final appState = Provider.of<AppState>(context, listen: false);
+    try {
+      final response = await appState.signInWithApple();
+      if (response != null && response.user != null) {
+        if (appState.isNewAppleUser) {
+          setState(() {
+            _isLogin = false;
+            _isSocialSignup = true;
+            _signupStep = 1;
+            _firstNameCtrl.text = appState.userProfile?.firstName ?? '';
+            _lastNameCtrl.text = appState.userProfile?.lastName ?? '';
+            _emailCtrl.text = appState.userProfile?.email ?? '';
+            _animationController.forward(from: 0);
+          });
+        } else {
+          _navigateToNext();
+        }
+      }
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Errore durante il login con Apple: $e'),
           backgroundColor: Colors.red,
         ),
       );
@@ -343,7 +374,7 @@ class _AuthScreenState extends State<AuthScreen> with SingleTickerProviderStateM
               child: ElevatedButton.icon(
                 onPressed: () {
                   HapticFeedback.lightImpact();
-                  _handleGoogleSignIn();
+                  _handleAppleSignIn();
                 },
                 icon: Icon(PhosphorIcons.appleLogo(PhosphorIconsStyle.fill), color: Colors.white, size: 20),
                 label: const Text('Apple', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
@@ -398,7 +429,7 @@ class _AuthScreenState extends State<AuthScreen> with SingleTickerProviderStateM
             GestureDetector(
               onTap: () {
                 HapticFeedback.lightImpact();
-                if (_isGoogleSignup && _signupStep == 4) {
+                if (_isSocialSignup && _signupStep == 4) {
                   // Skip steps 2 and 3 (irrelevant for Google sign-up).
                   setState(() { _signupStep = 1; _animationController.forward(from: 0); });
                 } else if (_signupStep > 1) {
@@ -547,7 +578,7 @@ class _AuthScreenState extends State<AuthScreen> with SingleTickerProviderStateM
         ),
         const SizedBox(height: 16),
         ElevatedButton.icon(
-          onPressed: _handleGoogleSignIn,
+          onPressed: _handleAppleSignIn,
           icon: Icon(PhosphorIcons.appleLogo(PhosphorIconsStyle.fill), color: Colors.white, size: 24),
           label: const Text('Apple', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16)),
           style: ElevatedButton.styleFrom(
@@ -679,7 +710,7 @@ class _AuthScreenState extends State<AuthScreen> with SingleTickerProviderStateM
     return _buildFlowButton('Avanti', () {
       // For Google sign-up we skip the "choose sign-up method" + email/password
       // screens (steps 2 and 3) because the user is already authenticated.
-      if (_isGoogleSignup && _signupStep == 1) {
+      if (_isSocialSignup && _signupStep == 1) {
         setState(() { _signupStep = 4; _animationController.forward(from: 0); });
         return;
       }

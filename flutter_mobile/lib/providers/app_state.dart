@@ -1,10 +1,13 @@
 import 'dart:io' show Platform;
+import 'dart:math';
 import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'dart:convert';
+import 'package:crypto/crypto.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:google_sign_in/google_sign_in.dart';
+import 'package:sign_in_with_apple/sign_in_with_apple.dart';
 import '../models/models.dart';
 import '../services/health_service.dart';
 
@@ -19,6 +22,11 @@ class AppState extends ChangeNotifier {
 
   bool _isNewGoogleUser = false;
   bool get isNewGoogleUser => _isNewGoogleUser;
+
+  bool _isNewAppleUser = false;
+  bool get isNewAppleUser => _isNewAppleUser;
+
+  bool get isNewSocialUser => _isNewGoogleUser || _isNewAppleUser;
 
   bool _isLoggedIn = false;
   bool get isLoggedIn => _isLoggedIn;
@@ -235,6 +243,115 @@ class AppState extends ChangeNotifier {
       return response;
     } catch (e) {
       debugPrint('Error signing in with Google: $e');
+      rethrow;
+    }
+  }
+
+  /// Cryptographically-strong random nonce in the URL-safe charset Apple expects.
+  String _generateNonce([int length = 32]) {
+    const charset = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-._';
+    final random = Random.secure();
+    return List.generate(length, (_) => charset[random.nextInt(charset.length)]).join();
+  }
+
+  Future<AuthResponse?> signInWithApple() async {
+    try {
+      if (!kIsWeb && !(Platform.isIOS || Platform.isMacOS)) {
+        throw 'Sign in with Apple è disponibile solo su iOS, macOS e Web.';
+      }
+
+      // Generate a fresh nonce and pass the SHA-256 hash to Apple; Supabase
+      // gets the raw nonce and verifies the hashed copy embedded in the id_token.
+      final rawNonce = _generateNonce();
+      final hashedNonce = sha256.convert(utf8.encode(rawNonce)).toString();
+
+      final credential = await SignInWithApple.getAppleIDCredential(
+        scopes: [
+          AppleIDAuthorizationScopes.email,
+          AppleIDAuthorizationScopes.fullName,
+        ],
+        nonce: hashedNonce,
+      );
+
+      final idToken = credential.identityToken;
+      if (idToken == null) {
+        throw 'No Identity Token from Apple.';
+      }
+
+      final response = await _supabase.auth.signInWithIdToken(
+        provider: OAuthProvider.apple,
+        idToken: idToken,
+        nonce: rawNonce,
+      );
+
+      if (response.user != null) {
+        final userId = response.user!.id;
+        final profileData = await _supabase.from('profiles').select().eq('id', userId).maybeSingle();
+
+        // Apple only returns givenName / familyName / email on the FIRST
+        // authorization, so fall back to whatever Supabase has on the user.
+        final meta = response.user!.userMetadata ?? {};
+        final fallbackFirst = (meta['given_name'] ?? meta['first_name'] ?? '') as String;
+        final fallbackLast = (meta['family_name'] ?? meta['last_name'] ?? '') as String;
+        final fallbackEmail = response.user!.email ?? '';
+
+        if (profileData == null) {
+          _isNewAppleUser = true;
+          _userProfile = UserProfile(
+            firstName: credential.givenName ?? (fallbackFirst.isNotEmpty ? fallbackFirst : 'Nuovo'),
+            lastName: credential.familyName ?? (fallbackLast.isNotEmpty ? fallbackLast : 'Utente'),
+            email: credential.email ?? fallbackEmail,
+            birthDate: '',
+            role: 'athlete',
+            weight: 0.0,
+            height: 0.0,
+            maxHr: 0,
+            avatarUrl: '',
+            unitSystem: 'metric',
+            language: 'it',
+            notificationsEnabled: true,
+            connectedDevices: [],
+            oneRepMax: {},
+          );
+          // Do NOT mark logged in yet — auth_screen will collect missing fields
+          // and then call login() to persist the completed profile.
+        } else {
+          _isNewAppleUser = false;
+          _userProfile = UserProfile(
+            firstName: profileData['first_name'] ?? '',
+            lastName: profileData['last_name'] ?? '',
+            email: profileData['email'] ?? '',
+            birthDate: profileData['birth_date'] ?? '2000-01-01',
+            role: profileData['role'] ?? 'athlete',
+            weight: (profileData['weight'] as num?)?.toDouble() ?? 70.0,
+            height: (profileData['height'] as num?)?.toDouble() ?? 175.0,
+            maxHr: profileData['max_hr'] ?? 190,
+            avatarUrl: profileData['avatar_url'] ?? '',
+            unitSystem: _prefs!.getString('unitSystem') ?? 'metric',
+            language: _prefs!.getString('language') ?? 'it',
+            notificationsEnabled: _prefs!.getBool('notificationsEnabled') ?? true,
+            connectedDevices: [],
+            oneRepMax: {},
+            teamId: profileData['team_id'],
+          );
+          _isLoggedIn = true;
+          _prefs!.setBool('isLoggedIn', true);
+          await _loadAllData();
+          await syncHealthWorkouts();
+        }
+        notifyListeners();
+      }
+
+      return response;
+    } on SignInWithAppleAuthorizationException catch (e) {
+      // User-driven cancel — surface as a null response so the UI can ignore it.
+      if (e.code == AuthorizationErrorCode.canceled) {
+        return null;
+      }
+      debugPrint('Apple authorization error: ${e.code} – ${e.message}');
+      rethrow;
+    } catch (e) {
+      debugPrint('Error signing in with Apple: $e');
       rethrow;
     }
   }
