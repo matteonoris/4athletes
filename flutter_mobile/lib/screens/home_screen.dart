@@ -172,9 +172,16 @@ class _DashboardViewState extends State<_DashboardView> {
           if (vol > 0) {
             totalGatedVolume += vol;
             final specialties = details['specialties'] as List<dynamic>?;
-            final specName = (specialties != null && specialties.isNotEmpty)
+            String specName = (specialties != null && specialties.isNotEmpty)
                 ? specialties[0].toString()
                 : 'Mixed';
+            if (specName != 'Mixed') {
+              if (specName.contains('SL') || specName.toLowerCase().contains('slalom')) specName = 'SL';
+              else if (specName.contains('GS') || specName.toLowerCase().contains('gigante')) specName = 'GS';
+              else if (specName.contains('SG') || specName.toLowerCase().contains('super')) specName = 'SG';
+              else if (specName.contains('DH') || specName.toLowerCase().contains('discesa')) specName = 'DH';
+              else if (specName.contains('CL') || specName.toLowerCase().contains('libero')) specName = 'CL';
+            }
             bySpecialty[specName] = (bySpecialty[specName] ?? 0) + vol;
           }
         }
@@ -218,9 +225,16 @@ class _DashboardViewState extends State<_DashboardView> {
           if (vol > 0) {
             totalGatedVolume += vol;
             final specialties = tech['specialties'] as List<dynamic>?;
-            final specName = (specialties != null && specialties.isNotEmpty)
+            String specName = (specialties != null && specialties.isNotEmpty)
                 ? specialties[0].toString()
                 : 'Mixed';
+            if (specName != 'Mixed') {
+              if (specName.contains('SL') || specName.toLowerCase().contains('slalom')) specName = 'SL';
+              else if (specName.contains('GS') || specName.toLowerCase().contains('gigante')) specName = 'GS';
+              else if (specName.contains('SG') || specName.toLowerCase().contains('super')) specName = 'SG';
+              else if (specName.contains('DH') || specName.toLowerCase().contains('discesa')) specName = 'DH';
+              else if (specName.contains('CL') || specName.toLowerCase().contains('libero')) specName = 'CL';
+            }
             bySpecialty[specName] = (bySpecialty[specName] ?? 0) + vol;
           }
         }

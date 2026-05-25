@@ -626,19 +626,21 @@ class _TeamDetailScreenState extends State<TeamDetailScreen> {
 
                           return GestureDetector(
                             onTap: () {
-                              HapticFeedback.lightImpact();
-                              String name = athlete['name'] ?? 'Atleta';
-                              String initial = name.isNotEmpty ? name[0].toUpperCase() : 'A';
-                              Navigator.push(
-                                context,
-                                MaterialPageRoute(
-                                  builder: (_) => CoachAthleteDetailScreen(
-                                    athleteName: name,
-                                    initial: initial,
-                                    athleteId: athlete['id'],
+                              if (isCoach) {
+                                HapticFeedback.lightImpact();
+                                String name = athlete['name'] ?? 'Atleta';
+                                String initial = name.isNotEmpty ? name[0].toUpperCase() : 'A';
+                                Navigator.push(
+                                  context,
+                                  MaterialPageRoute(
+                                    builder: (_) => CoachAthleteDetailScreen(
+                                      athleteName: name,
+                                      initial: initial,
+                                      athleteId: athlete['id'],
+                                    ),
                                   ),
-                                ),
-                              );
+                                );
+                              }
                             },
                             child: Container(
                               margin:
