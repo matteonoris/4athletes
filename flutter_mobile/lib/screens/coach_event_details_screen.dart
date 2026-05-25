@@ -42,7 +42,8 @@ class _CoachEventDetailsScreenState extends State<CoachEventDetailsScreen>
     'Nuvoloso',
     'Nebbia',
     'Neve',
-    'Pioggia'
+    'Pioggia',
+    'Vento'
   ];
   final List<String> _snowOptions = [
     'Ghiacciata',
@@ -67,6 +68,8 @@ class _CoachEventDetailsScreenState extends State<CoachEventDetailsScreen>
 
   late TextEditingController _snowCtrl;
   late TextEditingController _weatherCtrl;
+  late TextEditingController _notesCtrl;
+  int _qualityRating = 0;
 
   late TextEditingController _freeCambiCtrl;
   late TextEditingController _freeGiriCtrl;
@@ -185,9 +188,11 @@ class _CoachEventDetailsScreenState extends State<CoachEventDetailsScreen>
     _startCtrl = TextEditingController(text: e?.startTime ?? '09:00');
     _endCtrl = TextEditingController(text: e?.endTime ?? '12:00');
     _locationCtrl = TextEditingController(text: e?.location ?? 'Pista/Palestra');
+    _notesCtrl = TextEditingController(text: e?.notes ?? '');
     _drylandSpecialtyCtrl = TextEditingController(text: e?.drylandSpecialty ?? '');
 
     var tech = e?.technicalDetails ?? {};
+    _qualityRating = tech['qualityRating'] ?? 0;
     _snowCtrl =
         TextEditingController(text: tech['snowCondition'] ?? 'Compatta/Dura');
     _weatherCtrl =
@@ -248,6 +253,7 @@ class _CoachEventDetailsScreenState extends State<CoachEventDetailsScreen>
     _startCtrl.dispose();
     _endCtrl.dispose();
     _locationCtrl.dispose();
+    _notesCtrl.dispose();
     _snowCtrl.dispose();
     _weatherCtrl.dispose();
     _freeCambiCtrl.dispose();
@@ -283,9 +289,11 @@ class _CoachEventDetailsScreenState extends State<CoachEventDetailsScreen>
       startTime: _startCtrl.text,
       endTime: _endCtrl.text,
       location: _locationCtrl.text,
+      notes: _notesCtrl.text,
       sportCategory: _sportCategory,
       drylandSpecialty: _drylandSpecialtyCtrl.text,
       technicalDetails: {
+        'qualityRating': _qualityRating,
         'snowCondition': _snowCtrl.text,
         'weatherCondition': _weatherCtrl.text,
         'specialties': [_selectedSpecialty],
@@ -466,7 +474,7 @@ class _CoachEventDetailsScreenState extends State<CoachEventDetailsScreen>
   }
 
   bool get _isSki => _sportCategory == 'ski';
-  bool get _showTech => _isSki && _isPast;
+  bool get _showTech => _isPast;
 
   @override
   Widget build(BuildContext context) {
@@ -535,7 +543,7 @@ class _CoachEventDetailsScreenState extends State<CoachEventDetailsScreen>
             unselectedLabelColor: AppTheme.textMediumEmphasis,
             tabs: [
               const Tab(icon: Icon(Icons.info_outline), text: 'INFO'),
-              if (_showTech) const Tab(icon: Icon(Icons.show_chart), text: 'TECNICA'),
+              if (_showTech) Tab(icon: const Icon(Icons.show_chart), text: _isSki ? 'TECNICA' : 'REPORT'),
               const Tab(icon: Icon(Icons.people_outline), text: 'ATLETI'),
             ],
           ),
@@ -665,7 +673,7 @@ class _CoachEventDetailsScreenState extends State<CoachEventDetailsScreen>
                   letterSpacing: 1.2)),
           const SizedBox(height: 12),
           Row(
-            children: ['SL', 'GS', 'SG', 'DH'].map((s) {
+            children: ['SL', 'GS', 'SG', 'DH', 'CL'].map((s) {
               bool isSelected = _selectedSpecialty == s;
               return Expanded(
                 child: GestureDetector(
@@ -741,35 +749,130 @@ class _CoachEventDetailsScreenState extends State<CoachEventDetailsScreen>
     return ListView(
       padding: const EdgeInsets.all(24),
       children: [
-        Row(
-          children: [
-            Expanded(
-              child: GestureDetector(
-                onTap: () =>
-                    _showOptionsPicker('NEVE', _snowOptions, _snowCtrl),
-                child: AbsorbPointer(
-                    child: _buildEditableInput(
-                        'NEVE', _snowCtrl, Icons.arrow_drop_down)),
+        if (_isSki) ...[
+          Row(
+            children: [
+              Expanded(
+                child: GestureDetector(
+                  onTap: () =>
+                      _showOptionsPicker('NEVE', _snowOptions, _snowCtrl),
+                  child: AbsorbPointer(
+                      child: _buildEditableInput(
+                          'NEVE', _snowCtrl, Icons.arrow_drop_down)),
+                ),
               ),
-            ),
-            const SizedBox(width: 16),
-            Expanded(
-              child: GestureDetector(
-                onTap: () =>
-                    _showOptionsPicker('METEO', _weatherOptions, _weatherCtrl),
-                child: AbsorbPointer(
-                    child: _buildEditableInput(
-                        'METEO', _weatherCtrl, Icons.arrow_drop_down)),
+              const SizedBox(width: 16),
+              Expanded(
+                child: GestureDetector(
+                  onTap: () =>
+                      _showOptionsPicker('METEO', _weatherOptions, _weatherCtrl),
+                  child: AbsorbPointer(
+                      child: _buildEditableInput(
+                          'METEO', _weatherCtrl, Icons.arrow_drop_down)),
+                ),
               ),
-            ),
-          ],
-        ),
+            ],
+          ),
+          const SizedBox(height: 32),
+          _buildTechnicalSection('CAMPO LIBERO', Colors.green, _freeGiriCtrl,
+              'CAMBI/GIRO', _freeCambiCtrl, Icons.show_chart),
+          const SizedBox(height: 24),
+          _buildTechnicalSection('PALI (TRACCIATO)', AppTheme.primary,
+              _paliGiriCtrl, 'PORTE/GIRO', _paliPorteCtrl, Icons.bolt),
+          const SizedBox(height: 32),
+        ],
+        _buildNotesInput('NOTE / DESCRIZIONE', _notesCtrl),
         const SizedBox(height: 32),
-        _buildTechnicalSection('CAMPO LIBERO', Colors.green, _freeGiriCtrl,
-            'CAMBI/GIRO', _freeCambiCtrl, Icons.show_chart),
-        const SizedBox(height: 24),
-        _buildTechnicalSection('PALI (TRACCIATO)', AppTheme.primary,
-            _paliGiriCtrl, 'PORTE/GIRO', _paliPorteCtrl, Icons.bolt),
+        _buildQualityRating(),
+      ],
+    );
+  }
+
+  Widget _buildNotesInput(String label, TextEditingController controller) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(label,
+            style: const TextStyle(
+                color: AppTheme.textMediumEmphasis,
+                fontWeight: FontWeight.bold,
+                fontSize: 12,
+                letterSpacing: 1.2)),
+        const SizedBox(height: 8),
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+          decoration: BoxDecoration(
+            color: AppTheme.card,
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: Colors.white.withOpacity(0.05)),
+          ),
+          child: TextField(
+            controller: controller,
+            maxLines: 4,
+            style: const TextStyle(
+                color: Colors.white,
+                fontWeight: FontWeight.bold,
+                fontSize: 16),
+            decoration: const InputDecoration(
+              border: InputBorder.none,
+              isCollapsed: true,
+              hintText: 'Aggiungi una nota o descrizione...',
+              hintStyle: TextStyle(color: AppTheme.textMediumEmphasis, fontSize: 14, fontWeight: FontWeight.normal)
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildQualityRating() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Text('QUALITÀ ALLENAMENTO',
+            style: TextStyle(
+                color: AppTheme.textMediumEmphasis,
+                fontWeight: FontWeight.bold,
+                fontSize: 12,
+                letterSpacing: 1.2)),
+        const SizedBox(height: 12),
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: List.generate(5, (index) {
+            int rating = index + 1;
+            bool isSelected = _qualityRating == rating;
+            return GestureDetector(
+              onTap: () {
+                HapticFeedback.lightImpact();
+                setState(() {
+                  _qualityRating = rating;
+                });
+              },
+              child: Container(
+                width: 48,
+                height: 48,
+                decoration: BoxDecoration(
+                  color: isSelected ? AppTheme.primary : AppTheme.card,
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(
+                      color: isSelected
+                          ? AppTheme.primary
+                          : Colors.white.withOpacity(0.05)),
+                ),
+                child: Center(
+                  child: Text(
+                    '$rating',
+                    style: TextStyle(
+                      color: isSelected ? Colors.white : AppTheme.textMediumEmphasis,
+                      fontWeight: FontWeight.bold,
+                      fontSize: 18,
+                    ),
+                  ),
+                ),
+              ),
+            );
+          }),
+        ),
       ],
     );
   }

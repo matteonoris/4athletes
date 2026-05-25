@@ -9,6 +9,7 @@ import '../providers/app_state.dart';
 import 'analytics_details_screen.dart';
 import 'coach_body_metric_detail_screen.dart';
 import 'activity_details_screen.dart';
+import 'cambi_chart_screen.dart';
 
 class CoachAthleteDetailScreen extends StatefulWidget {
   final String athleteName;
@@ -41,6 +42,8 @@ class _CoachAthleteDetailScreenState extends State<CoachAthleteDetailScreen> {
   int _athleticPresencePercent = 0;
   int _extraSciMinutes = 0;
   int _totalCambi = 0;
+  Map<String, int> _cambiBySpecialty = {};
+  Map<String, Map<String, int>> _cambiByMonthAndSpecialty = {};
 
   @override
   void initState() {
@@ -113,22 +116,83 @@ class _CoachAthleteDetailScreenState extends State<CoachAthleteDetailScreen> {
 
     int extraMin = 0;
     int cambi = 0;
+    Map<String, int> bySpecialty = {};
+    Map<String, Map<String, int>> byMonthAndSpecialty = {};
+
+    void addCambi(String dateStr, int volume, String rawSpecialty) {
+      if (volume <= 0) return;
+
+      String specialty = rawSpecialty;
+      if (specialty.contains('SL') || specialty.toLowerCase().contains('slalom')) specialty = 'SL';
+      else if (specialty.contains('GS') || specialty.toLowerCase().contains('gigante')) specialty = 'GS';
+      else if (specialty.contains('SG') || specialty.toLowerCase().contains('super')) specialty = 'SG';
+      else if (specialty.contains('DH') || specialty.toLowerCase().contains('discesa')) specialty = 'DH';
+      else if (specialty.contains('CL') || specialty.toLowerCase().contains('libero')) specialty = 'CL';
+
+      cambi += volume;
+      bySpecialty[specialty] = (bySpecialty[specialty] ?? 0) + volume;
+      
+      try {
+        final date = DateTime.parse(dateStr);
+        final monthKey = '${date.year}-${date.month.toString().padLeft(2, '0')}';
+        byMonthAndSpecialty.putIfAbsent(monthKey, () => {});
+        byMonthAndSpecialty[monthKey]![specialty] = (byMonthAndSpecialty[monthKey]![specialty] ?? 0) + volume;
+      } catch (_) {}
+    }
+
     for (final s in sessions) {
       if (s.sportId != 'alpine_skiing') {
         extraMin += int.tryParse(s.duration.toString()) ?? 0;
       } else {
         final details = s.details;
         if (details != null) {
-          final runs = details['runs'];
-          if (runs is List) cambi += runs.length;
-          final c = details['cambi'];
-          if (c is int) cambi += c;
-          if (c is double) cambi += c.toInt();
+          final gatedStr = details['gatedSkiing'];
+          if (gatedStr is Map<String, dynamic>) {
+            final changes = int.tryParse(gatedStr['changes']?.toString() ?? '0') ?? 0;
+            final laps = int.tryParse(gatedStr['laps']?.toString() ?? '0') ?? 0;
+            final vol = changes * laps;
+            final specialties = details['specialties'] as List<dynamic>?;
+            final specName = (specialties != null && specialties.isNotEmpty) ? specialties[0].toString() : 'Mixed';
+            addCambi(s.date, vol, specName);
+          } else {
+            // Fallback old format
+            int vol = 0;
+            final runs = details['runs'];
+            if (runs is List) vol += runs.length;
+            final c = details['cambi'];
+            if (c is int) vol += c;
+            if (c is double) vol += c.toInt();
+            addCambi(s.date, vol, 'Mixed');
+          }
         }
       }
     }
+
+    // Add from coach events
+    for (final ev in skiEvents) {
+      final attendees = ev.attendees ?? [];
+      final athleteName = widget.athleteName;
+      final attendee = attendees.cast<Map<String,dynamic>?>().firstWhere(
+        (a) => a != null && (a['id'] == widget.athleteId || a['name'] == athleteName),
+        orElse: () => null
+      );
+      if (attendee != null && attendee['isPresent'] == true) {
+        final tech = ev.technicalDetails;
+        if (tech != null && tech['gatedSkiing'] != null) {
+          final changes = int.tryParse(tech['gatedSkiing']['changes']?.toString() ?? '0') ?? 0;
+          final laps = int.tryParse(attendee['laps']?.toString() ?? tech['gatedSkiing']['laps']?.toString() ?? '0') ?? 0;
+          final vol = changes * laps;
+          final specialties = tech['specialties'] as List<dynamic>?;
+          final specName = (specialties != null && specialties.isNotEmpty) ? specialties[0].toString() : 'Mixed';
+          addCambi(ev.date, vol, specName);
+        }
+      }
+    }
+
     _extraSciMinutes = extraMin;
     _totalCambi = cambi;
+    _cambiBySpecialty = bySpecialty;
+    _cambiByMonthAndSpecialty = byMonthAndSpecialty;
   }
 
   // ─── Jump helpers ────────────────────────────────────────────
@@ -276,6 +340,10 @@ class _CoachAthleteDetailScreenState extends State<CoachAthleteDetailScreen> {
               children: [
                 // ─── Stats Row ─────────────────────────────
                 _buildStatsRow(),
+                const SizedBox(height: 12),
+                
+                // ─── Cambi di Direzione Card ───────────────
+                _buildCambiCard(),
                 const SizedBox(height: 20),
 
                 // ─── Peso & Altezza mini charts ────────────
@@ -370,10 +438,63 @@ class _CoachAthleteDetailScreenState extends State<CoachAthleteDetailScreen> {
       )),
       const SizedBox(width: 10),
       Expanded(child: _buildStatCard('EXTRA SCI', extraLabel, const Color(0xFFFF7A00))),
-      const SizedBox(width: 10),
-      Expanded(child: _buildStatCard('TOT. CAMBI',
-          _totalCambi > 0 ? '$_totalCambi' : '${_sessions.length}', AppTheme.primary)),
     ]);
+  }
+
+  Widget _buildCambiCard() {
+    return GestureDetector(
+      onTap: () {
+        if (_totalCambi == 0) return;
+        Navigator.push(context, MaterialPageRoute(
+          builder: (_) => CambiChartScreen(
+            athleteName: widget.athleteName,
+            cambiByMonthAndSpecialty: _cambiByMonthAndSpecialty,
+          )
+        ));
+      },
+      child: Container(
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(color: AppTheme.card, borderRadius: BorderRadius.circular(14)),
+        child: Row(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(10),
+              decoration: BoxDecoration(color: AppTheme.primary.withValues(alpha: 0.15), borderRadius: BorderRadius.circular(12)),
+              child: const Icon(Icons.show_chart, color: AppTheme.primary, size: 24),
+            ),
+            const SizedBox(width: 16),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text('CAMBI DI DIR. (PALI)', style: TextStyle(color: AppTheme.textMediumEmphasis, fontWeight: FontWeight.bold, fontSize: 11)),
+                  const SizedBox(height: 4),
+                  Text('$_totalCambi', style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w900, fontSize: 22)),
+                  const SizedBox(height: 6),
+                  if (_cambiBySpecialty.isNotEmpty)
+                    Wrap(
+                      spacing: 12,
+                      runSpacing: 4,
+                      children: _cambiBySpecialty.entries.map((e) {
+                        Color col = e.key == 'SL' ? AppTheme.secondary : (e.key == 'GS' ? Colors.lightBlue : (e.key == 'SG' ? Colors.greenAccent : (e.key == 'DH' ? Colors.purpleAccent : (e.key == 'CL' ? Colors.orangeAccent : Colors.grey))));
+                        return Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Container(width: 6, height: 6, decoration: BoxDecoration(color: col, shape: BoxShape.circle)),
+                            const SizedBox(width: 4),
+                            Text('${e.key} ${e.value}', style: const TextStyle(color: AppTheme.textMediumEmphasis, fontSize: 11)),
+                          ],
+                        );
+                      }).toList(),
+                    ),
+                ],
+              ),
+            ),
+            const Icon(Icons.chevron_right, color: AppTheme.textMediumEmphasis),
+          ],
+        ),
+      ),
+    );
   }
 
   Widget _buildStatCard(String label, String value, Color valueColor) {

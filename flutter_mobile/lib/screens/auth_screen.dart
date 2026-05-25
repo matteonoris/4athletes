@@ -19,7 +19,7 @@ class AuthScreen extends StatefulWidget {
 
 class _AuthScreenState extends State<AuthScreen> with SingleTickerProviderStateMixin {
   bool _isLogin = true;
-  int _signupStep = 1; // 1 to 6
+  int _signupStep = 1; // 1 to 5
   bool _isSocialSignup = false; // true while completing signup after Google/Apple auth
   String _role = 'athlete';
 
@@ -90,14 +90,20 @@ class _AuthScreenState extends State<AuthScreen> with SingleTickerProviderStateM
       final parts = dobStr.split('/');
       if (parts.length == 3) {
         dobStr = '${parts[2]}-${parts[1]}-${parts[0]}';
-      } else {
-        dobStr = '2000-01-01';
+      } else if (parts.length == 1) { // If they just typed the year or age
+        int? age = int.tryParse(dobStr);
+        if (age != null && age < 100) { // It's an age
+           int year = DateTime.now().year - age;
+           dobStr = '$year-01-01';
+        } else if (age != null && age > 1900) { // It's a year
+           dobStr = '$age-01-01';
+        }
       }
     }
 
     final weight = double.tryParse(_weightCtrl.text) ?? 0.0;
     final height = double.tryParse(_heightCtrl.text) ?? 0.0;
-
+    
     final profile = UserProfile(
       firstName: _firstNameCtrl.text.isNotEmpty ? _firstNameCtrl.text : 'Utente',
       lastName: _lastNameCtrl.text.isNotEmpty ? _lastNameCtrl.text : 'Nuovo',
@@ -204,8 +210,6 @@ class _AuthScreenState extends State<AuthScreen> with SingleTickerProviderStateM
     }
   }
 
-
-
   void _navigateToNext() {
     final appState = Provider.of<AppState>(context, listen: false);
     Widget nextScreen = const HomeScreen();
@@ -243,7 +247,12 @@ class _AuthScreenState extends State<AuthScreen> with SingleTickerProviderStateM
     );
   }
 
-  Widget _buildLabeledField(String label, TextEditingController controller, String hint, {IconData? preIcon, IconData? sufIcon, bool readOnly = false, VoidCallback? onTap}) {
+  Widget _buildLabeledField(
+    String label, 
+    TextEditingController controller, 
+    String hint, 
+    {IconData? preIcon, IconData? sufIcon, bool readOnly = false, VoidCallback? onTap, TextInputType? keyboardType}
+  ) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -253,6 +262,7 @@ class _AuthScreenState extends State<AuthScreen> with SingleTickerProviderStateM
           controller: controller,
           readOnly: readOnly,
           onTap: onTap,
+          keyboardType: keyboardType,
           style: const TextStyle(color: Colors.white),
           decoration: InputDecoration(
             hintText: hint,
@@ -275,38 +285,29 @@ class _AuthScreenState extends State<AuthScreen> with SingleTickerProviderStateM
       mainAxisAlignment: MainAxisAlignment.center,
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        const SizedBox(height: 20),
+        const SizedBox(height: 40),
         Center(
-          child: Container(
-            width: 80,
-            height: 80,
-            decoration: BoxDecoration(
-              gradient: const LinearGradient(
-                colors: [Color(0xFF00C6FF), Color(0xFF0072FF)],
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-              ),
-              borderRadius: BorderRadius.circular(24),
-              boxShadow: [
-                BoxShadow(color: const Color(0xFF00C6FF).withValues(alpha: 0.3), blurRadius: 20, spreadRadius: 2)
-              ]
-            ),
-            child: const Center(
-              child: Text('4A', style: TextStyle(color: Colors.black, fontSize: 32, fontWeight: FontWeight.w900, fontStyle: FontStyle.italic)),
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(32),
+            child: Image.asset(
+              'assets/images/logo.png',
+              width: 120,
+              height: 120,
+              fit: BoxFit.cover,
             ),
           ),
         ),
-        const SizedBox(height: 24),
+        const SizedBox(height: 32),
         Text(
           '4ATHLETES',
           textAlign: TextAlign.center,
-          style: Theme.of(context).textTheme.headlineMedium?.copyWith(color: Colors.white, fontWeight: FontWeight.w900, letterSpacing: 1.2),
+          style: Theme.of(context).textTheme.headlineLarge?.copyWith(color: Colors.white, fontWeight: FontWeight.w900, letterSpacing: 1.5),
         ),
-        const SizedBox(height: 8),
+        const SizedBox(height: 12),
         Text(
           'Track, Analyze, and Dominate.',
           textAlign: TextAlign.center,
-          style: Theme.of(context).textTheme.bodyMedium?.copyWith(color: AppTheme.textMediumEmphasis),
+          style: Theme.of(context).textTheme.titleMedium?.copyWith(color: AppTheme.textMediumEmphasis),
         ),
         const SizedBox(height: 48),
 
@@ -314,7 +315,7 @@ class _AuthScreenState extends State<AuthScreen> with SingleTickerProviderStateM
         const SizedBox(height: 16),
         _buildTextField(_passCtrl, 'Password', Icons.lock_outline, true),
         
-        const SizedBox(height: 32),
+        const SizedBox(height: 24),
         ElevatedButton(
           onPressed: () {
             HapticFeedback.lightImpact();
@@ -338,7 +339,7 @@ class _AuthScreenState extends State<AuthScreen> with SingleTickerProviderStateM
           ),
         ),
         
-        const SizedBox(height: 32),
+        const SizedBox(height: 24),
         Row(
           children: [
             Expanded(child: Divider(color: Colors.white.withValues(alpha: 0.1))),
@@ -419,6 +420,19 @@ class _AuthScreenState extends State<AuthScreen> with SingleTickerProviderStateM
     );
   }
 
+  int _getTotalSteps() {
+    return _isSocialSignup ? (_role == 'coach' ? 2 : 3) : (_role == 'coach' ? 4 : 5);
+  }
+
+  int _getCurrentStepIndex() {
+    if (_isSocialSignup) {
+      if (_signupStep == 1) return 1;
+      if (_signupStep == 4) return 2;
+      if (_signupStep == 5) return 3;
+    }
+    return _signupStep;
+  }
+
   Widget _buildSignupHeader(String titleText, String subtitleText) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -430,26 +444,49 @@ class _AuthScreenState extends State<AuthScreen> with SingleTickerProviderStateM
               onTap: () {
                 HapticFeedback.lightImpact();
                 if (_isSocialSignup && _signupStep == 4) {
-                  // Skip steps 2 and 3 (irrelevant for Google sign-up).
+                  // Skip steps 2 and 3 (irrelevant for Google/Apple sign-up).
                   setState(() { _signupStep = 1; _animationController.forward(from: 0); });
                 } else if (_signupStep > 1) {
-                  setState(() { _signupStep--; _animationController.forward(from: 0); });
+                  int prevStep = _signupStep - 1;
+                  if (_isSocialSignup && prevStep == 3) {
+                    prevStep = 1; // skip 2 and 3
+                  }
+                  setState(() { _signupStep = prevStep; _animationController.forward(from: 0); });
                 } else {
                   setState(() { _isLogin = true; _animationController.forward(from: 0); });
                 }
               },
               child: Container(
                 padding: const EdgeInsets.all(10),
-                decoration: BoxDecoration(color: AppTheme.card, shape: BoxShape.circle),
+                decoration: const BoxDecoration(color: AppTheme.card, shape: BoxShape.circle),
                 child: const Icon(Icons.arrow_back_ios_new, color: Colors.white, size: 18),
               ),
             ),
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
               decoration: BoxDecoration(color: AppTheme.card, borderRadius: BorderRadius.circular(20)),
-              child: Text('$_signupStep/${_role == 'coach' ? 4 : 5}', style: const TextStyle(color: AppTheme.textMediumEmphasis, fontWeight: FontWeight.bold, fontSize: 12)),
+              child: Text(
+                'Passo ${_getCurrentStepIndex()} di ${_getTotalSteps()}',
+                style: const TextStyle(color: AppTheme.textMediumEmphasis, fontWeight: FontWeight.bold, fontSize: 12),
+              ),
             )
           ],
+        ),
+        const SizedBox(height: 16),
+        // Progress bar visuale
+        Row(
+          children: List.generate(_getTotalSteps(), (index) {
+            return Expanded(
+              child: Container(
+                margin: const EdgeInsets.symmetric(horizontal: 4),
+                height: 4,
+                decoration: BoxDecoration(
+                  color: index < _getCurrentStepIndex() ? AppTheme.primary : AppTheme.card,
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
+            );
+          }),
         ),
         const SizedBox(height: 24),
         Text(titleText.toUpperCase(), style: const TextStyle(color: AppTheme.primary, fontWeight: FontWeight.w900, fontSize: 12, letterSpacing: 1.5)),
@@ -482,7 +519,7 @@ class _AuthScreenState extends State<AuthScreen> with SingleTickerProviderStateM
               children: [
                 Container(
                   padding: const EdgeInsets.all(12),
-                  decoration: BoxDecoration(color: const Color(0xFF1B2E3D), borderRadius: BorderRadius.circular(16)),
+                  decoration: const BoxDecoration(color: Color(0xFF1B2E3D), borderRadius: BorderRadius.circular(16)),
                   child: const Icon(PhosphorIconsRegular.user, color: Colors.white, size: 28),
                 ),
                 const SizedBox(height: 20),
@@ -511,7 +548,7 @@ class _AuthScreenState extends State<AuthScreen> with SingleTickerProviderStateM
               children: [
                 Container(
                   padding: const EdgeInsets.all(12),
-                  decoration: BoxDecoration(color: const Color(0xFF16322A), borderRadius: BorderRadius.circular(16)),
+                  decoration: const BoxDecoration(color: Color(0xFF16322A), borderRadius: BorderRadius.circular(16)),
                   child: const Icon(PhosphorIconsRegular.users, color: Colors.white, size: 28),
                 ),
                 const SizedBox(height: 20),
@@ -523,9 +560,14 @@ class _AuthScreenState extends State<AuthScreen> with SingleTickerProviderStateM
           ),
         ),
         const Spacer(),
-        _buildBottomNextButton(),
+        _buildFlowButton('Avanti', () {
+          if (_isSocialSignup) {
+            setState(() { _signupStep = 4; _animationController.forward(from: 0); });
+          } else {
+            setState(() { _signupStep = 2; _animationController.forward(from: 0); });
+          }
+        }),
         const SizedBox(height: 20),
-        _buildAlreadyAccount()
       ],
     );
   }
@@ -617,7 +659,7 @@ class _AuthScreenState extends State<AuthScreen> with SingleTickerProviderStateM
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        _buildSignupHeader('Iscrizione', 'Chi sei?'),
+        _buildSignupHeader('Iscrizione', 'I tuoi dati'),
         Row(
           children: [
             Expanded(child: _buildLabeledField('NOME', _firstNameCtrl, 'Nome')),
@@ -627,47 +669,11 @@ class _AuthScreenState extends State<AuthScreen> with SingleTickerProviderStateM
         ),
         const SizedBox(height: 24),
         _buildLabeledField(
-          'DATA DI NASCITA',
+          'ANNO DI NASCITA O ETÀ',
           _dobCtrl,
-          'gg/mm/aaaa',
+          'Es. 1995 o 28',
           preIcon: Icons.calendar_today_outlined,
-          sufIcon: Icons.calendar_today,
-          readOnly: true,
-          onTap: () async {
-            DateTime initialDate = DateTime.now().subtract(const Duration(days: 365 * 18));
-            if (_dobCtrl.text.isNotEmpty) {
-               try {
-                 final parts = _dobCtrl.text.split('/');
-                 if (parts.length == 3) {
-                   initialDate = DateTime(int.parse(parts[2]), int.parse(parts[1]), int.parse(parts[0]));
-                 }
-               } catch (_) {}
-            }
-            final picked = await showDatePicker(
-              context: context,
-              initialDate: initialDate,
-              firstDate: DateTime(1900),
-              lastDate: DateTime.now(),
-              builder: (context, child) {
-                return Theme(
-                  data: ThemeData.dark().copyWith(
-                    colorScheme: const ColorScheme.dark(
-                      primary: AppTheme.primary,
-                      onPrimary: Colors.white,
-                      surface: AppTheme.card,
-                      onSurface: Colors.white,
-                    ),
-                  ),
-                  child: child!,
-                );
-              },
-            );
-            if (picked != null) {
-              setState(() {
-                _dobCtrl.text = '${picked.day.toString().padLeft(2, '0')}/${picked.month.toString().padLeft(2, '0')}/${picked.year}';
-              });
-            }
-          },
+          keyboardType: TextInputType.number,
         ),
         const SizedBox(height: 48),
         _buildFlowButton(_role == 'coach' ? 'Completa' : 'Avanti', () {
@@ -678,46 +684,61 @@ class _AuthScreenState extends State<AuthScreen> with SingleTickerProviderStateM
           }
         }),
         const Spacer(),
-        _buildAlreadyAccount()
       ],
     );
   }
-  
+
   Widget _buildSignupStep5() {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         _buildSignupHeader('Iscrizione', 'Fisico'),
+        const Text(
+          'Questi dati ci aiutano a personalizzare la tua esperienza. Puoi saltarli e inserirli in un secondo momento dal tuo profilo.',
+          style: TextStyle(color: AppTheme.textMediumEmphasis, fontSize: 14),
+        ),
+        const SizedBox(height: 24),
         Row(
           children: [
-            Expanded(child: _buildLabeledField('PESO (KG)', _weightCtrl, '70', preIcon: Icons.monitor_weight_outlined)),
+            Expanded(
+              child: _buildLabeledField(
+                'PESO (KG)', 
+                _weightCtrl, 
+                '70', 
+                preIcon: Icons.monitor_weight_outlined,
+                keyboardType: TextInputType.number,
+              )
+            ),
             const SizedBox(width: 16),
-            Expanded(child: _buildLabeledField('ALTEZZA (CM)', _heightCtrl, '175', preIcon: Icons.height_outlined)),
+            Expanded(
+              child: _buildLabeledField(
+                'ALTEZZA (CM)', 
+                _heightCtrl, 
+                '175', 
+                preIcon: Icons.height_outlined,
+                keyboardType: TextInputType.number,
+              )
+            ),
           ],
         ),
         const SizedBox(height: 24),
         _buildLabeledField('SESSO (M/F)', _genderCtrl, 'M', preIcon: Icons.people_outline),
         const SizedBox(height: 48),
         _buildFlowButton('Completa', _submitSignup),
+        const SizedBox(height: 16),
+        TextButton(
+          onPressed: () {
+            HapticFeedback.lightImpact();
+            // Salta per ora: Pulisci i campi non obbligatori
+            _weightCtrl.clear();
+            _heightCtrl.clear();
+            _submitSignup();
+          },
+          child: const Text('Salta per ora', style: TextStyle(color: AppTheme.textMediumEmphasis, fontSize: 16, fontWeight: FontWeight.bold)),
+        ),
         const Spacer(),
-        _buildAlreadyAccount()
       ],
     );
-  }
-  
-
-  Widget _buildBottomNextButton() {
-    return _buildFlowButton('Avanti', () {
-      // For Google sign-up we skip the "choose sign-up method" + email/password
-      // screens (steps 2 and 3) because the user is already authenticated.
-      if (_isSocialSignup && _signupStep == 1) {
-        setState(() { _signupStep = 4; _animationController.forward(from: 0); });
-        return;
-      }
-      if (_signupStep < (_role == 'coach' ? 4 : 5)) {
-         setState(() { _signupStep++; _animationController.forward(from: 0); });
-      }
-    });
   }
 
   Widget _buildFlowButton(String text, VoidCallback onPressed) {

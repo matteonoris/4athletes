@@ -1021,7 +1021,7 @@ const AddTraining: React.FC<Props> = ({ setView, selectedSportId, onSaveSession,
             <section className="space-y-3">
               <h3 className="text-xs font-bold uppercase tracking-widest text-gray-500 px-1">Specialità</h3>
               <div className="grid grid-cols-4 gap-2">
-                {['GS', 'SL', 'SG', 'DH'].map((s) => (
+                {['GS', 'SL', 'SG', 'DH', 'CL'].map((s) => (
                   <button 
                     key={s}
                     onClick={() => toggleSpecialty(s)}

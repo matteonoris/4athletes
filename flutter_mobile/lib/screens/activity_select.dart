@@ -92,6 +92,10 @@ class _ActivitySelectScreenState extends State<ActivitySelectScreen> {
     SportActivity('athletic_prep', 'ATHLETIC PREP / OTHER', 'FITNESS',
         PhosphorIcons.lightning()),
     const SportActivity(
+        'hyperarch', 'HYPERARCH FASCIA TRAINING', 'FITNESS', Icons.fitness_center),
+    const SportActivity(
+        'tendon_isometrics', 'ALLENAMENTO TENDINI', 'FITNESS', Icons.accessibility_new),
+    const SportActivity(
         'weightlifting', 'WEIGHTLIFTING', 'FITNESS', Icons.fitness_center),
     const SportActivity(
         'crossfit', 'CROSSFIT', 'FITNESS', Icons.fitness_center),

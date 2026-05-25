@@ -17,7 +17,9 @@ import 'teams_screen.dart';
 import 'profile_screen.dart';
 // removed activity_details_screen.dart
 import 'add_training_screen.dart';
+import 'athlete_event_screen.dart';
 import 'body_metrics_screen.dart';
+import 'notifications_screen.dart';
 import '../widgets/ski_gate_icon.dart';
 
 class HomeScreen extends StatefulWidget {
@@ -102,9 +104,9 @@ class _DashboardViewState extends State<_DashboardView> {
     ];
   }
 
-  bool _isSessionInSeason(TrainingSession session, String seasonLabel) {
-    if (session.date.isEmpty) return false;
-    final date = DateTime.parse(session.date);
+  bool _isDateInSeason(String dateStr, String seasonLabel) {
+    if (dateStr.isEmpty) return false;
+    final date = DateTime.parse(dateStr);
     final parts = seasonLabel.split('/');
     if (parts.length != 2) return false;
     int startYear = 2000 + int.parse(parts[0]);
@@ -115,6 +117,10 @@ class _DashboardViewState extends State<_DashboardView> {
 
     return date.isAfter(seasonStart.subtract(const Duration(days: 1))) &&
         date.isBefore(seasonEnd);
+  }
+
+  bool _isSessionInSeason(TrainingSession session, String seasonLabel) {
+    return _isDateInSeason(session.date, seasonLabel);
   }
 
   void _changeDate(int offset) {
@@ -133,6 +139,8 @@ class _DashboardViewState extends State<_DashboardView> {
     final String dateStr = _currentDate.toIso8601String().split('T')[0];
     final recentSessions =
         appState.sessions.where((s) => s.date == dateStr).toList();
+    final dailyCoachEvents =
+        appState.coachEvents.where((e) => e.date == dateStr).toList();
 
     final cutoff = DateTime.now().subtract(Duration(days: _weightChartDays));
     final filteredWeight = appState.bodyLogs
@@ -164,9 +172,16 @@ class _DashboardViewState extends State<_DashboardView> {
           if (vol > 0) {
             totalGatedVolume += vol;
             final specialties = details['specialties'] as List<dynamic>?;
-            final specName = (specialties != null && specialties.isNotEmpty)
+            String specName = (specialties != null && specialties.isNotEmpty)
                 ? specialties[0].toString()
                 : 'Mixed';
+            if (specName != 'Mixed') {
+              if (specName.contains('SL') || specName.toLowerCase().contains('slalom')) specName = 'SL';
+              else if (specName.contains('GS') || specName.toLowerCase().contains('gigante')) specName = 'GS';
+              else if (specName.contains('SG') || specName.toLowerCase().contains('super')) specName = 'SG';
+              else if (specName.contains('DH') || specName.toLowerCase().contains('discesa')) specName = 'DH';
+              else if (specName.contains('CL') || specName.toLowerCase().contains('libero')) specName = 'CL';
+            }
             bySpecialty[specName] = (bySpecialty[specName] ?? 0) + vol;
           }
         }
@@ -186,6 +201,42 @@ class _DashboardViewState extends State<_DashboardView> {
           if (hMatch != null) hours = int.parse(hMatch.group(1)!);
           if (mMatch != null) mins = int.parse(mMatch.group(1)!);
           totalGymMinutes += (hours * 60) + mins;
+        }
+      }
+    }
+
+    // Add coach events to volume calculation
+    for (var event in appState.coachEvents) {
+      if (!_isDateInSeason(event.date, _selectedSeason)) continue;
+      if (event.sportCategory != 'ski') continue;
+      
+      final athleteName = '${user.firstName} ${user.lastName}'.trim();
+      final attendee = event.attendees?.cast<Map<String,dynamic>?>().firstWhere(
+        (a) => a != null && (a['id'] == user.email || a['name'] == athleteName),
+        orElse: () => null
+      );
+      
+      if (attendee != null && attendee['isPresent'] == true) {
+        final tech = event.technicalDetails;
+        if (tech != null && tech['gatedSkiing'] != null) {
+          final changes = int.tryParse(tech['gatedSkiing']['changes']?.toString() ?? '0') ?? 0;
+          final laps = int.tryParse(attendee['laps']?.toString() ?? tech['gatedSkiing']['laps']?.toString() ?? '0') ?? 0;
+          final vol = changes * laps;
+          if (vol > 0) {
+            totalGatedVolume += vol;
+            final specialties = tech['specialties'] as List<dynamic>?;
+            String specName = (specialties != null && specialties.isNotEmpty)
+                ? specialties[0].toString()
+                : 'Mixed';
+            if (specName != 'Mixed') {
+              if (specName.contains('SL') || specName.toLowerCase().contains('slalom')) specName = 'SL';
+              else if (specName.contains('GS') || specName.toLowerCase().contains('gigante')) specName = 'GS';
+              else if (specName.contains('SG') || specName.toLowerCase().contains('super')) specName = 'SG';
+              else if (specName.contains('DH') || specName.toLowerCase().contains('discesa')) specName = 'DH';
+              else if (specName.contains('CL') || specName.toLowerCase().contains('libero')) specName = 'CL';
+            }
+            bySpecialty[specName] = (bySpecialty[specName] ?? 0) + vol;
+          }
         }
       }
     }
@@ -232,16 +283,45 @@ class _DashboardViewState extends State<_DashboardView> {
                     ),
                   ],
                 ),
-                CircleAvatar(
-                  radius: 24,
-                  backgroundColor: AppTheme.card,
-                  backgroundImage: user.avatarUrl.isNotEmpty
-                      ? NetworkImage(user.avatarUrl)
-                      : null,
-                  child: user.avatarUrl.isEmpty
-                      ? const Icon(Icons.person,
-                          color: AppTheme.textMediumEmphasis)
-                      : null,
+                Row(
+                  children: [
+                    Stack(
+                      children: [
+                        IconButton(
+                          icon: const Icon(Icons.notifications_none, color: AppTheme.textMediumEmphasis),
+                          onPressed: () {
+                            HapticFeedback.lightImpact();
+                            Navigator.push(context, MaterialPageRoute(builder: (_) => const NotificationsScreen()));
+                          },
+                        ),
+                        if (appState.notifications.any((n) => !n.isRead))
+                          Positioned(
+                            right: 8,
+                            top: 8,
+                            child: Container(
+                              width: 8,
+                              height: 8,
+                              decoration: const BoxDecoration(
+                                color: AppTheme.primary,
+                                shape: BoxShape.circle,
+                              ),
+                            ),
+                          ),
+                      ],
+                    ),
+                    const SizedBox(width: 8),
+                    CircleAvatar(
+                      radius: 24,
+                      backgroundColor: AppTheme.card,
+                      backgroundImage: user.avatarUrl.isNotEmpty
+                          ? NetworkImage(user.avatarUrl)
+                          : null,
+                      child: user.avatarUrl.isEmpty
+                          ? const Icon(Icons.person,
+                              color: AppTheme.textMediumEmphasis)
+                          : null,
+                    ),
+                  ],
                 ),
               ],
             ),
@@ -318,21 +398,27 @@ class _DashboardViewState extends State<_DashboardView> {
                                 size: 22,
                               ),
                             const SizedBox(width: 8),
-                            Text('CAMBI DI DIR.',
-                                style: Theme.of(context)
-                                    .textTheme
-                                    .bodySmall
-                                    ?.copyWith(
-                                        fontWeight: FontWeight.bold,
-                                        color: AppTheme.textMediumEmphasis)),
-                            Text(' (PALI)',
-                                style: Theme.of(context)
-                                    .textTheme
-                                    .bodySmall
-                                    ?.copyWith(
-                                        fontSize: 9,
-                                        color: AppTheme.textMediumEmphasis
-                                            .withValues(alpha: 0.6))),
+                            Expanded(
+                              child: Wrap(
+                                children: [
+                                  Text('CAMBI DI DIR.',
+                                      style: Theme.of(context)
+                                          .textTheme
+                                          .bodySmall
+                                          ?.copyWith(
+                                              fontWeight: FontWeight.bold,
+                                              color: AppTheme.textMediumEmphasis)),
+                                  Text(' (PALI)',
+                                      style: Theme.of(context)
+                                          .textTheme
+                                          .bodySmall
+                                          ?.copyWith(
+                                              fontSize: 9,
+                                              color: AppTheme.textMediumEmphasis
+                                                  .withValues(alpha: 0.6))),
+                                ],
+                              ),
+                            ),
                           ],
                         ),
                         const SizedBox(height: 8),
@@ -403,13 +489,17 @@ class _DashboardViewState extends State<_DashboardView> {
                             const Icon(Icons.fitness_center,
                                 color: Colors.orange, size: 20),
                             const SizedBox(width: 8),
-                            Text('ORE IN PALESTRA',
-                                style: Theme.of(context)
-                                    .textTheme
-                                    .bodySmall
-                                    ?.copyWith(
-                                        fontWeight: FontWeight.bold,
-                                        color: AppTheme.textMediumEmphasis)),
+                            Expanded(
+                              child: Text('ORE IN PALESTRA',
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: Theme.of(context)
+                                      .textTheme
+                                      .bodySmall
+                                      ?.copyWith(
+                                          fontWeight: FontWeight.bold,
+                                          color: AppTheme.textMediumEmphasis)),
+                            ),
                           ],
                         ),
                         const SizedBox(height: 8),
@@ -465,17 +555,73 @@ class _DashboardViewState extends State<_DashboardView> {
               ],
             ),
             const SizedBox(height: 16),
-            if (recentSessions.isEmpty)
-              CustomCard(
-                child: Padding(
-                  padding: const EdgeInsets.all(32.0),
-                  child: Center(
-                    child: Text('Nessuna attività registrata per questa data.',
-                        style: Theme.of(context).textTheme.bodyMedium),
-                  ),
-                ),
+            if (recentSessions.isEmpty && dailyCoachEvents.isEmpty)
+              const Center(
+                child: Text('Nessuna attività',
+                    style: TextStyle(color: AppTheme.textMediumEmphasis)),
               )
-            else
+            else ...[
+              ...dailyCoachEvents.map((event) {
+                final isPast = DateTime.parse(event.date).isBefore(DateTime(DateTime.now().year, DateTime.now().month, DateTime.now().day));
+                final athleteName = '${user.firstName} ${user.lastName}'.trim();
+                final attendee = event.attendees?.cast<Map<String,dynamic>?>().firstWhere(
+                  (a) => a != null && (a['id'] == user.email || a['name'] == athleteName),
+                  orElse: () => null
+                );
+                final isPresent = attendee?['isPresent'] == true;
+                
+                return Padding(
+                  padding: const EdgeInsets.only(bottom: 12),
+                  child: GestureDetector(
+                    onTap: () {
+                      HapticFeedback.lightImpact();
+                      Navigator.push(context, MaterialPageRoute(builder: (_) => AthleteEventScreen(event: event)));
+                    },
+                    child: CustomCard(
+                      padding: const EdgeInsets.all(16),
+                      child: Row(
+                        children: [
+                          Container(
+                            width: 52, height: 52,
+                            decoration: BoxDecoration(color: const Color(0xFF1C2530), borderRadius: BorderRadius.circular(12)),
+                            child: Icon(event.sportCategory == 'ski' ? Icons.downhill_skiing : Icons.fitness_center, color: AppTheme.secondary, size: 28),
+                          ),
+                          const SizedBox(width: 16),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Row(
+                                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                  children: [
+                                    Text(event.title.isNotEmpty ? event.title : 'Evento Coach', style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold, color: AppTheme.secondary)),
+                                    if (isPast && isPresent)
+                                      const Icon(Icons.check_circle, color: Colors.green, size: 16)
+                                    else if (!isPast)
+                                      Container(
+                                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                                        decoration: BoxDecoration(color: isPresent ? Colors.green.withValues(alpha: 0.2) : AppTheme.primary.withValues(alpha: 0.2), borderRadius: BorderRadius.circular(4)),
+                                        child: Text(isPresent ? 'CONFERMATO' : 'DA CONFERMARE', style: TextStyle(fontSize: 10, color: isPresent ? Colors.green : AppTheme.primary, fontWeight: FontWeight.bold)),
+                                      ),
+                                  ],
+                                ),
+                                const SizedBox(height: 4),
+                                Row(
+                                  children: [
+                                    Text('${event.startTime} - ${event.endTime}', style: Theme.of(context).textTheme.bodySmall?.copyWith(color: AppTheme.textMediumEmphasis)),
+                                    const Padding(padding: EdgeInsets.symmetric(horizontal: 8), child: Text('•', style: TextStyle(color: AppTheme.textMediumEmphasis, fontSize: 10))),
+                                    Text(event.location ?? '', style: Theme.of(context).textTheme.bodySmall?.copyWith(color: AppTheme.textMediumEmphasis)),
+                                  ],
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                );
+              }),
               ...recentSessions.map((session) {
                 String sName = session.sportId == 'alpine_skiing' ? 'Alpine Skiing' : session.sportId[0].toUpperCase() + session.sportId.substring(1).replaceAll('_', ' ');
                 IconData sIcon = Icons.fitness_center;
@@ -562,6 +708,7 @@ class _DashboardViewState extends State<_DashboardView> {
                     ),
                   );
               }),
+            ],
 
             const SizedBox(height: 32),
 

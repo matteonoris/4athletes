@@ -44,6 +44,13 @@ class HealthService {
           debugPrint("Health Connect is unavailable on this device.");
           return false;
         }
+
+        // Request Activity Recognition FIRST on Android
+        final activityStatus = await Permission.activityRecognition.request();
+        if (activityStatus.isDenied || activityStatus.isPermanentlyDenied) {
+          debugPrint("Activity Recognition permission denied.");
+          return false;
+        }
       }
 
       // Request permissions from Health Connect / Apple Health
@@ -51,15 +58,6 @@ class HealthService {
       
       if (!hasPermissions) {
         hasPermissions = await _health.requestAuthorization(_dataTypes, permissions: _permissions);
-      }
-      
-      if (Platform.isAndroid && hasPermissions) {
-        // Add a delay to allow the permission dialog transition to finish
-        await Future.delayed(const Duration(milliseconds: 500));
-        
-        // Request specific activity recognition permission for Android
-        final status = await Permission.activityRecognition.request();
-        if (status.isDenied) return false;
       }
       
       return hasPermissions;
