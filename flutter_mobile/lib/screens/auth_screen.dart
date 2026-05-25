@@ -19,16 +19,13 @@ class AuthScreen extends StatefulWidget {
 
 class _AuthScreenState extends State<AuthScreen> with SingleTickerProviderStateMixin {
   bool _isLogin = true;
-  int _signupStep = 1; // 1 to 6
+  int _signupStep = 1; // 1 to 3
   String _role = 'athlete';
 
   // Controllers
-  final _emailCtrl = TextEditingController();
-  final _passCtrl = TextEditingController();
   final _firstNameCtrl = TextEditingController();
   final _lastNameCtrl = TextEditingController();
   final _dobCtrl = TextEditingController();
-  final _skiClubCtrl = TextEditingController();
   final _weightCtrl = TextEditingController();
   final _heightCtrl = TextEditingController();
   final _genderCtrl = TextEditingController();
@@ -53,31 +50,13 @@ class _AuthScreenState extends State<AuthScreen> with SingleTickerProviderStateM
   @override
   void dispose() {
     _animationController.dispose();
-    _emailCtrl.dispose();
-    _passCtrl.dispose();
     _firstNameCtrl.dispose();
     _lastNameCtrl.dispose();
     _dobCtrl.dispose();
-    _skiClubCtrl.dispose();
     _weightCtrl.dispose();
     _heightCtrl.dispose();
     _genderCtrl.dispose();
     super.dispose();
-  }
-
-  Future<void> _submitLogin() async {
-    final appState = Provider.of<AppState>(context, listen: false);
-    if (_emailCtrl.text.isNotEmpty && _passCtrl.text.isNotEmpty) {
-      try {
-        await appState.signInWithEmailAndPassword(_emailCtrl.text, _passCtrl.text);
-        if (mounted) _navigateToNext();
-      } catch (e) {
-        if (!mounted) return;
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Errore di login: $e'), backgroundColor: Colors.red),
-        );
-      }
-    }
   }
 
   Future<void> _submitSignup() async {
@@ -89,36 +68,32 @@ class _AuthScreenState extends State<AuthScreen> with SingleTickerProviderStateM
       final parts = dobStr.split('/');
       if (parts.length == 3) {
         dobStr = '${parts[2]}-${parts[1]}-${parts[0]}';
-      } else {
-        dobStr = '2000-01-01';
+      } else if (parts.length == 1) { // If they just typed the year or age
+        int? age = int.tryParse(dobStr);
+        if (age != null && age < 100) { // It's an age
+           int year = DateTime.now().year - age;
+           dobStr = '$year-01-01';
+        } else if (age != null && age > 1900) { // It's a year
+           dobStr = '$age-01-01';
+        }
       }
     }
 
     final weight = double.tryParse(_weightCtrl.text) ?? 0.0;
     final height = double.tryParse(_heightCtrl.text) ?? 0.0;
+    
+    // We update the existing profile that was created by Google Login
+    if (appState.userProfile != null) {
+      appState.userProfile!.role = _role;
+      appState.userProfile!.firstName = _firstNameCtrl.text.isNotEmpty ? _firstNameCtrl.text : appState.userProfile!.firstName;
+      appState.userProfile!.lastName = _lastNameCtrl.text.isNotEmpty ? _lastNameCtrl.text : appState.userProfile!.lastName;
+      appState.userProfile!.birthDate = dobStr;
+      appState.userProfile!.weight = weight;
+      appState.userProfile!.height = height;
+      appState.userProfile!.gender = _genderCtrl.text.isNotEmpty ? _genderCtrl.text : 'M';
 
-    final profile = UserProfile(
-      firstName: _firstNameCtrl.text.isNotEmpty ? _firstNameCtrl.text : 'Utente',
-      lastName: _lastNameCtrl.text.isNotEmpty ? _lastNameCtrl.text : 'Nuovo',
-      email: _emailCtrl.text,
-      birthDate: dobStr,
-      role: _role,
-      skiClub: '',
-      gender: _genderCtrl.text.isNotEmpty ? _genderCtrl.text : 'M',
-      weight: weight,
-      height: height,
-      maxHr: 190,
-      unitSystem: 'metric',
-      language: 'it',
-      avatarUrl: '',
-      notificationsEnabled: true,
-      connectedDevices: [],
-      oneRepMax: {},
-    );
+      appState.updateProfile(appState.userProfile!);
 
-    try {
-      await appState.signUpWithEmailAndPassword(_emailCtrl.text, _passCtrl.text, profile);
-      
       final date = DateTime.now().toIso8601String().split('T')[0];
       if (weight > 0) {
         appState.addBodyLog(BodyMetricLog(id: '', date: date, type: 'weight', value: weight));
@@ -126,14 +101,10 @@ class _AuthScreenState extends State<AuthScreen> with SingleTickerProviderStateM
       if (height > 0) {
         appState.addBodyLog(BodyMetricLog(id: '', date: date, type: 'height', value: height));
       }
-      
-      if (mounted) _navigateToNext();
-    } catch (e) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Errore di registrazione: $e'), backgroundColor: Colors.red),
-      );
     }
+
+    // Now navigate to next screen based on role
+    _navigateToNext();
   }
 
   Future<void> _handleGoogleSignIn() async {
@@ -144,10 +115,9 @@ class _AuthScreenState extends State<AuthScreen> with SingleTickerProviderStateM
         if (appState.isNewGoogleUser) {
           setState(() {
             _isLogin = false;
-            _signupStep = 4;
+            _signupStep = 1;
             _firstNameCtrl.text = appState.userProfile?.firstName ?? '';
             _lastNameCtrl.text = appState.userProfile?.lastName ?? '';
-            _emailCtrl.text = appState.userProfile?.email ?? '';
             _animationController.forward(from: 0);
           });
         } else {
@@ -165,8 +135,6 @@ class _AuthScreenState extends State<AuthScreen> with SingleTickerProviderStateM
     }
   }
 
-
-
   void _navigateToNext() {
     final appState = Provider.of<AppState>(context, listen: false);
     Widget nextScreen = const HomeScreen();
@@ -177,34 +145,12 @@ class _AuthScreenState extends State<AuthScreen> with SingleTickerProviderStateM
     Navigator.of(context).pushReplacement(MaterialPageRoute(builder: (_) => nextScreen));
   }
 
-  Widget _buildTextField(TextEditingController controller, String hint, IconData icon, [bool obscureText = false]) {
-    return TextFormField(
-      controller: controller,
-      obscureText: obscureText,
-      style: const TextStyle(color: Colors.white),
-      decoration: InputDecoration(
-        hintText: hint,
-        hintStyle: TextStyle(color: AppTheme.textMediumEmphasis.withValues(alpha: 0.8)),
-        prefixIcon: Icon(icon, color: AppTheme.textMediumEmphasis.withValues(alpha: 0.6)),
-        filled: true,
-        fillColor: AppTheme.card,
-        border: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(16),
-          borderSide: BorderSide.none,
-        ),
-        enabledBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(16),
-          borderSide: BorderSide(color: Colors.white.withValues(alpha: 0.05)),
-        ),
-        focusedBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(16),
-          borderSide: const BorderSide(color: AppTheme.primary, width: 2),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildLabeledField(String label, TextEditingController controller, String hint, {IconData? preIcon, IconData? sufIcon, bool readOnly = false, VoidCallback? onTap}) {
+  Widget _buildLabeledField(
+    String label, 
+    TextEditingController controller, 
+    String hint, 
+    {IconData? preIcon, IconData? sufIcon, bool readOnly = false, VoidCallback? onTap, TextInputType? keyboardType}
+  ) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -214,6 +160,7 @@ class _AuthScreenState extends State<AuthScreen> with SingleTickerProviderStateM
           controller: controller,
           readOnly: readOnly,
           onTap: onTap,
+          keyboardType: keyboardType,
           style: const TextStyle(color: Colors.white),
           decoration: InputDecoration(
             hintText: hint,
@@ -236,146 +183,65 @@ class _AuthScreenState extends State<AuthScreen> with SingleTickerProviderStateM
       mainAxisAlignment: MainAxisAlignment.center,
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        const SizedBox(height: 20),
+        const SizedBox(height: 40),
         Center(
-          child: Container(
-            width: 80,
-            height: 80,
-            decoration: BoxDecoration(
-              gradient: const LinearGradient(
-                colors: [Color(0xFF00C6FF), Color(0xFF0072FF)],
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-              ),
-              borderRadius: BorderRadius.circular(24),
-              boxShadow: [
-                BoxShadow(color: const Color(0xFF00C6FF).withValues(alpha: 0.3), blurRadius: 20, spreadRadius: 2)
-              ]
-            ),
-            child: const Center(
-              child: Text('4A', style: TextStyle(color: Colors.black, fontSize: 32, fontWeight: FontWeight.w900, fontStyle: FontStyle.italic)),
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(32),
+            child: Image.asset(
+              'assets/images/logo.png',
+              width: 120,
+              height: 120,
+              fit: BoxFit.cover,
             ),
           ),
         ),
-        const SizedBox(height: 24),
+        const SizedBox(height: 32),
         Text(
           '4ATHLETES',
           textAlign: TextAlign.center,
-          style: Theme.of(context).textTheme.headlineMedium?.copyWith(color: Colors.white, fontWeight: FontWeight.w900, letterSpacing: 1.2),
+          style: Theme.of(context).textTheme.headlineLarge?.copyWith(color: Colors.white, fontWeight: FontWeight.w900, letterSpacing: 1.5),
         ),
-        const SizedBox(height: 8),
+        const SizedBox(height: 12),
         Text(
           'Track, Analyze, and Dominate.',
           textAlign: TextAlign.center,
-          style: Theme.of(context).textTheme.bodyMedium?.copyWith(color: AppTheme.textMediumEmphasis),
+          style: Theme.of(context).textTheme.titleMedium?.copyWith(color: AppTheme.textMediumEmphasis),
         ),
-        const SizedBox(height: 48),
-
-        _buildTextField(_emailCtrl, 'Email', Icons.email_outlined),
-        const SizedBox(height: 16),
-        _buildTextField(_passCtrl, 'Password', Icons.lock_outline, true),
+        const SizedBox(height: 64),
         
-        const SizedBox(height: 32),
-        ElevatedButton(
+        ElevatedButton.icon(
           onPressed: () {
             HapticFeedback.lightImpact();
-            _submitLogin();
+            _handleGoogleSignIn();
           },
+          icon: Icon(PhosphorIcons.googleLogo(), color: Colors.blue, size: 24),
+          label: const Text('Accedi con Google', style: TextStyle(color: Colors.black, fontWeight: FontWeight.bold, fontSize: 16)),
           style: ElevatedButton.styleFrom(
-            backgroundColor: AppTheme.primary,
-            foregroundColor: Colors.white,
+            backgroundColor: Colors.white,
             padding: const EdgeInsets.symmetric(vertical: 18),
             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-            elevation: 8,
-            shadowColor: AppTheme.primary.withValues(alpha: 0.5),
-          ),
-          child: const Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Text('Accedi', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
-              SizedBox(width: 8),
-              Icon(Icons.arrow_forward, size: 20),
-            ],
+            elevation: 0,
           ),
         ),
-        
-        const SizedBox(height: 32),
-        Row(
-          children: [
-            Expanded(child: Divider(color: Colors.white.withValues(alpha: 0.1))),
-            const Padding(
-              padding: EdgeInsets.symmetric(horizontal: 16),
-              child: Text('OPPURE', style: TextStyle(color: AppTheme.textMediumEmphasis, fontSize: 12, fontWeight: FontWeight.bold, letterSpacing: 1.2)),
+        const SizedBox(height: 16),
+        ElevatedButton.icon(
+          onPressed: () {
+            HapticFeedback.lightImpact();
+            _handleGoogleSignIn();
+          },
+          icon: Icon(PhosphorIcons.appleLogo(PhosphorIconsStyle.fill), color: Colors.white, size: 24),
+          label: const Text('Accedi con Apple', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16)),
+          style: ElevatedButton.styleFrom(
+            backgroundColor: AppTheme.card,
+            padding: const EdgeInsets.symmetric(vertical: 18),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(16),
+              side: BorderSide(color: Colors.white.withValues(alpha: 0.05)),
             ),
-            Expanded(child: Divider(color: Colors.white.withValues(alpha: 0.1))),
-          ],
+            elevation: 0,
+          ),
         ),
-        const SizedBox(height: 24),
-        
-        Row(
-          children: [
-            Expanded(
-              child: ElevatedButton.icon(
-                onPressed: () {
-                  HapticFeedback.lightImpact();
-                  _handleGoogleSignIn();
-                },
-                icon: Icon(PhosphorIcons.googleLogo(), color: Colors.blue, size: 20),
-                label: const Text('Google', style: TextStyle(color: Colors.black, fontWeight: FontWeight.bold)),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.white,
-                  padding: const EdgeInsets.symmetric(vertical: 14),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-                  elevation: 0,
-                ),
-              ),
-            ),
-            const SizedBox(width: 16),
-            Expanded(
-              child: ElevatedButton.icon(
-                onPressed: () {
-                  HapticFeedback.lightImpact();
-                  _handleGoogleSignIn();
-                },
-                icon: Icon(PhosphorIcons.appleLogo(PhosphorIconsStyle.fill), color: Colors.white, size: 20),
-                label: const Text('Apple', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: AppTheme.card,
-                  padding: const EdgeInsets.symmetric(vertical: 14),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(16),
-                    side: BorderSide(color: Colors.white.withValues(alpha: 0.05)),
-                  ),
-                  elevation: 0,
-                ),
-              ),
-            ),
-          ],
-        ),
-
         const Spacer(),
-        Center(
-          child: GestureDetector(
-            onTap: () {
-              HapticFeedback.lightImpact();
-              setState(() {
-                _isLogin = false;
-                _signupStep = 1;
-                _animationController.forward(from: 0);
-              });
-            },
-            child: RichText(
-              text: const TextSpan(
-                text: 'Non hai un account? ',
-                style: TextStyle(color: AppTheme.textMediumEmphasis, fontSize: 14),
-                children: [
-                  TextSpan(text: 'Iscriviti', style: TextStyle(color: AppTheme.primary, fontWeight: FontWeight.bold)),
-                ],
-              ),
-            ),
-          ),
-        ),
-        const SizedBox(height: 20),
       ],
     );
   }
@@ -405,9 +271,25 @@ class _AuthScreenState extends State<AuthScreen> with SingleTickerProviderStateM
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
               decoration: BoxDecoration(color: AppTheme.card, borderRadius: BorderRadius.circular(20)),
-              child: Text('$_signupStep/${_role == 'coach' ? 4 : 5}', style: const TextStyle(color: AppTheme.textMediumEmphasis, fontWeight: FontWeight.bold, fontSize: 12)),
+              child: Text('Passo $_signupStep di 3', style: const TextStyle(color: AppTheme.textMediumEmphasis, fontWeight: FontWeight.bold, fontSize: 12)),
             )
           ],
+        ),
+        const SizedBox(height: 16),
+        // Progress bar visuale
+        Row(
+          children: List.generate(3, (index) {
+            return Expanded(
+              child: Container(
+                margin: const EdgeInsets.symmetric(horizontal: 4),
+                height: 4,
+                decoration: BoxDecoration(
+                  color: index < _signupStep ? AppTheme.primary : AppTheme.card,
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
+            );
+          }),
         ),
         const SizedBox(height: 24),
         Text(titleText.toUpperCase(), style: const TextStyle(color: AppTheme.primary, fontWeight: FontWeight.w900, fontSize: 12, letterSpacing: 1.5)),
@@ -481,9 +363,10 @@ class _AuthScreenState extends State<AuthScreen> with SingleTickerProviderStateM
           ),
         ),
         const Spacer(),
-        _buildBottomNextButton(),
+        _buildFlowButton('Avanti', () {
+          setState(() { _signupStep = 2; _animationController.forward(from: 0); });
+        }),
         const SizedBox(height: 20),
-        _buildAlreadyAccount()
       ],
     );
   }
@@ -492,90 +375,7 @@ class _AuthScreenState extends State<AuthScreen> with SingleTickerProviderStateM
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        _buildSignupHeader('Iscrizione', 'Iscriviti con'),
-        GestureDetector(
-          onTap: () => setState(() { _signupStep = 3; _animationController.forward(from: 0); }),
-          child: Container(
-            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 20),
-            decoration: BoxDecoration(color: AppTheme.card, borderRadius: BorderRadius.circular(20), border: Border.all(color: Colors.white.withValues(alpha: 0.05))),
-            child: Row(
-              children: [
-                Container(
-                  padding: const EdgeInsets.all(10),
-                  decoration: BoxDecoration(color: AppTheme.primary.withValues(alpha: 0.15), borderRadius: BorderRadius.circular(12)),
-                  child: const Icon(Icons.mail_outline, color: AppTheme.primary),
-                ),
-                const SizedBox(width: 16),
-                const Text('Email e Password', style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold)),
-              ],
-            ),
-          ),
-        ),
-        const SizedBox(height: 48),
-        Row(
-          children: [
-            Expanded(child: Divider(color: Colors.white.withValues(alpha: 0.1))),
-            const Padding(
-              padding: EdgeInsets.symmetric(horizontal: 16),
-              child: Text('O SOCIAL', style: TextStyle(color: AppTheme.textMediumEmphasis, fontSize: 12, fontWeight: FontWeight.bold, letterSpacing: 1.2)),
-            ),
-            Expanded(child: Divider(color: Colors.white.withValues(alpha: 0.1))),
-          ],
-        ),
-        const SizedBox(height: 32),
-        ElevatedButton.icon(
-          onPressed: _handleGoogleSignIn,
-          icon: Icon(PhosphorIcons.googleLogo(), color: Colors.blue, size: 24),
-          label: const Text('Google', style: TextStyle(color: Colors.black, fontWeight: FontWeight.bold, fontSize: 16)),
-          style: ElevatedButton.styleFrom(
-            backgroundColor: Colors.white,
-            padding: const EdgeInsets.symmetric(vertical: 18),
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-            elevation: 0,
-          ),
-        ),
-        const SizedBox(height: 16),
-        ElevatedButton.icon(
-          onPressed: _handleGoogleSignIn,
-          icon: Icon(PhosphorIcons.appleLogo(PhosphorIconsStyle.fill), color: Colors.white, size: 24),
-          label: const Text('Apple', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16)),
-          style: ElevatedButton.styleFrom(
-            backgroundColor: AppTheme.card,
-            padding: const EdgeInsets.symmetric(vertical: 18),
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(16),
-              side: BorderSide(color: Colors.white.withValues(alpha: 0.05)),
-            ),
-            elevation: 0,
-          ),
-        ),
-        const Spacer(),
-        _buildAlreadyAccount()
-      ],
-    );
-  }
-
-  Widget _buildSignupStep3() {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        _buildSignupHeader('Iscrizione', 'Account'),
-        _buildLabeledField('EMAIL', _emailCtrl, 'Email', preIcon: Icons.mail_outline),
-        const SizedBox(height: 24),
-        _buildLabeledField('PASSWORD', _passCtrl, 'Password', preIcon: Icons.lock_outline),
-        const SizedBox(height: 48),
-        _buildFlowButton('Avanti', () => setState(() { _signupStep = 4; _animationController.forward(from: 0); })),
-        const Spacer(),
-        _buildAlreadyAccount()
-      ],
-    );
-  }
-
-  Widget _buildSignupStep4() {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        _buildSignupHeader('Iscrizione', 'Chi sei?'),
+        _buildSignupHeader('Iscrizione', 'I tuoi dati'),
         Row(
           children: [
             Expanded(child: _buildLabeledField('NOME', _firstNameCtrl, 'Nome')),
@@ -585,91 +385,72 @@ class _AuthScreenState extends State<AuthScreen> with SingleTickerProviderStateM
         ),
         const SizedBox(height: 24),
         _buildLabeledField(
-          'DATA DI NASCITA',
+          'ANNO DI NASCITA O ETÀ',
           _dobCtrl,
-          'gg/mm/aaaa',
+          'Es. 1995 o 28',
           preIcon: Icons.calendar_today_outlined,
-          sufIcon: Icons.calendar_today,
-          readOnly: true,
-          onTap: () async {
-            DateTime initialDate = DateTime.now().subtract(const Duration(days: 365 * 18));
-            if (_dobCtrl.text.isNotEmpty) {
-               try {
-                 final parts = _dobCtrl.text.split('/');
-                 if (parts.length == 3) {
-                   initialDate = DateTime(int.parse(parts[2]), int.parse(parts[1]), int.parse(parts[0]));
-                 }
-               } catch (_) {}
-            }
-            final picked = await showDatePicker(
-              context: context,
-              initialDate: initialDate,
-              firstDate: DateTime(1900),
-              lastDate: DateTime.now(),
-              builder: (context, child) {
-                return Theme(
-                  data: ThemeData.dark().copyWith(
-                    colorScheme: const ColorScheme.dark(
-                      primary: AppTheme.primary,
-                      onPrimary: Colors.white,
-                      surface: AppTheme.card,
-                      onSurface: Colors.white,
-                    ),
-                  ),
-                  child: child!,
-                );
-              },
-            );
-            if (picked != null) {
-              setState(() {
-                _dobCtrl.text = '${picked.day.toString().padLeft(2, '0')}/${picked.month.toString().padLeft(2, '0')}/${picked.year}';
-              });
-            }
-          },
+          keyboardType: TextInputType.number, // Tastierino numerico come richiesto
         ),
         const SizedBox(height: 48),
-        _buildFlowButton(_role == 'coach' ? 'Completa' : 'Avanti', () {
-          if (_role == 'coach') {
-            _submitSignup();
-          } else {
-            setState(() { _signupStep = 5; _animationController.forward(from: 0); });
-          }
+        _buildFlowButton('Avanti', () {
+          setState(() { _signupStep = 3; _animationController.forward(from: 0); });
         }),
         const Spacer(),
-        _buildAlreadyAccount()
       ],
     );
   }
   
-  Widget _buildSignupStep5() {
+  Widget _buildSignupStep3() {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         _buildSignupHeader('Iscrizione', 'Fisico'),
+        const Text(
+          'Questi dati ci aiutano a personalizzare la tua esperienza. Puoi saltarli e inserirli in un secondo momento dal tuo profilo.',
+          style: TextStyle(color: AppTheme.textMediumEmphasis, fontSize: 14),
+        ),
+        const SizedBox(height: 24),
         Row(
           children: [
-            Expanded(child: _buildLabeledField('PESO (KG)', _weightCtrl, '70', preIcon: Icons.monitor_weight_outlined)),
+            Expanded(
+              child: _buildLabeledField(
+                'PESO (KG)', 
+                _weightCtrl, 
+                '70', 
+                preIcon: Icons.monitor_weight_outlined,
+                keyboardType: TextInputType.number, // Tastierino numerico
+              )
+            ),
             const SizedBox(width: 16),
-            Expanded(child: _buildLabeledField('ALTEZZA (CM)', _heightCtrl, '175', preIcon: Icons.height_outlined)),
+            Expanded(
+              child: _buildLabeledField(
+                'ALTEZZA (CM)', 
+                _heightCtrl, 
+                '175', 
+                preIcon: Icons.height_outlined,
+                keyboardType: TextInputType.number, // Tastierino numerico
+              )
+            ),
           ],
         ),
         const SizedBox(height: 24),
         _buildLabeledField('SESSO (M/F)', _genderCtrl, 'M', preIcon: Icons.people_outline),
         const SizedBox(height: 48),
         _buildFlowButton('Completa', _submitSignup),
+        const SizedBox(height: 16),
+        TextButton(
+          onPressed: () {
+            HapticFeedback.lightImpact();
+            // Salta per ora: Pulisci i campi non obbligatori
+            _weightCtrl.clear();
+            _heightCtrl.clear();
+            _submitSignup();
+          },
+          child: const Text('Salta per ora', style: TextStyle(color: AppTheme.textMediumEmphasis, fontSize: 16, fontWeight: FontWeight.bold)),
+        ),
         const Spacer(),
-        _buildAlreadyAccount()
       ],
     );
-  }
-  
-
-  Widget _buildBottomNextButton() {
-    return _buildFlowButton('Avanti', () {
-      if (_signupStep < (_role == 'coach' ? 4 : 5)) {
-         setState(() { _signupStep++; _animationController.forward(from: 0); });
-      }
-    });
   }
 
   Widget _buildFlowButton(String text, VoidCallback onPressed) {
@@ -697,29 +478,6 @@ class _AuthScreenState extends State<AuthScreen> with SingleTickerProviderStateM
     );
   }
 
-  Widget _buildAlreadyAccount() {
-    return Center(
-      child: GestureDetector(
-        onTap: () {
-          HapticFeedback.lightImpact();
-          setState(() {
-            _isLogin = true;
-            _animationController.forward(from: 0);
-          });
-        },
-        child: RichText(
-          text: const TextSpan(
-            text: 'Hai già un account? ',
-            style: TextStyle(color: AppTheme.textMediumEmphasis, fontSize: 14),
-            children: [
-              TextSpan(text: 'Accedi', style: TextStyle(color: AppTheme.primary, fontWeight: FontWeight.bold)),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
   @override
   Widget build(BuildContext context) {
     Widget activeContent = const SizedBox();
@@ -730,8 +488,6 @@ class _AuthScreenState extends State<AuthScreen> with SingleTickerProviderStateM
         case 1: activeContent = _buildSignupStep1(); break;
         case 2: activeContent = _buildSignupStep2(); break;
         case 3: activeContent = _buildSignupStep3(); break;
-        case 4: activeContent = _buildSignupStep4(); break;
-        case 5: activeContent = _buildSignupStep5(); break;
       }
     }
 

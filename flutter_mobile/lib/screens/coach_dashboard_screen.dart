@@ -8,6 +8,7 @@ import '../providers/app_state.dart';
 import '../models/models.dart';
 import 'coach_event_details_screen.dart';
 import 'coach_athlete_detail_screen.dart';
+import 'coach_athletic_test_screen.dart';
 import 'activity_select.dart';
 import 'profile_screen.dart';
 import 'teams_screen.dart';
@@ -87,6 +88,120 @@ class _CoachDashboardScreenState extends State<CoachDashboardScreen> {
     }
   }
 
+  void _showTeamSelectionForTest(BuildContext context, String testId, String testTitle, String category) {
+    final appState = Provider.of<AppState>(context, listen: false);
+    if (appState.teams.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Nessun team disponibile. Crea o unisciti a un team prima.')),
+      );
+      return;
+    }
+    
+    void navigateToTest(Team t) {
+      Navigator.push(context, MaterialPageRoute(builder: (_) => CoachAthleticTestScreen(
+        selectedTeam: t,
+        testId: testId,
+        testTitle: testTitle,
+        testCategory: category,
+      )));
+    }
+
+    if (appState.teams.length > 1) {
+      showDialog(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          backgroundColor: AppTheme.card,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          title: const Text('Seleziona Team', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: appState.teams.map((t) => ListTile(
+              title: Text(t.name, style: const TextStyle(color: Colors.white)),
+              trailing: const Icon(Icons.arrow_forward_ios, size: 16, color: AppTheme.textMediumEmphasis),
+              onTap: () {
+                HapticFeedback.lightImpact();
+                Navigator.pop(ctx);
+                navigateToTest(t);
+              }
+            )).toList(),
+          ),
+        ),
+      );
+    } else {
+      navigateToTest(appState.teams.first);
+    }
+  }
+
+  void _showTestSelectionBottomSheet(BuildContext context) {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: AppTheme.card,
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
+      builder: (ctx) {
+        return DraggableScrollableSheet(
+          initialChildSize: 0.7,
+          minChildSize: 0.5,
+          maxChildSize: 0.9,
+          expand: false,
+          builder: (_, controller) {
+            return SafeArea(
+              child: Column(
+                children: [
+                  const SizedBox(height: 16),
+                  Container(width: 40, height: 4, decoration: BoxDecoration(color: Colors.white.withOpacity(0.2), borderRadius: BorderRadius.circular(2))),
+                  const SizedBox(height: 24),
+                  const Text('Seleziona Test', style: TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.bold)),
+                  const SizedBox(height: 16),
+                  Expanded(
+                    child: ListView(
+                      controller: controller,
+                      padding: const EdgeInsets.symmetric(horizontal: 16),
+                      children: [
+                        const Padding(
+                          padding: EdgeInsets.symmetric(vertical: 8),
+                          child: Text('SALTI', style: TextStyle(color: AppTheme.textMediumEmphasis, fontWeight: FontWeight.bold, fontSize: 12)),
+                        ),
+                        _buildTestTile(ctx, 'Squat Jump', 'squat_jump', 'jump'),
+                        _buildTestTile(ctx, 'CM Jump', 'cm_jump', 'jump'),
+                        _buildTestTile(ctx, 'Drop Jump', 'drop_jump', 'jump'),
+                        _buildTestTile(ctx, '45s Jump', '45s_jump', 'jump'),
+                        _buildTestTile(ctx, 'Single Leg (Left)', 'single_leg_left', 'jump'),
+                        _buildTestTile(ctx, 'Single Leg (Right)', 'single_leg_right', 'jump'),
+                        const SizedBox(height: 16),
+                        const Padding(
+                          padding: EdgeInsets.symmetric(vertical: 8),
+                          child: Text('MASSIMALI (1RM)', style: TextStyle(color: AppTheme.textMediumEmphasis, fontWeight: FontWeight.bold, fontSize: 12)),
+                        ),
+                        _buildTestTile(ctx, 'Back Squat', 'back_squat', 'pr'),
+                        _buildTestTile(ctx, 'Deadlift', 'deadlift', 'pr'),
+                        _buildTestTile(ctx, 'Bench Press', 'bp', 'pr'),
+                        _buildTestTile(ctx, 'Clean & Jerk', 'clean_jerk', 'pr'),
+                        const SizedBox(height: 24),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
+
+  Widget _buildTestTile(BuildContext ctx, String title, String testId, String category) {
+    return ListTile(
+      title: Text(title, style: const TextStyle(color: Colors.white)),
+      trailing: const Icon(Icons.chevron_right, color: AppTheme.textMediumEmphasis),
+      onTap: () {
+        HapticFeedback.lightImpact();
+        Navigator.pop(ctx);
+        _showTeamSelectionForTest(context, testId, title, category);
+      },
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -121,7 +236,7 @@ class _CoachDashboardScreenState extends State<CoachDashboardScreen> {
             BottomNavigationBarItem(
               icon: Icon(Icons.list_alt_outlined),
               activeIcon: Icon(Icons.list_alt),
-              label: 'Allenamenti',
+              label: 'Plan',
             ),
             BottomNavigationBarItem(
               icon: Icon(Icons.group_outlined),
@@ -172,6 +287,17 @@ class _CoachDashboardScreenState extends State<CoachDashboardScreen> {
                         HapticFeedback.lightImpact();
                         Navigator.pop(ctx);
                         _showTeamSelectionIfNeeded(context, isSkiWorkout: false);
+                      },
+                    ),
+                    const SizedBox(height: 8),
+                    ListTile(
+                      leading: const CircleAvatar(backgroundColor: Colors.blueAccent, child: Icon(Icons.speed, color: Colors.white)),
+                      title: const Text('Test Atletici', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+                      subtitle: const Text('Registra salti e massimali per gli atleti', style: TextStyle(color: AppTheme.textMediumEmphasis, fontSize: 12)),
+                      onTap: () {
+                        HapticFeedback.lightImpact();
+                        Navigator.pop(ctx);
+                        _showTestSelectionBottomSheet(context);
                       },
                     ),
                   ],
@@ -423,10 +549,13 @@ class _CoachHomeViewState extends State<_CoachHomeView> {
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
                       Text('${event.startTime} - ${event.endTime}', style: const TextStyle(color: AppTheme.textMediumEmphasis, fontWeight: FontWeight.bold, fontSize: 14)),
-                      Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-                        decoration: BoxDecoration(color: Colors.white.withValues(alpha: 0.05), borderRadius: BorderRadius.circular(8)),
-                        child: Text(teamName, style: const TextStyle(color: AppTheme.textMediumEmphasis, fontWeight: FontWeight.bold, fontSize: 12)),
+                      const SizedBox(width: 8),
+                      Flexible(
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+                          decoration: BoxDecoration(color: Colors.white.withValues(alpha: 0.05), borderRadius: BorderRadius.circular(8)),
+                          child: Text(teamName, style: const TextStyle(color: AppTheme.textMediumEmphasis, fontWeight: FontWeight.bold, fontSize: 12), overflow: TextOverflow.ellipsis),
+                        ),
                       ),
                     ],
                   ),
@@ -855,8 +984,12 @@ class _CoachReportViewState extends State<_CoachReportView> {
                         ),
                       ),
                       const SizedBox(width: 6),
-                      Text('$skiPresencePercent% Sci | $athleticPresencePercent% Atletica',
-                          style: const TextStyle(color: AppTheme.textMediumEmphasis, fontSize: 12, fontWeight: FontWeight.w500)),
+                      Expanded(
+                        child: Text('$skiPresencePercent% Sci | $athleticPresencePercent% Atletica',
+                            style: const TextStyle(color: AppTheme.textMediumEmphasis, fontSize: 12, fontWeight: FontWeight.w500),
+                            overflow: TextOverflow.ellipsis,
+                            maxLines: 1),
+                      ),
                     ],
                   ),
                 ],
@@ -956,7 +1089,26 @@ class _CoachTrainingViewState extends State<_CoachTrainingView> {
     final appState = Provider.of<AppState>(context);
     
     final allEvents = List<CalendarEvent>.from(appState.coachEvents);
-    allEvents.sort((a, b) => (b.date).compareTo(a.date));
+    
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+
+    allEvents.sort((a, b) {
+      final dateA = DateTime.tryParse(a.date) ?? DateTime.fromMillisecondsSinceEpoch(0);
+      final dateB = DateTime.tryParse(b.date) ?? DateTime.fromMillisecondsSinceEpoch(0);
+
+      final isPastA = dateA.isBefore(today);
+      final isPastB = dateB.isBefore(today);
+
+      if (isPastA && !isPastB) return 1;
+      if (!isPastA && isPastB) return -1;
+
+      if (!isPastA && !isPastB) {
+        return dateA.compareTo(dateB);
+      } else {
+        return dateB.compareTo(dateA);
+      }
+    });
 
     final filteredEvents = allEvents.where((e) {
       final q = _searchQuery.toLowerCase();

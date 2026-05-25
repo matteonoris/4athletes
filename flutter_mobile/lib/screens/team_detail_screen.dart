@@ -5,6 +5,9 @@ import 'package:share_plus/share_plus.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../models/models.dart';
+import 'coach_athlete_detail_screen.dart';
+import 'package:provider/provider.dart';
+import '../providers/app_state.dart';
 
 class TeamDetailScreen extends StatefulWidget {
   final Team team;
@@ -162,6 +165,7 @@ class _TeamDetailScreenState extends State<TeamDetailScreen> {
       }
 
       _teamAthletes.add({
+        'id': athleteId,
         'name': '${athlete['first_name'] ?? ''} ${athlete['last_name'] ?? ''}'.trim(),
         'avatar': athlete['avatar_url'] ?? '',
         'subtitle': athlete['skill_level'] ?? 'Athlete',
@@ -217,8 +221,77 @@ class _TeamDetailScreenState extends State<TeamDetailScreen> {
     return total;
   }
 
+  void _confirmLeaveTeam(BuildContext context) {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: const Color(0xFF1E2126),
+        title: const Text('Abbandona Team', style: TextStyle(color: Colors.white)),
+        content: const Text('Sei sicuro di voler abbandonare questo team?', style: TextStyle(color: Colors.white70)),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(),
+            child: const Text('No', style: TextStyle(color: Colors.grey)),
+          ),
+          ElevatedButton(
+            onPressed: () async {
+              Navigator.of(ctx).pop();
+              try {
+                await Provider.of<AppState>(context, listen: false).leaveTeam(widget.team.id);
+                if (mounted) {
+                  Navigator.of(context).pop();
+                }
+              } catch (e) {
+                if (mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Errore durante l\'uscita dal team')));
+                }
+              }
+            },
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.redAccent),
+            child: const Text('Sì', style: TextStyle(color: Colors.white)),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _confirmRemoveAthlete(BuildContext context, String athleteId, String athleteName) {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: const Color(0xFF1E2126),
+        title: const Text('Rimuovi Atleta', style: TextStyle(color: Colors.white)),
+        content: Text('Sei sicuro di voler rimuovere $athleteName da questo team?', style: const TextStyle(color: Colors.white70)),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(),
+            child: const Text('No', style: TextStyle(color: Colors.grey)),
+          ),
+          ElevatedButton(
+            onPressed: () async {
+              Navigator.of(ctx).pop();
+              try {
+                await Provider.of<AppState>(context, listen: false).removeAthleteFromTeam(athleteId, widget.team.id);
+                _loadLeaderboardData();
+              } catch (e) {
+                if (mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Errore durante la rimozione')));
+                }
+              }
+            },
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.redAccent),
+            child: const Text('Sì', style: TextStyle(color: Colors.white)),
+          ),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
+    final isAthlete = Provider.of<AppState>(context).userProfile?.role == 'athlete';
+    final isCoach = Provider.of<AppState>(context).userProfile?.role == 'coach';
+
     _generateTeamData();
 
     final sortedAthletes = List<Map<String, dynamic>>.from(_teamAthletes);
@@ -260,6 +333,13 @@ class _TeamDetailScreenState extends State<TeamDetailScreen> {
           ],
         ),
         centerTitle: true,
+        actions: [
+          if (isAthlete)
+            IconButton(
+              icon: Icon(PhosphorIcons.signOut(), color: Colors.redAccent),
+              onPressed: () => _confirmLeaveTeam(context),
+            ),
+        ],
       ),
       body: CustomScrollView(
         slivers: [
@@ -544,14 +624,30 @@ class _TeamDetailScreenState extends State<TeamDetailScreen> {
                           double val = _getCategoryValue(athlete, _categoryFilter);
                           bool isFirst = index == 0;
 
-                          return Container(
-                            margin:
-                                const EdgeInsets.only(bottom: 12, left: 16, right: 16),
-                            decoration: BoxDecoration(
-                              color: const Color(0xFF1C2229),
-                              borderRadius: BorderRadius.circular(16),
-                            ),
-                            child: Stack(
+                          return GestureDetector(
+                            onTap: () {
+                              HapticFeedback.lightImpact();
+                              String name = athlete['name'] ?? 'Atleta';
+                              String initial = name.isNotEmpty ? name[0].toUpperCase() : 'A';
+                              Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (_) => CoachAthleteDetailScreen(
+                                    athleteName: name,
+                                    initial: initial,
+                                    athleteId: athlete['id'],
+                                  ),
+                                ),
+                              );
+                            },
+                            child: Container(
+                              margin:
+                                  const EdgeInsets.only(bottom: 12, left: 16, right: 16),
+                              decoration: BoxDecoration(
+                                color: const Color(0xFF1C2229),
+                                borderRadius: BorderRadius.circular(16),
+                              ),
+                              child: Stack(
                               children: [
                                 // Highlight on left for #1
                                 if (isFirst) ...[
@@ -683,12 +779,21 @@ class _TeamDetailScreenState extends State<TeamDetailScreen> {
                                                   fontSize: 12, color: Colors.grey)),
                                         ],
                                       ),
+                                      if (isCoach) ...[
+                                        const SizedBox(width: 8),
+                                        IconButton(
+                                          icon: Icon(PhosphorIcons.userMinus(), color: Colors.redAccent, size: 20),
+                                          padding: EdgeInsets.zero,
+                                          constraints: const BoxConstraints(),
+                                          onPressed: () => _confirmRemoveAthlete(context, athlete['id'], athlete['name']),
+                                        ),
+                                      ],
                                     ],
                                   ),
                                 ),
                               ],
                             ),
-                          );
+                          ));
                         },
                         childCount: sortedAthletes.length,
                       ),

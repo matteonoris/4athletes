@@ -83,6 +83,17 @@ class AppState extends ChangeNotifier {
   }
 
   void logout() async {
+    try {
+      final webClientId = dotenv.env['GOOGLE_WEB_CLIENT_ID'];
+      final GoogleSignIn googleSignIn = GoogleSignIn(
+        clientId: webClientId,
+        serverClientId: kIsWeb ? null : webClientId,
+      );
+      await googleSignIn.signOut();
+    } catch (e) {
+      debugPrint('Error signing out of Google: $e');
+    }
+    
     await _supabase.auth.signOut();
     _isLoggedIn = false;
     _prefs!.remove('isLoggedIn');
@@ -371,6 +382,13 @@ class AppState extends ChangeNotifier {
         technicalDetails: e['technical_details'],
         attendees: e['attendees'] != null ? List<Map<String, dynamic>>.from(e['attendees']) : null,
       )).toList();
+      
+      if (_userProfile != null && _userProfile!.role == 'athlete') {
+        _coachEvents = _coachEvents.where((e) {
+          final tIds = e.teamId.split(',').map((id) => id.trim()).toList();
+          return tIds.contains(_userProfile!.teamId) || (e.attendees != null && e.attendees!.any((a) => a['id'] == userId));
+        }).toList();
+      }
     } catch (e) {
       debugPrint('Error loading coach events: $e');
     }
@@ -427,6 +445,59 @@ class AppState extends ChangeNotifier {
   }
 
   // ==== ACTIONS ====
+
+  Future<void> leaveTeam(String teamId) async {
+    try {
+      // 1. Update user profile team_id to null
+      await _supabase.from('profiles').update({'team_id': null}).eq('id', userId);
+      if (_userProfile != null) {
+        _userProfile!.teamId = null;
+        await _saveUserProfile();
+      }
+
+      // 2. Decrement team members count
+      final teamResponse = await _supabase.from('teams').select('members').eq('id', teamId).maybeSingle();
+      if (teamResponse != null) {
+        final currentMembers = teamResponse['members'] ?? 0;
+        final newMembers = currentMembers > 0 ? currentMembers - 1 : 0;
+        await _supabase.from('teams').update({'members': newMembers}).eq('id', teamId);
+      }
+
+      // 3. Update local state
+      _teams.removeWhere((t) => t.id == teamId);
+      notifyListeners();
+    } catch (e) {
+      debugPrint('Error leaving team: $e');
+      rethrow;
+    }
+  }
+
+  Future<void> removeAthleteFromTeam(String athleteId, String teamId) async {
+    try {
+      // 1. Update athlete profile team_id to null
+      await _supabase.from('profiles').update({'team_id': null}).eq('id', athleteId);
+
+      // 2. Decrement team members count
+      final teamResponse = await _supabase.from('teams').select('members').eq('id', teamId).maybeSingle();
+      if (teamResponse != null) {
+        final currentMembers = teamResponse['members'] ?? 0;
+        final newMembers = currentMembers > 0 ? currentMembers - 1 : 0;
+        await _supabase.from('teams').update({'members': newMembers}).eq('id', teamId);
+      }
+      
+      // Update local team count if it exists locally
+      final teamIndex = _teams.indexWhere((t) => t.id == teamId);
+      if (teamIndex != -1) {
+        final currentMembers = _teams[teamIndex].members;
+        _teams[teamIndex].members = currentMembers > 0 ? currentMembers - 1 : 0;
+      }
+      notifyListeners();
+    } catch (e) {
+      debugPrint('Error removing athlete from team: $e');
+      rethrow;
+    }
+  }
+
 
   void addTeam(Team team) async {
     try {
@@ -765,6 +836,47 @@ class AppState extends ChangeNotifier {
     }
   }
 
+  Future<void> addJumpLogForAthlete(JumpLog log, String athleteId) async {
+    try {
+      await _supabase.from('jump_logs').insert({
+        'user_id': athleteId,
+        'type': log.type,
+        'date': log.date,
+        'value': log.value,
+      });
+    } catch (e) {
+      debugPrint('Error adding jump log for athlete: $e');
+      rethrow;
+    }
+  }
+
+  Future<void> addPRLogForAthlete(PRLog log, String athleteId) async {
+    try {
+      await _supabase.from('pr_logs').insert({
+        'user_id': athleteId,
+        'exercise_id': log.exerciseId,
+        'date': log.date,
+        'weight': log.weight,
+        'note': log.note,
+      });
+      // Update athlete's one_rep_max profile field
+      final profileData = await _supabase.from('profiles').select('one_rep_max').eq('id', athleteId).maybeSingle();
+      if (profileData != null) {
+        final currentMaxMap = profileData['one_rep_max'] != null 
+          ? Map<String, dynamic>.from(profileData['one_rep_max']) 
+          : <String, dynamic>{};
+        final currentMax = (currentMaxMap[log.exerciseId] as num?)?.toDouble() ?? 0.0;
+        if (log.weight > currentMax) {
+          currentMaxMap[log.exerciseId] = log.weight;
+          await _supabase.from('profiles').update({'one_rep_max': currentMaxMap}).eq('id', athleteId);
+        }
+      }
+    } catch (e) {
+      debugPrint('Error adding PR log for athlete: $e');
+      rethrow;
+    }
+  }
+
   void saveCoachEvent(CalendarEvent event) async {
     try {
       if (!_isValidUuid(event.id)) {
@@ -878,6 +990,30 @@ class AppState extends ChangeNotifier {
         }
       }
       notifyListeners();
+    }
+  }
+
+  Future<void> updateAthleteAttendance(CalendarEvent event, bool isPresent) async {
+    final athleteName = '${_userProfile?.firstName ?? ''} ${_userProfile?.lastName ?? ''}'.trim();
+    if (event.attendees != null) {
+      for (var a in event.attendees!) {
+        if (a['id'] == userId || a['name'] == athleteName) {
+          a['isPresent'] = isPresent;
+        }
+      }
+      saveCoachEvent(event);
+    }
+  }
+
+  Future<void> updateAthleteLaps(CalendarEvent event, int laps) async {
+    final athleteName = '${_userProfile?.firstName ?? ''} ${_userProfile?.lastName ?? ''}'.trim();
+    if (event.attendees != null) {
+      for (var a in event.attendees!) {
+        if (a['id'] == userId || a['name'] == athleteName) {
+          a['laps'] = laps;
+        }
+      }
+      saveCoachEvent(event);
     }
   }
 }

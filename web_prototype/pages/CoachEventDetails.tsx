@@ -171,7 +171,7 @@ const CoachEventDetails: React.FC<Props> = ({ event, teams, onSave, onBack }) =>
                       <div className="space-y-2">
                           <label className="text-[10px] font-bold uppercase text-gray-500">Specialità Sci</label>
                           <div className="flex gap-2">
-                              {['SL', 'GS', 'SG', 'DH'].map(s => (
+                              {['SL', 'GS', 'SG', 'DH', 'CL'].map(s => (
                                   <button 
                                     key={s}
                                     type="button"
@@ -298,7 +298,7 @@ const CoachEventDetails: React.FC<Props> = ({ event, teams, onSave, onBack }) =>
                   <div className="space-y-2">
                       <label className="text-[10px] font-bold uppercase text-gray-500">Specialità</label>
                       <div className="flex gap-2">
-                          {['SL', 'GS', 'SG', 'DH'].map(s => (
+                          {['SL', 'GS', 'SG', 'DH', 'CL'].map(s => (
                               <button 
                                 key={s}
                                 onClick={() => toggleSpecialty(s)}

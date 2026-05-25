@@ -210,7 +210,7 @@ class _AddTrainingScreenState extends State<AddTrainingScreen> {
     final isStretching =
         ['stretching', 'yoga', 'pilates'].contains(widget.sportId);
     // ignore: unused_local_variable
-    final isAthletic = ['athletic_prep', 'other'].contains(widget.sportId);
+    final isAthletic = ['athletic_prep', 'other', 'hyperarch', 'tendon_isometrics'].contains(widget.sportId);
 
     final enduranceSports = [
       'running', 'cycling', 'marathon', 'triathlon', 'rowing', 'hiking', 
@@ -295,7 +295,7 @@ class _AddTrainingScreenState extends State<AddTrainingScreen> {
       if (d['exercises'] != null) {
         final exList = d['exercises'] as List<dynamic>;
         setState(() {
-          final isAthletic = ['athletic_prep', 'other'].contains(widget.sportId);
+          final isAthletic = ['athletic_prep', 'other', 'hyperarch', 'tendon_isometrics'].contains(widget.sportId);
           final isStretching = ['stretching', 'yoga', 'pilates'].contains(widget.sportId);
 
           if (isAthletic) {
@@ -466,7 +466,7 @@ class _AddTrainingScreenState extends State<AddTrainingScreen> {
     final isTennis = ['tennis', 'padel', 'pickleball', 'squash'].contains(widget.sportId);
     final isStretching =
         ['stretching', 'yoga', 'pilates'].contains(widget.sportId);
-    final isAthletic = ['athletic_prep', 'other'].contains(widget.sportId);
+    final isAthletic = ['athletic_prep', 'other', 'hyperarch', 'tendon_isometrics'].contains(widget.sportId);
 
     // Dynamic Effort Color based on React logic
     Color effortColor;
@@ -649,10 +649,11 @@ class _AddTrainingScreenState extends State<AddTrainingScreen> {
                 _buildChoiceChips(
                     'SPECIALITÀ',
                     [
-                      'Slalom (SL)',
-                      'Gigante (GS)',
-                      'SuperG (SG)',
-                      'Discesa (DH)'
+                      'SL',
+                      'GS',
+                      'SG',
+                      'DH',
+                      'CL'
                     ],
                     _specialties.isEmpty ? '' : _specialties[0], (v) {
                   setState(() {
