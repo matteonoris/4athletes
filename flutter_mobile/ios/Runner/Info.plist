@@ -35,6 +35,10 @@
 	</array>
 	<key>CFBundleVersion</key>
 	<string>$(FLUTTER_BUILD_NUMBER)</string>
+	<key>GIDClientID</key>
+	<string>715946571656-ens8hl5i44k0juqfc7m7v04hfvak6pps.apps.googleusercontent.com</string>
+	<key>GIDServerClientID</key>
+	<string>715946571656-f8s7lomj6f3a38sdvpdtnh6c9qfif3dr.apps.googleusercontent.com</string>
 	<key>ITSAppUsesNonExemptEncryption</key>
 	<false/>
 	<key>LSRequiresIPhoneOS</key>

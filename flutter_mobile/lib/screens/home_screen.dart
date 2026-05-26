@@ -362,8 +362,11 @@ class _DashboardViewState extends State<_DashboardView> {
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                Text('Andamento Stagionale',
-                    style: Theme.of(context).textTheme.titleLarge),
+                Expanded(
+                  child: Text('Andamento Stagionale',
+                      style: Theme.of(context).textTheme.titleLarge,
+                      overflow: TextOverflow.ellipsis),
+                ),
                 DropdownButton<String>(
                   value: _selectedSeason,
                   dropdownColor: AppTheme.surface,
@@ -399,15 +402,19 @@ class _DashboardViewState extends State<_DashboardView> {
                               ),
                             const SizedBox(width: 8),
                             Expanded(
-                              child: Wrap(
+                              child: Row(
+                                mainAxisSize: MainAxisSize.min,
                                 children: [
-                                  Text('CAMBI DI DIR.',
-                                      style: Theme.of(context)
-                                          .textTheme
-                                          .bodySmall
-                                          ?.copyWith(
-                                              fontWeight: FontWeight.bold,
-                                              color: AppTheme.textMediumEmphasis)),
+                                  Flexible(
+                                    child: Text('CAMBI DI DIR.',
+                                        overflow: TextOverflow.ellipsis,
+                                        style: Theme.of(context)
+                                            .textTheme
+                                            .bodySmall
+                                            ?.copyWith(
+                                                fontWeight: FontWeight.bold,
+                                                color: AppTheme.textMediumEmphasis)),
+                                  ),
                                   Text(' (PALI)',
                                       style: Theme.of(context)
                                           .textTheme

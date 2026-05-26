@@ -1,13 +1,13 @@
+import 'dart:convert';
 import 'dart:io' show Platform;
 import 'dart:math';
-import 'package:flutter/foundation.dart';
-import 'package:shared_preferences/shared_preferences.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
-import 'dart:convert';
 import 'package:crypto/crypto.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:google_sign_in/google_sign_in.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:sign_in_with_apple/sign_in_with_apple.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import '../models/models.dart';
 import '../services/health_service.dart';
 
@@ -257,6 +257,8 @@ class AppState extends ChangeNotifier {
       rethrow;
     }
   }
+
+  bool get isAppleSignInAvailable => !kIsWeb && Platform.isIOS;
 
   /// Cryptographically-strong random nonce in the URL-safe charset Apple expects.
   String _generateNonce([int length = 32]) {

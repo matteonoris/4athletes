@@ -16,18 +16,26 @@ void main() async {
   // Carica le variabili d'ambiente
   await dotenv.load(fileName: ".env");
 
-  // Inizializza Supabase
-  final supabaseUrl = dotenv.env['SUPABASE_URL'] ?? '';
-  final supabaseAnonKey = dotenv.env['SUPABASE_ANON_KEY'] ?? '';
-  
-  if (supabaseUrl.isNotEmpty && supabaseAnonKey.isNotEmpty && supabaseUrl != 'inserisci_il_tuo_url_qui') {
-    await Supabase.initialize(
-      url: supabaseUrl,
-      anonKey: supabaseAnonKey,
-    );
-  } else {
+  // Inizializza Supabase. If env is missing/placeholder, init with a placeholder
+  // URL so Supabase.instance.client doesn't throw — calls will fail at runtime
+  // instead of crashing the app at startup.
+  final envUrl = dotenv.env['SUPABASE_URL'] ?? '';
+  final envAnonKey = dotenv.env['SUPABASE_ANON_KEY'] ?? '';
+  final hasRealConfig = envUrl.isNotEmpty &&
+      envAnonKey.isNotEmpty &&
+      envUrl != 'inserisci_il_tuo_url_qui' &&
+      envAnonKey != 'inserisci_la_tua_anon_key_qui';
+
+  if (!hasRealConfig) {
     debugPrint("ATTENZIONE: Variabili d'ambiente Supabase non configurate correttamente nel file .env");
   }
+
+  await Supabase.initialize(
+    url: hasRealConfig ? envUrl : 'https://placeholder.supabase.co',
+    anonKey: hasRealConfig
+        ? envAnonKey
+        : 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJyb2xlIjoiYW5vbiIsImlhdCI6MTYwMDAwMDAwMCwiZXhwIjoyMDAwMDAwMDAwfQ.placeholder',
+  );
 
   final appState = AppState();
   await appState.init();

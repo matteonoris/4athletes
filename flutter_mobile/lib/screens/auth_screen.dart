@@ -370,26 +370,28 @@ class _AuthScreenState extends State<AuthScreen> with SingleTickerProviderStateM
                 ),
               ),
             ),
-            const SizedBox(width: 16),
-            Expanded(
-              child: ElevatedButton.icon(
-                onPressed: () {
-                  HapticFeedback.lightImpact();
-                  _handleAppleSignIn();
-                },
-                icon: Icon(PhosphorIcons.appleLogo(PhosphorIconsStyle.fill), color: Colors.white, size: 20),
-                label: const Text('Apple', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: AppTheme.card,
-                  padding: const EdgeInsets.symmetric(vertical: 14),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(16),
-                    side: BorderSide(color: Colors.white.withValues(alpha: 0.05)),
+            if (Provider.of<AppState>(context, listen: false).isAppleSignInAvailable) ...[
+              const SizedBox(width: 16),
+              Expanded(
+                child: ElevatedButton.icon(
+                  onPressed: () {
+                    HapticFeedback.lightImpact();
+                    _handleAppleSignIn();
+                  },
+                  icon: Icon(PhosphorIcons.appleLogo(PhosphorIconsStyle.fill), color: Colors.white, size: 20),
+                  label: const Text('Apple', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: AppTheme.card,
+                    padding: const EdgeInsets.symmetric(vertical: 14),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(16),
+                      side: BorderSide(color: Colors.white.withValues(alpha: 0.05)),
+                    ),
+                    elevation: 0,
                   ),
-                  elevation: 0,
                 ),
               ),
-            ),
+            ],
           ],
         ),
 
@@ -618,21 +620,23 @@ class _AuthScreenState extends State<AuthScreen> with SingleTickerProviderStateM
             elevation: 0,
           ),
         ),
-        const SizedBox(height: 16),
-        ElevatedButton.icon(
-          onPressed: _handleAppleSignIn,
-          icon: Icon(PhosphorIcons.appleLogo(PhosphorIconsStyle.fill), color: Colors.white, size: 24),
-          label: const Text('Apple', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16)),
-          style: ElevatedButton.styleFrom(
-            backgroundColor: AppTheme.card,
-            padding: const EdgeInsets.symmetric(vertical: 18),
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(16),
-              side: BorderSide(color: Colors.white.withValues(alpha: 0.05)),
+        if (Provider.of<AppState>(context, listen: false).isAppleSignInAvailable) ...[
+          const SizedBox(height: 16),
+          ElevatedButton.icon(
+            onPressed: _handleAppleSignIn,
+            icon: Icon(PhosphorIcons.appleLogo(PhosphorIconsStyle.fill), color: Colors.white, size: 24),
+            label: const Text('Apple', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16)),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppTheme.card,
+              padding: const EdgeInsets.symmetric(vertical: 18),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(16),
+                side: BorderSide(color: Colors.white.withValues(alpha: 0.05)),
+              ),
+              elevation: 0,
             ),
-            elevation: 0,
           ),
-        ),
+        ],
         const Spacer(),
         _buildAlreadyAccount()
       ],
