@@ -434,6 +434,9 @@ class _AddTrainingScreenState extends State<AddTrainingScreen> {
                             onTap: () async {
                               HapticFeedback.lightImpact();
                               final t = await showTimePicker(
+                                context: context,
+                                initialTime: _startTime,
+                              );
                               if (t != null) setState(() => _startTime = t);
                             },
                           ),
@@ -455,6 +458,9 @@ class _AddTrainingScreenState extends State<AddTrainingScreen> {
                             onTap: () async {
                               HapticFeedback.lightImpact();
                               final t = await showTimePicker(
+                                context: context,
+                                initialTime: _endTime,
+                              );
                               if (t != null) setState(() => _endTime = t);
                             },
                           ),

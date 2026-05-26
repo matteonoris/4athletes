@@ -1,9 +1,13 @@
-import 'package:flutter/foundation.dart';
-import 'package:shared_preferences/shared_preferences.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
 import 'dart:convert';
+import 'dart:io' show Platform;
+import 'dart:math' show Random;
+import 'package:crypto/crypto.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:google_sign_in/google_sign_in.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import 'package:sign_in_with_apple/sign_in_with_apple.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import '../models/models.dart';
 
 class AppState extends ChangeNotifier {
@@ -185,6 +189,123 @@ class AppState extends ChangeNotifier {
       return response;
     } catch (e) {
       debugPrint('Error signing in with Google: $e');
+      rethrow;
+    }
+  }
+
+  bool get isAppleSignInAvailable => !kIsWeb && Platform.isIOS;
+
+  String _generateNonce([int length = 32]) {
+    const charset =
+        '0123456789ABCDEFGHIJKLMNOPQRSTUVXYZabcdefghijklmnopqrstuvwxyz-._';
+    final random = Random.secure();
+    return List.generate(length, (_) => charset[random.nextInt(charset.length)])
+        .join();
+  }
+
+  String _sha256ofString(String input) {
+    final bytes = utf8.encode(input);
+    final digest = sha256.convert(bytes);
+    return digest.toString();
+  }
+
+  Future<AuthResponse?> signInWithApple() async {
+    try {
+      final rawNonce = _generateNonce();
+      final hashedNonce = _sha256ofString(rawNonce);
+
+      final credential = await SignInWithApple.getAppleIDCredential(
+        scopes: [
+          AppleIDAuthorizationScopes.email,
+          AppleIDAuthorizationScopes.fullName,
+        ],
+        nonce: hashedNonce,
+      );
+
+      final idToken = credential.identityToken;
+      if (idToken == null) {
+        throw 'No ID Token from Apple.';
+      }
+
+      final response = await _supabase.auth.signInWithIdToken(
+        provider: OAuthProvider.apple,
+        idToken: idToken,
+        nonce: rawNonce,
+      );
+
+      if (response.user != null) {
+        final userId = response.user!.id;
+        final profileData = await _supabase
+            .from('profiles')
+            .select()
+            .eq('id', userId)
+            .maybeSingle();
+
+        if (profileData == null) {
+          final firstName = credential.givenName ?? 'Nuovo';
+          final lastName = credential.familyName ?? 'Utente';
+          final email = credential.email ?? response.user!.email ?? '';
+
+          final newUserProfile = UserProfile(
+            firstName: firstName,
+            lastName: lastName,
+            email: email,
+            birthDate: '2000-01-01',
+            role: 'athlete',
+            weight: 70.0,
+            height: 175.0,
+            maxHr: 190,
+            avatarUrl: '',
+            unitSystem: 'metric',
+            language: 'it',
+            notificationsEnabled: true,
+            connectedDevices: [],
+            oneRepMax: {},
+          );
+
+          await _supabase.from('profiles').insert({
+            'id': userId,
+            'first_name': newUserProfile.firstName,
+            'last_name': newUserProfile.lastName,
+            'email': newUserProfile.email,
+            'birth_date': newUserProfile.birthDate,
+            'role': newUserProfile.role,
+            'weight': newUserProfile.weight,
+            'height': newUserProfile.height,
+            'max_hr': newUserProfile.maxHr,
+            'avatar_url': newUserProfile.avatarUrl,
+          });
+
+          _userProfile = newUserProfile;
+        } else {
+          _userProfile = UserProfile(
+            firstName: profileData['first_name'] ?? '',
+            lastName: profileData['last_name'] ?? '',
+            email: profileData['email'] ?? '',
+            birthDate: profileData['birth_date'] ?? '2000-01-01',
+            role: profileData['role'] ?? 'athlete',
+            weight: (profileData['weight'] as num?)?.toDouble() ?? 70.0,
+            height: (profileData['height'] as num?)?.toDouble() ?? 175.0,
+            maxHr: profileData['max_hr'] ?? 190,
+            avatarUrl: profileData['avatar_url'] ?? '',
+            unitSystem: _prefs!.getString('unitSystem') ?? 'metric',
+            language: _prefs!.getString('language') ?? 'it',
+            notificationsEnabled:
+                _prefs!.getBool('notificationsEnabled') ?? true,
+            connectedDevices: [],
+            oneRepMax: {},
+          );
+        }
+
+        _isLoggedIn = true;
+        _prefs!.setBool('isLoggedIn', true);
+        await _loadAllData();
+        notifyListeners();
+      }
+
+      return response;
+    } catch (e) {
+      debugPrint('Error signing in with Apple: $e');
       rethrow;
     }
   }

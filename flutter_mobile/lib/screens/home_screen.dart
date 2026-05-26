@@ -282,8 +282,11 @@ class _DashboardViewState extends State<_DashboardView> {
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                Text('Andamento Stagionale',
-                    style: Theme.of(context).textTheme.titleLarge),
+                Expanded(
+                  child: Text('Andamento Stagionale',
+                      style: Theme.of(context).textTheme.titleLarge,
+                      overflow: TextOverflow.ellipsis),
+                ),
                 DropdownButton<String>(
                   value: _selectedSeason,
                   dropdownColor: AppTheme.surface,
@@ -318,21 +321,31 @@ class _DashboardViewState extends State<_DashboardView> {
                                 size: 22,
                               ),
                             const SizedBox(width: 8),
-                            Text('CAMBI DI DIR.',
-                                style: Theme.of(context)
-                                    .textTheme
-                                    .bodySmall
-                                    ?.copyWith(
-                                        fontWeight: FontWeight.bold,
-                                        color: AppTheme.textMediumEmphasis)),
-                            Text(' (PALI)',
-                                style: Theme.of(context)
-                                    .textTheme
-                                    .bodySmall
-                                    ?.copyWith(
-                                        fontSize: 9,
-                                        color: AppTheme.textMediumEmphasis
-                                            .withValues(alpha: 0.6))),
+                            Expanded(
+                              child: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Flexible(
+                                    child: Text('CAMBI DI DIR.',
+                                        overflow: TextOverflow.ellipsis,
+                                        style: Theme.of(context)
+                                            .textTheme
+                                            .bodySmall
+                                            ?.copyWith(
+                                                fontWeight: FontWeight.bold,
+                                                color: AppTheme.textMediumEmphasis)),
+                                  ),
+                                  Text(' (PALI)',
+                                      style: Theme.of(context)
+                                          .textTheme
+                                          .bodySmall
+                                          ?.copyWith(
+                                              fontSize: 9,
+                                              color: AppTheme.textMediumEmphasis
+                                                  .withValues(alpha: 0.6))),
+                                ],
+                              ),
+                            ),
                           ],
                         ),
                         const SizedBox(height: 8),
@@ -403,13 +416,16 @@ class _DashboardViewState extends State<_DashboardView> {
                             const Icon(Icons.fitness_center,
                                 color: Colors.orange, size: 20),
                             const SizedBox(width: 8),
-                            Text('ORE IN PALESTRA',
-                                style: Theme.of(context)
-                                    .textTheme
-                                    .bodySmall
-                                    ?.copyWith(
-                                        fontWeight: FontWeight.bold,
-                                        color: AppTheme.textMediumEmphasis)),
+                            Expanded(
+                              child: Text('ORE IN PALESTRA',
+                                  overflow: TextOverflow.ellipsis,
+                                  style: Theme.of(context)
+                                      .textTheme
+                                      .bodySmall
+                                      ?.copyWith(
+                                          fontWeight: FontWeight.bold,
+                                          color: AppTheme.textMediumEmphasis)),
+                            ),
                           ],
                         ),
                         const SizedBox(height: 8),

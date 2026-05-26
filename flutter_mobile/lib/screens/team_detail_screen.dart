@@ -161,10 +161,20 @@ class _TeamDetailScreenState extends State<TeamDetailScreen> {
     return PhosphorIcons.trendUp();
   }
 
+  final GlobalKey _shareButtonKey = GlobalKey();
+
   void _shareCode() {
-    // ignore: deprecated_member_use
-    Share.share(
-        'Unisciti al mio team su 4Athletes! Usa il codice: ${widget.team.inviteCode}');
+    final box = _shareButtonKey.currentContext?.findRenderObject() as RenderBox?;
+    final origin = box != null
+        ? box.localToGlobal(Offset.zero) & box.size
+        : const Rect.fromLTWH(0, 0, 1, 1);
+    SharePlus.instance.share(
+      ShareParams(
+        text:
+            'Unisciti al mio team su 4Athletes! Usa il codice: ${widget.team.inviteCode}',
+        sharePositionOrigin: origin,
+      ),
+    );
   }
 
   void _copyCode() {
@@ -281,6 +291,7 @@ class _TeamDetailScreenState extends State<TeamDetailScreen> {
                     ),
                   ),
                   ElevatedButton(
+                    key: _shareButtonKey,
                     onPressed: _shareCode,
                     style: ElevatedButton.styleFrom(
                       backgroundColor: Colors.white,
