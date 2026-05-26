@@ -521,7 +521,7 @@ class _AuthScreenState extends State<AuthScreen> with SingleTickerProviderStateM
               children: [
                 Container(
                   padding: const EdgeInsets.all(12),
-                  decoration: const BoxDecoration(color: Color(0xFF1B2E3D), borderRadius: BorderRadius.circular(16)),
+                  decoration: BoxDecoration(color: const Color(0xFF1B2E3D), borderRadius: BorderRadius.circular(16)),
                   child: const Icon(PhosphorIconsRegular.user, color: Colors.white, size: 28),
                 ),
                 const SizedBox(height: 20),
@@ -550,7 +550,7 @@ class _AuthScreenState extends State<AuthScreen> with SingleTickerProviderStateM
               children: [
                 Container(
                   padding: const EdgeInsets.all(12),
-                  decoration: const BoxDecoration(color: Color(0xFF16322A), borderRadius: BorderRadius.circular(16)),
+                  decoration: BoxDecoration(color: const Color(0xFF16322A), borderRadius: BorderRadius.circular(16)),
                   child: const Icon(PhosphorIconsRegular.users, color: Colors.white, size: 28),
                 ),
                 const SizedBox(height: 20),
