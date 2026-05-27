@@ -1,6 +1,8 @@
-Welcome to 4athletes — the first public beta.
+This update brings several stability and usability improvements:
 
-• Sign in with Google or email + password.
-• Athlete mode: log training sessions, personal records, body metrics, and jump data.
-• Coach mode: manage teams, plan sessions on a shared calendar, and review your athletes' progress.
-• Optional Apple Health import to bring in your existing workouts.
+• Added support for Sign in with Apple on iOS.
+• Fixed Google Sign-In configurations and credentials on iOS.
+• Resolved potential crash when sharing team invite codes on iPad.
+• Improved Health/Health Connect permission request sequence.
+• Added support for athlete attendance and lap tracking on coach dashboard events.
+• Bug fixes and UI refinements.
