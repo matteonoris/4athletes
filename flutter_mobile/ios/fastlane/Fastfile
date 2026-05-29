@@ -1,7 +1,6 @@
 # encoding: utf-8
 Encoding.default_external = Encoding::UTF_8
 Encoding.default_internal = Encoding::UTF_8
-require "shellwords"
 
 default_platform(:ios)
 
@@ -90,12 +89,7 @@ def ensure_fresh_release_notes
   raise "release_notes.txt is empty — Claude must write fresh notes before release" if notes.empty?
 
   Dir.chdir(PROJECT_ROOT) do
-    if ENV["GITHUB_REF_TYPE"] == "tag" && !ENV["GITHUB_REF_NAME"].to_s.empty?
-      current_tag = Shellwords.escape(ENV["GITHUB_REF_NAME"])
-      last_tag = `git describe --tags --abbrev=0 --exclude #{current_tag} 2>/dev/null`.strip
-    else
-      last_tag = `git describe --tags --abbrev=0 2>/dev/null`.strip
-    end
+    last_tag = `git describe --tags --abbrev=0 --exclude 'testflight-*' 2>/dev/null`.strip
 
     next if last_tag.empty?
 
@@ -105,7 +99,7 @@ def ensure_fresh_release_notes
     commits_since_tag = `git rev-list #{last_tag}..HEAD -- ios/fastlane/metadata/en-US/release_notes.txt 2>/dev/null`.strip
     next unless commits_since_tag.empty?
 
-    raise "release_notes.txt hasn't been updated since tag #{last_tag}. Claude must rewrite notes before release."
+    raise "release_notes.txt hasn't been updated since tag #{last_tag}. Rewrite release notes before release."
   end
 
   UI.success("Release notes are fresh ✓")
