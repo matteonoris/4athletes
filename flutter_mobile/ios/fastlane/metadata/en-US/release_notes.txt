@@ -1,5 +1,5 @@
-TestFlight release to validate the new GitHub Actions delivery pipeline.
+TestFlight build with clearer Apple sign-in feedback.
 
-- Builds can now be produced from a GitHub tag.
-- The iOS archive is signed in CI and uploaded automatically to TestFlight.
+- Apple sign-in now shows a readable message when the provider is not enabled.
+- Keeps the login screen behavior stable while provider configuration is finalized.
 - No app data migration is required for this build.

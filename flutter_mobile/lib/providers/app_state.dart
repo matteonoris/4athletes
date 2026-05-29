@@ -363,6 +363,12 @@ class AppState extends ChangeNotifier {
       }
       debugPrint('Apple authorization error: ${e.code} – ${e.message}');
       rethrow;
+    } on AuthException catch (e) {
+      if (e.code == 'provider_disabled') {
+        throw 'Accesso con Apple non ancora abilitato. Abilita il provider Apple in Supabase Auth.';
+      }
+      debugPrint('Supabase Apple auth error: ${e.code} - ${e.message}');
+      rethrow;
     } catch (e) {
       debugPrint('Error signing in with Apple: $e');
       rethrow;

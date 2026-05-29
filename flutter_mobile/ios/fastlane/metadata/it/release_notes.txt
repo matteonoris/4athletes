@@ -1,5 +1,5 @@
-Release TestFlight per validare la nuova pipeline GitHub Actions.
+Build TestFlight con feedback più chiaro per il login Apple.
 
-- Le build possono essere prodotte da un tag GitHub.
-- L'archivio iOS viene firmato in CI e caricato automaticamente su TestFlight.
+- Il login Apple ora mostra un messaggio leggibile quando il provider non è abilitato.
+- Mantiene stabile la schermata di accesso mentre si finalizza la configurazione del provider.
 - Questa build non richiede migrazioni dei dati dell'app.
