@@ -751,23 +751,45 @@ class _CoachReportViewState extends State<_CoachReportView> {
     try {
       final supabase = Supabase.instance.client;
       final appState = Provider.of<AppState>(context, listen: false);
-      final allEvents = appState.coachEvents;
+      final teamIds = appState.teams.map((team) => team.id).toList();
 
-      // 1. Carica tutti gli atleti
+      if (teamIds.isEmpty) {
+        if (mounted) {
+          setState(() {
+            _athletes = [];
+            _isLoading = false;
+          });
+        }
+        return;
+      }
+
+      final allEvents = appState.coachEvents.where((event) {
+        final eventTeamIds = event.teamId.split(',').map((id) => id.trim());
+        return eventTeamIds.any(teamIds.contains);
+      }).toList();
+
+      // 1. Carica solo gli atleti dei team del coach
       final profilesData = await supabase
           .from('profiles')
           .select('id, first_name, last_name, role')
-          .eq('role', 'athlete');
+          .eq('role', 'athlete')
+          .inFilter('team_id', teamIds);
 
-      // 2. Carica le sessioni di preparazione atletica (escludendo sci)
-      final sessionsData = await supabase
-          .from('training_sessions')
-          .select('user_id, sport_id, duration')
-          .neq('sport_id', 'alpine_skiing');
+      final athleteIds = (profilesData as List)
+          .map((p) => p['id'] as String)
+          .toList();
+
+      final sessionsData = athleteIds.isEmpty
+          ? <dynamic>[]
+          : await supabase
+              .from('training_sessions')
+              .select('user_id, sport_id, duration')
+              .neq('sport_id', 'alpine_skiing')
+              .inFilter('user_id', athleteIds);
 
       if (mounted) {
         setState(() {
-          _athletes = (profilesData as List).map((p) {
+          _athletes = profilesData.map((p) {
             final athleteId = p['id'] as String;
             final name = '${p['first_name'] ?? ''} ${p['last_name'] ?? ''}'.trim();
             final initial = ((p['first_name'] as String? ?? 'A').isNotEmpty
@@ -804,7 +826,7 @@ class _CoachReportViewState extends State<_CoachReportView> {
 
             // Calcola ore di preparazione atletica
             int totalMinutes = 0;
-            for (final session in sessionsData as List) {
+            for (final session in sessionsData) {
               if (session['user_id'] == athleteId) {
                 final durationStr = session['duration']?.toString() ?? '0';
                 totalMinutes += int.tryParse(durationStr) ?? 0;
