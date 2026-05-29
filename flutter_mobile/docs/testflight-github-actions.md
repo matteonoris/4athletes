@@ -25,6 +25,9 @@ Nel tag:
 Il workflow si puo' lanciare anche manualmente da GitHub Actions, inserendo
 `version` e `build_number`.
 
+Il job usa il runner `macos-26` e Flutter `3.41.7`, allineato alla toolchain
+locale usata per le build iOS del progetto.
+
 ## GitHub Secrets richiesti
 
 Configura questi secret nel repository o nell'organizzazione GitHub:
