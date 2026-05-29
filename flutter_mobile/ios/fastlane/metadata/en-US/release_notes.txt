@@ -1,8 +1,5 @@
-This update brings several stability and usability improvements:
+TestFlight release to validate the new GitHub Actions delivery pipeline.
 
-• Added support for Sign in with Apple on iOS.
-• Fixed Google Sign-In configurations and credentials on iOS.
-• Resolved potential crash when sharing team invite codes on iPad.
-• Improved Health/Health Connect permission request sequence.
-• Added support for athlete attendance and lap tracking on coach dashboard events.
-• Bug fixes and UI refinements.
+- Builds can now be produced from a GitHub tag.
+- The iOS archive is signed in CI and uploaded automatically to TestFlight.
+- No app data migration is required for this build.

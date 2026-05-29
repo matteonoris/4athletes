@@ -1,6 +1,7 @@
 # encoding: utf-8
 Encoding.default_external = Encoding::UTF_8
 Encoding.default_internal = Encoding::UTF_8
+require "shellwords"
 
 default_platform(:ios)
 
@@ -13,11 +14,15 @@ AGE_RATING_CONFIG = "fastlane/app_rating_config.json"
 # ──────────────────────────────────────────────
 # Helper: Load App Store Connect API key
 # ──────────────────────────────────────────────
+def asc_key_filepath
+  ENV["ASC_KEY_FILEPATH"] || File.expand_path("~/.appstore_keys/AuthKey_#{ENV['ASC_KEY_ID']}.p8")
+end
+
 def load_api_key
   app_store_connect_api_key(
     key_id: ENV["ASC_KEY_ID"],
     issuer_id: ENV["ASC_ISSUER_ID"],
-    key_filepath: ENV["ASC_KEY_FILEPATH"] || File.expand_path("~/.appstore_keys/AuthKey_#{ENV['ASC_KEY_ID']}.p8"),
+    key_filepath: asc_key_filepath,
     in_house: false
   )
 end
@@ -85,7 +90,13 @@ def ensure_fresh_release_notes
   raise "release_notes.txt is empty — Claude must write fresh notes before release" if notes.empty?
 
   Dir.chdir(PROJECT_ROOT) do
-    last_tag = `git describe --tags --abbrev=0 2>/dev/null`.strip
+    if ENV["GITHUB_REF_TYPE"] == "tag" && !ENV["GITHUB_REF_NAME"].to_s.empty?
+      current_tag = Shellwords.escape(ENV["GITHUB_REF_NAME"])
+      last_tag = `git describe --tags --abbrev=0 --exclude #{current_tag} 2>/dev/null`.strip
+    else
+      last_tag = `git describe --tags --abbrev=0 2>/dev/null`.strip
+    end
+
     next if last_tag.empty?
 
     dirty = `git status --porcelain -- ios/fastlane/metadata/en-US/release_notes.txt`.strip
@@ -135,6 +146,68 @@ def release_notes_for_all_locales
 rescue => e
   UI.important("Could not fetch ASC locales (#{e.message}). Defaulting to en-US only.")
   { "en-US" => File.read(RELEASE_NOTES_PATH, encoding: "UTF-8") }
+end
+
+# ──────────────────────────────────────────────
+# Helper: Resolve CI-provided version without
+# mutating pubspec.yaml or creating git tags.
+# ──────────────────────────────────────────────
+def ci_version_from_options(options)
+  version_name = (options[:version] || ENV["APP_VERSION_NAME"]).to_s.strip
+  build_number = (options[:build] || options[:build_number] || ENV["APP_BUILD_NUMBER"]).to_s.strip
+
+  if version_name.empty? || build_number.empty?
+    current = read_pubspec_version
+    version_name = current[:version_name] if version_name.empty?
+    build_number = current[:build_number].to_s if build_number.empty?
+  end
+
+  raise "Invalid CI version '#{version_name}'. Expected format like 1.2.3." unless version_name.match?(/\A\d+\.\d+\.\d+\z/)
+  raise "Invalid CI build number '#{build_number}'. Expected digits only." unless build_number.match?(/\A\d+\z/)
+
+  { version_name: version_name, build_number: build_number.to_i }
+end
+
+# ──────────────────────────────────────────────
+# Helper: Build a signed IPA for App Store Connect
+# using the provided version/build number.
+# ──────────────────────────────────────────────
+def build_ios_ipa(version_name, build_number)
+  export_options_plist = ENV["EXPORT_OPTIONS_PLIST"] || "ios/ExportOptions.plist"
+
+  Bundler.with_unbundled_env do
+    Dir.chdir(PROJECT_ROOT) do
+      sh("flutter", "build", "ios",
+        "--release",
+        "--no-codesign",
+        "--build-name=#{version_name}",
+        "--build-number=#{build_number.to_s}"
+      )
+
+      sh("xcodebuild", "-workspace", "ios/Runner.xcworkspace",
+        "-scheme", "Runner",
+        "-configuration", "Release",
+        "-archivePath", "build/ios/archive/Runner.xcarchive",
+        "-destination", "generic/platform=iOS",
+        "-allowProvisioningUpdates",
+        "-authenticationKeyPath", asc_key_filepath,
+        "-authenticationKeyID", ENV["ASC_KEY_ID"],
+        "-authenticationKeyIssuerID", ENV["ASC_ISSUER_ID"],
+        "archive"
+      )
+
+      sh("xcodebuild", "-exportArchive",
+        "-archivePath", "build/ios/archive/Runner.xcarchive",
+        "-exportPath", "build/ios/ipa",
+        "-exportOptionsPlist", export_options_plist
+      )
+    end
+  end
+
+  ipa_path = Dir.glob(File.join(PROJECT_ROOT, "build", "ios", "ipa", "*.ipa")).first
+  raise "No IPA found in build/ios/ipa/" unless ipa_path
+
+  ipa_path
 end
 
 platform :ios do
@@ -202,6 +275,33 @@ platform :ios do
     end
 
     UI.success("Beta #{version_tag} uploaded to TestFlight!")
+  end
+
+  # ────────────────────────────────────────────
+  # Lane: ci_beta (GitHub Actions TestFlight)
+  # ────────────────────────────────────────────
+  desc "Build and upload to external TestFlight from CI without committing or tagging"
+  lane :ci_beta do |options|
+    api_key = load_api_key
+    ensure_fresh_release_notes
+
+    ci_version = ci_version_from_options(options)
+    UI.message("CI building v#{ci_version[:version_name]}+#{ci_version[:build_number]}")
+
+    ipa_path = build_ios_ipa(ci_version[:version_name], ci_version[:build_number])
+
+    upload_to_testflight(
+      api_key: api_key,
+      ipa: ipa_path,
+      skip_waiting_for_build_processing: false,
+      distribute_external: true,
+      groups: ["External Testers"],
+      notify_external_testers: true,
+      changelog: File.read(RELEASE_NOTES_PATH, encoding: "UTF-8"),
+      uses_non_exempt_encryption: false
+    )
+
+    UI.success("CI beta v#{ci_version[:version_name]}+#{ci_version[:build_number]} uploaded to TestFlight!")
   end
 
   # ────────────────────────────────────────────

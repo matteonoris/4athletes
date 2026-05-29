@@ -1,0 +1,202 @@
+name: TestFlight
+
+on:
+  push:
+    tags:
+      - "testflight-v*"
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Versione marketing iOS, per esempio 1.2.3"
+        required: true
+        type: string
+      build_number:
+        description: "Build number iOS, solo cifre e maggiore dei build gia' caricati per la stessa versione"
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: testflight-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  upload:
+    name: Build iOS and upload to TestFlight
+    runs-on: macos-latest
+    timeout-minutes: 90
+    defaults:
+      run:
+        working-directory: flutter_mobile
+    env:
+      ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
+      ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
+      APPSTORE_CONNECT_API_KEY_BASE64: ${{ secrets.APPSTORE_CONNECT_API_KEY_BASE64 }}
+      APPLE_CERTIFICATE_P12_BASE64: ${{ secrets.APPLE_CERTIFICATE_P12_BASE64 }}
+      APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+      APPLE_PROVISIONING_PROFILE_BASE64: ${{ secrets.APPLE_PROVISIONING_PROFILE_BASE64 }}
+      APPLE_PROVISIONING_PROFILE_NAME: ${{ secrets.APPLE_PROVISIONING_PROFILE_NAME }}
+      SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+      SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Validate required secrets
+        run: |
+          set -euo pipefail
+          missing=0
+          for name in \
+            ASC_KEY_ID \
+            ASC_ISSUER_ID \
+            APPSTORE_CONNECT_API_KEY_BASE64 \
+            APPLE_CERTIFICATE_P12_BASE64 \
+            APPLE_CERTIFICATE_PASSWORD \
+            APPLE_PROVISIONING_PROFILE_BASE64 \
+            APPLE_PROVISIONING_PROFILE_NAME \
+            SUPABASE_URL \
+            SUPABASE_ANON_KEY
+          do
+            if [ -z "${!name:-}" ]; then
+              echo "::error::Missing GitHub secret: ${name}"
+              missing=1
+            fi
+          done
+          exit "$missing"
+
+      - name: Resolve version
+        env:
+          INPUT_VERSION: ${{ github.event.inputs.version }}
+          INPUT_BUILD_NUMBER: ${{ github.event.inputs.build_number }}
+        run: |
+          set -euo pipefail
+
+          version="${INPUT_VERSION:-}"
+          build_number="${INPUT_BUILD_NUMBER:-}"
+
+          if [ "${GITHUB_REF_TYPE:-}" = "tag" ]; then
+            tag="${GITHUB_REF_NAME}"
+            if [[ "$tag" =~ ^testflight-v([0-9]+\.[0-9]+\.[0-9]+)\+([0-9]+)$ ]]; then
+              version="${BASH_REMATCH[1]}"
+              build_number="${BASH_REMATCH[2]}"
+            else
+              echo "::error::Tag '${tag}' must match testflight-v1.2.3+45"
+              exit 1
+            fi
+          fi
+
+          if [[ ! "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "::error::Invalid version '${version}'. Expected 1.2.3"
+            exit 1
+          fi
+
+          if [[ ! "$build_number" =~ ^[0-9]+$ ]]; then
+            echo "::error::Invalid build number '${build_number}'. Expected digits only"
+            exit 1
+          fi
+
+          echo "APP_VERSION_NAME=${version}" >> "$GITHUB_ENV"
+          echo "APP_BUILD_NUMBER=${build_number}" >> "$GITHUB_ENV"
+          echo "Resolved TestFlight build: ${version}+${build_number}"
+
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+
+      - name: Set up Ruby
+        uses: ruby/setup-ruby@v1
+        with:
+          working-directory: flutter_mobile/ios
+          bundler-cache: true
+
+      - name: Create runtime environment file
+        run: |
+          set -euo pipefail
+          printf 'SUPABASE_URL=%s\nSUPABASE_ANON_KEY=%s\n' \
+            "$SUPABASE_URL" \
+            "$SUPABASE_ANON_KEY" \
+            > .env
+
+      - name: Import Apple signing assets
+        run: |
+          set -euo pipefail
+
+          keychain_password="$(openssl rand -base64 32)"
+          keychain_path="${RUNNER_TEMP}/app-signing.keychain-db"
+          certificate_path="${RUNNER_TEMP}/apple_distribution.p12"
+          profile_path="${RUNNER_TEMP}/appstore.mobileprovision"
+          profile_plist_path="${RUNNER_TEMP}/appstore_profile.plist"
+          asc_key_filepath="${RUNNER_TEMP}/AuthKey_${ASC_KEY_ID}.p8"
+          export_options_path="${RUNNER_TEMP}/ExportOptions.plist"
+
+          printf '%s' "$APPSTORE_CONNECT_API_KEY_BASE64" | base64 -D > "$asc_key_filepath"
+          printf '%s' "$APPLE_CERTIFICATE_P12_BASE64" | base64 -D > "$certificate_path"
+          printf '%s' "$APPLE_PROVISIONING_PROFILE_BASE64" | base64 -D > "$profile_path"
+
+          security create-keychain -p "$keychain_password" "$keychain_path"
+          security set-keychain-settings -lut 21600 "$keychain_path"
+          security unlock-keychain -p "$keychain_password" "$keychain_path"
+          security import "$certificate_path" \
+            -P "$APPLE_CERTIFICATE_PASSWORD" \
+            -A \
+            -t cert \
+            -f pkcs12 \
+            -k "$keychain_path"
+          security list-keychains -d user -s "$keychain_path"
+          security default-keychain -s "$keychain_path"
+          security set-key-partition-list \
+            -S apple-tool:,apple:,codesign: \
+            -s \
+            -k "$keychain_password" \
+            "$keychain_path"
+
+          mkdir -p "$HOME/Library/MobileDevice/Provisioning Profiles"
+          security cms -D -i "$profile_path" > "$profile_plist_path"
+          profile_uuid="$(/usr/libexec/PlistBuddy -c 'Print UUID' "$profile_plist_path")"
+          cp "$profile_path" "$HOME/Library/MobileDevice/Provisioning Profiles/${profile_uuid}.mobileprovision"
+
+          cp ios/ExportOptions.plist "$export_options_path"
+          /usr/libexec/PlistBuddy \
+            -c "Set :provisioningProfiles:com.thestolenspot.4athletes ${APPLE_PROVISIONING_PROFILE_NAME}" \
+            "$export_options_path"
+
+          echo "ASC_KEY_FILEPATH=${asc_key_filepath}" >> "$GITHUB_ENV"
+          echo "EXPORT_OPTIONS_PLIST=${export_options_path}" >> "$GITHUB_ENV"
+          echo "SIGNING_KEYCHAIN_PATH=${keychain_path}" >> "$GITHUB_ENV"
+
+      - name: Install Flutter dependencies
+        run: |
+          set -euo pipefail
+          flutter --version
+          flutter pub get
+          flutter precache --ios
+
+      - name: Install CocoaPods dependencies
+        working-directory: flutter_mobile/ios
+        run: bundle exec pod install
+
+      - name: Build and upload to TestFlight
+        working-directory: flutter_mobile/ios
+        run: bundle exec fastlane ios ci_beta version:"$APP_VERSION_NAME" build:"$APP_BUILD_NUMBER"
+
+      - name: Upload IPA artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ios-ipa-${{ env.APP_VERSION_NAME }}-${{ env.APP_BUILD_NUMBER }}
+          path: flutter_mobile/build/ios/ipa/*.ipa
+          if-no-files-found: ignore
+
+      - name: Clean up signing keychain
+        if: always()
+        run: |
+          if [ -n "${SIGNING_KEYCHAIN_PATH:-}" ]; then
+            security delete-keychain "$SIGNING_KEYCHAIN_PATH" || true
+          fi

@@ -2,6 +2,13 @@
 
 A new Flutter project.
 
+## Release TestFlight
+
+Le build iOS per TestFlight possono essere lanciate da GitHub Actions con un
+tag nel formato `testflight-v1.2.3+45`.
+
+Vedi [docs/testflight-github-actions.md](docs/testflight-github-actions.md).
+
 ## Getting Started
 
 This project is a starting point for a Flutter application.

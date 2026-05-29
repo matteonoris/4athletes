@@ -1,6 +1,5 @@
-Benvenuto in 4athletes — la prima beta pubblica.
+Release TestFlight per validare la nuova pipeline GitHub Actions.
 
-• Accedi con Google o email + password.
-• Modalità Atleta: registra sessioni, record personali, metriche fisiche e dati sui salti.
-• Modalità Allenatore: gestisci i team, pianifica le sessioni sul calendario condiviso e segui i progressi degli atleti.
-• Importazione opzionale degli allenamenti da Apple Health.
+- Le build possono essere prodotte da un tag GitHub.
+- L'archivio iOS viene firmato in CI e caricato automaticamente su TestFlight.
+- Questa build non richiede migrazioni dei dati dell'app.
