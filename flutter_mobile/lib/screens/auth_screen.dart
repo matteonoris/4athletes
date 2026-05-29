@@ -285,7 +285,7 @@ class _AuthScreenState extends State<AuthScreen> with SingleTickerProviderStateM
       mainAxisAlignment: MainAxisAlignment.center,
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        const SizedBox(height: 40),
+        const Spacer(),
         Center(
           child: ClipRRect(
             borderRadius: BorderRadius.circular(32),
@@ -309,115 +309,43 @@ class _AuthScreenState extends State<AuthScreen> with SingleTickerProviderStateM
           textAlign: TextAlign.center,
           style: Theme.of(context).textTheme.titleMedium?.copyWith(color: AppTheme.textMediumEmphasis),
         ),
-        const SizedBox(height: 48),
-
-        _buildTextField(_emailCtrl, 'Email', Icons.email_outlined),
-        const SizedBox(height: 16),
-        _buildTextField(_passCtrl, 'Password', Icons.lock_outline, true),
+        const SizedBox(height: 64),
         
-        const SizedBox(height: 24),
-        ElevatedButton(
+        ElevatedButton.icon(
           onPressed: () {
             HapticFeedback.lightImpact();
-            _submitLogin();
+            _handleGoogleSignIn();
           },
+          icon: Icon(PhosphorIcons.googleLogo(), color: Colors.blue, size: 24),
+          label: const Text('Accedi con Google', style: TextStyle(color: Colors.black, fontWeight: FontWeight.bold, fontSize: 16)),
           style: ElevatedButton.styleFrom(
-            backgroundColor: AppTheme.primary,
-            foregroundColor: Colors.white,
-            padding: const EdgeInsets.symmetric(vertical: 18),
+            backgroundColor: Colors.white,
+            padding: const EdgeInsets.symmetric(vertical: 16),
             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-            elevation: 8,
-            shadowColor: AppTheme.primary.withValues(alpha: 0.5),
-          ),
-          child: const Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Text('Accedi', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
-              SizedBox(width: 8),
-              Icon(Icons.arrow_forward, size: 20),
-            ],
+            elevation: 0,
           ),
         ),
-        
-        const SizedBox(height: 24),
-        Row(
-          children: [
-            Expanded(child: Divider(color: Colors.white.withValues(alpha: 0.1))),
-            const Padding(
-              padding: EdgeInsets.symmetric(horizontal: 16),
-              child: Text('OPPURE', style: TextStyle(color: AppTheme.textMediumEmphasis, fontSize: 12, fontWeight: FontWeight.bold, letterSpacing: 1.2)),
-            ),
-            Expanded(child: Divider(color: Colors.white.withValues(alpha: 0.1))),
-          ],
-        ),
-        const SizedBox(height: 24),
-        
-        Row(
-          children: [
-            Expanded(
-              child: ElevatedButton.icon(
-                onPressed: () {
-                  HapticFeedback.lightImpact();
-                  _handleGoogleSignIn();
-                },
-                icon: Icon(PhosphorIcons.googleLogo(), color: Colors.blue, size: 20),
-                label: const Text('Google', style: TextStyle(color: Colors.black, fontWeight: FontWeight.bold)),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.white,
-                  padding: const EdgeInsets.symmetric(vertical: 14),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-                  elevation: 0,
-                ),
-              ),
-            ),
-            if (Provider.of<AppState>(context, listen: false).isAppleSignInAvailable) ...[
-              const SizedBox(width: 16),
-              Expanded(
-                child: ElevatedButton.icon(
-                  onPressed: () {
-                    HapticFeedback.lightImpact();
-                    _handleAppleSignIn();
-                  },
-                  icon: Icon(PhosphorIcons.appleLogo(PhosphorIconsStyle.fill), color: Colors.white, size: 20),
-                  label: const Text('Apple', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: AppTheme.card,
-                    padding: const EdgeInsets.symmetric(vertical: 14),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(16),
-                      side: BorderSide(color: Colors.white.withValues(alpha: 0.05)),
-                    ),
-                    elevation: 0,
-                  ),
-                ),
-              ),
-            ],
-          ],
-        ),
-
-        const Spacer(),
-        Center(
-          child: GestureDetector(
-            onTap: () {
+        if (Provider.of<AppState>(context, listen: false).isAppleSignInAvailable) ...[
+          const SizedBox(height: 16),
+          ElevatedButton.icon(
+            onPressed: () {
               HapticFeedback.lightImpact();
-              setState(() {
-                _isLogin = false;
-                _signupStep = 1;
-                _animationController.forward(from: 0);
-              });
+              _handleAppleSignIn();
             },
-            child: RichText(
-              text: const TextSpan(
-                text: 'Non hai un account? ',
-                style: TextStyle(color: AppTheme.textMediumEmphasis, fontSize: 14),
-                children: [
-                  TextSpan(text: 'Iscriviti', style: TextStyle(color: AppTheme.primary, fontWeight: FontWeight.bold)),
-                ],
+            icon: Icon(PhosphorIcons.appleLogo(PhosphorIconsStyle.fill), color: Colors.white, size: 24),
+            label: const Text('Accedi con Apple', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16)),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppTheme.card,
+              padding: const EdgeInsets.symmetric(vertical: 16),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(16),
+                side: BorderSide(color: Colors.white.withValues(alpha: 0.05)),
               ),
+              elevation: 0,
             ),
           ),
-        ),
-        const SizedBox(height: 20),
+        ],
+        const Spacer(flex: 2),
       ],
     );
   }
