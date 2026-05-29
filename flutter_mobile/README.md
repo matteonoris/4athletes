@@ -9,6 +9,9 @@ tag nel formato `testflight-v1.2.3+45`.
 
 Vedi [docs/testflight-github-actions.md](docs/testflight-github-actions.md).
 
+Per un agente AI che deve eseguire il rilascio end-to-end, vedi
+[docs/ai-release-runbook.md](docs/ai-release-runbook.md).
+
 ## Getting Started
 
 This project is a starting point for a Flutter application.
