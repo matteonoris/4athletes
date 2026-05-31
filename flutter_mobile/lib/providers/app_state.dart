@@ -1,15 +1,20 @@
 import 'dart:convert';
-import 'dart:io' show Platform;
+import 'dart:io';
 import 'dart:math';
 import 'package:crypto/crypto.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
+import 'package:flutter/services.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:sign_in_with_apple/sign_in_with_apple.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:health/health.dart';
 import '../models/models.dart';
 import '../services/health_service.dart';
+import '../services/native_health_service.dart';
+import '../services/health_sync_service.dart';
+import '../utils/hrv_engine.dart';
 
 class AppState extends ChangeNotifier {
   SharedPreferences? _prefs;
@@ -56,6 +61,116 @@ class AppState extends ChangeNotifier {
   List<AppNotification> _notifications = [];
   List<AppNotification> get notifications => _notifications;
 
+  final HealthSyncService _healthSyncService = HealthSyncService();
+
+  double? _currentSleepScore;
+  double? get currentSleepScore => _currentSleepScore;
+
+  double? _currentRecoveryScore;
+  double? get currentRecoveryScore => _currentRecoveryScore;
+
+  Map<String, double>? _currentDailyMetrics;
+  Map<String, double>? get currentDailyMetrics => _currentDailyMetrics;
+
+  Map<String, List<double>>? _currentHistoricalMetrics;
+  Map<String, List<double>>? get currentHistoricalMetrics => _currentHistoricalMetrics;
+
+  bool _isSyncingHealth = false;
+  bool get isSyncingHealth => _isSyncingHealth;
+
+  bool _healthSyncCompleted = false;
+  bool get healthSyncCompleted => _healthSyncCompleted;
+
+  String? _healthSyncError;
+  String? get healthSyncError => _healthSyncError;
+
+  Future<void> syncDailyHealthData(DateTime targetDate) async {
+    _isSyncingHealth = true;
+    _healthSyncCompleted = false;
+    _healthSyncError = null;
+    notifyListeners();
+
+    String dateKey = targetDate.toIso8601String().split('T')[0];
+    
+    // Sincronizza Peso esplicitamente in modo incondizionato
+    try {
+      final weightData = await Health().getHealthDataFromTypes(
+        startTime: DateTime.now().subtract(const Duration(days: 7)),
+        endTime: DateTime.now(),
+        types: [HealthDataType.WEIGHT],
+      );
+      for (var point in weightData) {
+        if (point.value is NumericHealthValue) {
+          final val = (point.value as NumericHealthValue).numericValue;
+          final dateStr = point.dateFrom.toIso8601String().split('T')[0];
+          final exists = _bodyLogs.any((l) => l.type == 'weight' && l.date == dateStr);
+          if (!exists) {
+            addBodyLog(BodyMetricLog(id: 'weight_$dateStr', date: dateStr, type: 'weight', value: val.toDouble()));
+          }
+        }
+      }
+    } catch (e) {
+      debugPrint('Error syncing weight in syncDailyHealthData: $e');
+    }
+
+    // Controlla la cache locale
+    if (_prefs != null && _prefs!.containsKey('health_sync_$dateKey')) {
+      try {
+        final cached = jsonDecode(_prefs!.getString('health_sync_$dateKey')!);
+        _currentSleepScore = cached['sleepScore'];
+        _currentRecoveryScore = cached['recoveryScore'];
+        _currentDailyMetrics = Map<String, double>.from(cached['dailyMetrics']);
+        _currentHistoricalMetrics = (cached['historicalMetrics'] as Map<String, dynamic>).map(
+          (key, value) => MapEntry(key, List<double>.from(value)),
+        );
+        _healthSyncCompleted = true;
+        _isSyncingHealth = false;
+        notifyListeners();
+        return;
+      } catch (e) {
+        // Fallback al calcolo se la cache è corrotta
+      }
+    }
+
+    try {
+      final isLutealPhase = false; // TODO: Ottenere dal profilo utente per il genere femminile
+      final result = await _healthSyncService.fetchAndCalculateScores(isLutealPhase, targetDate);
+      _currentSleepScore = result.sleepScore;
+      _currentRecoveryScore = result.recoveryScore;
+      _currentDailyMetrics = result.dailyMetrics;
+      _currentHistoricalMetrics = result.historicalMetrics;
+
+      // Salva in cache
+      if (_prefs != null) {
+        _prefs!.setString('health_sync_$dateKey', jsonEncode({
+          'sleepScore': _currentSleepScore,
+          'recoveryScore': _currentRecoveryScore,
+          'dailyMetrics': _currentDailyMetrics,
+          'historicalMetrics': _currentHistoricalMetrics,
+        }));
+      }
+
+    } on PlatformException catch (e) {
+      if (e.message?.contains('Health Connect') == true || e.code == 'Health Connect non installato') {
+        _healthSyncError = "HEALTH_CONNECT_NOT_INSTALLED";
+      } else {
+        _healthSyncError = e.message;
+      }
+    } catch (e) {
+      String errStr = e.toString();
+      if (errStr.contains('CALIBRATION_PHASE')) {
+        _healthSyncError = "CALIBRATION_PHASE";
+      } else if (errStr.contains('Health Connect')) {
+        _healthSyncError = "HEALTH_CONNECT_NOT_INSTALLED";
+      } else {
+        _healthSyncError = errStr;
+      }
+    } finally {
+      _isSyncingHealth = false;
+      notifyListeners();
+    }
+  }
+
   Future<void> init() async {
     _prefs = await SharedPreferences.getInstance();
 
@@ -63,7 +178,6 @@ class AppState extends ChangeNotifier {
 
     if (_isLoggedIn) {
       await _loadAllData();
-      await syncHealthWorkouts();
     }
 
     _isInitialized = true;
@@ -87,7 +201,6 @@ class AppState extends ChangeNotifier {
     _prefs!.setBool('isLoggedIn', true);
     await _saveUserProfile();
     await _loadAllData();
-    await syncHealthWorkouts();
     notifyListeners();
   }
 
@@ -127,7 +240,6 @@ class AppState extends ChangeNotifier {
         _isLoggedIn = true;
         _prefs!.setBool('isLoggedIn', true);
         await _loadAllData();
-        await syncHealthWorkouts();
         notifyListeners();
       }
       return response;
@@ -150,7 +262,6 @@ class AppState extends ChangeNotifier {
         _prefs!.setBool('isLoggedIn', true);
         await _saveUserProfile();
         await _loadAllData();
-        await syncHealthWorkouts();
         notifyListeners();
       }
       return response;
@@ -246,7 +357,6 @@ class AppState extends ChangeNotifier {
           _isLoggedIn = true;
           _prefs!.setBool('isLoggedIn', true);
           await _loadAllData();
-          await syncHealthWorkouts();
         }
         notifyListeners();
       }
@@ -350,7 +460,6 @@ class AppState extends ChangeNotifier {
           _isLoggedIn = true;
           _prefs!.setBool('isLoggedIn', true);
           await _loadAllData();
-          await syncHealthWorkouts();
         }
         notifyListeners();
       }
@@ -549,6 +658,22 @@ class AppState extends ChangeNotifier {
   }
 
   // ==== SUPABASE SAVERS ====
+
+  Future<String?> uploadProfileImage(File file) async {
+    try {
+      final fileExt = file.path.split('.').last.toLowerCase();
+      final fileName = '${DateTime.now().millisecondsSinceEpoch}.$fileExt';
+      final filePath = '$userId/$fileName';
+      
+      await _supabase.storage.from('avatars').upload(filePath, file);
+      
+      final publicUrl = _supabase.storage.from('avatars').getPublicUrl(filePath);
+      return publicUrl;
+    } catch (e) {
+      debugPrint('Error uploading profile image: $e');
+      return null;
+    }
+  }
 
   Future<void> _saveUserProfile() async {
     if (_userProfile != null) {
@@ -836,10 +961,6 @@ class AppState extends ChangeNotifier {
   Future<void> syncHealthWorkouts() async {
     if (_userProfile == null) return;
     
-    // Check if health connect is enabled in user profile
-    final hasHealthConnect = _userProfile!.connectedDevices.any((d) => d.provider == 'health_connect');
-    if (!hasHealthConnect) return;
-
     try {
       final healthSessions = await HealthService().fetchRecentWorkouts(days: 7);
       
@@ -852,8 +973,89 @@ class AppState extends ChangeNotifier {
           addSession(session);
         }
       }
+
+      // Sync Health Metrics (HRV, RHR)
+      await syncDailyHealthMetrics();
+      
     } catch (e) {
       debugPrint('Error syncing health workouts: $e');
+    }
+  }
+
+  Future<void> syncDailyHealthMetrics() async {
+    try {
+      final results = await HealthService().syncDailyHealthMetrics(days: 7);
+      
+      for (var rhrLog in results['resting_hr']!) {
+        // Check if we already have a RHR log for this date
+        final exists = _bodyLogs.any((l) => l.type == 'resting_hr' && l.date == rhrLog.date);
+        if (!exists) {
+          addBodyLog(rhrLog);
+        }
+      }
+
+      // New HRV Engine logic using Native Channel
+      final rawRR = await NativeHealthService.getNightlyRRIntervals();
+      if (rawRR.isNotEmpty) {
+        final dateStr = DateTime.now().toIso8601String().split('T')[0];
+        
+        // Fetch historical HRV baselines
+        final historyRes = await _supabase
+            .from('hrv_baselines')
+            .select()
+            .eq('user_id', userId)
+            .order('date', ascending: true);
+            
+        final historicalData = List<Map<String, dynamic>>.from(historyRes);
+        String deviceSource = Platform.isIOS ? 'Apple Watch' : 'Health Connect Device';
+
+        final hrvResult = HrvEngine.processNightlyHrv(
+          rawRRIntervals: rawRR,
+          deviceSource: deviceSource,
+          historicalData: historicalData,
+        );
+
+        if (hrvResult['rmssd'] > 0) {
+          // Salva su hrv_baselines
+          await _supabase.from('hrv_baselines').upsert({
+            'user_id': userId,
+            'date': dateStr,
+            'rmssd': hrvResult['rmssd'],
+            'device_source': hrvResult['device_source'],
+            'rolling_7d': hrvResult['rolling_7d'],
+            'rolling_30d': hrvResult['rolling_30d'],
+            'rolling_180d': hrvResult['rolling_180d'],
+            'rolling_365d': hrvResult['rolling_365d'],
+            'needs_calibration': hrvResult['needs_calibration'],
+          });
+          
+          // Aggiungi in bodyLogs per i grafici esistenti
+          final exists = _bodyLogs.any((l) => l.type == 'hrv' && l.date == dateStr);
+          if (!exists) {
+            addBodyLog(BodyMetricLog(id: 'hrv_$dateStr', date: dateStr, type: 'hrv', value: hrvResult['rmssd']));
+          }
+        }
+      } else {
+        // Fallback a SDNN standard se non ci sono raw RR disponibili
+        for (var hrvLog in results['hrv']!) {
+          final exists = _bodyLogs.any((l) => l.type == 'hrv' && l.date == hrvLog.date);
+          if (!exists) {
+            addBodyLog(hrvLog);
+          }
+        }
+      }
+
+      // Sync Weight
+      if (results.containsKey('weight')) {
+        for (var weightLog in results['weight']!) {
+          final exists = _bodyLogs.any((l) => l.type == 'weight' && l.date == weightLog.date);
+          if (!exists) {
+            addBodyLog(weightLog);
+          }
+        }
+      }
+    } catch (e) {
+      debugPrint('Error syncing health metrics: $e');
     }
   }
 
@@ -1056,19 +1258,45 @@ class AppState extends ChangeNotifier {
         }
       }
 
-      // 2. Sync to Athletes (simulate by adding it to CURRENT user's _sessions)
-      TrainingSession session = TrainingSession(
-        id: '', // Will be generated
-        sportId: 'alpine_skiing', 
-        date: event.date, 
-        startTime: event.startTime,
-        endTime: event.endTime,
-        duration: '0h 0m', 
-        effort: 5, 
-        eventId: event.id,
-        details: event.technicalDetails,
-      );
-      addSession(session);
+      // 2. Sync to Athletes (manage TrainingSession for current user based on attendance)
+      bool shouldHaveSession = true;
+      if (_userProfile?.role == 'athlete' && event.attendees != null) {
+        final athleteName = '${_userProfile?.firstName ?? ''} ${_userProfile?.lastName ?? ''}'.trim();
+        final meList = event.attendees!.where((a) => a['id'] == userId || a['name'] == athleteName);
+        if (meList.isNotEmpty && meList.first['isPresent'] == false) {
+          shouldHaveSession = false;
+        }
+      }
+
+      final existingSessionIndex = _sessions.indexWhere((s) => s.eventId == event.id);
+      
+      if (shouldHaveSession) {
+        if (existingSessionIndex >= 0) {
+          TrainingSession session = _sessions[existingSessionIndex];
+          session.date = event.date;
+          session.startTime = event.startTime;
+          session.endTime = event.endTime;
+          session.details = event.technicalDetails;
+          addSession(session);
+        } else {
+          TrainingSession session = TrainingSession(
+            id: '', // Will be generated
+            sportId: 'alpine_skiing', 
+            date: event.date, 
+            startTime: event.startTime,
+            endTime: event.endTime,
+            duration: '0h 0m', 
+            effort: 5, 
+            eventId: event.id,
+            details: event.technicalDetails,
+          );
+          addSession(session);
+        }
+      } else {
+        if (existingSessionIndex >= 0) {
+          deleteSession(_sessions[existingSessionIndex].id);
+        }
+      }
 
       // 3. Handle Future Event Notifications
       _handleFutureEventNotifications(event);

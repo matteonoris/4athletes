@@ -19,6 +19,7 @@ class AthleteEventScreen extends StatefulWidget {
 class _AthleteEventScreenState extends State<AthleteEventScreen> {
   bool _isLoading = false;
   String _laps = '6';
+  bool? _currentAttendance;
 
   @override
   void initState() {
@@ -33,8 +34,13 @@ class _AthleteEventScreenState extends State<AthleteEventScreen> {
         (a) => a != null && (a['id'] == userId || a['name'] == name), 
         orElse: () => null
       );
-      if (attendee != null && attendee['laps'] != null) {
-        _laps = attendee['laps'].toString();
+      if (attendee != null) {
+        if (attendee['laps'] != null) {
+          _laps = attendee['laps'].toString();
+        }
+        if (attendee['isPresent'] != null) {
+          _currentAttendance = attendee['isPresent'] as bool?;
+        }
       }
     }
   }
@@ -48,7 +54,10 @@ class _AthleteEventScreenState extends State<AthleteEventScreen> {
   }
 
   Future<void> _handleRSVP(bool isPresent) async {
-    setState(() => _isLoading = true);
+    setState(() {
+      _isLoading = true;
+      _currentAttendance = isPresent;
+    });
     final appState = Provider.of<AppState>(context, listen: false);
     await appState.updateAthleteAttendance(widget.event, isPresent);
     
@@ -185,12 +194,12 @@ class _AthleteEventScreenState extends State<AthleteEventScreen> {
                         child: Container(
                           padding: const EdgeInsets.symmetric(vertical: 20),
                           decoration: BoxDecoration(
-                            color: Colors.green.withValues(alpha: 0.2),
+                            color: _currentAttendance == true ? Colors.green : Colors.green.withValues(alpha: 0.1),
                             borderRadius: BorderRadius.circular(16),
-                            border: Border.all(color: Colors.green),
+                            border: Border.all(color: Colors.green, width: _currentAttendance == true ? 2 : 1),
                           ),
-                          child: const Center(
-                            child: Text('SÌ, CI SARÒ', style: TextStyle(color: Colors.green, fontWeight: FontWeight.bold, fontSize: 16)),
+                          child: Center(
+                            child: Text('SÌ, CI SARÒ', style: TextStyle(color: _currentAttendance == true ? Colors.white : Colors.green, fontWeight: FontWeight.bold, fontSize: 16)),
                           ),
                         ),
                       ),
@@ -205,12 +214,12 @@ class _AthleteEventScreenState extends State<AthleteEventScreen> {
                         child: Container(
                           padding: const EdgeInsets.symmetric(vertical: 20),
                           decoration: BoxDecoration(
-                            color: AppTheme.error.withValues(alpha: 0.2),
+                            color: _currentAttendance == false ? AppTheme.error : AppTheme.error.withValues(alpha: 0.1),
                             borderRadius: BorderRadius.circular(16),
-                            border: Border.all(color: AppTheme.error),
+                            border: Border.all(color: AppTheme.error, width: _currentAttendance == false ? 2 : 1),
                           ),
-                          child: const Center(
-                            child: Text('NO, ASSENTE', style: TextStyle(color: AppTheme.error, fontWeight: FontWeight.bold, fontSize: 16)),
+                          child: Center(
+                            child: Text('NO, ASSENTE', style: TextStyle(color: _currentAttendance == false ? Colors.white : AppTheme.error, fontWeight: FontWeight.bold, fontSize: 16)),
                           ),
                         ),
                       ),

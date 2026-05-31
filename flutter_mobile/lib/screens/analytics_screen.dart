@@ -8,6 +8,7 @@ import '../widgets/custom_card.dart';
 import '../models/models.dart';
 import 'activity_details_screen.dart';
 import 'analytics_details_screen.dart';
+import 'health_metrics_screen.dart';
 
 class AnalyticsScreen extends StatefulWidget {
   const AnalyticsScreen({super.key});
@@ -481,6 +482,54 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
             );
           }),
 
+          const SizedBox(height: 32),
+
+          // CARDIO HEALTH
+          Text('SALUTE CARDIO',
+              style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                  color: AppTheme.textMediumEmphasis,
+                  letterSpacing: 1.5,
+                  fontWeight: FontWeight.bold)),
+          const SizedBox(height: 12),
+          Row(
+            children: [
+              Expanded(
+                child: GestureDetector(
+                  onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const HealthMetricsScreen(initialMetric: 'hrv'))),
+                  child: const CustomCard(
+                    padding: EdgeInsets.all(16),
+                    child: Column(
+                      children: [
+                        Icon(Icons.favorite, color: AppTheme.primary, size: 28),
+                        SizedBox(height: 8),
+                        Text('HRV', style: TextStyle(fontWeight: FontWeight.bold)),
+                        SizedBox(height: 4),
+                        Text('Vai ai grafici', style: TextStyle(fontSize: 10, color: AppTheme.textMediumEmphasis)),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: GestureDetector(
+                  onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const HealthMetricsScreen(initialMetric: 'resting_hr'))),
+                  child: const CustomCard(
+                    padding: EdgeInsets.all(16),
+                    child: Column(
+                      children: [
+                        Icon(Icons.monitor_heart, color: AppTheme.error, size: 28),
+                        SizedBox(height: 8),
+                        Text('Battiti a Riposo', style: TextStyle(fontWeight: FontWeight.bold)),
+                        SizedBox(height: 4),
+                        Text('Vai ai grafici', style: TextStyle(fontSize: 10, color: AppTheme.textMediumEmphasis)),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
           const SizedBox(height: 32),
 
           // HISTORY LISTS

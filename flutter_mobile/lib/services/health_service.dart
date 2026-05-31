@@ -18,9 +18,15 @@ class HealthService {
     HealthDataType.HEART_RATE,
     HealthDataType.ACTIVE_ENERGY_BURNED,
     HealthDataType.DISTANCE_DELTA,
+    HealthDataType.RESTING_HEART_RATE,
+    HealthDataType.HEART_RATE_VARIABILITY_SDNN,
+    HealthDataType.WEIGHT,
   ];
 
   final List<HealthDataAccess> _permissions = [
+    HealthDataAccess.READ,
+    HealthDataAccess.READ,
+    HealthDataAccess.READ,
     HealthDataAccess.READ,
     HealthDataAccess.READ,
     HealthDataAccess.READ,
@@ -161,8 +167,116 @@ class HealthService {
         return 'crossfit';
       case HealthWorkoutActivityType.ROWING:
         return 'rowing';
+      case HealthWorkoutActivityType.DOWNHILL_SKIING:
+      case HealthWorkoutActivityType.SNOWBOARDING:
+        return 'alpine_skiing';
+      case HealthWorkoutActivityType.CROSS_COUNTRY_SKIING:
+        return 'cross_country_skiing';
       default:
         return 'other'; // Fallback
+    }
+  }
+
+  Future<Map<String, List<BodyMetricLog>>> syncDailyHealthMetrics({int days = 7}) async {
+    Map<String, List<BodyMetricLog>> results = {'resting_hr': [], 'hrv': [], 'weight': []};
+    try {
+      final now = DateTime.now();
+      final startDate = now.subtract(Duration(days: days));
+
+      // Fetch Resting Heart Rate
+      List<HealthDataPoint> rhrData = await _health.getHealthDataFromTypes(
+        startTime: startDate,
+        endTime: now,
+        types: [HealthDataType.RESTING_HEART_RATE],
+      );
+
+      // Fetch HRV (SDNN)
+      List<HealthDataPoint> hrvData = await _health.getHealthDataFromTypes(
+        startTime: startDate,
+        endTime: now,
+        types: [HealthDataType.HEART_RATE_VARIABILITY_SDNN],
+      );
+
+      // Fetch Weight
+      List<HealthDataPoint> weightData = await _health.getHealthDataFromTypes(
+        startTime: startDate,
+        endTime: now,
+        types: [HealthDataType.WEIGHT],
+      );
+
+      // Process RHR (Apple Health gives one per day usually, but we group by day)
+      Map<String, List<double>> dailyRhr = {};
+      for (var point in rhrData) {
+        if (point.value is NumericHealthValue) {
+          final val = (point.value as NumericHealthValue).numericValue;
+          final dateStr = point.dateFrom.toIso8601String().split('T')[0];
+          dailyRhr.putIfAbsent(dateStr, () => []).add(val.toDouble());
+        }
+      }
+
+      dailyRhr.forEach((dateStr, values) {
+        final avg = values.reduce((a, b) => a + b) / values.length;
+        results['resting_hr']!.add(
+          BodyMetricLog(
+            id: 'rhr_$dateStr', // Temp ID
+            date: dateStr,
+            type: 'resting_hr',
+            value: avg,
+          )
+        );
+      });
+
+      // Process HRV (Only nighttime/morning: 00:00 to 08:00)
+      Map<String, List<double>> dailyHrv = {};
+      for (var point in hrvData) {
+        if (point.value is NumericHealthValue) {
+          final val = (point.value as NumericHealthValue).numericValue;
+          final hour = point.dateFrom.hour;
+          if (hour >= 0 && hour <= 8) {
+            final dateStr = point.dateFrom.toIso8601String().split('T')[0];
+            dailyHrv.putIfAbsent(dateStr, () => []).add(val.toDouble());
+          }
+        }
+      }
+
+      dailyHrv.forEach((dateStr, values) {
+        final avg = values.reduce((a, b) => a + b) / values.length;
+        results['hrv']!.add(
+          BodyMetricLog(
+            id: 'hrv_$dateStr', // Temp ID
+            date: dateStr,
+            type: 'hrv',
+            value: avg,
+          )
+        );
+      });
+
+      // Process Weight
+      Map<String, List<double>> dailyWeight = {};
+      for (var point in weightData) {
+        if (point.value is NumericHealthValue) {
+          final val = (point.value as NumericHealthValue).numericValue;
+          final dateStr = point.dateFrom.toIso8601String().split('T')[0];
+          dailyWeight.putIfAbsent(dateStr, () => []).add(val.toDouble());
+        }
+      }
+
+      dailyWeight.forEach((dateStr, values) {
+        final avg = values.reduce((a, b) => a + b) / values.length;
+        results['weight']!.add(
+          BodyMetricLog(
+            id: 'weight_$dateStr', // Temp ID
+            date: dateStr,
+            type: 'weight',
+            value: avg,
+          )
+        );
+      });
+
+      return results;
+    } catch (e) {
+      debugPrint("Error syncing daily health metrics: $e");
+      return results;
     }
   }
 }

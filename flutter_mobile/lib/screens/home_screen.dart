@@ -1,6 +1,10 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:permission_handler/permission_handler.dart';
 import 'package:provider/provider.dart';
+import 'package:url_launcher/url_launcher.dart';
+import 'package:flutter_mobile/screens/daily_readiness_details_screen.dart';
 import 'package:fl_chart/fl_chart.dart';
 import 'package:phosphor_flutter/phosphor_flutter.dart';
 import 'package:intl/intl.dart';
@@ -86,6 +90,11 @@ class _DashboardViewState extends State<_DashboardView> {
   void initState() {
     super.initState();
     _selectedSeason = _getCurrentSeason();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final appState = Provider.of<AppState>(context, listen: false);
+      appState.syncDailyHealthData(_currentDate);
+      appState.syncHealthWorkouts();
+    });
   }
 
   String _getCurrentSeason() {
@@ -126,6 +135,9 @@ class _DashboardViewState extends State<_DashboardView> {
   void _changeDate(int offset) {
     setState(() {
       _currentDate = _currentDate.add(Duration(days: offset));
+    });
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      Provider.of<AppState>(context, listen: false).syncDailyHealthData(_currentDate);
     });
   }
 
@@ -246,14 +258,14 @@ class _DashboardViewState extends State<_DashboardView> {
 
     // Weight difference calc
     double lastWeight =
-        filteredWeight.isNotEmpty ? filteredWeight.last.value : 0;
+        filteredWeight.isNotEmpty ? filteredWeight.last.value : user.weight;
     double prevWeight = filteredWeight.length > 1
         ? filteredWeight[filteredWeight.length - 2].value
         : lastWeight;
     double rawDiff = lastWeight - prevWeight;
     bool isWeightDown = rawDiff < 0;
     bool isWeightSame = rawDiff == 0;
-    String displayWeight = user.weight.toStringAsFixed(1);
+    String displayWeight = lastWeight.toStringAsFixed(1);
     String displayDiffVal = rawDiff.abs().toStringAsFixed(1);
     String diffString = '$displayDiffVal kg';
 
@@ -355,8 +367,10 @@ class _DashboardViewState extends State<_DashboardView> {
               ],
             ),
             const SizedBox(height: 16),
+            
+            _buildDailyReadiness(appState),
 
-            const SizedBox(height: 24),
+            const SizedBox(height: 8),
 
             // Season Performance
             Row(
@@ -1055,6 +1069,284 @@ class _DashboardViewState extends State<_DashboardView> {
         backgroundColor: AppTheme.primary,
         child: const Icon(Icons.add, color: AppTheme.background, size: 32),
       ),
+    );
+  }
+
+  Widget _buildDailyReadiness(AppState appState) {
+    if (appState.isSyncingHealth) {
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text('Daily Readiness', style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold, color: AppTheme.textMediumEmphasis)),
+          const SizedBox(height: 12),
+          const CustomCard(
+            padding: EdgeInsets.all(24),
+            child: Center(
+              child: Column(
+                children: [
+                  CircularProgressIndicator(color: AppTheme.primary),
+                  SizedBox(height: 16),
+                  Text('Sincronizzazione dati in corso...', style: TextStyle(color: AppTheme.textMediumEmphasis)),
+                ],
+              ),
+            ),
+          ),
+          const SizedBox(height: 24),
+        ],
+      );
+    }
+
+    if (appState.healthSyncCompleted && appState.currentRecoveryScore != null) {
+      Color getScoreColor(double score) {
+        if (score >= 80) return Colors.green;
+        if (score >= 60) return Colors.yellow[700]!;
+        if (score >= 40) return Colors.orange;
+        return Colors.red;
+      }
+
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text('Daily Readiness', style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold, color: AppTheme.textMediumEmphasis)),
+              const Row(
+                children: [
+                  Icon(Icons.check_circle, color: Colors.green, size: 16),
+                  SizedBox(width: 4),
+                  Text('Sincronizzato', style: TextStyle(color: Colors.green, fontSize: 12, fontWeight: FontWeight.bold)),
+                ],
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          Row(
+            children: [
+              Expanded(
+                child: GestureDetector(
+                  onTap: () {
+                    HapticFeedback.lightImpact();
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => DailyReadinessDetailsScreen(
+                          title: 'Sleep Score',
+                          score: appState.currentSleepScore!,
+                          dailyMetrics: appState.currentDailyMetrics ?? {},
+                          historicalMetrics: appState.currentHistoricalMetrics ?? {},
+                        ),
+                      ),
+                    );
+                  },
+                  child: CustomCard(
+                    padding: const EdgeInsets.all(16),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.center,
+                      children: [
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            const Icon(Icons.nightlight_round, color: Colors.indigoAccent, size: 16),
+                            const SizedBox(width: 8),
+                            Text('Sleep', style: Theme.of(context).textTheme.bodyMedium?.copyWith(fontWeight: FontWeight.bold, color: AppTheme.textMediumEmphasis)),
+                          ],
+                        ),
+                        const SizedBox(height: 16),
+                        Stack(
+                          alignment: Alignment.center,
+                          children: [
+                            SizedBox(
+                              width: 80,
+                              height: 80,
+                              child: CircularProgressIndicator(
+                                value: appState.currentSleepScore! / 100.0,
+                                strokeWidth: 8,
+                                backgroundColor: AppTheme.surface,
+                                color: getScoreColor(appState.currentSleepScore!),
+                              ),
+                            ),
+                            Text(
+                              appState.currentSleepScore!.toStringAsFixed(0),
+                              style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                                fontWeight: FontWeight.bold,
+                                color: getScoreColor(appState.currentSleepScore!),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: GestureDetector(
+                  onTap: () {
+                    HapticFeedback.lightImpact();
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => DailyReadinessDetailsScreen(
+                          title: 'Recovery',
+                          score: appState.currentRecoveryScore!,
+                          dailyMetrics: appState.currentDailyMetrics ?? {},
+                          historicalMetrics: appState.currentHistoricalMetrics ?? {},
+                        ),
+                      ),
+                    );
+                  },
+                  child: CustomCard(
+                    padding: const EdgeInsets.all(16),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.center,
+                      children: [
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            const Icon(Icons.battery_charging_full, color: Colors.green, size: 16),
+                            const SizedBox(width: 8),
+                            Text('Recovery', style: Theme.of(context).textTheme.bodyMedium?.copyWith(fontWeight: FontWeight.bold, color: AppTheme.textMediumEmphasis)),
+                          ],
+                        ),
+                        const SizedBox(height: 16),
+                        Stack(
+                          alignment: Alignment.center,
+                          children: [
+                            SizedBox(
+                              width: 80,
+                              height: 80,
+                              child: CircularProgressIndicator(
+                                value: appState.currentRecoveryScore! / 100.0,
+                                strokeWidth: 8,
+                                backgroundColor: AppTheme.surface,
+                                color: getScoreColor(appState.currentRecoveryScore!),
+                              ),
+                            ),
+                            Text(
+                              appState.currentRecoveryScore!.toStringAsFixed(0),
+                              style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                                fontWeight: FontWeight.bold,
+                                color: getScoreColor(appState.currentRecoveryScore!),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 24),
+        ],
+      );
+    }
+
+    if (appState.healthSyncError != null) {
+      if (appState.healthSyncError == "CALIBRATION_PHASE") {
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('Daily Readiness', style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold, color: AppTheme.textMediumEmphasis)),
+            const SizedBox(height: 12),
+            const CustomCard(
+              padding: EdgeInsets.all(24),
+              child: Center(
+                child: Column(
+                  children: [
+                    Icon(Icons.watch, color: AppTheme.textMediumEmphasis, size: 32),
+                    SizedBox(height: 16),
+                    Text('Fase di Calibrazione', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16)),
+                    SizedBox(height: 8),
+                    Text('Indossa l\'orologio durante la notte per almeno 4 giorni per sbloccare i tuoi punteggi.', textAlign: TextAlign.center, style: TextStyle(color: AppTheme.textMediumEmphasis)),
+                  ],
+                ),
+              ),
+            ),
+            const SizedBox(height: 24),
+          ],
+        );
+      }
+      
+      if (appState.healthSyncError == "HEALTH_CONNECT_NOT_INSTALLED") {
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('Daily Readiness', style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold, color: AppTheme.textMediumEmphasis)),
+            const SizedBox(height: 12),
+            CustomCard(
+              padding: const EdgeInsets.all(24),
+              child: Center(
+                child: Column(
+                  children: [
+                    const Icon(Icons.warning_amber_rounded, color: Colors.orange, size: 32),
+                    const SizedBox(height: 16),
+                    const Text('Health Connect Mancante', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16)),
+                    const SizedBox(height: 8),
+                    const Text('Per sincronizzare i tuoi dati salute su Android, è necessario installare l\'app ufficiale di Google.', textAlign: TextAlign.center, style: TextStyle(color: AppTheme.textMediumEmphasis)),
+                    const SizedBox(height: 16),
+                    ElevatedButton.icon(
+                      icon: const Icon(Icons.download, size: 18),
+                      label: const Text('Scarica dal Play Store'),
+                      onPressed: () async {
+                        final url = Uri.parse('market://details?id=com.google.android.apps.healthdata');
+                        if (await canLaunchUrl(url)) {
+                          await launchUrl(url);
+                        }
+                      },
+                    )
+                  ],
+                ),
+              ),
+            ),
+            const SizedBox(height: 24),
+          ],
+        );
+      }
+
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text('Daily Readiness', style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold, color: AppTheme.textMediumEmphasis)),
+          const SizedBox(height: 12),
+          CustomCard(
+            padding: const EdgeInsets.all(16),
+            child: Column(
+              children: [
+                Text('Errore: \${appState.healthSyncError}', style: const TextStyle(color: AppTheme.error, fontSize: 12)),
+                const SizedBox(height: 8),
+                TextButton.icon(
+                  onPressed: () {
+                    HapticFeedback.lightImpact();
+                    openAppSettings();
+                  },
+                  icon: const Icon(Icons.settings, color: AppTheme.primary, size: 16),
+                  label: const Text('Apri Impostazioni Permessi', style: TextStyle(color: AppTheme.primary, fontWeight: FontWeight.bold)),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 24),
+        ],
+      );
+    }
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text('Daily Readiness', style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold, color: AppTheme.textMediumEmphasis)),
+        const SizedBox(height: 12),
+        const CustomCard(
+          padding: EdgeInsets.all(24),
+          child: Center(
+            child: Text('Nessun dato disponibile per questa data.', style: TextStyle(color: AppTheme.textMediumEmphasis)),
+          ),
+        ),
+        const SizedBox(height: 24),
+      ],
     );
   }
 }

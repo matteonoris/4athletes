@@ -114,15 +114,30 @@ class _ProfileScreenState extends State<ProfileScreen> {
       final ImagePicker picker = ImagePicker();
       final XFile? image = await picker.pickImage(source: source);
       if (image != null) {
-        final appState = Provider.of<AppState>(context, listen: false);
-        setState(() {
-          appState.userProfile?.avatarUrl = image.path;
-        });
-        _triggerAutoSave();
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Immagine profilo aggiornata!'), backgroundColor: AppTheme.success),
+            const SnackBar(content: Text('Caricamento in corso...'), backgroundColor: AppTheme.primary),
           );
+        }
+        final appState = Provider.of<AppState>(context, listen: false);
+        final publicUrl = await appState.uploadProfileImage(File(image.path));
+        
+        if (publicUrl != null) {
+          setState(() {
+            appState.userProfile?.avatarUrl = publicUrl;
+          });
+          _triggerAutoSave();
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(content: Text('Immagine profilo aggiornata!'), backgroundColor: AppTheme.success),
+            );
+          }
+        } else {
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(content: Text('Errore di caricamento.'), backgroundColor: AppTheme.error),
+            );
+          }
         }
       }
     } catch (e) {
@@ -841,6 +856,31 @@ class _DeviceManagementModal extends StatelessWidget {
         ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
             content: Text('Connesso con successo!'),
             backgroundColor: AppTheme.success));
+            
+        // Prompt for immediate sync
+        final confirm = await showDialog<bool>(
+          context: context,
+          builder: (ctx) => AlertDialog(
+            backgroundColor: AppTheme.surface,
+            title: const Text('Sincronizza Dati', style: TextStyle(color: Colors.white)),
+            content: const Text('Vuoi importare ora gli allenamenti degli ultimi 7 giorni?', style: TextStyle(color: AppTheme.textMediumEmphasis)),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.of(ctx).pop(false),
+                child: const Text('Non ora', style: TextStyle(color: AppTheme.textMediumEmphasis)),
+              ),
+              TextButton(
+                onPressed: () => Navigator.of(ctx).pop(true),
+                child: const Text('Sincronizza', style: TextStyle(color: AppTheme.primary, fontWeight: FontWeight.bold)),
+              ),
+            ],
+          ),
+        );
+        if (confirm == true) {
+          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Sincronizzazione in corso...')));
+          await state.syncHealthWorkouts();
+          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Sincronizzazione completata!'), backgroundColor: AppTheme.success));
+        }
       } else {
         ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
             content: Text('Permessi negati o errore di connessione.'),
@@ -1009,6 +1049,36 @@ class _DeviceManagementModal extends StatelessWidget {
                               ],
                             ),
                           ),
+                          if (d.provider == 'health_connect')
+                            IconButton(
+                              icon: const Icon(Icons.sync, color: AppTheme.primary),
+                              tooltip: 'Sincronizza Allenamenti',
+                              onPressed: () async {
+                                final confirm = await showDialog<bool>(
+                                  context: context,
+                                  builder: (ctx) => AlertDialog(
+                                    backgroundColor: AppTheme.surface,
+                                    title: const Text('Sincronizza Dati', style: TextStyle(color: Colors.white)),
+                                    content: const Text('Vuoi importare gli allenamenti degli ultimi 7 giorni?', style: TextStyle(color: AppTheme.textMediumEmphasis)),
+                                    actions: [
+                                      TextButton(
+                                        onPressed: () => Navigator.of(ctx).pop(false),
+                                        child: const Text('Annulla', style: TextStyle(color: AppTheme.textMediumEmphasis)),
+                                      ),
+                                      TextButton(
+                                        onPressed: () => Navigator.of(ctx).pop(true),
+                                        child: const Text('Sincronizza', style: TextStyle(color: AppTheme.primary, fontWeight: FontWeight.bold)),
+                                      ),
+                                    ],
+                                  ),
+                                );
+                                if (confirm == true) {
+                                  ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Sincronizzazione in corso...')));
+                                  await Provider.of<AppState>(context, listen: false).syncHealthWorkouts();
+                                  ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Sincronizzazione completata!'), backgroundColor: AppTheme.success));
+                                }
+                              },
+                            ),
                           IconButton(
                             icon: const Icon(Icons.power_off,
                                 color: AppTheme.textMediumEmphasis),

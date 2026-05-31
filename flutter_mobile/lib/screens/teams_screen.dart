@@ -139,7 +139,7 @@ class _TeamsScreenState extends State<TeamsScreen> {
                                           border: Border.all(
                                               color: Colors.white
                                                   .withValues(alpha: 0.1)),
-                                          image: team.image.isNotEmpty
+                                          image: team.image.isNotEmpty && team.image.startsWith('http')
                                               ? DecorationImage(
                                                   image:
                                                       NetworkImage(team.image),
@@ -147,7 +147,7 @@ class _TeamsScreenState extends State<TeamsScreen> {
                                                 )
                                               : null,
                                         ),
-                                        child: team.image.isEmpty
+                                        child: team.image.isEmpty || !team.image.startsWith('http')
                                             ? const Center(
                                                 child: Icon(Icons.group,
                                                     color: AppTheme

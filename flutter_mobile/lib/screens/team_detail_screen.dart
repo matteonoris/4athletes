@@ -709,13 +709,13 @@ class _TeamDetailScreenState extends State<TeamDetailScreen> {
                                         decoration: BoxDecoration(
                                           color: const Color(0xFF2A313C),
                                           borderRadius: BorderRadius.circular(12),
-                                          image: athlete['avatar']?.isNotEmpty == true
+                                          image: athlete['avatar']?.isNotEmpty == true && athlete['avatar'].toString().startsWith('http')
                                               ? DecorationImage(
                                                   image: NetworkImage(athlete['avatar']),
                                                   fit: BoxFit.cover)
                                               : null,
                                         ),
-                                        child: athlete['avatar']?.isEmpty == true
+                                        child: athlete['avatar']?.isEmpty == true || !athlete['avatar'].toString().startsWith('http')
                                             ? Center(
                                                 child: Text(
                                                     athlete['name'] != null && athlete['name'].isNotEmpty
