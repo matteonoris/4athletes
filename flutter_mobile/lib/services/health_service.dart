@@ -11,14 +11,13 @@ class HealthService {
 
   final Health _health = Health();
 
-  final List<HealthDataType> _dataTypes = [
+  final List<HealthDataType> _dataTypes = Platform.isIOS ? [
     HealthDataType.WORKOUT,
     HealthDataType.STEPS,
     HealthDataType.HEART_RATE,
     HealthDataType.ACTIVE_ENERGY_BURNED,
-    HealthDataType.DISTANCE_DELTA,
     HealthDataType.RESTING_HEART_RATE,
-    Platform.isIOS ? HealthDataType.HEART_RATE_VARIABILITY_SDNN : HealthDataType.HEART_RATE_VARIABILITY_RMSSD,
+    HealthDataType.HEART_RATE_VARIABILITY_SDNN,
     HealthDataType.WEIGHT,
     HealthDataType.DISTANCE_WALKING_RUNNING,
     HealthDataType.DISTANCE_CYCLING,
@@ -26,24 +25,21 @@ class HealthService {
     HealthDataType.BLOOD_OXYGEN,
     HealthDataType.RESPIRATORY_RATE,
     HealthDataType.BODY_TEMPERATURE,
+  ] : [
+    HealthDataType.WORKOUT,
+    HealthDataType.STEPS,
+    HealthDataType.HEART_RATE,
+    HealthDataType.ACTIVE_ENERGY_BURNED,
+    HealthDataType.DISTANCE_DELTA,
+    HealthDataType.RESTING_HEART_RATE,
+    HealthDataType.HEART_RATE_VARIABILITY_RMSSD,
+    HealthDataType.WEIGHT,
+    HealthDataType.BLOOD_OXYGEN,
+    HealthDataType.RESPIRATORY_RATE,
+    HealthDataType.BODY_TEMPERATURE,
   ];
 
-  final List<HealthDataAccess> _permissions = [
-    HealthDataAccess.READ,
-    HealthDataAccess.READ,
-    HealthDataAccess.READ,
-    HealthDataAccess.READ,
-    HealthDataAccess.READ,
-    HealthDataAccess.READ,
-    HealthDataAccess.READ,
-    HealthDataAccess.READ,
-    HealthDataAccess.READ,
-    HealthDataAccess.READ,
-    HealthDataAccess.READ,
-    HealthDataAccess.READ,
-    HealthDataAccess.READ,
-    HealthDataAccess.READ,
-  ];
+  late final List<HealthDataAccess> _permissions = _dataTypes.map((e) => HealthDataAccess.READ).toList();
 
   Future<bool> requestPermissions() async {
     try {
