@@ -109,6 +109,10 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
     final recentWeightLogs = _getProcessedLogs(appState.bodyLogs, 'weight');
     final recentHeightLogs = _getProcessedLogs(appState.bodyLogs, 'height');
     final recentFatLogs = _getProcessedLogs(appState.bodyLogs, 'fat');
+    
+    final recentSpo2Logs = _getProcessedLogs(appState.bodyLogs, 'spo2');
+    final recentRespLogs = _getProcessedLogs(appState.bodyLogs, 'resp');
+    final recentTempLogs = _getProcessedLogs(appState.bodyLogs, 'temp');
 
     // Recent Sessions
     final recentSessions = appState.sessions.take(3).toList();
@@ -530,6 +534,70 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
               ),
             ],
           ),
+          const SizedBox(height: 12),
+          if (recentSpo2Logs.isNotEmpty || recentRespLogs.isNotEmpty || recentTempLogs.isNotEmpty)
+            Row(
+              children: [
+                if (recentSpo2Logs.isNotEmpty)
+                  Expanded(
+                    child: GestureDetector(
+                      onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const HealthMetricsScreen(initialMetric: 'spo2'))),
+                      child: const CustomCard(
+                        padding: EdgeInsets.all(16),
+                        child: Column(
+                          children: [
+                            Icon(Icons.bloodtype, color: Colors.blueAccent, size: 28),
+                            SizedBox(height: 8),
+                            Text('SpO2', style: TextStyle(fontWeight: FontWeight.bold)),
+                            SizedBox(height: 4),
+                            Text('Vai ai grafici', style: TextStyle(fontSize: 10, color: AppTheme.textMediumEmphasis)),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+                if (recentSpo2Logs.isNotEmpty && (recentRespLogs.isNotEmpty || recentTempLogs.isNotEmpty))
+                  const SizedBox(width: 12),
+                if (recentRespLogs.isNotEmpty)
+                  Expanded(
+                    child: GestureDetector(
+                      onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const HealthMetricsScreen(initialMetric: 'resp'))),
+                      child: const CustomCard(
+                        padding: EdgeInsets.all(16),
+                        child: Column(
+                          children: [
+                            Icon(Icons.air, color: Colors.tealAccent, size: 28),
+                            SizedBox(height: 8),
+                            Text('Freq. Respiratoria', style: TextStyle(fontWeight: FontWeight.bold), textAlign: TextAlign.center),
+                            SizedBox(height: 4),
+                            Text('Vai ai grafici', style: TextStyle(fontSize: 10, color: AppTheme.textMediumEmphasis)),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+                if (recentRespLogs.isNotEmpty && recentTempLogs.isNotEmpty)
+                  const SizedBox(width: 12),
+                if (recentTempLogs.isNotEmpty)
+                  Expanded(
+                    child: GestureDetector(
+                      onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const HealthMetricsScreen(initialMetric: 'temp'))),
+                      child: const CustomCard(
+                        padding: EdgeInsets.all(16),
+                        child: Column(
+                          children: [
+                            Icon(Icons.thermostat, color: Colors.orangeAccent, size: 28),
+                            SizedBox(height: 8),
+                            Text('Temperatura', style: TextStyle(fontWeight: FontWeight.bold)),
+                            SizedBox(height: 4),
+                            Text('Vai ai grafici', style: TextStyle(fontSize: 10, color: AppTheme.textMediumEmphasis)),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+              ],
+            ),
           const SizedBox(height: 32),
 
           // HISTORY LISTS

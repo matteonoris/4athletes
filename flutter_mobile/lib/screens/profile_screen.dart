@@ -11,6 +11,7 @@ import '../models/models.dart';
 import '../providers/app_state.dart';
 import '../services/health_service.dart';
 import 'auth_screen.dart';
+import 'hr_zones_screen.dart';
 
 class ProfileScreen extends StatefulWidget {
   const ProfileScreen({super.key});
@@ -721,6 +722,57 @@ class _ProfileScreenState extends State<ProfileScreen> {
                         ),
                       Divider(color: Colors.white.withValues(alpha: 0.05), height: 1),
 
+                      // Heart Rate Zones
+                      ListTile(
+                        onTap: () {
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                                builder: (_) => const HrZonesScreen()),
+                          );
+                        },
+                        leading: Container(
+                          padding: const EdgeInsets.all(8),
+                          decoration: BoxDecoration(
+                              color: AppTheme.secondary.withValues(alpha: 0.1),
+                              shape: BoxShape.circle),
+                          child: const Icon(Icons.favorite_outline,
+                              color: AppTheme.secondary, size: 16),
+                        ),
+                        title: const Text('Zone Cardiache',
+                            style: TextStyle(
+                                fontWeight: FontWeight.w500, fontSize: 14)),
+                        trailing: const Icon(Icons.keyboard_arrow_right,
+                            size: 16, color: AppTheme.textMediumEmphasis),
+                      ),
+                      Divider(color: Colors.white.withValues(alpha: 0.05), height: 1),
+
+                      // Health Permissions (Apple Health / Google Health Connect)
+                      ListTile(
+                        onTap: () async {
+                          // Ask for permissions which will also initialize the service
+                          await HealthService().requestPermissions();
+                          // Open app settings since OS-level permissions usually need manual toggling after first time
+                          openAppSettings();
+                        },
+                        leading: Container(
+                          padding: const EdgeInsets.all(8),
+                          decoration: BoxDecoration(
+                              color: AppTheme.secondary.withValues(alpha: 0.1),
+                              shape: BoxShape.circle),
+                          child: const Icon(Icons.health_and_safety_outlined,
+                              color: AppTheme.secondary, size: 16),
+                        ),
+                        title: const Text('Consensi Salute',
+                            style: TextStyle(
+                                fontWeight: FontWeight.w500, fontSize: 14)),
+                        subtitle: Text(Platform.isIOS ? 'Apple Health' : 'Health Connect', 
+                            style: const TextStyle(fontSize: 10, color: AppTheme.textMediumEmphasis)),
+                        trailing: const Icon(Icons.open_in_new,
+                            size: 16, color: AppTheme.textMediumEmphasis),
+                      ),
+                      Divider(color: Colors.white.withValues(alpha: 0.05), height: 1),
+
                       // Connected Devices
                       ListTile(
                         onTap: _showDeviceModal,
@@ -889,7 +941,7 @@ class _DeviceManagementModal extends StatelessWidget {
       return;
     }
 
-    // Simulate Connect for other mocks
+    // Simulate Connect for other devices
     final state = Provider.of<AppState>(context, listen: false);
     final p = state.userProfile!;
     p.connectedDevices.add(ConnectedDevice(

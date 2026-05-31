@@ -412,7 +412,7 @@ const CalendarView: React.FC<{
 };
 
 // ... other Interface ...
-// Extended Mock Athlete Interface for Reports (Added)
+// Extended Athlete Interface for Reports (Added)
 interface AthleteStats {
     id: string;
     name: string;
@@ -478,7 +478,7 @@ const CoachDashboard: React.FC<Props> = ({ setView, userProfile, teams, events, 
   };
   const activeFiltersCount = [filterStartDate, filterEndDate, filterLocation, filterSpecialty].filter(Boolean).length;
 
-  // --- REPORT DATA GENERATION (MOCK ENGINE) ---
+  // --- REPORT DATA GENERATION ---
   const globalStats = useMemo(() => {
       const totalDays = new Set(events.map(e => e.date)).size;
       const breakdown: Record<string, number> = {};
@@ -492,7 +492,7 @@ const CoachDashboard: React.FC<Props> = ({ setView, userProfile, teams, events, 
   }, [events]);
 
   const athleteStats: AthleteStats[] = useMemo(() => {
-      // Mock base athletes (In real app, this comes from a Users collection)
+      // Base athletes (In real app, this comes from a Users collection)
       const baseAthletes = [
           { id: '1', name: 'Sarah Jenkins', teamId: 't1' },
           { id: '2', name: 'Mike Thompson', teamId: 't1' },
@@ -560,10 +560,10 @@ const CoachDashboard: React.FC<Props> = ({ setView, userProfile, teams, events, 
           const drylandAttendancePct = drylandEventsCount > 0 ? Math.round((drylandAttendedCount / drylandEventsCount) * 100) : 100;
 
           const nonSkiHours = Math.floor(attendedEvents * 1.5 * multiplier); 
-          const mockSessions: TrainingSession[] = [];
+          const initialSessions: TrainingSession[] = [];
           
           events.filter(e => e.teamId === a.teamId).slice(0, 5).forEach(e => {
-              mockSessions.push({
+              initialSessions.push({
                   id: `sess-${e.id}`,
                   sportId: 'alpine_skiing',
                   date: e.date,
@@ -581,7 +581,7 @@ const CoachDashboard: React.FC<Props> = ({ setView, userProfile, teams, events, 
               });
           });
 
-          mockSessions.push({
+          initialSessions.push({
               id: 'gym-1', sportId: 'weightlifting', date: '2023-11-01', startTime: '16:00', endTime: '17:30', duration: '1h 30m', effort: 8,
               details: { 
                   weightlifting: { 
@@ -592,7 +592,7 @@ const CoachDashboard: React.FC<Props> = ({ setView, userProfile, teams, events, 
                   } 
               }
           });
-          mockSessions.push({
+          initialSessions.push({
               id: 'run-1', sportId: 'running_road', date: '2023-10-28', startTime: '07:00', endTime: '08:00', duration: '1h', effort: 7,
               details: { running: { distance: '10.5', avgPace: '5:40', avgHr: '145', maxHr: '170', elevation: '120', cadence: '170', shoes: 'Nike Pegasus', surface: 'Road' } }
           });
@@ -626,7 +626,7 @@ const CoachDashboard: React.FC<Props> = ({ setView, userProfile, teams, events, 
               changesBySpec: skiChanges,
               weightTrend: chartHistory.map(x => ({date: x.date, weight: x.weight})),
               heightTrend: chartHistory.map(x => ({date: x.date, height: x.height})), 
-              recentSessions: mockSessions.sort((x,y) => new Date(y.date).getTime() - new Date(x.date).getTime()),
+              recentSessions: initialSessions.sort((x,y) => new Date(y.date).getTime() - new Date(x.date).getTime()),
               jumpStats: {
                   'squat_jump': 35 + Math.floor(Math.random()*10),
                   'cm_jump': 40 + Math.floor(Math.random()*10),

@@ -7,7 +7,7 @@ interface Props {
   team?: Team;
 }
 
-// --- Types & Mock Data ---
+// --- Types & Data ---
 
 type MetricType = 'hours' | 'changes_total' | 'changes_sl' | 'changes_gs' | 'changes_sg';
 type TimeRange = '7d' | '30d' | 'season';

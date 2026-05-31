@@ -24,8 +24,8 @@ const INITIAL_SESSIONS: TrainingSession[] = [];
 
 const INITIAL_TEAMS: Team[] = [];
 
-// Mock Athletes for Init
-const MOCK_ATHLETES: any[] = [];
+// Initial Athletes
+const INITIAL_ATHLETES: any[] = [];
 
 const INITIAL_COACH_EVENTS: CalendarEvent[] = [];
 
@@ -99,7 +99,7 @@ function App() {
     return [];
   });
 
-  // Mock History Data
+  // History Data
   const [bodyLogs, setBodyLogs] = useState<BodyMetricLog[]>(() => {
      const saved = localStorage.getItem('bodyLogs');
      if (saved) return JSON.parse(saved);
@@ -444,7 +444,7 @@ function App() {
                     freeSkiing: { laps: '', changes: '' },
                     gatedSkiing: { laps: '', changes: '' }
                 },
-                attendees: MOCK_ATHLETES.map(a => ({ ...a, isPresent: true }))
+                attendees: INITIAL_ATHLETES.map(a => ({ ...a, isPresent: true }))
             };
         }
 

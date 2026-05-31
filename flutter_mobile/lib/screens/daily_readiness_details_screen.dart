@@ -6,19 +6,20 @@ import 'metric_trend_screen.dart';
 
 class DailyReadinessDetailsScreen extends StatelessWidget {
   final String title;
-  final double score;
+  final double? score;
   final Map<String, double> dailyMetrics;
   final Map<String, List<double>> historicalMetrics;
 
   const DailyReadinessDetailsScreen({
     Key? key,
     required this.title,
-    required this.score,
+    this.score,
     required this.dailyMetrics,
     required this.historicalMetrics,
   }) : super(key: key);
 
-  Color _getScoreColor(double score) {
+  Color _getScoreColor(double? score) {
+    if (score == null) return Colors.grey;
     if (score >= 80) return Colors.green;
     if (score >= 60) return Colors.yellow[700]!;
     if (score >= 40) return Colors.orange;
@@ -32,6 +33,7 @@ class DailyReadinessDetailsScreen extends StatelessWidget {
     // Lista di metriche da visualizzare in base al tipo
     List<Map<String, dynamic>> metricsToShow = isSleep 
       ? [
+          {'key': 'sleepRegularity', 'label': 'Regolarità Sonno (/100)', 'icon': Icons.schedule},
           {'key': 'totalSleep', 'label': 'Tempo Totale (min)', 'icon': Icons.bedtime},
           {'key': 'deepSleep', 'label': 'Sonno Profondo (min)', 'icon': Icons.nights_stay},
           {'key': 'remSleep', 'label': 'Sonno REM (min)', 'icon': Icons.remove_red_eye},
@@ -62,7 +64,7 @@ class DailyReadinessDetailsScreen extends StatelessWidget {
                 border: Border.all(color: _getScoreColor(score), width: 8),
               ),
               child: Text(
-                score.toStringAsFixed(0),
+                score != null ? score!.toStringAsFixed(0) : '--',
                 style: Theme.of(context).textTheme.displayMedium?.copyWith(
                   fontWeight: FontWeight.bold,
                   color: _getScoreColor(score),

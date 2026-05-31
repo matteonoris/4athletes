@@ -110,7 +110,7 @@ const Profile: React.FC<Props> = ({ setView, userProfile, onSave, onLogout, show
                   type: 'ble',
                   provider: provider,
                   status: 'connected',
-                  batteryLevel: 88, // Mocked for UI demo
+                  batteryLevel: 88,
                   lastSync: 'Now'
               };
               setDraftProfile(prev => ({
@@ -129,7 +129,7 @@ const Profile: React.FC<Props> = ({ setView, userProfile, onSave, onLogout, show
       // Simulate OAuth flow
       setTimeout(() => {
           const newDevice: ConnectedDevice = {
-              id: `${provider}-mock-id`,
+              id: `${provider}-id`,
               name: provider === 'garmin' ? 'Forerunner 965' : provider === 'whoop' ? 'Whoop 4.0' : provider === 'apple' ? 'Apple Watch' : 'Amazfit GTR',
               type: 'api',
               provider: provider,

@@ -70,81 +70,80 @@ class AthleteMetricsEngine {
     return _Stats(mean, std);
   }
 
-  double calculateRecoveryScore({
+  double? calculateRecoveryScore({
     required bool isLutealPhase,
-    required double rhrToday,
+    required double? rhrToday,
     required List<double> rhrHistory,
-    required double tempToday,
+    required double? tempToday,
     required List<double> tempHistory,
-    required double hrvToday,
+    required double? hrvToday,
     required List<double> hrvHistory,
     required double sleepScore,
-    required double respToday,
+    required double? respToday,
     required List<double> respHistory,
-    required double spo2Today,
+    required double? spo2Today,
     required List<double> spo2History,
   }) {
-    // Controllo Cold Start
-    int minHistory = [
-      rhrHistory.length,
-      tempHistory.length,
-      hrvHistory.length,
-      respHistory.length,
-      spo2History.length
-    ].reduce(math.min);
+    // Controllo Cold Start (richiediamo storia solo per HR e HRV)
+    int minHistory = math.min(rhrHistory.length, hrvHistory.length);
 
     if (minHistory < 4) {
-      throw CalibrationPhaseException(
-          'CALIBRATION_PHASE: Dati storici insufficienti ($minHistory giorni su 4 minimi).');
+      return null;
     }
 
     // Correzioni ormonali (Ciclo Mestruale)
     if (isLutealPhase) {
-      rhrToday -= 2.0;
-      tempToday -= 0.4;
-      hrvToday *= 1.10;
+      if (rhrToday != null) rhrToday -= 2.0;
+      if (tempToday != null) tempToday -= 0.4;
+      if (hrvToday != null) hrvToday *= 1.10;
     }
 
     // Calcolo Statistiche Storiche (Media, DevStd)
     _Stats rhrStats = _getStats(rhrHistory, 0.1);
-    _Stats tempStats = _getStats(tempHistory, 0.1);
-    _Stats respStats = _getStats(respHistory, 0.1);
-    _Stats spo2Stats = _getStats(spo2History, 0.1);
+    _Stats tempStats = tempHistory.isNotEmpty ? _getStats(tempHistory, 0.1) : _Stats(36.5, 0.1);
+    _Stats respStats = respHistory.isNotEmpty ? _getStats(respHistory, 0.1) : _Stats(14.0, 0.1);
+    _Stats spo2Stats = spo2History.isNotEmpty ? _getStats(spo2History, 0.1) : _Stats(98.0, 0.1);
 
     // HRV richiede Trasformazione Logaritmica
-    double lnHrvToday = math.log(hrvToday);
-    List<double> lnHrvHistory = hrvHistory.map((x) => math.log(x)).toList();
+    double lnHrvToday = hrvToday != null ? math.log(hrvToday > 0 ? hrvToday : 1.0) : 0.0;
+    List<double> lnHrvHistory = hrvHistory.map((x) => math.log(x > 0 ? x : 1.0)).toList();
     _Stats lnHrvStats = _getStats(lnHrvHistory, 1.0);
 
     // --- CALCOLO Z-SCORE CON DIREZIONALITÀ ---
     
-    // 1. HRV (35%) - Positiva
-    double zHrv = (lnHrvToday - lnHrvStats.mean) / lnHrvStats.std;
+    // Z-scores
+    double zHrv = hrvToday != null ? (lnHrvToday - lnHrvStats.mean) / lnHrvStats.std : 0.0;
+    double zRhr = rhrToday != null ? -((rhrToday - rhrStats.mean) / rhrStats.std) : 0.0;
     
-    // 2. RHR (20%) - Inversa
-    double zRhr = -((rhrToday - rhrStats.mean) / rhrStats.std);
+    double zTempRaw = tempToday != null ? (tempToday - tempStats.mean) / tempStats.std : 0.0;
+    double zTemp = (tempHistory.isNotEmpty && tempToday != null && zTempRaw > 0) ? -zTempRaw : 0.0;
     
-    // 3. Temperatura (15%) - Inversa SOLO SE POSITIVA
-    double zTempRaw = (tempToday - tempStats.mean) / tempStats.std;
-    double zTemp = zTempRaw > 0 ? -zTempRaw : 0.0;
-    
-    // 4. Sleep Score (15%) - Mappatura da (0-100) a (-3, +3)
     double zSleep = (sleepScore / 100.0 * 6.0) - 3.0;
     
-    // 5. Freq Respiratoria (10%) - Inversa
-    double zResp = -((respToday - respStats.mean) / respStats.std);
+    double zResp = (respHistory.isNotEmpty && respToday != null) ? -((respToday - respStats.mean) / respStats.std) : 0.0;
     
-    // 6. SpO2 (5%) - Positiva solo sui cali
-    double zSpo2Raw = (spo2Today - spo2Stats.mean) / spo2Stats.std;
-    double zSpo2 = zSpo2Raw < 0 ? zSpo2Raw : 0.0;
+    double zSpo2Raw = spo2Today != null ? (spo2Today - spo2Stats.mean) / spo2Stats.std : 0.0;
+    double zSpo2 = (spo2History.isNotEmpty && spo2Today != null && zSpo2Raw < 0) ? zSpo2Raw : 0.0;
     
-    // --- Z-TOTALE E TRASFORMAZIONE FINALE ---
-    double zTotale = (zHrv * 0.35) +
-        (zRhr * 0.20) +
-        (zTemp * 0.15) +
-        (zSleep * 0.15) +
-        (zResp * 0.10) +
-        (zSpo2 * 0.05);
+    // --- Ponderazione Dinamica (Dynamic Rebalancing) ---
+    double weightHrv = hrvToday != null ? 0.35 : 0.0;
+    double weightRhr = rhrToday != null ? 0.20 : 0.0;
+    double weightSleep = 0.15;
+    double weightTemp = (tempHistory.isNotEmpty && tempToday != null) ? 0.15 : 0.0;
+    double weightResp = (respHistory.isNotEmpty && respToday != null) ? 0.10 : 0.0;
+    double weightSpo2 = (spo2History.isNotEmpty && spo2Today != null) ? 0.05 : 0.0;
+
+    double totalWeight = weightHrv + weightRhr + weightSleep + weightTemp + weightResp + weightSpo2;
+    if (totalWeight <= 0.0) return null;
+    
+    // Se non ci sono dati, totalWeight potrebbe essere inferiore a 1.0. 
+    // Spalmiamo il peso proporzionalmente in modo che la somma sia 1.0
+    double zTotale = ((zHrv * weightHrv) +
+        (zRhr * weightRhr) +
+        (zSleep * weightSleep) +
+        (zTemp * weightTemp) +
+        (zResp * weightResp) +
+        (zSpo2 * weightSpo2)) / totalWeight;
         
     // Sigmoide
     double recoveryScore = 100.0 / (1.0 + math.exp(-kSigmoid * zTotale));

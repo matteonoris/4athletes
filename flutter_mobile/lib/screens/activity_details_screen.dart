@@ -17,6 +17,85 @@ class ActivityDetailsScreen extends StatelessWidget {
 
   const ActivityDetailsScreen({super.key, required this.session, this.sportName, this.prLogs});
 
+  Widget _buildMetric(BuildContext context, IconData icon, Color color, String value, String label) {
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: AppTheme.card,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.05)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(icon, color: color, size: 20),
+          const SizedBox(height: 8),
+          Text(value, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
+          const SizedBox(height: 4),
+          Text(label, style: const TextStyle(fontSize: 10, color: AppTheme.textMediumEmphasis)),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildHrZonesChart(BuildContext context, List<int> zoneMins) {
+    final colors = [Colors.grey, Colors.blue, Colors.green, Colors.orange, Colors.red];
+    final labels = ['Z1 Recupero', 'Z2 Fondo', 'Z3 Tempo', 'Z4 Soglia', 'Z5 Max'];
+    
+    int maxMins = zoneMins.fold(0, (max, v) => v > max ? v : max);
+    if (maxMins == 0) maxMins = 1; // avoid division by zero
+
+    return Column(
+      children: List.generate(5, (index) {
+        int mins = zoneMins[index];
+        double fraction = mins / maxMins;
+        return Padding(
+          padding: const EdgeInsets.only(bottom: 12.0),
+          child: Row(
+            children: [
+              SizedBox(
+                width: 70,
+                child: Text(labels[index], style: const TextStyle(fontSize: 10, color: AppTheme.textMediumEmphasis, fontWeight: FontWeight.bold)),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Stack(
+                  children: [
+                    Container(
+                      height: 12,
+                      decoration: BoxDecoration(
+                        color: Colors.white.withValues(alpha: 0.05),
+                        borderRadius: BorderRadius.circular(6),
+                      ),
+                    ),
+                    FractionallySizedBox(
+                      widthFactor: fraction > 0 ? fraction : 0.01,
+                      child: Container(
+                        height: 12,
+                        decoration: BoxDecoration(
+                          color: colors[index],
+                          borderRadius: BorderRadius.circular(6),
+                          boxShadow: [
+                            BoxShadow(color: colors[index].withValues(alpha: 0.3), blurRadius: 4, offset: const Offset(0, 2))
+                          ],
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 8),
+              SizedBox(
+                width: 40,
+                child: Text('${mins}m', textAlign: TextAlign.right, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
+              ),
+            ],
+          ),
+        );
+      }).toList(),
+    );
+  }
+
   String _formatKey(String key) {
     // Basic formatting for camelCase keys
     final formatted =
@@ -128,7 +207,7 @@ class ActivityDetailsScreen extends StatelessWidget {
             return _buildDetailRow(context, _formatKey(e.key), listStr.isEmpty ? 'Nessuno' : listStr);
           }
         }
-        return _buildDetailRow(context, _formatKey(e.key), e.value.toString());
+        return _buildDetailRow(context, _formatKey(e.key), e.value?.toString() ?? 'Nessuno');
       }).toList(),
     );
   }
@@ -211,25 +290,31 @@ class ActivityDetailsScreen extends StatelessWidget {
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    Row(
-                      children: [
-                        Icon(
-                            session.sportId == 'alpine_skiing'
-                                ? PhosphorIconsRegular.mountains
-                                : PhosphorIconsRegular.barbell,
-                            color: session.sportId == 'alpine_skiing'
-                                ? AppTheme.secondary
-                                : Colors.orange),
-                        const SizedBox(width: 8),
-                        Text(
-                          session.sportId.toUpperCase().replaceAll('_', ' '),
-                          style: Theme.of(context)
-                              .textTheme
-                              .titleLarge
-                              ?.copyWith(fontWeight: FontWeight.bold),
-                        ),
-                      ],
+                    Expanded(
+                      child: Row(
+                        children: [
+                          Icon(
+                              session.sportId == 'alpine_skiing'
+                                  ? PhosphorIconsRegular.mountains
+                                  : PhosphorIconsRegular.barbell,
+                              color: session.sportId == 'alpine_skiing'
+                                  ? AppTheme.secondary
+                                  : Colors.orange),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: Text(
+                              session.sportId.toUpperCase().replaceAll('_', ' '),
+                              style: Theme.of(context)
+                                  .textTheme
+                                  .titleLarge
+                                  ?.copyWith(fontWeight: FontWeight.bold),
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                        ],
+                      ),
                     ),
+                    const SizedBox(width: 16),
                     Container(
                       padding: const EdgeInsets.symmetric(
                           horizontal: 12, vertical: 6),
@@ -259,26 +344,79 @@ class ActivityDetailsScreen extends StatelessWidget {
 
           const SizedBox(height: 24),
 
-          // Sport Specific Details
-          if (session.details != null &&
-              session.details!.keys.any((k) => k != 'painZones'))
-            CustomCard(
-              padding: const EdgeInsets.all(24),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const Text('Dettagli Tecnici',
-                      style:
-                          TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
-                  const SizedBox(height: 16),
-                  _buildDetailsMap(context, session.details!, prLogs ?? Provider.of<AppState>(context, listen: false).prLogs),
-                ],
+          // Import Metrics
+          if (session.details != null) ...[
+            if (session.details!.containsKey('distance') || session.details!.containsKey('calories') || session.details!.containsKey('speed') || session.details!.containsKey('pace') || session.details!.containsKey('avg_hr'))
+              Padding(
+                padding: const EdgeInsets.only(bottom: 24),
+                child: Row(
+                  children: [
+                    if (session.details!.containsKey('distance'))
+                      Expanded(child: Padding(padding: const EdgeInsets.only(right: 8), child: _buildMetric(context, PhosphorIconsRegular.mapPin, Colors.blue, session.details!['distance']?.toString() ?? '--', 'DISTANZA'))),
+                    if (session.details!.containsKey('pace') || session.details!.containsKey('speed'))
+                      Expanded(child: Padding(padding: const EdgeInsets.only(right: 8), child: _buildMetric(context, PhosphorIconsRegular.timer, Colors.green, (session.details!['pace'] ?? session.details!['speed'])?.toString() ?? '--', session.details!.containsKey('pace') ? 'PASSO' : 'VELOCITÀ'))),
+                    if (session.details!.containsKey('avg_hr'))
+                      Expanded(child: Padding(padding: const EdgeInsets.only(right: 8), child: _buildMetric(context, PhosphorIconsRegular.heart, Colors.red, '${session.details!['avg_hr'] ?? '--'}', 'BPM MEDI'))),
+                    if (session.details!.containsKey('calories'))
+                      Expanded(child: _buildMetric(context, PhosphorIconsRegular.fire, Colors.orange, '${(session.details!['calories'] as num?)?.round() ?? '--'}', 'KCAL')),
+                  ],
+                ),
               ),
-            ),
 
-          if (session.details != null &&
-              session.details!.keys.any((k) => k != 'painZones'))
-            const SizedBox(height: 24),
+            // HR Zones Chart
+            if (session.details!.containsKey('hr_zones'))
+              Padding(
+                padding: const EdgeInsets.only(bottom: 24),
+                child: CustomCard(
+                  padding: const EdgeInsets.all(24),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Row(
+                        children: [
+                          Icon(PhosphorIconsRegular.heartbeat, color: Colors.red, size: 20),
+                          SizedBox(width: 8),
+                          Text('Zone Cardiache', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: Colors.red)),
+                        ],
+                      ),
+                      const SizedBox(height: 16),
+                      _buildHrZonesChart(context, List<int>.from(session.details!['hr_zones'])),
+                    ],
+                  ),
+                ),
+              ),
+          ],
+
+          // Sport Specific Details
+          if (session.details != null) ...[
+            Builder(
+              builder: (ctx) {
+                Map<String, dynamic> filteredDetails = Map.from(session.details!)
+                  ..removeWhere((k, v) => ['painZones', 'source', 'external_id', 'hr_zones', 'avg_hr', 'speed', 'pace', 'distance', 'calories'].contains(k));
+                
+                if (filteredDetails.isEmpty) return const SizedBox();
+                
+                return Column(
+                  children: [
+                    CustomCard(
+                      padding: const EdgeInsets.all(24),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Text('Dettagli Tecnici',
+                              style:
+                                  TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+                          const SizedBox(height: 16),
+                          _buildDetailsMap(context, filteredDetails, prLogs ?? Provider.of<AppState>(context, listen: false).prLogs),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 24),
+                  ],
+                );
+              }
+            ),
+          ],
 
           // Pain Zones
           if (hasPainZones)

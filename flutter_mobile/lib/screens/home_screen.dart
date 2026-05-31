@@ -151,8 +151,16 @@ class _DashboardViewState extends State<_DashboardView> {
     final String dateStr = _currentDate.toIso8601String().split('T')[0];
     final recentSessions =
         appState.sessions.where((s) => s.date == dateStr).toList();
-    final dailyCoachEvents =
-        appState.coachEvents.where((e) => e.date == dateStr).toList();
+    final dailyCoachEvents = appState.coachEvents.where((e) {
+      if (e.date != dateStr) return false;
+      final athleteName = '${user.firstName} ${user.lastName}'.trim();
+      final attendee = e.attendees?.cast<Map<String,dynamic>?>().firstWhere(
+        (a) => a != null && (a['id'] == user.email || a['id'] == appState.userId || a['name'] == athleteName),
+        orElse: () => null
+      );
+      if (attendee != null && attendee['isPresent'] == false) return false;
+      return true;
+    }).toList();
 
     final cutoff = DateTime.now().subtract(Duration(days: _weightChartDays));
     final filteredWeight = appState.bodyLogs
@@ -1096,7 +1104,8 @@ class _DashboardViewState extends State<_DashboardView> {
       );
     }
 
-    if (appState.healthSyncCompleted && appState.currentRecoveryScore != null) {
+    bool isCalibration = appState.healthSyncError == "CALIBRATION_PHASE";
+    if (appState.healthSyncCompleted && (appState.currentRecoveryScore != null || isCalibration)) {
       Color getScoreColor(double score) {
         if (score >= 80) return Colors.green;
         if (score >= 60) return Colors.yellow[700]!;
@@ -1111,11 +1120,14 @@ class _DashboardViewState extends State<_DashboardView> {
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               Text('Daily Readiness', style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold, color: AppTheme.textMediumEmphasis)),
-              const Row(
+              Row(
                 children: [
-                  Icon(Icons.check_circle, color: Colors.green, size: 16),
-                  SizedBox(width: 4),
-                  Text('Sincronizzato', style: TextStyle(color: Colors.green, fontSize: 12, fontWeight: FontWeight.bold)),
+                  const Icon(Icons.check_circle, color: Colors.green, size: 16),
+                  const SizedBox(width: 4),
+                  if (isCalibration)
+                    const Text('In Calibrazione', style: TextStyle(color: Colors.grey, fontSize: 12, fontWeight: FontWeight.bold))
+                  else
+                    const Text('Sincronizzato', style: TextStyle(color: Colors.green, fontSize: 12, fontWeight: FontWeight.bold)),
                 ],
               ),
             ],
@@ -1190,7 +1202,7 @@ class _DashboardViewState extends State<_DashboardView> {
                       MaterialPageRoute(
                         builder: (_) => DailyReadinessDetailsScreen(
                           title: 'Recovery',
-                          score: appState.currentRecoveryScore!,
+                          score: appState.currentRecoveryScore,
                           dailyMetrics: appState.currentDailyMetrics ?? {},
                           historicalMetrics: appState.currentHistoricalMetrics ?? {},
                         ),
@@ -1218,17 +1230,17 @@ class _DashboardViewState extends State<_DashboardView> {
                               width: 80,
                               height: 80,
                               child: CircularProgressIndicator(
-                                value: appState.currentRecoveryScore! / 100.0,
+                                value: isCalibration ? 1.0 : appState.currentRecoveryScore! / 100.0,
                                 strokeWidth: 8,
                                 backgroundColor: AppTheme.surface,
-                                color: getScoreColor(appState.currentRecoveryScore!),
+                                color: isCalibration ? Colors.grey[700] : getScoreColor(appState.currentRecoveryScore!),
                               ),
                             ),
                             Text(
-                              appState.currentRecoveryScore!.toStringAsFixed(0),
+                              isCalibration ? '--' : appState.currentRecoveryScore!.toStringAsFixed(0),
                               style: Theme.of(context).textTheme.titleLarge?.copyWith(
                                 fontWeight: FontWeight.bold,
-                                color: getScoreColor(appState.currentRecoveryScore!),
+                                color: isCalibration ? Colors.grey[400] : getScoreColor(appState.currentRecoveryScore!),
                               ),
                             ),
                           ],
@@ -1245,32 +1257,7 @@ class _DashboardViewState extends State<_DashboardView> {
       );
     }
 
-    if (appState.healthSyncError != null) {
-      if (appState.healthSyncError == "CALIBRATION_PHASE") {
-        return Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text('Daily Readiness', style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold, color: AppTheme.textMediumEmphasis)),
-            const SizedBox(height: 12),
-            const CustomCard(
-              padding: EdgeInsets.all(24),
-              child: Center(
-                child: Column(
-                  children: [
-                    Icon(Icons.watch, color: AppTheme.textMediumEmphasis, size: 32),
-                    SizedBox(height: 16),
-                    Text('Fase di Calibrazione', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16)),
-                    SizedBox(height: 8),
-                    Text('Indossa l\'orologio durante la notte per almeno 4 giorni per sbloccare i tuoi punteggi.', textAlign: TextAlign.center, style: TextStyle(color: AppTheme.textMediumEmphasis)),
-                  ],
-                ),
-              ),
-            ),
-            const SizedBox(height: 24),
-          ],
-        );
-      }
-      
+    if (appState.healthSyncError != null && appState.healthSyncError != "CALIBRATION_PHASE") {
       if (appState.healthSyncError == "HEALTH_CONNECT_NOT_INSTALLED") {
         return Column(
           crossAxisAlignment: CrossAxisAlignment.start,

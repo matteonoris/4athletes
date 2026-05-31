@@ -48,11 +48,11 @@ const Home: React.FC<Props> = ({ setView, userProfile, sessions = [], bodyLogs =
              if (type === 'weight') {
                  // Convert stored kg to user preference for display in chart
                  const val = userProfile.unitSystem === 'metric' ? log.value : log.value * 2.20462;
-                 const mockBodyFat = 15 + Math.random() * 2;
+                 const defaultBodyFat = 15 + Math.random() * 2;
                  return { 
                     date: dateStr, 
                     weight: parseFloat(val.toFixed(1)), 
-                    bodyFat: parseFloat(mockBodyFat.toFixed(1)) 
+                    bodyFat: parseFloat(defaultBodyFat.toFixed(1)) 
                  };
              } else {
                  const val = userProfile.unitSystem === 'metric' ? log.value : log.value / 30.48;

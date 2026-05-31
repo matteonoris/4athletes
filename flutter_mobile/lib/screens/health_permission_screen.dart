@@ -1,0 +1,191 @@
+import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'package:provider/provider.dart';
+import 'package:phosphor_flutter/phosphor_flutter.dart';
+import 'package:permission_handler/permission_handler.dart';
+
+import '../core/theme.dart';
+import '../providers/app_state.dart';
+import '../services/health_service.dart';
+import 'home_screen.dart';
+
+class HealthPermissionScreen extends StatefulWidget {
+  const HealthPermissionScreen({super.key});
+
+  @override
+  State<HealthPermissionScreen> createState() => _HealthPermissionScreenState();
+}
+
+class _HealthPermissionScreenState extends State<HealthPermissionScreen> {
+  bool _isLoading = false;
+
+  Future<void> _requestPermissions() async {
+    setState(() => _isLoading = true);
+    
+    // Attempt to request permissions
+    bool success = await HealthService().requestPermissions();
+    
+    if (mounted) {
+      setState(() => _isLoading = false);
+      if (success) {
+        // If successful, we can navigate home
+        _navigateToHome();
+      } else {
+        // If failed, show a message and still allow them to go to settings or skip
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Permessi non concessi completamente. Puoi gestirli in seguito.'),
+            backgroundColor: AppTheme.error,
+          ),
+        );
+      }
+    }
+  }
+
+  void _navigateToHome() {
+    Navigator.of(context).pushReplacement(
+      MaterialPageRoute(builder: (_) => const HomeScreen()),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: AppTheme.background,
+      body: SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              const SizedBox(height: 32),
+              Center(
+                child: Container(
+                  padding: const EdgeInsets.all(24),
+                  decoration: const BoxDecoration(
+                    color: AppTheme.card,
+                    shape: BoxShape.circle,
+                  ),
+                  child: const Icon(Icons.health_and_safety, color: AppTheme.primary, size: 64),
+                ),
+              ),
+              const SizedBox(height: 32),
+              const Text(
+                'I TUOI DATI SALUTE',
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  color: AppTheme.primary,
+                  fontWeight: FontWeight.w900,
+                  fontSize: 12,
+                  letterSpacing: 1.5,
+                ),
+              ),
+              const SizedBox(height: 8),
+              Text(
+                'Massimizza le tue performance',
+                textAlign: TextAlign.center,
+                style: Theme.of(context).textTheme.headlineMedium?.copyWith(
+                      color: Colors.white,
+                      fontWeight: FontWeight.w900,
+                    ),
+              ),
+              const SizedBox(height: 24),
+              const Text(
+                'Per offrirti analisi dettagliate sul tuo allenamento, recupero e sonno, 4ATHLETES necessita di accedere ai tuoi dati da Apple Health / Google Health Connect. Richiederemo i seguenti permessi:',
+                textAlign: TextAlign.center,
+                style: TextStyle(color: AppTheme.textMediumEmphasis, fontSize: 14),
+              ),
+              const SizedBox(height: 24),
+              Expanded(
+                child: Container(
+                  padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    color: AppTheme.card,
+                    borderRadius: BorderRadius.circular(16),
+                    border: Border.all(color: Colors.white.withValues(alpha: 0.05)),
+                  ),
+                  child: ListView(
+                    children: [
+                      _buildPermissionItem(PhosphorIconsRegular.heartbeat, 'Frequenza Cardiaca & HRV', 'Per valutare sforzo e recupero.'),
+                      _buildPermissionItem(PhosphorIconsRegular.personSimpleRun, 'Allenamenti e Passi', 'Per tracciare il tuo volume di allenamento.'),
+                      _buildPermissionItem(PhosphorIconsRegular.fire, 'Calorie Attive', 'Per stimare il consumo energetico.'),
+                      _buildPermissionItem(PhosphorIconsRegular.thermometer, 'Parametri Vitali', 'SpO2, temperatura, respirazione, peso e distanze.'),
+                    ],
+                  ),
+                ),
+              ),
+              const SizedBox(height: 24),
+              ElevatedButton(
+                onPressed: _isLoading ? null : () {
+                  HapticFeedback.lightImpact();
+                  _requestPermissions();
+                },
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: AppTheme.primary,
+                  foregroundColor: Colors.white,
+                  padding: const EdgeInsets.symmetric(vertical: 18),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                  elevation: 8,
+                ),
+                child: _isLoading 
+                    ? const SizedBox(height: 24, width: 24, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
+                    : const Text('Concedi Permessi', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+              ),
+              const SizedBox(height: 12),
+              OutlinedButton(
+                onPressed: () {
+                  HapticFeedback.lightImpact();
+                  openAppSettings();
+                },
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: Colors.white,
+                  side: BorderSide(color: Colors.white.withValues(alpha: 0.2)),
+                  padding: const EdgeInsets.symmetric(vertical: 16),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                ),
+                child: const Text('Apri Impostazioni di Sistema', style: TextStyle(fontWeight: FontWeight.bold)),
+              ),
+              const SizedBox(height: 12),
+              TextButton(
+                onPressed: () {
+                  HapticFeedback.lightImpact();
+                  _navigateToHome();
+                },
+                child: const Text('Salta per ora', style: TextStyle(color: AppTheme.textMediumEmphasis, fontWeight: FontWeight.bold)),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildPermissionItem(IconData icon, String title, String subtitle) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 16),
+      child: Row(
+        children: [
+          Container(
+            padding: const EdgeInsets.all(8),
+            decoration: BoxDecoration(
+              color: AppTheme.primary.withValues(alpha: 0.15),
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: Icon(icon, color: AppTheme.primary, size: 20),
+          ),
+          const SizedBox(width: 16),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(title, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 14)),
+                const SizedBox(height: 2),
+                Text(subtitle, style: const TextStyle(color: AppTheme.textMediumEmphasis, fontSize: 12)),
+              ],
+            ),
+          )
+        ],
+      ),
+    );
+  }
+}

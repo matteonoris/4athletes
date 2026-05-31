@@ -62,6 +62,8 @@ class UserProfile {
   List<ConnectedDevice> connectedDevices;
   Map<String, double>? oneRepMax;
   String? teamId;
+  String hrZoneMode;
+  List<Map<String, int>>? customHrZones;
 
   UserProfile({
     required this.firstName,
@@ -82,6 +84,8 @@ class UserProfile {
     required this.connectedDevices,
     this.oneRepMax,
     this.teamId,
+    this.hrZoneMode = 'standard',
+    this.customHrZones,
   });
 
   UserProfile copyWith({
@@ -103,6 +107,8 @@ class UserProfile {
     List<ConnectedDevice>? connectedDevices,
     Map<String, double>? oneRepMax,
     String? teamId,
+    String? hrZoneMode,
+    List<Map<String, int>>? customHrZones,
   }) {
     return UserProfile(
       firstName: firstName ?? this.firstName,
@@ -124,6 +130,8 @@ class UserProfile {
       oneRepMax: oneRepMax ??
           (this.oneRepMax != null ? Map.from(this.oneRepMax!) : null),
       teamId: teamId ?? this.teamId,
+      hrZoneMode: hrZoneMode ?? this.hrZoneMode,
+      customHrZones: customHrZones ?? this.customHrZones,
     );
   }
 
@@ -168,6 +176,12 @@ class UserProfile {
               .map((k, v) => MapEntry(k.toString(), (v as num).toDouble())))
           : null,
       teamId: json['teamId'],
+      hrZoneMode: json['hrZoneMode'] ?? 'standard',
+      customHrZones: json['customHrZones'] != null
+          ? (json['customHrZones'] as List)
+              .map((e) => Map<String, int>.from(e as Map))
+              .toList()
+          : null,
     );
   }
 
@@ -190,6 +204,8 @@ class UserProfile {
         'connectedDevices': connectedDevices.map((e) => e.toJson()).toList(),
         'oneRepMax': oneRepMax,
         'teamId': teamId,
+        'hrZoneMode': hrZoneMode,
+        'customHrZones': customHrZones,
       };
 }
 

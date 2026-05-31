@@ -102,6 +102,18 @@ class MetricTrendScreen extends StatelessWidget {
                 maxX: (history.length - 1).toDouble(),
                 minY: minVal * 0.9, // Lascia un po' di margine in basso
                 maxY: maxVal * 1.1, // Margine in alto
+                lineTouchData: LineTouchData(
+                  touchTooltipData: LineTouchTooltipData(
+                    getTooltipItems: (touchedSpots) {
+                      return touchedSpots.map((spot) {
+                        return LineTooltipItem(
+                          spot.y.toStringAsFixed(1),
+                          const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+                        );
+                      }).toList();
+                    },
+                  ),
+                ),
                 lineBarsData: [
                   LineChartBarData(
                     spots: spots,

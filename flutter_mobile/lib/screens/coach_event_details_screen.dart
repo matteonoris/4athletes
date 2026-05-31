@@ -84,7 +84,7 @@ class _CoachEventDetailsScreenState extends State<CoachEventDetailsScreen>
         _athletes = e.attendees!.map((a) => {
           'id': a['id'],
           'name': a['name'] ?? 'Atleta',
-          'selected': a['isPresent'] ?? false,
+          'isPresent': a['isPresent'],
           'laps': a['laps'] ?? 6,
         }).toList();
       });
@@ -137,7 +137,7 @@ class _CoachEventDetailsScreenState extends State<CoachEventDetailsScreen>
             loadedAthletes.add({
               'id': athleteId,
               'name': nameToShow,
-              'selected': attendee != null ? (attendee['isPresent'] ?? false) : false,
+              'isPresent': attendee != null ? attendee['isPresent'] : null,
               'laps': attendee != null ? (attendee['laps'] ?? 6) : 6,
             });
           }
@@ -151,7 +151,7 @@ class _CoachEventDetailsScreenState extends State<CoachEventDetailsScreen>
             loadedAthletes.add({
               'id': a['id'],
               'name': a['name'] ?? 'Atleta',
-              'selected': a['isPresent'] ?? false,
+              'isPresent': a['isPresent'],
               'laps': a['laps'] ?? 6,
             });
           }
@@ -265,15 +265,19 @@ class _CoachEventDetailsScreenState extends State<CoachEventDetailsScreen>
 
   void _toggleAthlete(int index) {
     setState(() {
-      _athletes[index]['selected'] = !_athletes[index]['selected'];
+      if (_athletes[index]['isPresent'] == true) {
+        _athletes[index]['isPresent'] = false;
+      } else {
+        _athletes[index]['isPresent'] = true;
+      }
     });
   }
 
   void _toggleAll() {
-    bool allSelected = _athletes.every((a) => a['selected']);
+    bool allPresent = _athletes.isNotEmpty && _athletes.every((a) => a['isPresent'] == true);
     setState(() {
       for (var a in _athletes) {
-        a['selected'] = !allSelected;
+        a['isPresent'] = !allPresent;
       }
     });
   }
@@ -306,11 +310,11 @@ class _CoachEventDetailsScreenState extends State<CoachEventDetailsScreen>
           'changes': _paliPorteCtrl.text
         }
       },
-      attendees: _athletes.where((a) => a['selected'] == true).map((a) {
+      attendees: _athletes.where((a) => a['isPresent'] != null).map((a) {
         return {
           'id': a['id'] ?? a['name'],
           'name': a['name'],
-          'isPresent': true,
+          'isPresent': a['isPresent'],
           'laps': a['laps']
         };
       }).toList(),
@@ -1012,7 +1016,7 @@ class _CoachEventDetailsScreenState extends State<CoachEventDetailsScreen>
             (a) => a['name'].toLowerCase().contains(_searchQuery.toLowerCase()))
         .toList();
     bool allSelected = filteredAthletes.isNotEmpty &&
-        filteredAthletes.every((a) => a['selected']);
+        filteredAthletes.every((a) => a['isPresent'] == true);
     return ListView(
       padding: const EdgeInsets.all(24),
       children: [
@@ -1231,7 +1235,9 @@ class _CoachEventDetailsScreenState extends State<CoachEventDetailsScreen>
 
   Widget _buildAthleteCheckRow(int index) {
     var athlete = _athletes[index];
-    bool isSelected = athlete['selected'];
+    bool isSelected = athlete['isPresent'] == true;
+    bool isAbsent = athlete['isPresent'] == false;
+    
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
       decoration: BoxDecoration(
@@ -1240,7 +1246,7 @@ class _CoachEventDetailsScreenState extends State<CoachEventDetailsScreen>
           border: Border.all(
               color: isSelected
                   ? AppTheme.primary.withOpacity(0.5)
-                  : Colors.white.withOpacity(0.05))),
+                  : (isAbsent ? AppTheme.error.withOpacity(0.5) : Colors.white.withOpacity(0.05)))),
       child: InkWell(
         onTap: () => _toggleAthlete(index),
         borderRadius: BorderRadius.circular(12),
@@ -1248,19 +1254,31 @@ class _CoachEventDetailsScreenState extends State<CoachEventDetailsScreen>
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
           child: Row(
             children: [
-              Icon(isSelected ? Icons.check_box : Icons.check_box_outline_blank,
+              Icon(isSelected ? Icons.check_box : (isAbsent ? Icons.disabled_by_default : Icons.check_box_outline_blank),
                   color: isSelected
                       ? AppTheme.primary
-                      : AppTheme.textMediumEmphasis),
+                      : (isAbsent ? AppTheme.error : AppTheme.textMediumEmphasis)),
               const SizedBox(width: 16),
               Expanded(
-                  child: Text(athlete['name'],
-                      style: TextStyle(
-                          color: isSelected
-                              ? Colors.white
-                              : AppTheme.textMediumEmphasis,
-                          fontWeight: FontWeight.bold,
-                          fontSize: 16))),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(athlete['name'],
+                          style: TextStyle(
+                              color: isSelected || isAbsent
+                                  ? Colors.white
+                                  : AppTheme.textMediumEmphasis,
+                              fontWeight: FontWeight.bold,
+                              fontSize: 16)),
+                      Text(isSelected ? 'Presente' : (isAbsent ? 'Assente' : 'In attesa'),
+                          style: TextStyle(
+                              color: isSelected
+                                  ? AppTheme.primary
+                                  : (isAbsent ? AppTheme.error : AppTheme.textMediumEmphasis),
+                              fontSize: 11,
+                              fontWeight: FontWeight.bold)),
+                    ],
+                  )),
               if (_showTech)
                 Row(
                   children: [

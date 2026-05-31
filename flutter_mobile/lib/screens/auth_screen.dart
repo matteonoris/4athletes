@@ -9,6 +9,7 @@ import '../models/models.dart';
 import '../providers/app_state.dart';
 import 'home_screen.dart';
 import 'coach_dashboard_screen.dart';
+import 'health_permission_screen.dart';
 
 class AuthScreen extends StatefulWidget {
   const AuthScreen({super.key});
@@ -141,7 +142,7 @@ class _AuthScreenState extends State<AuthScreen> with SingleTickerProviderStateM
         appState.addBodyLog(BodyMetricLog(id: '', date: date, type: 'height', value: height));
       }
 
-      if (mounted) _navigateToNext();
+      if (mounted) _navigateToNext(isNewAthleteSignUp: _role == 'athlete');
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
@@ -210,11 +211,13 @@ class _AuthScreenState extends State<AuthScreen> with SingleTickerProviderStateM
     }
   }
 
-  void _navigateToNext() {
+  void _navigateToNext({bool isNewAthleteSignUp = false}) {
     final appState = Provider.of<AppState>(context, listen: false);
     Widget nextScreen = const HomeScreen();
     if (appState.userProfile?.role == 'coach') {
       nextScreen = const CoachDashboardScreen();
+    } else if (isNewAthleteSignUp) {
+      nextScreen = const HealthPermissionScreen();
     }
     if (!mounted) return;
     Navigator.of(context).pushReplacement(MaterialPageRoute(builder: (_) => nextScreen));

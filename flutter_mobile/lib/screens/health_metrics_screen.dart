@@ -27,6 +27,39 @@ class _HealthMetricsScreenState extends State<HealthMetricsScreen> {
     _selectedType = widget.initialMetric;
   }
 
+  String _getMetricTitle(String type) {
+    switch (type) {
+      case 'hrv': return 'HRV';
+      case 'resting_hr': return 'Battiti a Riposo';
+      case 'spo2': return 'SpO2';
+      case 'resp': return 'Freq. Respiratoria';
+      case 'temp': return 'Temperatura';
+      default: return type;
+    }
+  }
+
+  String _getMetricUnit(String type) {
+    switch (type) {
+      case 'hrv': return 'ms';
+      case 'resting_hr': return 'bpm';
+      case 'spo2': return '%';
+      case 'resp': return 'rpm';
+      case 'temp': return '°C';
+      default: return '';
+    }
+  }
+
+  Color _getMetricColor(String type) {
+    switch (type) {
+      case 'hrv': return AppTheme.primary;
+      case 'resting_hr': return AppTheme.error;
+      case 'spo2': return Colors.blueAccent;
+      case 'resp': return Colors.tealAccent;
+      case 'temp': return Colors.orangeAccent;
+      default: return AppTheme.primary;
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final appState = Provider.of<AppState>(context);
@@ -38,22 +71,31 @@ class _HealthMetricsScreenState extends State<HealthMetricsScreen> {
     final cutoff = now.subtract(Duration(days: _selectedDays));
     final filteredLogs = logs.where((l) => DateTime.parse(l.date).isAfter(cutoff)).toList();
 
-    final Color mainColor = _selectedType == 'hrv' ? AppTheme.primary : AppTheme.error;
+    final Color mainColor = _getMetricColor(_selectedType);
 
     return Scaffold(
       appBar: AppBar(
-        title: Text(_selectedType == 'hrv' ? 'HRV' : 'Battiti a Riposo'),
+        title: Text(_getMetricTitle(_selectedType)),
       ),
       body: ListView(
         padding: const EdgeInsets.all(24),
         children: [
           // Metric Selector
-          Row(
-            children: [
-              _buildTypeChip('hrv', 'HRV'),
-              const SizedBox(width: 12),
-              _buildTypeChip('resting_hr', 'Battiti a Riposo'),
-            ],
+          SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
+            child: Row(
+              children: [
+                _buildTypeChip('hrv', 'HRV'),
+                const SizedBox(width: 8),
+                _buildTypeChip('resting_hr', 'RHR'),
+                const SizedBox(width: 8),
+                _buildTypeChip('spo2', 'SpO2'),
+                const SizedBox(width: 8),
+                _buildTypeChip('resp', 'Resp'),
+                const SizedBox(width: 8),
+                _buildTypeChip('temp', 'Temp'),
+              ],
+            ),
           ),
           const SizedBox(height: 24),
 
@@ -65,21 +107,25 @@ class _HealthMetricsScreenState extends State<HealthMetricsScreen> {
               children: [
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          _selectedType == 'hrv' ? 'Andamento HRV' : 'Andamento RHR',
-                          style: const TextStyle(color: AppTheme.textMediumEmphasis, fontWeight: FontWeight.bold),
-                        ),
-                        const SizedBox(height: 4),
-                        Text(
-                          logs.isNotEmpty ? '${logs.last.value.toStringAsFixed(0)} ${_selectedType == 'hrv' ? 'ms' : 'bpm'}' : '--',
-                          style: Theme.of(context).textTheme.headlineMedium?.copyWith(fontWeight: FontWeight.bold),
-                        ),
-                      ],
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'Andamento ${_getMetricTitle(_selectedType)}',
+                            style: const TextStyle(color: AppTheme.textMediumEmphasis, fontWeight: FontWeight.bold),
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            logs.isNotEmpty ? '${logs.last.value.toStringAsFixed(1)} ${_getMetricUnit(_selectedType)}' : '--',
+                            style: Theme.of(context).textTheme.headlineMedium?.copyWith(fontWeight: FontWeight.bold),
+                          ),
+                        ],
+                      ),
                     ),
+                    const SizedBox(width: 8),
                     _buildIntervalSelector(),
                   ],
                 ),
@@ -154,6 +200,18 @@ class _HealthMetricsScreenState extends State<HealthMetricsScreen> {
                               ),
                             ),
                             borderData: FlBorderData(show: false),
+                            lineTouchData: LineTouchData(
+                              touchTooltipData: LineTouchTooltipData(
+                                getTooltipItems: (touchedSpots) {
+                                  return touchedSpots.map((spot) {
+                                    return LineTooltipItem(
+                                      spot.y.toStringAsFixed(1),
+                                      const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+                                    );
+                                  }).toList();
+                                },
+                              ),
+                            ),
                             lineBarsData: [
                               LineChartBarData(
                                 spots: filteredLogs.asMap().entries.map((e) => FlSpot(e.key.toDouble(), e.value.value)).toList(),
@@ -285,7 +343,7 @@ class _HealthMetricsScreenState extends State<HealthMetricsScreen> {
                 ),
                 const SizedBox(height: 4),
                 Text(
-                  _selectedType == 'hrv' ? 'Heart Rate Variability' : 'Battiti a Riposo',
+                  _getMetricTitle(_selectedType),
                   style: const TextStyle(color: AppTheme.textMediumEmphasis, fontSize: 12),
                 ),
               ],
@@ -293,8 +351,8 @@ class _HealthMetricsScreenState extends State<HealthMetricsScreen> {
             Row(
               children: [
                 Text(
-                  '${log.value.toStringAsFixed(0)} ${_selectedType == 'hrv' ? 'ms' : 'bpm'}',
-                  style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18, color: _selectedType == 'hrv' ? AppTheme.primary : AppTheme.error),
+                  '${log.value.toStringAsFixed(1)} ${_getMetricUnit(_selectedType)}',
+                  style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18, color: _getMetricColor(_selectedType)),
                 ),
               ],
             ),
