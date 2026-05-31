@@ -94,8 +94,8 @@ class _CoachAthleteDetailScreenState extends State<CoachAthleteDetailScreen> {
     for (final ev in skiEvents) {
       final attendees = ev.attendees ?? [];
       if (attendees.any((a) =>
-          a['id'] == widget.athleteId ||
-          a['name'] == widget.athleteName)) {
+          (a['id'] == widget.athleteId ||
+          a['name'] == widget.athleteName) && a['isPresent'] == true)) {
         skiPresent++;
       }
     }
@@ -107,8 +107,8 @@ class _CoachAthleteDetailScreenState extends State<CoachAthleteDetailScreen> {
     for (final ev in athleticEvents) {
       final attendees = ev.attendees ?? [];
       if (attendees.any((a) =>
-          a['id'] == widget.athleteId ||
-          a['name'] == widget.athleteName)) {
+          (a['id'] == widget.athleteId ||
+          a['name'] == widget.athleteName) && a['isPresent'] == true)) {
         athleticPresent++;
       }
     }
@@ -293,6 +293,10 @@ class _CoachAthleteDetailScreenState extends State<CoachAthleteDetailScreen> {
     // PR exercises present for this athlete
     final prExercises = _prLogs.map((l) => l.exerciseId).toSet().toList();
 
+    // Body metric types
+    final bodyTypes = _bodyLogs.map((l) => l.type).toSet().toList();
+    final additionalMetrics = bodyTypes.where((t) => _bodyLabels.containsKey(t)).toList();
+
     return CustomScrollView(
       slivers: [
         // ─── Sticky Header ───────────────────────────────────
@@ -396,6 +400,14 @@ class _CoachAthleteDetailScreenState extends State<CoachAthleteDetailScreen> {
                   _buildSectionTitle(PhosphorIconsRegular.barbell, 'Massimali (1RM)', const Color(0xFFFF7A00)),
                   const SizedBox(height: 12),
                   _buildPRGrid(prExercises),
+                  const SizedBox(height: 20),
+                ],
+
+                // ─── Altri Test & Metriche ──────────────────
+                if (additionalMetrics.isNotEmpty) ...[
+                  _buildSectionTitle(PhosphorIconsRegular.heartbeat, 'Test & Metriche (Recupero/Sonno)', AppTheme.secondary),
+                  const SizedBox(height: 12),
+                  _buildBodyGrid(additionalMetrics),
                   const SizedBox(height: 20),
                 ],
 
@@ -604,6 +616,7 @@ class _CoachAthleteDetailScreenState extends State<CoachAthleteDetailScreen> {
       children: types.map((t) {
         final val = _latestJump(t);
         final label = _jumpLabels[t] ?? t.toUpperCase().replaceAll('_', '\n');
+        final isRsi = t == 'drop_jump_rsi';
         return GestureDetector(
           onTap: () => Navigator.push(context, MaterialPageRoute(
             builder: (_) => AnalyticsDetailsScreen(
@@ -611,7 +624,8 @@ class _CoachAthleteDetailScreenState extends State<CoachAthleteDetailScreen> {
               type: 'jump',
               exerciseId: t,
               preloadedLogs: _jumpLogs,
-              isReadOnly: true,
+              isReadOnly: false,
+              athleteId: widget.athleteId,
             ),
           )),
           child: Container(
@@ -625,10 +639,10 @@ class _CoachAthleteDetailScreenState extends State<CoachAthleteDetailScreen> {
                 textAlign: TextAlign.center,
                 text: TextSpan(children: [
                   TextSpan(
-                      text: val > 0 ? val.toStringAsFixed(0) : '--',
+                      text: val > 0 ? (isRsi ? val.toStringAsFixed(2) : val.toStringAsFixed(0)) : '--',
                       style: const TextStyle(
                           fontSize: 20, fontWeight: FontWeight.bold, color: Colors.white)),
-                  if (val > 0)
+                  if (val > 0 && !isRsi)
                     const TextSpan(
                         text: ' cm',
                         style: TextStyle(fontSize: 11, color: AppTheme.textMediumEmphasis)),
@@ -677,7 +691,8 @@ class _CoachAthleteDetailScreenState extends State<CoachAthleteDetailScreen> {
             builder: (_) => AnalyticsDetailsScreen(
               title: label, type: 'pr', exerciseId: ex,
               preloadedLogs: _prLogs,
-              isReadOnly: true,
+              isReadOnly: false,
+              athleteId: widget.athleteId,
             ),
           )),
           child: Container(
@@ -700,6 +715,86 @@ class _CoachAthleteDetailScreenState extends State<CoachAthleteDetailScreen> {
                     const TextSpan(
                         text: ' kg',
                         style: TextStyle(color: AppTheme.textMediumEmphasis, fontSize: 11)),
+                ]),
+              ),
+            ]),
+          ),
+        );
+      }).toList(),
+    );
+  }
+
+  // ─── Body Metric Grid ───────────────────────────────────────────
+  static const Map<String, String> _bodyLabels = {
+    'sprint_20m': 'Scatto 20m',
+    'sprint_60m': 'Scatto 60m',
+    'balance_bipedal': 'Eq. Bipodale',
+    'balance_single_l': 'Eq. Mono SX',
+    'balance_single_r': 'Eq. Mono DX',
+    'plank_front': 'Plank Front.',
+    'plank_side_l': 'Plank SX',
+    'plank_side_r': 'Plank DX',
+    'pullups_max': 'Trazioni',
+    'recovery_score': 'Recovery Score',
+    'sleep_score': 'Sleep Score',
+  };
+
+  static const Map<String, String> _bodyUnits = {
+    'sprint_20m': 's',
+    'sprint_60m': 's',
+    'balance_bipedal': '',
+    'balance_single_l': '',
+    'balance_single_r': '',
+    'plank_front': 's',
+    'plank_side_l': 's',
+    'plank_side_r': 's',
+    'pullups_max': 'reps',
+    'recovery_score': '',
+    'sleep_score': '',
+  };
+
+  Widget _buildBodyGrid(List<String> types) {
+    return GridView.count(
+      crossAxisCount: 2,
+      mainAxisSpacing: 10,
+      crossAxisSpacing: 10,
+      shrinkWrap: true,
+      physics: const NeverScrollableScrollPhysics(),
+      childAspectRatio: 2.4,
+      children: types.map((t) {
+        final logs = _logsOf(t);
+        final val = logs.isNotEmpty ? logs.last.value : 0.0;
+        final label = _bodyLabels[t] ?? t;
+        final unit = _bodyUnits[t] ?? '';
+        return GestureDetector(
+          onTap: () => Navigator.push(context, MaterialPageRoute(
+            builder: (_) => AnalyticsDetailsScreen(
+              title: label, type: 'body', exerciseId: t,
+              preloadedLogs: _bodyLogs,
+              isReadOnly: false,
+              athleteId: widget.athleteId,
+            ),
+          )),
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+            decoration: BoxDecoration(color: AppTheme.card, borderRadius: BorderRadius.circular(12)),
+            child: Row(children: [
+              Expanded(
+                child: Text(label,
+                    style: const TextStyle(
+                        color: AppTheme.textMediumEmphasis,
+                        fontSize: 12, fontWeight: FontWeight.bold)),
+              ),
+              RichText(
+                text: TextSpan(children: [
+                  TextSpan(
+                      text: val > 0 ? (unit == 's' ? val.toStringAsFixed(2) : val.toStringAsFixed(0)) : '--',
+                      style: const TextStyle(
+                          color: Colors.white, fontSize: 18, fontWeight: FontWeight.w900)),
+                  if (val > 0 && unit.isNotEmpty)
+                    TextSpan(
+                        text: ' $unit',
+                        style: const TextStyle(color: AppTheme.textMediumEmphasis, fontSize: 11)),
                 ]),
               ),
             ]),

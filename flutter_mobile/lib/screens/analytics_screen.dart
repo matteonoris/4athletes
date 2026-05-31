@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:phosphor_flutter/phosphor_flutter.dart';
+import 'package:fl_chart/fl_chart.dart';
 
 import '../core/theme.dart';
 import '../providers/app_state.dart';
@@ -53,6 +54,13 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
     return filtered.isNotEmpty ? filtered.first.weight : 0.0;
   }
 
+  double _getLatestBodyVal(List<BodyMetricLog> logs, String type) {
+    final filtered = logs.where((l) => l.type == type).toList()
+      ..sort(
+          (a, b) => DateTime.parse(b.date).compareTo(DateTime.parse(a.date)));
+    return filtered.isNotEmpty ? filtered.first.value : 0.0;
+  }
+
   // Process Logs with Trends Helper
   List<Map<String, dynamic>> _getProcessedLogs(
       List<BodyMetricLog> bodyLogs, String type) {
@@ -101,6 +109,7 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
     final squatJumpVal = _getLatestJump(appState.jumpLogs, 'squat_jump');
     final cmJumpVal = _getLatestJump(appState.jumpLogs, 'cm_jump');
     final dropJumpVal = _getLatestJump(appState.jumpLogs, 'drop_jump');
+    final dropJumpRsiVal = _getLatestJump(appState.jumpLogs, 'drop_jump_rsi');
     final jump45sVal = _getLatestJump(appState.jumpLogs, '45s_jump');
     final slLeftVal = _getLatestJump(appState.jumpLogs, 'single_leg_left');
     final slRightVal = _getLatestJump(appState.jumpLogs, 'single_leg_right');
@@ -116,6 +125,21 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
 
     // Recent Sessions
     final recentSessions = appState.sessions.take(3).toList();
+
+    // New tests
+    final sprint20m = _getLatestBodyVal(appState.bodyLogs, 'sprint_20m');
+    final sprint60m = _getLatestBodyVal(appState.bodyLogs, 'sprint_60m');
+    final balBipedal = _getLatestBodyVal(appState.bodyLogs, 'balance_bipedal');
+    final balSingleL = _getLatestBodyVal(appState.bodyLogs, 'balance_single_l');
+    final balSingleR = _getLatestBodyVal(appState.bodyLogs, 'balance_single_r');
+    final plankFront = _getLatestBodyVal(appState.bodyLogs, 'plank_front');
+    final plankSideL = _getLatestBodyVal(appState.bodyLogs, 'plank_side_l');
+    final plankSideR = _getLatestBodyVal(appState.bodyLogs, 'plank_side_r');
+    final pullupsMax = _getLatestBodyVal(appState.bodyLogs, 'pullups_max');
+    
+    // Recovery & Sleep trends
+    final sleepLogs = appState.bodyLogs.where((l) => l.type == 'sleep_score').toList()..sort((a,b) => DateTime.parse(a.date).compareTo(DateTime.parse(b.date)));
+    final recoveryLogs = appState.bodyLogs.where((l) => l.type == 'recovery_score').toList()..sort((a,b) => DateTime.parse(a.date).compareTo(DateTime.parse(b.date)));
 
     return Scaffold(
       appBar: AppBar(
@@ -204,6 +228,7 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
                 child: _JumpCard(
                     title: 'Drop Jump',
                     val: dropJumpVal,
+                    rsiVal: dropJumpRsiVal,
                     unit: jumpUnit,
                     unitSystem: unitSystem),
               ),
@@ -225,7 +250,7 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
                       children: [
                         Expanded(
                           child: InkWell(
-                            onTap: () {},
+                            onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const AnalyticsDetailsScreen(title: 'Single Leg SX', type: 'jump', exerciseId: 'single_leg_left'))),
                             child: Column(
                               mainAxisAlignment: MainAxisAlignment.center,
                               children: [
@@ -259,7 +284,7 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
                         Container(width: 1, height: 40, color: Colors.white10),
                         Expanded(
                           child: InkWell(
-                            onTap: () {},
+                            onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const AnalyticsDetailsScreen(title: 'Single Leg DX', type: 'jump', exerciseId: 'single_leg_right'))),
                             child: Column(
                               mainAxisAlignment: MainAxisAlignment.center,
                               children: [
@@ -385,6 +410,132 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
 
           const SizedBox(height: 32),
 
+          // ANAEROBICO
+          Text('ANAEROBICO (Tempo)',
+              style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                  color: AppTheme.textMediumEmphasis,
+                  letterSpacing: 1.5,
+                  fontWeight: FontWeight.bold)),
+          const SizedBox(height: 12),
+          GridView.count(
+            crossAxisCount: 2,
+            mainAxisSpacing: 8,
+            crossAxisSpacing: 8,
+            shrinkWrap: true,
+            physics: const NeverScrollableScrollPhysics(),
+            childAspectRatio: 2.2,
+            children: [
+              GestureDetector(
+                onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const AnalyticsDetailsScreen(title: 'Scatto 20 m', type: 'body', exerciseId: 'sprint_20m'))),
+                child: _MaxLoadCard(title: 'Scatto 20 m', val: sprint20m, unit: 's'),
+              ),
+              GestureDetector(
+                onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const AnalyticsDetailsScreen(title: 'Scatto 60 m', type: 'body', exerciseId: 'sprint_60m'))),
+                child: _MaxLoadCard(title: 'Scatto 60 m', val: sprint60m, unit: 's'),
+              ),
+            ],
+          ),
+
+          const SizedBox(height: 32),
+
+          // EQUILIBRIO
+          Text('EQUILIBRIO (Score)',
+              style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                  color: AppTheme.textMediumEmphasis,
+                  letterSpacing: 1.5,
+                  fontWeight: FontWeight.bold)),
+          const SizedBox(height: 12),
+          GridView.count(
+            crossAxisCount: 2,
+            mainAxisSpacing: 8,
+            crossAxisSpacing: 8,
+            shrinkWrap: true,
+            physics: const NeverScrollableScrollPhysics(),
+            childAspectRatio: 2.2,
+            children: [
+              GestureDetector(
+                onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const AnalyticsDetailsScreen(title: 'Bipodale', type: 'body', exerciseId: 'balance_bipedal'))),
+                child: _MaxLoadCard(title: 'Bipodale', val: balBipedal, unit: ''),
+              ),
+              GestureDetector(
+                onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const AnalyticsDetailsScreen(title: 'Monopodale SX', type: 'body', exerciseId: 'balance_single_l'))),
+                child: _MaxLoadCard(title: 'Mono SX', val: balSingleL, unit: ''),
+              ),
+              GestureDetector(
+                onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const AnalyticsDetailsScreen(title: 'Monopodale DX', type: 'body', exerciseId: 'balance_single_r'))),
+                child: _MaxLoadCard(title: 'Mono DX', val: balSingleR, unit: ''),
+              ),
+            ],
+          ),
+
+          const SizedBox(height: 32),
+
+          // CORE E FORZA
+          Text('CORE E FORZA',
+              style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                  color: AppTheme.textMediumEmphasis,
+                  letterSpacing: 1.5,
+                  fontWeight: FontWeight.bold)),
+          const SizedBox(height: 12),
+          GridView.count(
+            crossAxisCount: 2,
+            mainAxisSpacing: 8,
+            crossAxisSpacing: 8,
+            shrinkWrap: true,
+            physics: const NeverScrollableScrollPhysics(),
+            childAspectRatio: 2.2,
+            children: [
+              GestureDetector(
+                onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const AnalyticsDetailsScreen(title: 'Plank Frontale', type: 'body', exerciseId: 'plank_front'))),
+                child: _MaxLoadCard(title: 'Plank Front.', val: plankFront, unit: 's'),
+              ),
+              GestureDetector(
+                onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const AnalyticsDetailsScreen(title: 'Plank Laterale SX', type: 'body', exerciseId: 'plank_side_l'))),
+                child: _MaxLoadCard(title: 'Plank Lat SX', val: plankSideL, unit: 's'),
+              ),
+              GestureDetector(
+                onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const AnalyticsDetailsScreen(title: 'Plank Laterale DX', type: 'body', exerciseId: 'plank_side_r'))),
+                child: _MaxLoadCard(title: 'Plank Lat DX', val: plankSideR, unit: 's'),
+              ),
+              GestureDetector(
+                onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const AnalyticsDetailsScreen(title: 'Trazioni Massime', type: 'body', exerciseId: 'pullups_max'))),
+                child: _MaxLoadCard(title: 'Trazioni Max', val: pullupsMax, unit: 'reps'),
+              ),
+            ],
+          ),
+
+          const SizedBox(height: 32),
+
+          // SALUTE & RECUPERO
+          Text('SALUTE & RECUPERO',
+              style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                  color: AppTheme.textMediumEmphasis,
+                  letterSpacing: 1.5,
+                  fontWeight: FontWeight.bold)),
+          const SizedBox(height: 12),
+          SizedBox(
+            height: 120,
+            child: Row(
+              children: [
+                Expanded(
+                  child: GestureDetector(
+                    onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const AnalyticsDetailsScreen(title: 'Sleep Score', type: 'body', exerciseId: 'sleep_score'))),
+                    child: _TrendBox(title: 'Sleep Score', logs: sleepLogs, color: Colors.indigoAccent),
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: GestureDetector(
+                    onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const AnalyticsDetailsScreen(title: 'Recovery Score', type: 'body', exerciseId: 'recovery_score'))),
+                    child: _TrendBox(title: 'Recovery Score', logs: recoveryLogs, color: Colors.green),
+                  ),
+                ),
+              ],
+            ),
+          ),
+
+          const SizedBox(height: 32),
+
           // RECENT SESSIONS
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -488,8 +639,8 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
 
           const SizedBox(height: 32),
 
-          // CARDIO HEALTH
-          Text('SALUTE CARDIO',
+          // HEALTH METRICS
+          Text('HEALTH METRICS',
               style: Theme.of(context).textTheme.labelSmall?.copyWith(
                   color: AppTheme.textMediumEmphasis,
                   letterSpacing: 1.5,
@@ -640,6 +791,7 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
 class _JumpCard extends StatelessWidget {
   final String title;
   final double val;
+  final double? rsiVal;
   final String unit;
   final String unitSystem;
   final bool isHighlighted;
@@ -647,6 +799,7 @@ class _JumpCard extends StatelessWidget {
   const _JumpCard({
     required this.title,
     required this.val,
+    this.rsiVal,
     required this.unit,
     required this.unitSystem,
     this.isHighlighted = false,
@@ -682,7 +835,7 @@ class _JumpCard extends StatelessWidget {
                         style: const TextStyle(
                             fontSize: 18, fontWeight: FontWeight.bold)),
                     TextSpan(
-                        text: ' $unit',
+                        text: unit.isNotEmpty ? ' $unit' : '',
                         style: const TextStyle(
                             fontSize: 12, color: AppTheme.textMediumEmphasis)),
                   ],
@@ -695,6 +848,15 @@ class _JumpCard extends StatelessWidget {
                       fontSize: 9,
                       fontWeight: FontWeight.bold,
                       color: AppTheme.textMediumEmphasis)),
+              if (rsiVal != null && rsiVal! > 0)
+                Padding(
+                  padding: const EdgeInsets.only(top: 2.0),
+                  child: Text('RSI: ${rsiVal!.toStringAsFixed(2)}',
+                      style: const TextStyle(
+                          fontSize: 10,
+                          fontWeight: FontWeight.bold,
+                          color: AppTheme.secondary)),
+                ),
             ],
           ),
         ],
@@ -753,10 +915,10 @@ class _MaxLoadCard extends StatelessWidget {
             text: TextSpan(
               children: [
                 TextSpan(
-                    text: hasPr ? val.toStringAsFixed(0) : '--',
+                    text: hasPr ? (unit == 's' ? val.toStringAsFixed(2) : val.toStringAsFixed(0)) : '--',
                     style: TextStyle(
-                        fontSize: 20,
-                        fontWeight: FontWeight.bold,
+                        fontSize: 24,
+                        fontWeight: FontWeight.w900,
                         color: hasPr ? Colors.white : AppTheme.textMediumEmphasis)),
                 if (hasPr)
                   TextSpan(
@@ -1106,6 +1268,73 @@ class _HistorySection extends StatelessWidget {
       'DIC'
     ];
     return mons[m - 1];
+  }
+}
+
+class _TrendBox extends StatelessWidget {
+  final String title;
+  final List<BodyMetricLog> logs;
+  final Color color;
+
+  const _TrendBox({required this.title, required this.logs, required this.color});
+
+  @override
+  Widget build(BuildContext context) {
+    final hasData = logs.isNotEmpty;
+    final val = hasData ? logs.last.value.toStringAsFixed(0) : '--';
+    List<FlSpot> spots = [];
+    if (hasData) {
+      for (int i = 0; i < logs.length; i++) {
+        spots.add(FlSpot(i.toDouble(), logs[i].value));
+      }
+    }
+
+    return CustomCard(
+      padding: const EdgeInsets.all(12),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text(title.toUpperCase(),
+                  style: const TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: AppTheme.textMediumEmphasis)),
+              Icon(PhosphorIconsRegular.chartLineUp, size: 16, color: color),
+            ],
+          ),
+          const SizedBox(height: 4),
+          Text(val, style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: hasData ? Colors.white : AppTheme.textMediumEmphasis)),
+          const Spacer(),
+          if (hasData && logs.length > 1)
+            SizedBox(
+              height: 40,
+              child: LineChart(
+                LineChartData(
+                  gridData: const FlGridData(show: false),
+                  titlesData: const FlTitlesData(show: false),
+                  borderData: FlBorderData(show: false),
+                  lineBarsData: [
+                    LineChartBarData(
+                      spots: spots,
+                      isCurved: true,
+                      color: color,
+                      barWidth: 2,
+                      isStrokeCapRound: true,
+                      dotData: const FlDotData(show: false),
+                      belowBarData: BarAreaData(
+                        show: true,
+                        color: color.withValues(alpha: 0.2),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            )
+          else
+            const Center(child: Text('Nessun trend', style: TextStyle(fontSize: 10, color: AppTheme.textMediumEmphasis))),
+        ],
+      ),
+    );
   }
 }
 

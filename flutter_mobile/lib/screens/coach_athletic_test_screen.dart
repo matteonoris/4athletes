@@ -58,6 +58,7 @@ class _CoachAthleticTestScreenState extends State<CoachAthleticTestScreen> {
               'name': nameToShow,
               'isPresent': false,
               'valueCtrl': TextEditingController(),
+              'rsiCtrl': TextEditingController(),
             };
           }).toList();
           _isLoading = false;
@@ -75,6 +76,7 @@ class _CoachAthleticTestScreenState extends State<CoachAthleticTestScreen> {
   void dispose() {
     for (var a in _athletes) {
       (a['valueCtrl'] as TextEditingController).dispose();
+      (a['rsiCtrl'] as TextEditingController).dispose();
     }
     super.dispose();
   }
@@ -101,6 +103,21 @@ class _CoachAthleticTestScreenState extends State<CoachAthleticTestScreen> {
               ),
               a['id'],
             );
+            if (widget.testId == 'drop_jump') {
+              final rsiText = (a['rsiCtrl'] as TextEditingController).text.trim().replaceAll(',', '.');
+              final rsiVal = double.tryParse(rsiText);
+              if (rsiVal != null && rsiVal > 0) {
+                await appState.addJumpLogForAthlete(
+                  JumpLog(
+                    id: '',
+                    date: dateStr,
+                    type: 'drop_jump_rsi',
+                    value: rsiVal,
+                  ),
+                  a['id'],
+                );
+              }
+            }
           } else if (widget.testCategory == 'pr') {
             await appState.addPRLogForAthlete(
               PRLog(
@@ -109,6 +126,16 @@ class _CoachAthleticTestScreenState extends State<CoachAthleticTestScreen> {
                 date: dateStr,
                 weight: val,
                 note: 'Aggiunto dal coach',
+              ),
+              a['id'],
+            );
+          } else if (widget.testCategory == 'time' || widget.testCategory == 'score' || widget.testCategory == 'reps') {
+            await appState.addBodyLogForAthlete(
+              BodyMetricLog(
+                id: '',
+                date: dateStr,
+                type: widget.testId,
+                value: val,
               ),
               a['id'],
             );
@@ -279,7 +306,7 @@ class _CoachAthleticTestScreenState extends State<CoachAthleticTestScreen> {
                   style: const TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold),
                   textAlign: TextAlign.center,
                   decoration: InputDecoration(
-                    hintText: '0.0',
+                    hintText: widget.testId == 'drop_jump' ? 'Alt.' : '0.0',
                     hintStyle: TextStyle(color: AppTheme.textMediumEmphasis.withOpacity(0.5)),
                     filled: true,
                     fillColor: AppTheme.background,
@@ -291,6 +318,29 @@ class _CoachAthleticTestScreenState extends State<CoachAthleticTestScreen> {
                   ),
                 ),
               ),
+              if (widget.testId == 'drop_jump') ...[
+                const SizedBox(width: 8),
+                Expanded(
+                  flex: 1,
+                  child: TextField(
+                    controller: a['rsiCtrl'],
+                    keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                    style: const TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold),
+                    textAlign: TextAlign.center,
+                    decoration: InputDecoration(
+                      hintText: 'RSI',
+                      hintStyle: TextStyle(color: AppTheme.textMediumEmphasis.withOpacity(0.5)),
+                      filled: true,
+                      fillColor: AppTheme.background,
+                      contentPadding: const EdgeInsets.symmetric(vertical: 12, horizontal: 8),
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(8),
+                        borderSide: BorderSide.none,
+                      ),
+                    ),
+                  ),
+                ),
+              ],
             ],
           ),
         );

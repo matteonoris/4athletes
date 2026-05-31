@@ -95,6 +95,22 @@ class AppState extends ChangeNotifier {
     _healthSyncError = null;
     notifyListeners();
 
+    DateTime now = DateTime.now();
+    DateTime today = DateTime(now.year, now.month, now.day);
+    DateTime targetDay = DateTime(targetDate.year, targetDate.month, targetDate.day);
+
+    if (targetDay.isAfter(today)) {
+      _currentSleepScore = null;
+      _currentRecoveryScore = null;
+      _currentDailyMetrics = null;
+      _currentHistoricalMetrics = null;
+      _currentLocalSleepHistory = null;
+      _healthSyncCompleted = true;
+      _isSyncingHealth = false;
+      notifyListeners();
+      return;
+    }
+
     String dateKey = targetDate.toIso8601String().split('T')[0];
 
     // Sincronizza Peso esplicitamente in modo incondizionato
@@ -142,6 +158,25 @@ class AppState extends ChangeNotifier {
           if (cached['localSleepHistory'] != null) {
             _currentLocalSleepHistory = List<Map<String, dynamic>>.from(cached['localSleepHistory']);
           }
+
+          // Ensure today's scores are added to bodyLogs so Analytics screen shows them
+          if (_currentSleepScore != null && !_bodyLogs.any((l) => l.type == 'sleep_score' && l.date == dateKey)) {
+            addBodyLog(BodyMetricLog(
+              id: 'sleep_score_$dateKey',
+              date: dateKey,
+              type: 'sleep_score',
+              value: _currentSleepScore!,
+            ));
+          }
+          if (_currentRecoveryScore != null && !_bodyLogs.any((l) => l.type == 'recovery_score' && l.date == dateKey)) {
+            addBodyLog(BodyMetricLog(
+              id: 'recovery_score_$dateKey',
+              date: dateKey,
+              type: 'recovery_score',
+              value: _currentRecoveryScore!,
+            ));
+          }
+
           _healthSyncCompleted = true;
           _isSyncingHealth = false;
           notifyListeners();
@@ -172,8 +207,8 @@ class AppState extends ChangeNotifier {
 
       // Sync sleep_score to Supabase
       try {
-        final exists = _bodyLogs.any((l) => l.type == 'sleep_score' && l.date == dateKey);
-        if (!exists) {
+        final existsSleep = _bodyLogs.any((l) => l.type == 'sleep_score' && l.date == dateKey);
+        if (!existsSleep && _currentSleepScore != null) {
           final newLog = BodyMetricLog(
             id: 'sleep_score_$dateKey',
             date: dateKey,
@@ -182,8 +217,19 @@ class AppState extends ChangeNotifier {
           );
           addBodyLog(newLog);
         }
+        
+        final existsRec = _bodyLogs.any((l) => l.type == 'recovery_score' && l.date == dateKey);
+        if (!existsRec && _currentRecoveryScore != null) {
+          final newLog = BodyMetricLog(
+            id: 'recovery_score_$dateKey',
+            date: dateKey,
+            type: 'recovery_score',
+            value: _currentRecoveryScore!,
+          );
+          addBodyLog(newLog);
+        }
       } catch (e) {
-        debugPrint('Error syncing sleep_score: $e');
+        debugPrint('Error syncing sleep/recovery score: $e');
       }
 
       _healthSyncCompleted = true;
@@ -1302,29 +1348,56 @@ class AppState extends ChangeNotifier {
   }
 
   void addBodyLog(BodyMetricLog log) async {
-    try {
-      final response = await _supabase
-          .from('body_metric_logs')
-          .insert({
-            'user_id': userId,
-            'date': log.date,
-            'type': log.type,
-            'value': log.value,
-          })
-          .select()
-          .single();
-
-      log.id = response['id'];
+    // Aggiornamento ottimistico locale
+    final existingIndex = _bodyLogs.indexWhere((l) => l.type == log.type && l.date == log.date);
+    if (existingIndex >= 0) {
+      _bodyLogs[existingIndex].value = log.value;
+      log.id = _bodyLogs[existingIndex].id;
+    } else {
       _bodyLogs.add(log);
       _bodyLogs.sort((a, b) => a.date.compareTo(b.date));
+    }
 
-      if (log.type == 'weight') {
-        _userProfile!.weight = log.value;
-      } else if (log.type == 'height') {
-        _userProfile!.height = log.value;
+    if (log.type == 'weight') {
+      _userProfile!.weight = log.value;
+    } else if (log.type == 'height') {
+      _userProfile!.height = log.value;
+    }
+    _saveUserProfile();
+    notifyListeners();
+
+    try {
+      final existingData = await _supabase
+          .from('body_metric_logs')
+          .select('id')
+          .eq('user_id', userId)
+          .eq('date', log.date)
+          .eq('type', log.type)
+          .maybeSingle();
+
+      if (existingData != null) {
+        await _supabase
+            .from('body_metric_logs')
+            .update({'value': log.value})
+            .eq('id', existingData['id']);
+        
+        final idx = _bodyLogs.indexWhere((l) => l.type == log.type && l.date == log.date);
+        if (idx >= 0) _bodyLogs[idx].id = existingData['id'];
+      } else {
+        final response = await _supabase
+            .from('body_metric_logs')
+            .insert({
+              'user_id': userId,
+              'date': log.date,
+              'type': log.type,
+              'value': log.value,
+            })
+            .select()
+            .single();
+        
+        final idx = _bodyLogs.indexWhere((l) => l.type == log.type && l.date == log.date);
+        if (idx >= 0) _bodyLogs[idx].id = response['id'];
       }
-      _saveUserProfile();
-      notifyListeners();
     } catch (e) {
       debugPrint('Error adding body log: $e');
     }
@@ -1435,27 +1508,63 @@ class AppState extends ChangeNotifier {
 
   Future<void> addJumpLogForAthlete(JumpLog log, String athleteId) async {
     try {
-      await _supabase.from('jump_logs').insert({
+      final response = await _supabase.from('jump_logs').insert({
         'user_id': athleteId,
         'type': log.type,
         'date': log.date,
         'value': log.value,
-      });
+      }).select().single();
+      log.id = response['id'];
     } catch (e) {
       debugPrint('Error adding jump log for athlete: $e');
       rethrow;
     }
   }
 
+  Future<void> deleteJumpLogForAthlete(String id) async {
+    try {
+      await _supabase.from('jump_logs').delete().eq('id', id);
+    } catch (e) {
+      debugPrint('Error deleting jump log for athlete: $e');
+      rethrow;
+    }
+  }
+
+  Future<void> addBodyLogForAthlete(BodyMetricLog log, String athleteId) async {
+    try {
+      final response = await _supabase.from('body_metric_logs').insert({
+        'user_id': athleteId,
+        'type': log.type,
+        'date': log.date,
+        'value': log.value,
+      }).select().single();
+      log.id = response['id'];
+    } catch (e) {
+      debugPrint('Error adding body log for athlete: $e');
+      rethrow;
+    }
+  }
+
+  Future<void> deleteBodyLogForAthlete(String id) async {
+    try {
+      await _supabase.from('body_metric_logs').delete().eq('id', id);
+    } catch (e) {
+      debugPrint('Error deleting body log for athlete: $e');
+      rethrow;
+    }
+  }
+
+
   Future<void> addPRLogForAthlete(PRLog log, String athleteId) async {
     try {
-      await _supabase.from('pr_logs').insert({
+      final response = await _supabase.from('pr_logs').insert({
         'user_id': athleteId,
         'exercise_id': log.exerciseId,
         'date': log.date,
         'weight': log.weight,
         'note': log.note,
-      });
+      }).select().single();
+      log.id = response['id'];
       // Update athlete's one_rep_max profile field
       final profileData = await _supabase
           .from('profiles')
@@ -1477,6 +1586,50 @@ class AppState extends ChangeNotifier {
       }
     } catch (e) {
       debugPrint('Error adding PR log for athlete: $e');
+      rethrow;
+    }
+  }
+
+  Future<void> deletePRLogForAthlete(String id, String exerciseId, String athleteId) async {
+    try {
+      await _supabase.from('pr_logs').delete().eq('id', id);
+      
+      final data = await _supabase
+          .from('pr_logs')
+          .select('weight')
+          .eq('user_id', athleteId)
+          .eq('exercise_id', exerciseId);
+          
+      double newMax = 0.0;
+      if (data != null && (data as List).isNotEmpty) {
+        newMax = (data as List)
+            .map((e) => (e['weight'] as num).toDouble())
+            .reduce((a, b) => a > b ? a : b);
+      }
+      
+      final profileData = await _supabase
+          .from('profiles')
+          .select('one_rep_max')
+          .eq('id', athleteId)
+          .maybeSingle();
+          
+      if (profileData != null) {
+        final currentMaxMap = profileData['one_rep_max'] != null
+            ? Map<String, dynamic>.from(profileData['one_rep_max'])
+            : <String, dynamic>{};
+            
+        if (newMax > 0) {
+          currentMaxMap[exerciseId] = newMax;
+        } else {
+          currentMaxMap.remove(exerciseId);
+        }
+        
+        await _supabase
+            .from('profiles')
+            .update({'one_rep_max': currentMaxMap}).eq('id', athleteId);
+      }
+    } catch (e) {
+      debugPrint('Error deleting PR log for athlete: $e');
       rethrow;
     }
   }

@@ -732,15 +732,46 @@ class _CoachEventDetailsScreenState extends State<CoachEventDetailsScreen>
             Expanded(
                 flex: 2,
                 child: _buildEditableInput(
-                    'DATA', _dateCtrl, Icons.calendar_today_outlined)),
+                    'DATA', _dateCtrl, Icons.calendar_today_outlined, false, () async {
+                  HapticFeedback.lightImpact();
+                  final d = await showDatePicker(
+                    context: context,
+                    initialDate: DateTime.tryParse(_dateCtrl.text) ?? DateTime.now(),
+                    firstDate: DateTime(2020),
+                    lastDate: DateTime.now().add(const Duration(days: 365)),
+                  );
+                  if (d != null) {
+                    setState(() => _dateCtrl.text = d.toIso8601String().split('T').first);
+                  }
+                })),
             const SizedBox(width: 16),
             Expanded(
                 child: _buildEditableInput(
-                    'ORARIO', _startCtrl, Icons.access_time)),
+                    'ORARIO', _startCtrl, Icons.access_time, false, () async {
+                  HapticFeedback.lightImpact();
+                  final t = await showTimePicker(
+                    context: context,
+                    initialTime: _parseTime(_startCtrl.text),
+                    initialEntryMode: TimePickerEntryMode.dial,
+                  );
+                  if (t != null) {
+                    setState(() => _startCtrl.text = '${t.hour.toString().padLeft(2, '0')}:${t.minute.toString().padLeft(2, '0')}');
+                  }
+                })),
             const SizedBox(width: 16),
             Expanded(
                 child:
-                    _buildEditableInput('', _endCtrl, Icons.access_time, true)),
+                    _buildEditableInput('', _endCtrl, Icons.access_time, true, () async {
+                  HapticFeedback.lightImpact();
+                  final t = await showTimePicker(
+                    context: context,
+                    initialTime: _parseTime(_endCtrl.text),
+                    initialEntryMode: TimePickerEntryMode.dial,
+                  );
+                  if (t != null) {
+                    setState(() => _endCtrl.text = '${t.hour.toString().padLeft(2, '0')}:${t.minute.toString().padLeft(2, '0')}');
+                  }
+                })),
           ],
         ),
         const SizedBox(height: 24),
@@ -954,8 +985,19 @@ class _CoachEventDetailsScreenState extends State<CoachEventDetailsScreen>
     );
   }
 
+  TimeOfDay _parseTime(String time) {
+    if (time.isEmpty) return TimeOfDay.now();
+    final parts = time.split(':');
+    if (parts.length >= 2) {
+      return TimeOfDay(
+          hour: int.tryParse(parts[0]) ?? 0,
+          minute: int.tryParse(parts[1]) ?? 0);
+    }
+    return TimeOfDay.now();
+  }
+
   Widget _buildEditableInput(String label, TextEditingController controller,
-      [IconData? suffixIcon, bool hideLabel = false]) {
+      [IconData? suffixIcon, bool hideLabel = false, VoidCallback? onTap]) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -981,6 +1023,8 @@ class _CoachEventDetailsScreenState extends State<CoachEventDetailsScreen>
           child: Center(
             child: TextField(
               controller: controller,
+              readOnly: onTap != null,
+              onTap: onTap,
               style: const TextStyle(
                   color: Colors.white,
                   fontWeight: FontWeight.bold,
@@ -1254,7 +1298,7 @@ class _CoachEventDetailsScreenState extends State<CoachEventDetailsScreen>
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
           child: Row(
             children: [
-              Icon(isSelected ? Icons.check_box : (isAbsent ? Icons.disabled_by_default : Icons.check_box_outline_blank),
+              Icon(isSelected ? Icons.check_box : (isAbsent ? Icons.cancel : Icons.check_box_outline_blank),
                   color: isSelected
                       ? AppTheme.primary
                       : (isAbsent ? AppTheme.error : AppTheme.textMediumEmphasis)),
