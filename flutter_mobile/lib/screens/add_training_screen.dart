@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
+import 'package:phosphor_flutter/phosphor_flutter.dart';
 
 import '../core/theme.dart';
 import '../models/models.dart';
@@ -38,6 +39,7 @@ class _AddTrainingScreenState extends State<AddTrainingScreen> {
   // Sport Specific States
   // Skiing
   final List<String> _specialties = [];
+  List<Map<String, String>> _chronoLaps = [];
   String _freeSkiingChanges = '';
   String _freeSkiingLaps = '';
   String _gatedSkiingChanges = '';
@@ -101,7 +103,7 @@ class _AddTrainingScreenState extends State<AddTrainingScreen> {
     _endTime = init != null
         ? _parseTime(init.endTime)
         : const TimeOfDay(hour: 10, minute: 30);
-    _effort = init?.effort.toDouble() ?? 5.0;
+    _effort = (init?.effort.toDouble() ?? 5.0).clamp(0.0, 10.0);
 
     if (init?.details != null && init!.details!['painZones'] != null) {
       _painZones = List<String>.from(init.details!['painZones']);
@@ -124,6 +126,9 @@ class _AddTrainingScreenState extends State<AddTrainingScreen> {
       _enduranceSurface = d['surface']?.toString() ?? '';
 
       if (init.sportId == 'alpine_skiing') {
+        if (d['chronoLaps'] != null) {
+          _chronoLaps = List<Map<String, String>>.from((d['chronoLaps'] as List).map((x) => Map<String, String>.from(x)));
+        }
         if (d['specialties'] != null) {
           _specialties.addAll(List<String>.from(d['specialties']));
         }
@@ -227,6 +232,8 @@ class _AddTrainingScreenState extends State<AddTrainingScreen> {
 
     // Map details
     final details = <String, dynamic>{
+      if (widget.initialSession?.details != null)
+        ...widget.initialSession!.details!,
       'painZones': formattedPainZones,
       if (isSkiing) 'specialties': _specialties,
       if (isSkiing)
@@ -238,6 +245,7 @@ class _AddTrainingScreenState extends State<AddTrainingScreen> {
         },
       if (isSkiing) 'snowCondition': _snowCondition,
       if (isSkiing) 'weatherCondition': _weatherCondition,
+      if (isSkiing && _chronoLaps.isNotEmpty) 'chronoLaps': _chronoLaps,
       if (isEndurance) 'distance': _enduranceDistance.isNotEmpty ? '$_enduranceDistance km' : null,
       if (isEndurance) 'pace': _endurancePace.isNotEmpty ? '$_endurancePace ${isRunning ? "/km" : "km/h"}' : null,
       if (isEndurance) 'avgHeartRate': _enduranceAvgHr.isNotEmpty ? '$_enduranceAvgHr bpm' : null,
@@ -251,10 +259,14 @@ class _AddTrainingScreenState extends State<AddTrainingScreen> {
       if (isAthletic && _athleticExercises.isNotEmpty) 'exercises': _athleticExercises,
       if (isStretching && _stretchExercises.isNotEmpty) 'exercises': _stretchExercises,
     };
+    
+    // Remove null values so we don't accidentally overwrite with nulls
+    details.removeWhere((key, value) => value == null);
 
     final session = TrainingSession(
       id: widget.initialSession?.id ??
           DateTime.now().millisecondsSinceEpoch.toString(),
+      eventId: widget.initialSession?.eventId,
       date: _date.toIso8601String().split('T')[0],
       sportId: widget.sportId,
       duration: duration.toString(),
@@ -489,7 +501,7 @@ class _AddTrainingScreenState extends State<AddTrainingScreen> {
         title: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            const Text('Aggiungi ', style: TextStyle(fontSize: 16)),
+            Text(widget.initialSession != null ? 'Modifica ' : 'Aggiungi ', style: const TextStyle(fontSize: 16)),
             Text(widget.sportName,
                 style: const TextStyle(
                     fontSize: 16,
@@ -951,6 +963,171 @@ class _AddTrainingScreenState extends State<AddTrainingScreen> {
                 const SizedBox(height: 24),
               ],
 
+              // ================= CHRONO & MATERIALS (SKIING ONLY) ================= //
+              if (widget.sportId == 'alpine_skiing') ...[
+                Row(
+                  children: [
+                    const Text('CRONOMETRO & MATERIALI',
+                        style: TextStyle(
+                            color: AppTheme.textMediumEmphasis,
+                            fontWeight: FontWeight.bold,
+                            fontSize: 12,
+                            letterSpacing: 1.2)),
+                    const Spacer(),
+                    Icon(PhosphorIconsRegular.timer,
+                        size: 16, color: AppTheme.textMediumEmphasis),
+                  ],
+                ),
+                const SizedBox(height: 12),
+                ..._chronoLaps.asMap().entries.map((e) {
+                  final idx = e.key;
+                  final lap = e.value;
+                  return Container(
+                    margin: const EdgeInsets.only(bottom: 12),
+                    padding: const EdgeInsets.all(16),
+                    decoration: BoxDecoration(
+                      color: AppTheme.card,
+                      borderRadius: BorderRadius.circular(16),
+                      border: Border.all(color: Colors.white.withValues(alpha: 0.05)),
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            Text('GIRO ${idx + 1}',
+                                style: const TextStyle(
+                                    color: Colors.blue,
+                                    fontWeight: FontWeight.bold,
+                                    fontSize: 12)),
+                            GestureDetector(
+                              onTap: () {
+                                setState(() => _chronoLaps.removeAt(idx));
+                              },
+                              child: const Icon(Icons.delete_outline,
+                                  size: 18, color: AppTheme.textMediumEmphasis),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 12),
+                        Row(
+                          children: [
+                            Expanded(
+                              flex: 1,
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  const Text('TEMPO',
+                                      style: TextStyle(
+                                          color: AppTheme.textMediumEmphasis,
+                                          fontSize: 10,
+                                          fontWeight: FontWeight.bold)),
+                                  const SizedBox(height: 6),
+                                  Container(
+                                    decoration: BoxDecoration(
+                                      color: AppTheme.surface,
+                                      borderRadius: BorderRadius.circular(12),
+                                    ),
+                                    child: TextFormField(
+                                      initialValue: lap['time'],
+                                      keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                                      style: const TextStyle(
+                                          color: Colors.white,
+                                          fontWeight: FontWeight.bold,
+                                          fontSize: 14),
+                                      decoration: const InputDecoration(
+                                        hintText: 'es. 45.2',
+                                        hintStyle: TextStyle(
+                                            color: AppTheme.textMediumEmphasis),
+                                        contentPadding: EdgeInsets.symmetric(
+                                            horizontal: 16, vertical: 12),
+                                        border: InputBorder.none,
+                                      ),
+                                      onChanged: (v) {
+                                        setState(() => lap['time'] = v);
+                                      },
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              flex: 2,
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  const Text('MATERIALE USATO',
+                                      style: TextStyle(
+                                          color: AppTheme.textMediumEmphasis,
+                                          fontSize: 10,
+                                          fontWeight: FontWeight.bold)),
+                                  const SizedBox(height: 6),
+                                  Container(
+                                    decoration: BoxDecoration(
+                                      color: AppTheme.surface,
+                                      borderRadius: BorderRadius.circular(12),
+                                    ),
+                                    child: TextFormField(
+                                      initialValue: lap['material'],
+                                      style: const TextStyle(
+                                          color: Colors.white,
+                                          fontWeight: FontWeight.bold,
+                                          fontSize: 14),
+                                      decoration: InputDecoration(
+                                        hintText: 'es. Sci Gara 1',
+                                        hintStyle: const TextStyle(
+                                            color: AppTheme.textMediumEmphasis),
+                                        prefixIcon: Icon(
+                                            PhosphorIconsRegular.package,
+                                            size: 16,
+                                            color: AppTheme.textMediumEmphasis),
+                                        contentPadding: const EdgeInsets.symmetric(
+                                            horizontal: 16, vertical: 12),
+                                        border: InputBorder.none,
+                                      ),
+                                      onChanged: (v) {
+                                        setState(() => lap['material'] = v);
+                                      },
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
+                  );
+                }),
+                GestureDetector(
+                  onTap: () {
+                    HapticFeedback.lightImpact();
+                    setState(() {
+                      _chronoLaps.add({'time': '', 'material': ''});
+                    });
+                  },
+                  child: Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.symmetric(vertical: 16),
+                    decoration: BoxDecoration(
+                      color: Colors.transparent,
+                      borderRadius: BorderRadius.circular(16),
+                      border: Border.all(color: Colors.white.withValues(alpha: 0.1)),
+                    ),
+                    child: const Center(
+                      child: Text('+ AGGIUNGI GIRO CRONO',
+                          style: TextStyle(
+                              color: AppTheme.primary,
+                              fontWeight: FontWeight.bold,
+                              fontSize: 14)),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 32),
+              ],
+
               // ================= PAIN & RPE SECTIONS ================= //
 
               const Text('Monitoraggio Dolore',
@@ -1061,16 +1238,16 @@ class _AddTrainingScreenState extends State<AddTrainingScreen> {
                 ),
                 child: Slider(
                   value: _effort,
-                  min: 1,
+                  min: 0,
                   max: 10,
-                  divisions: 9,
+                  divisions: 10,
                   onChanged: (v) => setState(() => _effort = v),
                 ),
               ),
               const Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  Text('1 - Riposo',
+                  Text('0 - Nessuno Sforzo',
                       style: TextStyle(
                           color: AppTheme.textMediumEmphasis, fontSize: 12)),
                   Text('10 - Massimale',

@@ -363,6 +363,7 @@ class CalendarEvent {
   String? drylandSpecialty;
   Map<String, dynamic>? technicalDetails;
   List<Map<String, dynamic>>? attendees;
+  String status; // 'planned' | 'completed'
 
   CalendarEvent({
     required this.id,
@@ -378,6 +379,7 @@ class CalendarEvent {
     this.drylandSpecialty,
     this.technicalDetails,
     this.attendees,
+    this.status = 'planned',
   });
 
   factory CalendarEvent.fromJson(Map<String, dynamic> json) {
@@ -397,6 +399,7 @@ class CalendarEvent {
       attendees: json['attendees'] != null
           ? List<Map<String, dynamic>>.from(json['attendees'])
           : null,
+      status: json['status'] ?? 'planned',
     );
   }
 
@@ -414,6 +417,7 @@ class CalendarEvent {
         'drylandSpecialty': drylandSpecialty,
         'technicalDetails': technicalDetails,
         'attendees': attendees,
+        'status': status,
       };
 }
 

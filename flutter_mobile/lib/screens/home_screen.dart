@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:provider/provider.dart';
@@ -12,6 +11,7 @@ import 'package:intl/intl.dart';
 import '../core/theme.dart';
 import '../providers/app_state.dart';
 import '../models/models.dart';
+import '../utils/time_utils.dart';
 import '../widgets/bottom_nav.dart';
 import '../widgets/custom_card.dart';
 
@@ -19,7 +19,7 @@ import 'analytics_screen.dart';
 import 'activity_select.dart';
 import 'teams_screen.dart';
 import 'profile_screen.dart';
-// removed activity_details_screen.dart
+import 'activity_details_screen.dart';
 import 'add_training_screen.dart';
 import 'athlete_event_screen.dart';
 import 'body_metrics_screen.dart';
@@ -77,13 +77,7 @@ class _DashboardViewState extends State<_DashboardView> {
   late String _selectedSeason;
 
   String _formatDuration(String durationMinutes) {
-    if (durationMinutes.contains('h')) return durationMinutes; 
-    final mins = int.tryParse(durationMinutes.replaceAll(RegExp(r'[^0-9]'), '')) ?? 0;
-    if (mins == 0) return durationMinutes; 
-    final h = mins ~/ 60;
-    final m = mins % 60;
-    if (h > 0) return '${h}h ${m}m';
-    return '${m}m';
+    return TimeUtils.formatDuration(durationMinutes);
   }
 
   @override
@@ -206,22 +200,7 @@ class _DashboardViewState extends State<_DashboardView> {
           }
         }
       } else {
-        // Duration can be stored as plain integer minutes (from _calculateDuration)
-        // or in legacy format "Xh Ym"
-        final durStr = session.duration.trim();
-        final plainMinutes = int.tryParse(durStr);
-        if (plainMinutes != null) {
-          totalGymMinutes += plainMinutes;
-        } else {
-          final durLower = durStr.toLowerCase();
-          int hours = 0;
-          int mins = 0;
-          final hMatch = RegExp(r'(\d+)h').firstMatch(durLower);
-          final mMatch = RegExp(r'(\d+)m').firstMatch(durLower);
-          if (hMatch != null) hours = int.parse(hMatch.group(1)!);
-          if (mMatch != null) mins = int.parse(mMatch.group(1)!);
-          totalGymMinutes += (hours * 60) + mins;
-        }
+        totalGymMinutes += TimeUtils.parseDurationToMinutes(session.duration);
       }
     }
 
@@ -279,9 +258,17 @@ class _DashboardViewState extends State<_DashboardView> {
 
     return Scaffold(
       body: SafeArea(
-        child: ListView(
-          padding: const EdgeInsets.all(24),
-          children: [
+        child: RefreshIndicator(
+          color: AppTheme.primary,
+          backgroundColor: AppTheme.surface,
+          onRefresh: () async {
+            HapticFeedback.mediumImpact();
+            await appState.refreshAllHealthData(_currentDate);
+          },
+          child: ListView(
+            physics: const AlwaysScrollableScrollPhysics(),
+            padding: const EdgeInsets.all(24),
+            children: [
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
@@ -599,12 +586,34 @@ class _DashboardViewState extends State<_DashboardView> {
                 );
                 final isPresent = attendee?['isPresent'] == true;
                 
+                final matchingSession = recentSessions.cast<TrainingSession?>().firstWhere(
+                  (s) => s != null && s.eventId == event.id,
+                  orElse: () => null
+                );
+                
                 return Padding(
                   padding: const EdgeInsets.only(bottom: 12),
                   child: GestureDetector(
                     onTap: () {
                       HapticFeedback.lightImpact();
-                      Navigator.push(context, MaterialPageRoute(builder: (_) => AthleteEventScreen(event: event)));
+                      if (matchingSession != null) {
+                        Navigator.push(context, MaterialPageRoute(builder: (_) => ActivityDetailsScreen(session: matchingSession, sportName: event.title)));
+                      } else if (isPast) {
+                        final dummySession = TrainingSession(
+                          id: '',
+                          eventId: event.id,
+                          date: event.date.split('T')[0],
+                          sportId: event.sportCategory == 'ski' ? 'alpine_skiing' : 'athletic_prep',
+                          duration: '0:00:00',
+                          effort: 0,
+                          startTime: event.startTime,
+                          endTime: event.endTime,
+                          details: event.technicalDetails != null ? Map<String, dynamic>.from(event.technicalDetails!) : null,
+                        );
+                        Navigator.push(context, MaterialPageRoute(builder: (_) => ActivityDetailsScreen(session: dummySession, sportName: event.title.isNotEmpty ? event.title : 'Evento Coach')));
+                      } else {
+                        Navigator.push(context, MaterialPageRoute(builder: (_) => AthleteEventScreen(event: event)));
+                      }
                     },
                     child: CustomCard(
                       padding: const EdgeInsets.all(16),
@@ -651,7 +660,7 @@ class _DashboardViewState extends State<_DashboardView> {
                   ),
                 );
               }),
-              ...recentSessions.map((session) {
+              ...recentSessions.where((s) => !dailyCoachEvents.any((e) => e.id == s.eventId)).map((session) {
                 String sName = session.sportId == 'alpine_skiing' ? 'Alpine Skiing' : session.sportId[0].toUpperCase() + session.sportId.substring(1).replaceAll('_', ' ');
                 IconData sIcon = Icons.fitness_center;
                 if (session.sportId == 'alpine_skiing') sIcon = PhosphorIcons.snowflake();
@@ -666,7 +675,7 @@ class _DashboardViewState extends State<_DashboardView> {
                           context,
                           MaterialPageRoute(
                             builder: (_) =>
-                                AddTrainingScreen(sportId: session.sportId, sportName: sName.toUpperCase(), initialSession: session),
+                                ActivityDetailsScreen(session: session, sportName: sName),
                           ),
                         );
                       },
@@ -1065,6 +1074,7 @@ class _DashboardViewState extends State<_DashboardView> {
           ],
         ),
       ),
+    ),
       floatingActionButton: FloatingActionButton(
         onPressed: () {
           HapticFeedback.lightImpact();
@@ -1088,13 +1098,79 @@ class _DashboardViewState extends State<_DashboardView> {
           Text('Daily Readiness', style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold, color: AppTheme.textMediumEmphasis)),
           const SizedBox(height: 12),
           const CustomCard(
-            padding: EdgeInsets.all(24),
+            padding: EdgeInsets.symmetric(vertical: 32, horizontal: 24),
+            child: Center(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  _PulsingSyncIcon(),
+                  SizedBox(height: 20),
+                  Text(
+                    'Sincronizzazione in Corso',
+                    style: TextStyle(
+                      fontWeight: FontWeight.bold,
+                      color: AppTheme.textHighEmphasis,
+                      fontSize: 16,
+                    ),
+                  ),
+                  SizedBox(height: 8),
+                  Text(
+                    'Sincronizzazione degli allenamenti e analisi dei dati biologici da Health Connect / Apple Health. Ricalcolo dei punteggi in corso...',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                      color: AppTheme.textMediumEmphasis,
+                      fontSize: 13,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+          const SizedBox(height: 24),
+        ],
+      );
+    }
+
+    if (appState.healthSyncError == "NO_TODAY_SLEEP_DATA") {
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text('Daily Readiness', style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold, color: AppTheme.textMediumEmphasis)),
+          const SizedBox(height: 12),
+          CustomCard(
+            padding: const EdgeInsets.all(24),
             child: Center(
               child: Column(
                 children: [
-                  CircularProgressIndicator(color: AppTheme.primary),
-                  SizedBox(height: 16),
-                  Text('Sincronizzazione dati in corso...', style: TextStyle(color: AppTheme.textMediumEmphasis)),
+                  const Icon(Icons.info_outline, color: AppTheme.primary, size: 36),
+                  const SizedBox(height: 16),
+                  const Text(
+                    'Dati non ancora disponibili',
+                    style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16),
+                  ),
+                  const SizedBox(height: 8),
+                  const Text(
+                    'I dati del sonno di oggi non sono ancora pronti. Assicurati di aver sincronizzato il tuo Helio Strap (Zepp) o l\'app Salute, poi trascina verso il basso per aggiornare.',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(color: AppTheme.textMediumEmphasis, fontSize: 13),
+                  ),
+                  const SizedBox(height: 16),
+                  ElevatedButton.icon(
+                    icon: const Icon(Icons.refresh, size: 18),
+                    label: const Text('Riprova Sincronizzazione'),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: AppTheme.primary,
+                      foregroundColor: AppTheme.background,
+                      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                    ),
+                    onPressed: () {
+                      HapticFeedback.lightImpact();
+                      appState.refreshAllHealthData(_currentDate);
+                    },
+                  )
                 ],
               ),
             ),
@@ -1334,6 +1410,75 @@ class _DashboardViewState extends State<_DashboardView> {
         ),
         const SizedBox(height: 24),
       ],
+    );
+  }
+}
+
+class _PulsingSyncIcon extends StatefulWidget {
+  const _PulsingSyncIcon();
+
+  @override
+  State<_PulsingSyncIcon> createState() => _PulsingSyncIconState();
+}
+
+class _PulsingSyncIconState extends State<_PulsingSyncIcon>
+    with SingleTickerProviderStateMixin {
+  late AnimationController _controller;
+  late Animation<double> _scaleAnimation;
+  late Animation<double> _rotationAnimation;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = AnimationController(
+      vsync: this,
+      duration: const Duration(seconds: 2),
+    )..repeat();
+
+    _scaleAnimation = TweenSequence<double>([
+      TweenSequenceItem(tween: Tween<double>(begin: 1.0, end: 1.15), weight: 50),
+      TweenSequenceItem(tween: Tween<double>(begin: 1.15, end: 1.0), weight: 50),
+    ]).animate(CurvedAnimation(parent: _controller, curve: Curves.easeInOut));
+
+    _rotationAnimation = Tween<double>(begin: 0.0, end: 1.0).animate(
+      CurvedAnimation(parent: _controller, curve: Curves.linear),
+    );
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedBuilder(
+      animation: _controller,
+      builder: (context, child) {
+        return Transform.scale(
+          scale: _scaleAnimation.value,
+          child: Container(
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: AppTheme.primary.withValues(alpha: 0.1),
+              shape: BoxShape.circle,
+              border: Border.all(
+                color: AppTheme.primary.withValues(alpha: 0.3),
+                width: 2,
+              ),
+            ),
+            child: Transform.rotate(
+              angle: _rotationAnimation.value * 2 * 3.1415926535,
+              child: const Icon(
+                Icons.sync,
+                color: AppTheme.primary,
+                size: 32,
+              ),
+            ),
+          ),
+        );
+      },
     );
   }
 }

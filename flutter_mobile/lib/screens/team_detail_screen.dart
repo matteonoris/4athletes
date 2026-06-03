@@ -8,6 +8,7 @@ import '../models/models.dart';
 import 'coach_athlete_detail_screen.dart';
 import 'package:provider/provider.dart';
 import '../providers/app_state.dart';
+import '../utils/time_utils.dart';
 
 class TeamDetailScreen extends StatefulWidget {
   final Team team;
@@ -74,44 +75,18 @@ class _TeamDetailScreenState extends State<TeamDetailScreen> {
 
   DateTime _getFilterStartDate() {
     final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
     if (_timeFilter == 'Last 7 Days') {
-      return now.subtract(const Duration(days: 7));
+      return today.subtract(const Duration(days: 7));
     } else if (_timeFilter == 'This Month') {
-      return DateTime(now.year, now.month, 1);
+      return DateTime(today.year, today.month, 1);
     } else { // This Season
-      return DateTime(now.year - (now.month < 5 ? 1 : 0), 5, 1);
+      return DateTime(today.year - (today.month < 5 ? 1 : 0), 5, 1);
     }
   }
 
   double _parseDurationToHours(String duration) {
-    if (duration.isEmpty) return 0.0;
-    try {
-      if (duration.contains('h')) {
-        // e.g. "1h 30m"
-        final parts = duration.split('h');
-        double hours = double.parse(parts[0].replaceAll(RegExp(r'[^0-9.]'), ''));
-        double mins = 0.0;
-        if (parts.length > 1 && parts[1].isNotEmpty) {
-          String minStr = parts[1].replaceAll(RegExp(r'[^0-9.]'), '');
-          if (minStr.isNotEmpty) {
-            mins = double.parse(minStr);
-          }
-        }
-        return hours + (mins / 60.0);
-      } else if (duration.contains(':')) {
-        final parts = duration.split(':');
-        if (parts.length >= 2) {
-          return double.parse(parts[0]) + (double.parse(parts[1]) / 60.0);
-        }
-      } else if (duration.toLowerCase().contains('min') || duration.toLowerCase().contains('m')) {
-        String numStr = duration.replaceAll(RegExp(r'[^0-9.]'), '');
-        return double.parse(numStr) / 60.0;
-      } else {
-        String numStr = duration.replaceAll(RegExp(r'[^0-9.]'), '');
-        return double.parse(numStr) / 60.0; // Assume minutes if no unit is provided
-      }
-    } catch (_) {}
-    return 0.0;
+    return TimeUtils.parseDurationToHours(duration);
   }
 
   void _generateTeamData() {
@@ -135,7 +110,7 @@ class _TeamDetailScreenState extends State<TeamDetailScreen> {
         if (sessionDate == null || sessionDate.isBefore(startDate)) continue;
 
         final sportId = session['sport_id'] ?? '';
-        bool isAlpineSkiing = sportId == 'alpine_skiing' || sportId == 'skiing' || sportId == 'snowboarding';
+        bool isAlpineSkiing = sportId == 'alpine_skiing' || sportId == 'skiing' || sportId == 'snowboarding' || sportId == 'ski';
         final durationStr = session['duration']?.toString() ?? '0';
         final details = session['details'] as Map<String, dynamic>?;
 
@@ -143,22 +118,79 @@ class _TeamDetailScreenState extends State<TeamDetailScreen> {
           oreFuoriSci += _parseDurationToHours(durationStr);
         } else {
           int cambia = 0;
-          if (details != null && details['gatedSkiing'] != null) {
-            int ch = int.tryParse(details['gatedSkiing']['changes'].toString()) ?? 0;
-            int laps = int.tryParse(details['gatedSkiing']['laps'].toString()) ?? 1;
-            cambia = ch * laps;
+          int gatedCambia = 0;
+          
+          if (details != null) {
+            var gated = details['gatedSkiing'];
+            if (gated == null && details['technicalDetails'] != null) {
+               gated = details['technicalDetails']['gatedSkiing'];
+            }
+            if (gated is Map<String, dynamic> || gated != null) {
+              var gatedMap = gated is Map ? gated : {};
+              if (gatedMap.isNotEmpty) {
+                 int ch = int.tryParse(gatedMap['changes']?.toString() ?? '0') ?? 0;
+                 int laps = 1;
+                 if (details['laps'] != null) {
+                    laps = int.tryParse(details['laps'].toString()) ?? 1;
+                 } else {
+                    laps = int.tryParse(gatedMap['laps']?.toString() ?? '1') ?? 1;
+                 }
+                 gatedCambia = ch * laps;
+              }
+            }
+
+            int freeCambia = 0;
+            var free = details['freeSkiing'];
+            if (free == null && details['technicalDetails'] != null) {
+               free = details['technicalDetails']['freeSkiing'];
+            }
+            if (free is Map<String, dynamic> || free != null) {
+              var freeMap = free is Map ? free : {};
+              if (freeMap.isNotEmpty) {
+                 int ch = int.tryParse(freeMap['changes']?.toString() ?? '0') ?? 0;
+                 int laps = 1;
+                 if (details['freeLaps'] != null) {
+                    laps = int.tryParse(details['freeLaps'].toString()) ?? 1;
+                 } else if (details['laps'] != null && details['specialty'] == 'CL') {
+                    laps = int.tryParse(details['laps'].toString()) ?? 1;
+                 } else {
+                    laps = int.tryParse(freeMap['laps']?.toString() ?? '1') ?? 1;
+                 }
+                 freeCambia = ch * laps;
+              }
+            }
+            
+            cambia = gatedCambia + freeCambia;
+
+            if (cambia == 0) {
+              // Fallback old format
+              int vol = 0;
+              final runs = details['runs'];
+              if (runs is List) vol += runs.length;
+              final c = details['cambi'];
+              if (c is int) vol += c;
+              if (c is double) vol += c.toInt();
+              if (c is String) vol += int.tryParse(c) ?? 0;
+              cambia = vol;
+              gatedCambia = vol; // old format typically means gated
+            }
           }
 
           cambiTotale += cambia;
 
-          if (details != null && details['specialties'] != null) {
-            List<dynamic> specs = details['specialties'];
-            for (var s in specs) {
-              String specStr = s.toString().toUpperCase();
-              if (specStr.contains('SL')) cambiSL += cambia;
-              if (specStr.contains('GS')) cambiGS += cambia;
-              if (specStr.contains('SG')) cambiSG += cambia;
-              if (specStr.contains('DH')) cambiDH += cambia;
+          if (details != null) {
+            List<dynamic>? specs = details['specialties'];
+            if (specs == null && details['technicalDetails'] != null) {
+               specs = details['technicalDetails']['specialties'];
+            }
+            if (specs != null) {
+              for (var s in specs) {
+                String specStr = s.toString().toUpperCase();
+                if (specStr.contains('SL') || specStr.contains('SLALOM')) cambiSL += gatedCambia;
+                if (specStr.contains('GS') || specStr.contains('GIGANTE')) cambiGS += gatedCambia;
+                if (specStr.contains('SG') || specStr.contains('SUPER')) cambiSG += gatedCambia;
+                if (specStr.contains('DH') || specStr.contains('DISCESA')) cambiDH += gatedCambia;
+              }
             }
           }
         }

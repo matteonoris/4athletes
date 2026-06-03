@@ -129,6 +129,9 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
     // New tests
     final sprint20m = _getLatestBodyVal(appState.bodyLogs, 'sprint_20m');
     final sprint60m = _getLatestBodyVal(appState.bodyLogs, 'sprint_60m');
+    final legerVam = _getLatestBodyVal(appState.bodyLogs, 'leger_vam');
+    final legerVo2Max = _getLatestBodyVal(appState.bodyLogs, 'leger_vo2max');
+    final legerDist = _getLatestBodyVal(appState.bodyLogs, 'leger_distance');
     final balBipedal = _getLatestBodyVal(appState.bodyLogs, 'balance_bipedal');
     final balSingleL = _getLatestBodyVal(appState.bodyLogs, 'balance_single_l');
     final balSingleR = _getLatestBodyVal(appState.bodyLogs, 'balance_single_r');
@@ -411,7 +414,7 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
           const SizedBox(height: 32),
 
           // ANAEROBICO
-          Text('ANAEROBICO (Tempo)',
+          Text('VELOCITÀ E AEROBICO',
               style: Theme.of(context).textTheme.labelSmall?.copyWith(
                   color: AppTheme.textMediumEmphasis,
                   letterSpacing: 1.5,
@@ -432,6 +435,18 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
               GestureDetector(
                 onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const AnalyticsDetailsScreen(title: 'Scatto 60 m', type: 'body', exerciseId: 'sprint_60m'))),
                 child: _MaxLoadCard(title: 'Scatto 60 m', val: sprint60m, unit: 's'),
+              ),
+              GestureDetector(
+                onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const AnalyticsDetailsScreen(title: 'Léger VAM', type: 'body', exerciseId: 'leger_vam'))),
+                child: _MaxLoadCard(title: 'Léger VAM', val: legerVam, unit: 'km/h'),
+              ),
+              GestureDetector(
+                onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const AnalyticsDetailsScreen(title: 'Léger Vo2Max', type: 'body', exerciseId: 'leger_vo2max'))),
+                child: _MaxLoadCard(title: 'Léger Vo2Max', val: legerVo2Max, unit: 'ml/kg/min'),
+              ),
+              GestureDetector(
+                onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const AnalyticsDetailsScreen(title: 'Léger Distanza', type: 'body', exerciseId: 'leger_distance'))),
+                child: _MaxLoadCard(title: 'Léger Dist.', val: legerDist, unit: 'm'),
               ),
             ],
           ),

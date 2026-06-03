@@ -40,13 +40,19 @@ class _HrZonesScreenState extends State<HrZonesScreen> {
     final p = state.userProfile!;
     
     // Ensure all values are valid
-    for (var zone in _customZones) {
-      if ((zone['min'] ?? 0) >= (zone['max'] ?? 0)) {
-        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-          content: Text('I valori minimi devono essere minori dei massimi.'),
-          backgroundColor: AppTheme.error,
-        ));
-        return;
+    for (int i = 0; i < _customZones.length; i++) {
+      final zone = _customZones[i];
+      if (i < 4) {
+        if ((zone['min'] ?? 0) >= (zone['max'] ?? 0)) {
+          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+            content: Text('I valori minimi devono essere minori dei massimi.'),
+            backgroundColor: AppTheme.error,
+          ));
+          return;
+        }
+      } else {
+        // Set max of Zone 5 to 300 (no upper boundary)
+        zone['max'] = 300;
       }
     }
 
@@ -118,20 +124,26 @@ class _HrZonesScreenState extends State<HrZonesScreen> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 const Text('Max', style: TextStyle(fontSize: 10, color: AppTheme.textMediumEmphasis)),
-                TextFormField(
-                  initialValue: zone['max'].toString(),
-                  keyboardType: TextInputType.number,
-                  style: const TextStyle(fontWeight: FontWeight.bold),
-                  decoration: const InputDecoration(
-                    isDense: true,
-                    contentPadding: EdgeInsets.symmetric(vertical: 8),
+                if (index < 4)
+                  TextFormField(
+                    initialValue: zone['max'].toString(),
+                    keyboardType: TextInputType.number,
+                    style: const TextStyle(fontWeight: FontWeight.bold),
+                    decoration: const InputDecoration(
+                      isDense: true,
+                      contentPadding: EdgeInsets.symmetric(vertical: 8),
+                    ),
+                    onChanged: (val) {
+                      setState(() {
+                        zone['max'] = int.tryParse(val) ?? zone['max']!;
+                      });
+                    },
+                  )
+                else
+                  const Padding(
+                    padding: EdgeInsets.symmetric(vertical: 8),
+                    child: Text('∞', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18, color: AppTheme.textMediumEmphasis)),
                   ),
-                  onChanged: (val) {
-                    setState(() {
-                      zone['max'] = int.tryParse(val) ?? zone['max']!;
-                    });
-                  },
-                ),
               ],
             ),
           ),

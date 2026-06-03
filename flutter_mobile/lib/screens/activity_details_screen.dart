@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 
 import '../core/theme.dart';
 import '../models/models.dart';
+import '../utils/time_utils.dart';
 import '../providers/app_state.dart';
 import '../widgets/custom_card.dart';
 import 'add_training_screen.dart';
@@ -96,6 +97,21 @@ class ActivityDetailsScreen extends StatelessWidget {
     );
   }
 
+  String? _getMetricValue(Map<String, dynamic>? details, List<String> keys, {String? fallbackUnit}) {
+    if (details == null) return null;
+    for (var k in keys) {
+      if (details.containsKey(k) && details[k] != null) {
+        String val = details[k].toString().trim();
+        if (val.isEmpty || val == 'null' || val == '--') return null;
+        if (fallbackUnit != null && !val.contains(RegExp(r'[a-zA-Z]'))) {
+          return '$val $fallbackUnit';
+        }
+        return val;
+      }
+    }
+    return null;
+  }
+
   String _formatKey(String key) {
     // Basic formatting for camelCase keys
     final formatted =
@@ -130,6 +146,42 @@ class ActivityDetailsScreen extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: data.entries.map((e) {
         if (e.key == 'painZones') return const SizedBox(); // Handled separately
+        if (e.key == 'chronoLaps' && e.value is List) {
+          final laps = e.value as List;
+          if (laps.isEmpty) return const SizedBox();
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const SizedBox(height: 12),
+              const Text('CRONOMETRO & MATERIALI', style: TextStyle(fontWeight: FontWeight.bold, color: AppTheme.secondary)),
+              const SizedBox(height: 8),
+              ...laps.asMap().entries.map((entry) {
+                final idx = entry.key;
+                final lap = entry.value as Map<String, dynamic>;
+                return Padding(
+                  padding: const EdgeInsets.only(bottom: 8.0),
+                  child: Container(
+                    decoration: const BoxDecoration(
+                      border: Border(left: BorderSide(color: AppTheme.primary, width: 2)),
+                    ),
+                    padding: const EdgeInsets.only(left: 12.0),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text('GIRO ${idx + 1}', style: const TextStyle(color: AppTheme.primary, fontWeight: FontWeight.bold, fontSize: 12)),
+                        const SizedBox(height: 4),
+                        if ((lap['time']?.toString() ?? '').isNotEmpty)
+                          Text('Tempo: ${lap['time']}', style: const TextStyle(fontWeight: FontWeight.bold)),
+                        if ((lap['material']?.toString() ?? '').isNotEmpty)
+                          Text('Materiale: ${lap['material']}', style: const TextStyle(fontSize: 12, color: AppTheme.textMediumEmphasis)),
+                      ],
+                    ),
+                  ),
+                );
+              }),
+            ],
+          );
+        }
         if (e.value is Map) {
           return Column(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -337,31 +389,100 @@ class ActivityDetailsScreen extends StatelessWidget {
                 _buildDetailRow(context, 'Data', session.date),
                 _buildDetailRow(context, 'Orario',
                     '${session.startTime} - ${session.endTime}'),
-                _buildDetailRow(context, 'Durata', session.duration),
+                _buildDetailRow(context, 'Durata', TimeUtils.formatDuration(session.duration)),
               ],
             ),
           ),
 
           const SizedBox(height: 24),
 
-          // Import Metrics
+          // Import & Manual Metrics
           if (session.details != null) ...[
-            if (session.details!.containsKey('distance') || session.details!.containsKey('calories') || session.details!.containsKey('speed') || session.details!.containsKey('pace') || session.details!.containsKey('avg_hr'))
-              Padding(
-                padding: const EdgeInsets.only(bottom: 24),
-                child: Row(
-                  children: [
-                    if (session.details!.containsKey('distance'))
-                      Expanded(child: Padding(padding: const EdgeInsets.only(right: 8), child: _buildMetric(context, PhosphorIconsRegular.mapPin, Colors.blue, session.details!['distance']?.toString() ?? '--', 'DISTANZA'))),
-                    if (session.details!.containsKey('pace') || session.details!.containsKey('speed'))
-                      Expanded(child: Padding(padding: const EdgeInsets.only(right: 8), child: _buildMetric(context, PhosphorIconsRegular.timer, Colors.green, (session.details!['pace'] ?? session.details!['speed'])?.toString() ?? '--', session.details!.containsKey('pace') ? 'PASSO' : 'VELOCITÀ'))),
-                    if (session.details!.containsKey('avg_hr'))
-                      Expanded(child: Padding(padding: const EdgeInsets.only(right: 8), child: _buildMetric(context, PhosphorIconsRegular.heart, Colors.red, '${session.details!['avg_hr'] ?? '--'}', 'BPM MEDI'))),
-                    if (session.details!.containsKey('calories'))
-                      Expanded(child: _buildMetric(context, PhosphorIconsRegular.fire, Colors.orange, '${(session.details!['calories'] as num?)?.round() ?? '--'}', 'KCAL')),
-                  ],
-                ),
-              ),
+            Builder(
+              builder: (context) {
+                final details = session.details;
+                final isRunning = session.sportId.contains('running') || session.sportId == 'track_field';
+
+                // Extract values
+                final distVal = _getMetricValue(details, ['distance'], fallbackUnit: 'km');
+                final speedVal = _getMetricValue(details, ['pace', 'speed']);
+                final speedLabel = details?.containsKey('pace') == true ? 'PASSO' : 'VELOCITÀ';
+                final avgHrVal = _getMetricValue(details, ['avg_hr', 'avgHeartRate'], fallbackUnit: 'bpm');
+                final kcalVal = details != null && details.containsKey('calories') == true 
+                    ? '${(details['calories'] as num?)?.round() ?? "--"}' 
+                    : null;
+                
+                // Secondary metrics
+                final maxHrVal = _getMetricValue(details, ['max_hr', 'maxHeartRate'], fallbackUnit: 'bpm');
+                final elevationVal = _getMetricValue(details, ['elevation', 'elevationGain'], fallbackUnit: 'm');
+                final cadenceVal = _getMetricValue(details, ['cadence', 'avgCadence'], fallbackUnit: isRunning ? 'spm' : 'rpm');
+                final surfaceVal = _getMetricValue(details, ['surface', 'terrain']);
+
+                // Build list of widgets to display
+                final List<Widget> primaryMetrics = [];
+                if (distVal != null) {
+                  primaryMetrics.add(_buildMetric(context, PhosphorIconsRegular.mapPin, Colors.blue, distVal, 'DISTANZA'));
+                }
+                if (speedVal != null) {
+                  primaryMetrics.add(_buildMetric(context, PhosphorIconsRegular.timer, Colors.green, speedVal, speedLabel));
+                }
+                if (avgHrVal != null) {
+                  primaryMetrics.add(_buildMetric(context, PhosphorIconsRegular.heart, Colors.red, avgHrVal, 'BPM MEDI'));
+                }
+                if (kcalVal != null) {
+                  primaryMetrics.add(_buildMetric(context, PhosphorIconsRegular.fire, Colors.orange, kcalVal, 'KCAL'));
+                }
+
+                final List<Widget> secondaryMetrics = [];
+                if (maxHrVal != null) {
+                  secondaryMetrics.add(_buildMetric(context, PhosphorIconsRegular.heartbeat, Colors.pink, maxHrVal, 'FC MAX'));
+                }
+                if (elevationVal != null) {
+                  secondaryMetrics.add(_buildMetric(context, PhosphorIconsRegular.mountains, Colors.cyan, elevationVal, 'DISLIVELLO'));
+                }
+                if (cadenceVal != null) {
+                  secondaryMetrics.add(_buildMetric(context, PhosphorIconsRegular.trendUp, Colors.deepOrange, cadenceVal, isRunning ? 'CADENZA' : 'CADENZA MEDIA'));
+                }
+                if (surfaceVal != null) {
+                  secondaryMetrics.add(_buildMetric(context, PhosphorIconsRegular.compass, Colors.teal, surfaceVal, 'TERRENO'));
+                }
+
+                if (primaryMetrics.isEmpty && secondaryMetrics.isEmpty) {
+                  return const SizedBox();
+                }
+
+                Widget buildMetricsRow(List<Widget> items) {
+                  return Row(
+                    children: List.generate(4, (index) {
+                      if (index < items.length) {
+                        return Expanded(
+                          child: Padding(
+                            padding: EdgeInsets.only(right: index < 3 ? 8.0 : 0.0),
+                            child: items[index],
+                          ),
+                        );
+                      } else {
+                        return const Expanded(child: SizedBox());
+                      }
+                    }),
+                  );
+                }
+
+                return Padding(
+                  padding: const EdgeInsets.only(bottom: 24),
+                  child: Column(
+                    children: [
+                      if (primaryMetrics.isNotEmpty) ...[
+                        buildMetricsRow(primaryMetrics),
+                        if (secondaryMetrics.isNotEmpty) const SizedBox(height: 8),
+                      ],
+                      if (secondaryMetrics.isNotEmpty) 
+                        buildMetricsRow(secondaryMetrics),
+                    ],
+                  ),
+                );
+              }
+            ),
 
             // HR Zones Chart
             if (session.details!.containsKey('hr_zones'))
@@ -392,7 +513,12 @@ class ActivityDetailsScreen extends StatelessWidget {
             Builder(
               builder: (ctx) {
                 Map<String, dynamic> filteredDetails = Map.from(session.details!)
-                  ..removeWhere((k, v) => ['painZones', 'source', 'external_id', 'hr_zones', 'avg_hr', 'speed', 'pace', 'distance', 'calories'].contains(k));
+                  ..removeWhere((k, v) => [
+                    'painZones', 'source', 'external_id', 'hr_zones', 
+                    'avg_hr', 'avgHeartRate', 'speed', 'pace', 'distance', 'calories',
+                    'max_hr', 'maxHeartRate', 'elevation', 'elevationGain', 'cadence', 
+                    'avgCadence', 'surface', 'terrain', 'technicalDetails'
+                  ].contains(k));
                 
                 if (filteredDetails.isEmpty) return const SizedBox();
                 

@@ -89,7 +89,7 @@ class AppState extends ChangeNotifier {
   String? _healthSyncError;
   String? get healthSyncError => _healthSyncError;
 
-  Future<void> syncDailyHealthData(DateTime targetDate) async {
+  Future<void> syncDailyHealthData(DateTime targetDate, {bool forceRefresh = false}) async {
     _isSyncingHealth = true;
     _healthSyncCompleted = false;
     _healthSyncError = null;
@@ -140,7 +140,7 @@ class AppState extends ChangeNotifier {
     }
 
     // Controlla la cache locale
-    if (_prefs != null && _prefs!.containsKey('health_sync_v5_$dateKey')) {
+    if (!forceRefresh && _prefs != null && _prefs!.containsKey('health_sync_v5_$dateKey')) {
       try {
         final cached = jsonDecode(_prefs!.getString('health_sync_v5_$dateKey')!);
         
@@ -257,6 +257,8 @@ class AppState extends ChangeNotifier {
       String errStr = e.toString();
       if (errStr.contains('CALIBRATION_PHASE')) {
         _healthSyncError = "CALIBRATION_PHASE";
+      } else if (errStr.contains('NO_TODAY_SLEEP_DATA')) {
+        _healthSyncError = "NO_TODAY_SLEEP_DATA";
       } else if (errStr.contains('Health Connect')) {
         _healthSyncError = "HEALTH_CONNECT_NOT_INSTALLED";
       } else {
@@ -808,6 +810,7 @@ class AppState extends ChangeNotifier {
                 attendees: e['attendees'] != null
                     ? List<Map<String, dynamic>>.from(e['attendees'])
                     : null,
+                status: e['status'] ?? 'planned',
               ))
           .toList();
 
@@ -1001,7 +1004,7 @@ class AppState extends ChangeNotifier {
     }
   }
 
-  void addSession(TrainingSession session) async {
+  Future<void> addSession(TrainingSession session) async {
     try {
       if (!_isValidUuid(session.id)) {
         // Insert new
@@ -1195,26 +1198,41 @@ class AppState extends ChangeNotifier {
       final healthSessions =
           await HealthService().fetchRecentWorkouts(userProfile!, days: 7);
 
+      final processedExternalIds = <String>{};
+
       for (var session in healthSessions) {
+        final extId = session.details?['external_id']?.toString();
+        if (extId != null && processedExternalIds.contains(extId)) {
+          continue;
+        }
+
         // Check if session already exists by external_id
         final existsByExternalId = _sessions.any((s) =>
             s.details != null &&
-            s.details!['external_id'] == session.details!['external_id']);
+            s.details!['external_id'] == extId);
 
         // Check for time overlap
         bool timeOverlap = false;
         try {
+          String normalizeTime(String time) {
+            final parts = time.trim().split(':');
+            if (parts.isEmpty || parts[0].isEmpty) return '00:00:00';
+            if (parts.length == 1) return '${parts[0].padLeft(2, '0')}:00:00';
+            if (parts.length == 2) return '${parts[0].padLeft(2, '0')}:${parts[1].padLeft(2, '0')}:00';
+            return '${parts[0].padLeft(2, '0')}:${parts[1].padLeft(2, '0')}:${parts[2].padLeft(2, '0')}';
+          }
+
           DateTime newStart =
-              DateTime.parse('${session.date}T${session.startTime}:00');
+              DateTime.parse('${session.date}T${normalizeTime(session.startTime)}');
           DateTime newEnd =
-              DateTime.parse('${session.date}T${session.endTime}:00');
+              DateTime.parse('${session.date}T${normalizeTime(session.endTime)}');
 
           for (var existing in _sessions) {
             if (existing.date == session.date) {
               DateTime extStart =
-                  DateTime.parse('${existing.date}T${existing.startTime}:00');
+                  DateTime.parse('${existing.date}T${normalizeTime(existing.startTime)}');
               DateTime extEnd =
-                  DateTime.parse('${existing.date}T${existing.endTime}:00');
+                  DateTime.parse('${existing.date}T${normalizeTime(existing.endTime)}');
 
               if (newStart.isBefore(extEnd) && newEnd.isAfter(extStart)) {
                 timeOverlap = true;
@@ -1227,7 +1245,10 @@ class AppState extends ChangeNotifier {
         }
 
         if (!existsByExternalId && !timeOverlap) {
-          addSession(session);
+          if (extId != null) {
+            processedExternalIds.add(extId);
+          }
+          await addSession(session);
         }
       }
 
@@ -1235,6 +1256,23 @@ class AppState extends ChangeNotifier {
       await syncDailyHealthMetrics();
     } catch (e) {
       debugPrint('Error syncing health workouts: $e');
+    }
+  }
+
+  Future<void> refreshAllHealthData(DateTime targetDate) async {
+    _isSyncingHealth = true;
+    _healthSyncCompleted = false;
+    _healthSyncError = null;
+    notifyListeners();
+    try {
+      await syncHealthWorkouts();
+      await syncDailyHealthData(targetDate, forceRefresh: true);
+    } catch (e) {
+      debugPrint('Error during manual refresh: $e');
+      _healthSyncError = e.toString();
+    } finally {
+      _isSyncingHealth = false;
+      notifyListeners();
     }
   }
 
@@ -1653,6 +1691,7 @@ class AppState extends ChangeNotifier {
               'dryland_specialty': event.drylandSpecialty,
               'technical_details': event.technicalDetails,
               'attendees': event.attendees,
+              'status': event.status,
             })
             .select()
             .single();
@@ -1672,10 +1711,107 @@ class AppState extends ChangeNotifier {
           'dryland_specialty': event.drylandSpecialty,
           'technical_details': event.technicalDetails,
           'attendees': event.attendees,
+          'status': event.status,
         }).eq('id', event.id);
         final index = _coachEvents.indexWhere((e) => e.id == event.id);
         if (index >= 0) {
           _coachEvents[index] = event;
+        }
+      }
+
+      // If completed, generate TrainingSessions for present athletes
+      if (event.status == 'completed') {
+        final presentAthletes = event.attendees?.where((a) => a['isPresent'] == true).toList() ?? [];
+        for (var athlete in presentAthletes) {
+          final athleteId = athlete['id'];
+          if (athleteId == null) continue;
+
+          // Resolve athlete user ID from email or name if it's not a UUID
+          String resolvedAthleteId = athleteId;
+          if (!_isValidUuid(resolvedAthleteId)) {
+             try {
+                final profileMatch = await _supabase.from('profiles').select('id').or('email.eq.$resolvedAthleteId,first_name.ilike.%$resolvedAthleteId%').maybeSingle();
+                if (profileMatch != null) {
+                   resolvedAthleteId = profileMatch['id'];
+                } else {
+                   continue; // Skip if we can't find a valid user_id
+                }
+             } catch (_) {
+                continue;
+             }
+          }
+
+          final existingSession = await _supabase
+              .from('training_sessions')
+              .select('id')
+              .eq('user_id', resolvedAthleteId)
+              .eq('event_id', event.id)
+              .maybeSingle();
+
+          String calculatedDuration = '00:00:00';
+          try {
+             final format = RegExp(r'(\d+):(\d+)');
+             final startMatch = format.firstMatch(event.startTime);
+             final endMatch = format.firstMatch(event.endTime);
+             if (startMatch != null && endMatch != null) {
+                final startMin = int.parse(startMatch.group(1)!) * 60 + int.parse(startMatch.group(2)!);
+                final endMin = int.parse(endMatch.group(1)!) * 60 + int.parse(endMatch.group(2)!);
+                int diff = endMin - startMin;
+                if (diff < 0) diff += 24 * 60;
+                final h = diff ~/ 60;
+                final m = diff % 60;
+                calculatedDuration = '${h.toString().padLeft(2, '0')}:${m.toString().padLeft(2, '0')}:00';
+             }
+          } catch (_) {}
+
+          final isSkiing = event.sportCategory == 'ski';
+          
+          Map<String, dynamic> sessionDetails = {
+             'from_calendar': true,
+             'specialty': isSkiing ? (event.technicalDetails?['specialties']?[0] ?? 'SL') : event.drylandSpecialty,
+             'technicalDetails': event.technicalDetails,
+          };
+          
+          if (isSkiing && event.technicalDetails != null) {
+            sessionDetails['specialties'] = event.technicalDetails!['specialties'];
+            sessionDetails['snowCondition'] = event.technicalDetails!['snowCondition'];
+            sessionDetails['weatherCondition'] = event.technicalDetails!['weatherCondition'];
+            
+            // Override gatedSkiing laps with the athlete specific laps
+            if (event.technicalDetails!['gatedSkiing'] != null) {
+              sessionDetails['gatedSkiing'] = {
+                'changes': event.technicalDetails!['gatedSkiing']['changes'],
+                'laps': athlete['laps'] ?? event.technicalDetails!['gatedSkiing']['laps']
+              };
+            }
+            if (event.technicalDetails!['freeSkiing'] != null) {
+              sessionDetails['freeSkiing'] = {
+                'changes': event.technicalDetails!['freeSkiing']['changes'],
+                'laps': athlete['freeLaps'] ?? event.technicalDetails!['freeSkiing']['laps']
+              };
+            }
+          } else {
+             sessionDetails['laps'] = athlete['laps'];
+             sessionDetails['freeLaps'] = athlete['freeLaps'];
+          }
+
+          final sessionPayload = {
+            'user_id': resolvedAthleteId,
+            'sport_id': isSkiing ? 'alpine_skiing' : 'dryland',
+            'date': event.date,
+            'start_time': event.startTime,
+            'end_time': event.endTime,
+            'duration': calculatedDuration,
+            'effort': event.technicalDetails?['qualityRating'] ?? 5,
+            'event_id': event.id,
+            'details': sessionDetails,
+          };
+
+          if (existingSession != null) {
+            await _supabase.from('training_sessions').update(sessionPayload).eq('id', existingSession['id']);
+          } else {
+            await _supabase.from('training_sessions').insert(sessionPayload);
+          }
         }
       }
 
@@ -1690,15 +1826,34 @@ class AppState extends ChangeNotifier {
 
   void deleteCoachEvent(String id) async {
     try {
-      await _supabase.from('calendar_events').delete().eq('id', id);
+      // 1. Delete associated training sessions
+      try {
+        await _supabase.from('training_sessions').delete().eq('event_id', id);
+      } catch (e) {
+        debugPrint('Error deleting training_sessions for event $id: $e');
+      }
+
+      // 2. Delete associated notifications (if any)
+      try {
+        await _supabase.from('notifications').delete().eq('event_id', id);
+      } catch (e) {
+        debugPrint('Error deleting notifications for event $id: $e');
+      }
+
+      // 3. Delete the actual calendar event
+      try {
+        await _supabase.from('calendar_events').delete().eq('id', id);
+      } catch (e) {
+        debugPrint('Error deleting calendar_events for event $id: $e');
+      }
+
+      // 4. Update local state
       _coachEvents.removeWhere((e) => e.id == id);
-
-      // Also delete the associated session in current user's list if present
       _sessions.removeWhere((s) => s.eventId == id);
-
+      
       notifyListeners();
     } catch (e) {
-      debugPrint('Error deleting coach event: $e');
+      debugPrint('Error in deleteCoachEvent: $e');
     }
   }
 
@@ -1770,12 +1925,13 @@ class AppState extends ChangeNotifier {
         'name': athleteName,
         'isPresent': isPresent,
         'laps': 6,
+        'freeLaps': 4,
       });
     }
     saveCoachEvent(event);
   }
 
-  Future<void> updateAthleteLaps(CalendarEvent event, int laps) async {
+  Future<void> updateAthleteLaps(CalendarEvent event, int laps, int freeLaps) async {
     final athleteName =
         '${_userProfile?.firstName ?? ''} ${_userProfile?.lastName ?? ''}'
             .trim();
@@ -1787,6 +1943,7 @@ class AppState extends ChangeNotifier {
           a['id'] == _userProfile?.email ||
           a['name'] == athleteName) {
         a['laps'] = laps;
+        a['freeLaps'] = freeLaps;
         found = true;
       }
     }
@@ -1797,6 +1954,7 @@ class AppState extends ChangeNotifier {
         'name': athleteName,
         'isPresent': true,
         'laps': laps,
+        'freeLaps': freeLaps,
       });
     }
     saveCoachEvent(event);

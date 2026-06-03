@@ -1,8 +1,7 @@
 import 'package:health/health.dart';
 
 void main() {
-  print("Enum values:");
-  for (var val in HealthWorkoutActivityType.values) {
-    print(val.name);
-  }
+  // Let's print the members or try to access properties of WorkoutHealthValue
+  // to see what fields compile.
+  print("WorkoutHealthValue exists");
 }

@@ -40,7 +40,9 @@ class _AnalyticsDetailsScreenState extends State<AnalyticsDetailsScreen> {
       'balance_bipedal',
       'balance_single_l',
       'balance_single_r',
-      'single_leg'
+      'single_leg',
+      'leger_vam',
+      'leger_vo2max'
     ];
     if (twoDecimals.contains(widget.exerciseId)) return 2;
     return 0;
@@ -412,6 +414,9 @@ class _AnalyticsDetailsScreenState extends State<AnalyticsDetailsScreen> {
        if (widget.exerciseId == 'sleep_score' || widget.exerciseId == 'recovery_score' || widget.exerciseId.startsWith('balance_')) return '';
        if (widget.exerciseId == 'sprint_20m' || widget.exerciseId == 'sprint_60m' || widget.exerciseId.startsWith('plank_')) return 's';
        if (widget.exerciseId == 'pullups_max') return 'reps';
+       if (widget.exerciseId == 'leger_vam') return 'km/h';
+       if (widget.exerciseId == 'leger_vo2max') return 'ml/kg/min';
+       if (widget.exerciseId == 'leger_distance') return 'm';
        return '';
     }
     return '';
@@ -510,6 +515,10 @@ class _AnalyticsDetailsScreenState extends State<AnalyticsDetailsScreen> {
   }
 
   Widget _buildChartSection(List<dynamic> logs) {
+    if (widget.exerciseId == 'leger_vo2max' || widget.exerciseId == 'leger_distance') {
+      return const SizedBox.shrink();
+    }
+    
     if (logs.isEmpty) {
       return const Padding(
         padding: EdgeInsets.symmetric(horizontal: 20),

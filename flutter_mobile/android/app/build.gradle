@@ -50,3 +50,9 @@ configurations.all {
         force "androidx.browser:browser:1.8.0"
     }
 }
+
+dependencies {
+    implementation "androidx.health.connect:connect-client:1.1.0-alpha07"
+    implementation "org.jetbrains.kotlinx:kotlinx-coroutines-android:1.7.1"
+}
+

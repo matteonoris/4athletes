@@ -6,6 +6,7 @@ import 'package:phosphor_flutter/phosphor_flutter.dart';
 import '../core/theme.dart';
 import '../models/models.dart';
 import '../providers/app_state.dart';
+import '../utils/time_utils.dart';
 import 'analytics_details_screen.dart';
 import 'coach_body_metric_detail_screen.dart';
 import 'activity_details_screen.dart';
@@ -141,17 +142,28 @@ class _CoachAthleteDetailScreenState extends State<CoachAthleteDetailScreen> {
     }
 
     for (final s in sessions) {
-      if (s.sportId != 'alpine_skiing') {
-        extraMin += int.tryParse(s.duration.toString()) ?? 0;
+      if (s.sportId != 'alpine_skiing' && s.sportId != 'ski' && s.sportId != 'skiing' && s.sportId != 'snowboarding') {
+        extraMin += TimeUtils.parseDurationToMinutes(s.duration);
       } else {
         final details = s.details;
         if (details != null) {
-          final gatedStr = details['gatedSkiing'];
+          var gatedStr = details['gatedSkiing'];
+          if (gatedStr == null && details['technicalDetails'] != null) {
+            gatedStr = details['technicalDetails']['gatedSkiing'];
+          }
           if (gatedStr is Map<String, dynamic>) {
             final changes = int.tryParse(gatedStr['changes']?.toString() ?? '0') ?? 0;
-            final laps = int.tryParse(gatedStr['laps']?.toString() ?? '0') ?? 0;
+            int laps = 1;
+            if (details['laps'] != null) {
+               laps = int.tryParse(details['laps'].toString()) ?? 1;
+            } else {
+               laps = int.tryParse(gatedStr['laps']?.toString() ?? '1') ?? 1;
+            }
             final vol = changes * laps;
-            final specialties = details['specialties'] as List<dynamic>?;
+            var specialties = details['specialties'] as List<dynamic>?;
+            if (specialties == null && details['technicalDetails'] != null) {
+               specialties = details['technicalDetails']['specialties'] as List<dynamic>?;
+            }
             final specName = (specialties != null && specialties.isNotEmpty) ? specialties[0].toString() : 'Mixed';
             addCambi(s.date, vol, specName);
           } else {
@@ -250,12 +262,7 @@ class _CoachAthleteDetailScreenState extends State<CoachAthleteDetailScreen> {
   }
 
   String _formatDuration(int minutes) {
-    if (minutes == 0) return '0h';
-    final h = minutes ~/ 60;
-    final m = minutes % 60;
-    if (h == 0) return '${m}m';
-    if (m == 0) return '${h}h';
-    return '${h}h ${m}m';
+    return TimeUtils.formatDuration(minutes);
   }
 
   @override
@@ -737,6 +744,9 @@ class _CoachAthleteDetailScreenState extends State<CoachAthleteDetailScreen> {
     'pullups_max': 'Trazioni',
     'recovery_score': 'Recovery Score',
     'sleep_score': 'Sleep Score',
+    'leger_vam': 'Léger VAM',
+    'leger_vo2max': 'Léger Vo2Max',
+    'leger_distance': 'Léger Dist.',
   };
 
   static const Map<String, String> _bodyUnits = {
@@ -751,6 +761,9 @@ class _CoachAthleteDetailScreenState extends State<CoachAthleteDetailScreen> {
     'pullups_max': 'reps',
     'recovery_score': '',
     'sleep_score': '',
+    'leger_vam': 'km/h',
+    'leger_vo2max': 'ml/kg/min',
+    'leger_distance': 'm',
   };
 
   Widget _buildBodyGrid(List<String> types) {
@@ -845,7 +858,7 @@ class _CoachAthleteDetailScreenState extends State<CoachAthleteDetailScreen> {
                 const SizedBox(width: 8),
                 const Icon(Icons.access_time, color: AppTheme.textMediumEmphasis, size: 11),
                 const SizedBox(width: 3),
-                Text(session.duration.toString(),
+                Text(TimeUtils.formatDuration(session.duration),
                     style: const TextStyle(color: AppTheme.textMediumEmphasis, fontSize: 11)),
               ]),
             ]),

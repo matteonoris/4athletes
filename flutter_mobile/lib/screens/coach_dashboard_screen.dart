@@ -6,6 +6,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../core/theme.dart';
 import '../providers/app_state.dart';
 import '../models/models.dart';
+import '../utils/time_utils.dart';
 import 'coach_event_details_screen.dart';
 import 'coach_athlete_detail_screen.dart';
 import 'coach_athletic_test_screen.dart';
@@ -180,10 +181,11 @@ class _CoachDashboardScreenState extends State<CoachDashboardScreen> {
                         const SizedBox(height: 16),
                         const Padding(
                           padding: EdgeInsets.symmetric(vertical: 8),
-                          child: Text('ANAEROBICO (Tempo)', style: TextStyle(color: AppTheme.textMediumEmphasis, fontWeight: FontWeight.bold, fontSize: 12)),
+                          child: Text('VELOCITÀ E AEROBICO', style: TextStyle(color: AppTheme.textMediumEmphasis, fontWeight: FontWeight.bold, fontSize: 12)),
                         ),
                         _buildTestTile(ctx, 'Scatto 20 m', 'sprint_20m', 'time'),
                         _buildTestTile(ctx, 'Scatto 60 m', 'sprint_60m', 'time'),
+                        _buildTestTile(ctx, 'Test di Léger', 'leger', 'leger_test'),
                         const SizedBox(height: 16),
                         const Padding(
                           padding: EdgeInsets.symmetric(vertical: 8),
@@ -851,8 +853,7 @@ class _CoachReportViewState extends State<_CoachReportView> {
             int totalMinutes = 0;
             for (final session in sessionsData) {
               if (session['user_id'] == athleteId) {
-                final durationStr = session['duration']?.toString() ?? '0';
-                totalMinutes += int.tryParse(durationStr) ?? 0;
+                totalMinutes += TimeUtils.parseDurationToMinutes(session['duration']);
               }
             }
             final prepHours = (totalMinutes / 60).ceil();

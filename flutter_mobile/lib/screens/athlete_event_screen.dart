@@ -19,6 +19,7 @@ class AthleteEventScreen extends StatefulWidget {
 class _AthleteEventScreenState extends State<AthleteEventScreen> {
   bool _isLoading = false;
   String _laps = '6';
+  String _freeLaps = '4';
   bool? _currentAttendance;
 
   @override
@@ -37,6 +38,9 @@ class _AthleteEventScreenState extends State<AthleteEventScreen> {
       if (attendee != null) {
         if (attendee['laps'] != null) {
           _laps = attendee['laps'].toString();
+        }
+        if (attendee['freeLaps'] != null) {
+          _freeLaps = attendee['freeLaps'].toString();
         }
         if (attendee['isPresent'] != null) {
           _currentAttendance = attendee['isPresent'] as bool?;
@@ -72,9 +76,10 @@ class _AthleteEventScreenState extends State<AthleteEventScreen> {
 
   Future<void> _handleSaveLaps() async {
     final laps = int.tryParse(_laps) ?? 0;
+    final freeLaps = int.tryParse(_freeLaps) ?? 0;
     setState(() => _isLoading = true);
     final appState = Provider.of<AppState>(context, listen: false);
-    await appState.updateAthleteLaps(widget.event, laps);
+    await appState.updateAthleteLaps(widget.event, laps, freeLaps);
     
     if (mounted) {
       setState(() => _isLoading = false);
@@ -179,7 +184,15 @@ class _AthleteEventScreenState extends State<AthleteEventScreen> {
               if (_isPast && widget.event.sportCategory == 'ski') ...[
                 const Text('Dettagli Allenamento (Modifica)', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
                 const SizedBox(height: 16),
-                _buildField('GIRI SVOLTI', _laps, (v) => setState(() => _laps = v), type: TextInputType.number),
+                Row(
+                  children: [
+                    if (widget.event.technicalDetails?['specialties']?[0] != 'CL') ...[
+                      Expanded(child: _buildField('GIRI PALI', _laps, (v) => setState(() => _laps = v), type: TextInputType.number)),
+                      const SizedBox(width: 16),
+                    ],
+                    Expanded(child: _buildField('GIRI CL', _freeLaps, (v) => setState(() => _freeLaps = v), type: TextInputType.number)),
+                  ],
+                ),
               ] else if (!_isPast) ...[
                 const Text('Conferma Presenza', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
                 const SizedBox(height: 16),

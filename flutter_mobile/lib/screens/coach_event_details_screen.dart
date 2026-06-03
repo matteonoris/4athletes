@@ -58,6 +58,7 @@ class _CoachEventDetailsScreenState extends State<CoachEventDetailsScreen>
   List<Map<String, dynamic>> _athletes = [];
   bool _isLoadingAthletes = false;
   List<Team> _selectedTeams = [];
+  bool _isCompleted = false;
 
   // Text Controllers
   late TextEditingController _titleCtrl;
@@ -85,7 +86,8 @@ class _CoachEventDetailsScreenState extends State<CoachEventDetailsScreen>
           'id': a['id'],
           'name': a['name'] ?? 'Atleta',
           'isPresent': a['isPresent'],
-          'laps': a['laps'] ?? 6,
+          'laps': a['laps'] ?? (int.tryParse(_paliGiriCtrl.text) ?? 6),
+          'freeLaps': a['freeLaps'] ?? (int.tryParse(_freeGiriCtrl.text) ?? 4),
         }).toList();
       });
     } else {
@@ -138,7 +140,8 @@ class _CoachEventDetailsScreenState extends State<CoachEventDetailsScreen>
               'id': athleteId,
               'name': nameToShow,
               'isPresent': attendee != null ? attendee['isPresent'] : null,
-              'laps': attendee != null ? (attendee['laps'] ?? 6) : 6,
+              'laps': attendee != null ? (attendee['laps'] ?? (int.tryParse(_paliGiriCtrl.text) ?? 6)) : (int.tryParse(_paliGiriCtrl.text) ?? 6),
+              'freeLaps': attendee != null ? (attendee['freeLaps'] ?? (int.tryParse(_freeGiriCtrl.text) ?? 4)) : (int.tryParse(_freeGiriCtrl.text) ?? 4),
             });
           }
         }
@@ -152,7 +155,8 @@ class _CoachEventDetailsScreenState extends State<CoachEventDetailsScreen>
               'id': a['id'],
               'name': a['name'] ?? 'Atleta',
               'isPresent': a['isPresent'],
-              'laps': a['laps'] ?? 6,
+              'laps': a['laps'] ?? (int.tryParse(_paliGiriCtrl.text) ?? 6),
+              'freeLaps': a['freeLaps'] ?? (int.tryParse(_freeGiriCtrl.text) ?? 4),
             });
           }
         }
@@ -178,6 +182,7 @@ class _CoachEventDetailsScreenState extends State<CoachEventDetailsScreen>
     // Initialize properties from event or use defaults
     final e = widget.event;
     final t = widget.selectedTeam;
+    _isCompleted = e?.status == 'completed';
     _eventType = e?.type == 'race' ? 1 : 0;
     _sportCategory = e?.sportCategory ?? (widget.isSkiWorkout ? 'ski' : 'dryland');
     
@@ -204,11 +209,13 @@ class _CoachEventDetailsScreenState extends State<CoachEventDetailsScreen>
 
     _freeGiriCtrl =
         TextEditingController(text: tech['freeSkiing']?['laps'] ?? '4');
+    _freeGiriCtrl.addListener(_updateAthletesFreeLaps);
     _freeCambiCtrl =
         TextEditingController(text: tech['freeSkiing']?['changes'] ?? '12');
 
     _paliGiriCtrl =
         TextEditingController(text: tech['gatedSkiing']?['laps'] ?? '6');
+    _paliGiriCtrl.addListener(_updateAthletesLaps);
     _paliPorteCtrl =
         TextEditingController(text: tech['gatedSkiing']?['changes'] ?? '45');
 
@@ -243,6 +250,26 @@ class _CoachEventDetailsScreenState extends State<CoachEventDetailsScreen>
     } else {
       _loadEventAttendeesOnly();
     }
+  }
+
+  void _updateAthletesLaps() {
+    if (_athletes.isEmpty) return;
+    final newLaps = int.tryParse(_paliGiriCtrl.text) ?? 6;
+    setState(() {
+      for (var a in _athletes) {
+        a['laps'] = newLaps;
+      }
+    });
+  }
+
+  void _updateAthletesFreeLaps() {
+    if (_athletes.isEmpty) return;
+    final newLaps = int.tryParse(_freeGiriCtrl.text) ?? 4;
+    setState(() {
+      for (var a in _athletes) {
+        a['freeLaps'] = newLaps;
+      }
+    });
   }
 
   @override
@@ -305,19 +332,22 @@ class _CoachEventDetailsScreenState extends State<CoachEventDetailsScreen>
           'laps': _freeGiriCtrl.text,
           'changes': _freeCambiCtrl.text
         },
-        'gatedSkiing': {
-          'laps': _paliGiriCtrl.text,
-          'changes': _paliPorteCtrl.text
-        }
+        if (_selectedSpecialty != 'CL')
+          'gatedSkiing': {
+            'laps': _paliGiriCtrl.text,
+            'changes': _paliPorteCtrl.text
+          }
       },
       attendees: _athletes.where((a) => a['isPresent'] != null).map((a) {
         return {
           'id': a['id'] ?? a['name'],
           'name': a['name'],
           'isPresent': a['isPresent'],
-          'laps': a['laps']
+          'laps': a['laps'],
+          'freeLaps': a['freeLaps']
         };
       }).toList(),
+      status: _isCompleted ? 'completed' : 'planned',
     );
 
     // Save using provider
@@ -398,7 +428,7 @@ class _CoachEventDetailsScreenState extends State<CoachEventDetailsScreen>
     );
   }
 
-  void _showLapsPicker(int index) {
+  void _showLapsPicker(int index, String key, String title) {
     showModalBottomSheet(
       context: context,
       backgroundColor: AppTheme.card,
@@ -417,7 +447,7 @@ class _CoachEventDetailsScreenState extends State<CoachEventDetailsScreen>
                       fontSize: 13,
                       letterSpacing: 1.5)),
               const SizedBox(height: 8),
-              Text(_athletes[index]['name'],
+              Text('${_athletes[index]['name']} - $title',
                   style: const TextStyle(
                       color: Colors.white,
                       fontSize: 20,
@@ -428,11 +458,11 @@ class _CoachEventDetailsScreenState extends State<CoachEventDetailsScreen>
                 runSpacing: 12,
                 children: List.generate(15, (i) {
                   int val = i + 1;
-                  bool isCurrent = _athletes[index]['laps'] == val;
+                  bool isCurrent = _athletes[index][key] == val;
                   return GestureDetector(
                     onTap: () {
                       setState(() {
-                        _athletes[index]['laps'] = val;
+                        _athletes[index][key] = val;
                       });
                       Navigator.pop(context);
                     },
@@ -471,14 +501,13 @@ class _CoachEventDetailsScreenState extends State<CoachEventDetailsScreen>
 
   bool get _isPast {
     final eventDate = DateTime.tryParse(_dateCtrl.text) ?? DateTime.now();
-    final today = DateTime.now();
-    final eventDay = DateTime(eventDate.year, eventDate.month, eventDate.day);
-    final todayDay = DateTime(today.year, today.month, today.day);
-    return eventDay.isBefore(todayDay);
+    final endTime = _parseTime(_endCtrl.text);
+    final eventDateTime = DateTime(eventDate.year, eventDate.month, eventDate.day, endTime.hour, endTime.minute);
+    return DateTime.now().isAfter(eventDateTime);
   }
 
   bool get _isSki => _sportCategory == 'ski';
-  bool get _showTech => _isPast;
+  bool get _showTech => _isCompleted;
 
   @override
   Widget build(BuildContext context) {
@@ -592,10 +621,74 @@ class _CoachEventDetailsScreenState extends State<CoachEventDetailsScreen>
   }
 
   Widget _buildInfoTab() {
+    bool _canEdit = !_isPast || _isCompleted;
+    
     return ListView(
       padding: const EdgeInsets.all(24),
       children: [
-        if (_sportCategory == 'ski') ...[
+        if (_isPast) ...[
+          Container(
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: _isCompleted ? AppTheme.primary.withOpacity(0.1) : AppTheme.card,
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(color: _isCompleted ? AppTheme.primary : Colors.white.withOpacity(0.05)),
+            ),
+            child: Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: _isCompleted ? AppTheme.primary : Colors.white.withOpacity(0.1),
+                    shape: BoxShape.circle,
+                  ),
+                  child: Icon(
+                    _isCompleted ? Icons.check : Icons.history,
+                    color: Colors.white,
+                    size: 24,
+                  ),
+                ),
+                const SizedBox(width: 16),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        _isCompleted ? 'Allenamento Completato' : 'Allenamento Pianificato',
+                        style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        _isCompleted ? 'I campi tecnici sono sbloccati per l\'inserimento dei dati definitivi.' : 'Segna come completato per sbloccare i dati definitivi e calcolare le statistiche.',
+                        style: const TextStyle(color: AppTheme.textMediumEmphasis, fontSize: 13),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(width: 16),
+                Switch(
+                  value: _isCompleted,
+                  activeColor: AppTheme.primary,
+                  onChanged: (val) {
+                    setState(() {
+                      _isCompleted = val;
+                    });
+                    HapticFeedback.lightImpact();
+                  },
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 24),
+        ],
+        AbsorbPointer(
+          absorbing: !_canEdit,
+          child: Opacity(
+            opacity: _canEdit ? 1.0 : 0.5,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                if (_sportCategory == 'ski') ...[
           Container(
             decoration: BoxDecoration(
                 color: AppTheme.card, borderRadius: BorderRadius.circular(16)),
@@ -772,18 +865,27 @@ class _CoachEventDetailsScreenState extends State<CoachEventDetailsScreen>
                     setState(() => _endCtrl.text = '${t.hour.toString().padLeft(2, '0')}:${t.minute.toString().padLeft(2, '0')}');
                   }
                 })),
+              ],
+            ),
+            const SizedBox(height: 24),
+            _buildEditableInput('LUOGO', _locationCtrl, Icons.location_on_outlined),
           ],
         ),
-        const SizedBox(height: 24),
-        _buildEditableInput('LUOGO', _locationCtrl),
-      ],
-    );
-  }
+      ),
+    ),
+  ],
+);
+}
 
   Widget _buildTechnicalTab() {
-    return ListView(
-      padding: const EdgeInsets.all(24),
-      children: [
+    bool _canEdit = !_isPast || _isCompleted;
+    return AbsorbPointer(
+      absorbing: !_canEdit,
+      child: Opacity(
+        opacity: _canEdit ? 1.0 : 0.5,
+        child: ListView(
+          padding: const EdgeInsets.all(24),
+          children: [
         if (_isSki) ...[
           Row(
             children: [
@@ -812,14 +914,18 @@ class _CoachEventDetailsScreenState extends State<CoachEventDetailsScreen>
           _buildTechnicalSection('CAMPO LIBERO', Colors.green, _freeGiriCtrl,
               'CAMBI/GIRO', _freeCambiCtrl, Icons.show_chart),
           const SizedBox(height: 24),
-          _buildTechnicalSection('PALI (TRACCIATO)', AppTheme.primary,
-              _paliGiriCtrl, 'PORTE/GIRO', _paliPorteCtrl, Icons.bolt),
-          const SizedBox(height: 32),
+          if (_selectedSpecialty != 'CL') ...[
+            _buildTechnicalSection('PALI (TRACCIATO)', AppTheme.primary,
+                _paliGiriCtrl, 'PORTE/GIRO', _paliPorteCtrl, Icons.bolt),
+            const SizedBox(height: 32),
+          ],
         ],
         _buildNotesInput('NOTE / DESCRIZIONE', _notesCtrl),
         const SizedBox(height: 32),
         _buildQualityRating(),
-      ],
+          ],
+        ),
+      ),
     );
   }
 
@@ -1323,32 +1429,67 @@ class _CoachEventDetailsScreenState extends State<CoachEventDetailsScreen>
                               fontWeight: FontWeight.bold)),
                     ],
                   )),
-              if (_showTech)
+              if (_showTech && isSelected)
                 Row(
                   children: [
-                    const Text('GIRI',
-                        style: TextStyle(
-                            color: AppTheme.textMediumEmphasis,
-                            fontWeight: FontWeight.bold,
-                            fontSize: 12,
-                            letterSpacing: 1)),
-                    const SizedBox(width: 8),
-                    GestureDetector(
-                      onTap: () => _showLapsPicker(index),
-                      child: Container(
-                        width: 40,
-                        padding: const EdgeInsets.symmetric(vertical: 8),
-                        decoration: BoxDecoration(
-                            color: AppTheme.background,
-                            border:
-                                Border.all(color: Colors.white.withOpacity(0.05)),
-                            borderRadius: BorderRadius.circular(8)),
-                        child: Center(
-                            child: Text('${athlete['laps']}',
-                                style: const TextStyle(
-                                    color: Colors.white,
-                                    fontWeight: FontWeight.bold))),
+                    if (_selectedSpecialty != 'CL') ...[
+                      Column(
+                        children: [
+                          const Text('PALI',
+                              style: TextStyle(
+                                  color: AppTheme.textMediumEmphasis,
+                                  fontWeight: FontWeight.bold,
+                                  fontSize: 10,
+                                  letterSpacing: 1)),
+                          const SizedBox(height: 4),
+                          GestureDetector(
+                            onTap: () => _showLapsPicker(index, 'laps', 'PALI'),
+                            child: Container(
+                              width: 36,
+                              padding: const EdgeInsets.symmetric(vertical: 6),
+                              decoration: BoxDecoration(
+                                  color: AppTheme.background,
+                                  border:
+                                      Border.all(color: Colors.white.withOpacity(0.05)),
+                                  borderRadius: BorderRadius.circular(8)),
+                              child: Center(
+                                  child: Text('${athlete['laps']}',
+                                      style: const TextStyle(
+                                          color: Colors.white,
+                                          fontWeight: FontWeight.bold))),
+                            ),
+                          ),
+                        ],
                       ),
+                      const SizedBox(width: 12),
+                    ],
+                    Column(
+                      children: [
+                        const Text('CL',
+                            style: TextStyle(
+                                color: AppTheme.textMediumEmphasis,
+                                fontWeight: FontWeight.bold,
+                                fontSize: 10,
+                                letterSpacing: 1)),
+                        const SizedBox(height: 4),
+                        GestureDetector(
+                          onTap: () => _showLapsPicker(index, 'freeLaps', 'CAMPO LIBERO'),
+                          child: Container(
+                            width: 36,
+                            padding: const EdgeInsets.symmetric(vertical: 6),
+                            decoration: BoxDecoration(
+                                color: AppTheme.background,
+                                border:
+                                    Border.all(color: Colors.white.withOpacity(0.05)),
+                                borderRadius: BorderRadius.circular(8)),
+                            child: Center(
+                                child: Text('${athlete['freeLaps']}',
+                                    style: const TextStyle(
+                                        color: Colors.white,
+                                        fontWeight: FontWeight.bold))),
+                          ),
+                        ),
+                      ],
                     ),
                   ],
                 ),

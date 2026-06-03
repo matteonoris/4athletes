@@ -15,4 +15,17 @@ class NativeHealthService {
     }
     return [];
   }
+
+  /// Recupera i workout normalizzati e puliti (deduplicati e senza outlier)
+  static Future<List<Map<String, dynamic>>> getNormalizedWorkouts() async {
+    try {
+      final List<dynamic>? result = await _channel.invokeMethod('getNormalizedWorkouts');
+      if (result != null) {
+        return result.map((e) => Map<String, dynamic>.from(e as Map)).toList();
+      }
+    } on PlatformException catch (e) {
+      print("Failed to get Normalized Workouts: '${e.message}'.");
+    }
+    return [];
+  }
 }

@@ -59,6 +59,8 @@ class _CoachAthleticTestScreenState extends State<CoachAthleticTestScreen> {
               'isPresent': false,
               'valueCtrl': TextEditingController(),
               'rsiCtrl': TextEditingController(),
+              'vo2maxCtrl': TextEditingController(),
+              'distCtrl': TextEditingController(),
             };
           }).toList();
           _isLoading = false;
@@ -77,6 +79,8 @@ class _CoachAthleticTestScreenState extends State<CoachAthleticTestScreen> {
     for (var a in _athletes) {
       (a['valueCtrl'] as TextEditingController).dispose();
       (a['rsiCtrl'] as TextEditingController).dispose();
+      (a['vo2maxCtrl'] as TextEditingController).dispose();
+      (a['distCtrl'] as TextEditingController).dispose();
     }
     super.dispose();
   }
@@ -139,6 +143,27 @@ class _CoachAthleticTestScreenState extends State<CoachAthleticTestScreen> {
               ),
               a['id'],
             );
+          } else if (widget.testCategory == 'leger_test') {
+            await appState.addBodyLogForAthlete(
+              BodyMetricLog(id: '', date: dateStr, type: 'leger_vam', value: val),
+              a['id'],
+            );
+            final vo2Text = (a['vo2maxCtrl'] as TextEditingController).text.trim().replaceAll(',', '.');
+            final vo2Val = double.tryParse(vo2Text);
+            if (vo2Val != null && vo2Val > 0) {
+              await appState.addBodyLogForAthlete(
+                BodyMetricLog(id: '', date: dateStr, type: 'leger_vo2max', value: vo2Val),
+                a['id'],
+              );
+            }
+            final distText = (a['distCtrl'] as TextEditingController).text.trim().replaceAll(',', '.');
+            final distVal = double.tryParse(distText);
+            if (distVal != null && distVal > 0) {
+              await appState.addBodyLogForAthlete(
+                BodyMetricLog(id: '', date: dateStr, type: 'leger_distance', value: distVal),
+                a['id'],
+              );
+            }
           }
           savedCount++;
         }
@@ -306,7 +331,7 @@ class _CoachAthleticTestScreenState extends State<CoachAthleticTestScreen> {
                   style: const TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold),
                   textAlign: TextAlign.center,
                   decoration: InputDecoration(
-                    hintText: widget.testId == 'drop_jump' ? 'Alt.' : '0.0',
+                    hintText: widget.testId == 'drop_jump' ? 'Alt.' : (widget.testId == 'leger' ? 'VAM' : '0.0'),
                     hintStyle: TextStyle(color: AppTheme.textMediumEmphasis.withOpacity(0.5)),
                     filled: true,
                     fillColor: AppTheme.background,
@@ -329,6 +354,50 @@ class _CoachAthleticTestScreenState extends State<CoachAthleticTestScreen> {
                     textAlign: TextAlign.center,
                     decoration: InputDecoration(
                       hintText: 'RSI',
+                      hintStyle: TextStyle(color: AppTheme.textMediumEmphasis.withOpacity(0.5)),
+                      filled: true,
+                      fillColor: AppTheme.background,
+                      contentPadding: const EdgeInsets.symmetric(vertical: 12, horizontal: 8),
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(8),
+                        borderSide: BorderSide.none,
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+              if (widget.testId == 'leger') ...[
+                const SizedBox(width: 8),
+                Expanded(
+                  flex: 1,
+                  child: TextField(
+                    controller: a['vo2maxCtrl'],
+                    keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                    style: const TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold),
+                    textAlign: TextAlign.center,
+                    decoration: InputDecoration(
+                      hintText: 'VO2',
+                      hintStyle: TextStyle(color: AppTheme.textMediumEmphasis.withOpacity(0.5)),
+                      filled: true,
+                      fillColor: AppTheme.background,
+                      contentPadding: const EdgeInsets.symmetric(vertical: 12, horizontal: 8),
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(8),
+                        borderSide: BorderSide.none,
+                      ),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  flex: 1,
+                  child: TextField(
+                    controller: a['distCtrl'],
+                    keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                    style: const TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold),
+                    textAlign: TextAlign.center,
+                    decoration: InputDecoration(
+                      hintText: 'Dist',
                       hintStyle: TextStyle(color: AppTheme.textMediumEmphasis.withOpacity(0.5)),
                       filled: true,
                       fillColor: AppTheme.background,

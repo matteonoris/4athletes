@@ -93,7 +93,9 @@ class HealthSyncService {
     double totalSleepTime = _sumSleepMinutes(todayData, [HealthDataType.SLEEP_ASLEEP]);
     if (totalSleepTime == 0) {
       totalSleepTime = _sumSleepMinutes(todayData, [HealthDataType.SLEEP_LIGHT, HealthDataType.SLEEP_DEEP, HealthDataType.SLEEP_REM]);
-      if (totalSleepTime == 0) totalSleepTime = 420; // fallback 7h
+      if (totalSleepTime == 0) {
+        throw Exception('NO_TODAY_SLEEP_DATA');
+      }
     }
     
     double deepSleepTime = _sumSleepMinutes(todayData, [HealthDataType.SLEEP_DEEP]);
