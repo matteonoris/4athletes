@@ -169,11 +169,6 @@ jobs:
             -c "Set :provisioningProfiles:com.thestolenspot.4athletes ${APPLE_PROVISIONING_PROFILE_NAME}" \
             "$export_options_path"
 
-          if /usr/libexec/PlistBuddy -c "Print :com.apple.developer.healthkit" ios/Runner/Runner.entitlements >/dev/null 2>&1; then
-            /usr/libexec/PlistBuddy -c "Set :signingStyle automatic" "$export_options_path"
-            /usr/libexec/PlistBuddy -c "Delete :provisioningProfiles" "$export_options_path" || true
-          fi
-
           echo "ASC_KEY_FILEPATH=${asc_key_filepath}" >> "$GITHUB_ENV"
           echo "EXPORT_OPTIONS_PLIST=${export_options_path}" >> "$GITHUB_ENV"
           echo "SIGNING_KEYCHAIN_PATH=${keychain_path}" >> "$GITHUB_ENV"
