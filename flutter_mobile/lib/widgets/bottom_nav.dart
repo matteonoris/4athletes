@@ -44,6 +44,11 @@ class BottomNav extends StatelessWidget {
             label: 'Analytics',
           ),
           BottomNavigationBarItem(
+            icon: Icon(Icons.favorite_border),
+            activeIcon: Icon(Icons.favorite),
+            label: 'Salute',
+          ),
+          BottomNavigationBarItem(
             icon: Icon(Icons.group_outlined),
             activeIcon: Icon(Icons.group),
             label: 'Teams',

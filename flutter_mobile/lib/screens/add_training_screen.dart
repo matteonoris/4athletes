@@ -10,6 +10,36 @@ import '../providers/app_state.dart';
 import '../data/exercises.dart';
 import '../widgets/custom_card.dart';
 
+class _SkiBlockDraft {
+  final String id;
+  final String name;
+  String laps;
+  String metric;
+
+  _SkiBlockDraft({
+    required this.id,
+    required this.name,
+    this.laps = '',
+    this.metric = '',
+  });
+
+  Map<String, dynamic> toTrackJson() => {
+        'id': id,
+        'name': name,
+        'laps': laps,
+        'gates': metric,
+        'changes': metric,
+      };
+
+  Map<String, dynamic> toTrainingJson() => {
+        'id': id,
+        'name': name,
+        'laps': laps,
+        'references': metric,
+        'changes': metric,
+      };
+}
+
 class AddTrainingScreen extends StatefulWidget {
   final String sportId;
   final String sportName;
@@ -42,11 +72,10 @@ class _AddTrainingScreenState extends State<AddTrainingScreen> {
   List<Map<String, String>> _chronoLaps = [];
   String _freeSkiingChanges = '';
   String _freeSkiingLaps = '';
-  String _gatedSkiingChanges = '';
-  String _gatedSkiingLaps = '';
+  final List<_SkiBlockDraft> _tracks = [];
+  final List<_SkiBlockDraft> _trainingBlocks = [];
   String _snowCondition = '';
   String _weatherCondition = '';
-
 
   // Running
   // Endurance
@@ -117,17 +146,30 @@ class _AddTrainingScreenState extends State<AddTrainingScreen> {
 
     if (init?.details != null) {
       final d = init!.details!;
-      _enduranceDistance = d['distance']?.toString().replaceAll(' km', '') ?? '';
-      _endurancePace = d['pace']?.toString().replaceAll(' /km', '').replaceAll(' km/h', '') ?? '';
-      _enduranceAvgHr = d['avgHeartRate']?.toString().replaceAll(' bpm', '') ?? '';
-      _enduranceMaxHr = d['maxHeartRate']?.toString().replaceAll(' bpm', '') ?? '';
-      _enduranceElevation = d['elevation']?.toString().replaceAll(' m', '') ?? '';
-      _enduranceCadence = d['cadence']?.toString().replaceAll(' spm', '').replaceAll(' rpm', '') ?? '';
+      _enduranceDistance =
+          d['distance']?.toString().replaceAll(' km', '') ?? '';
+      _endurancePace = d['pace']
+              ?.toString()
+              .replaceAll(' /km', '')
+              .replaceAll(' km/h', '') ??
+          '';
+      _enduranceAvgHr =
+          d['avgHeartRate']?.toString().replaceAll(' bpm', '') ?? '';
+      _enduranceMaxHr =
+          d['maxHeartRate']?.toString().replaceAll(' bpm', '') ?? '';
+      _enduranceElevation =
+          d['elevation']?.toString().replaceAll(' m', '') ?? '';
+      _enduranceCadence = d['cadence']
+              ?.toString()
+              .replaceAll(' spm', '')
+              .replaceAll(' rpm', '') ??
+          '';
       _enduranceSurface = d['surface']?.toString() ?? '';
 
       if (init.sportId == 'alpine_skiing') {
         if (d['chronoLaps'] != null) {
-          _chronoLaps = List<Map<String, String>>.from((d['chronoLaps'] as List).map((x) => Map<String, String>.from(x)));
+          _chronoLaps = List<Map<String, String>>.from((d['chronoLaps'] as List)
+              .map((x) => Map<String, String>.from(x)));
         }
         if (d['specialties'] != null) {
           _specialties.addAll(List<String>.from(d['specialties']));
@@ -136,10 +178,7 @@ class _AddTrainingScreenState extends State<AddTrainingScreen> {
           _freeSkiingLaps = d['freeSkiing']['laps']?.toString() ?? '';
           _freeSkiingChanges = d['freeSkiing']['changes']?.toString() ?? '';
         }
-        if (d['gatedSkiing'] != null) {
-          _gatedSkiingLaps = d['gatedSkiing']['laps']?.toString() ?? '';
-          _gatedSkiingChanges = d['gatedSkiing']['changes']?.toString() ?? '';
-        }
+        _loadSkiBlocks(d);
       }
 
       // Restore weightlifting / powerlifting / crossfit / bodybuilding exercises
@@ -180,6 +219,52 @@ class _AddTrainingScreenState extends State<AddTrainingScreen> {
     return '${time.hour.toString().padLeft(2, '0')}:${time.minute.toString().padLeft(2, '0')}';
   }
 
+  void _loadSkiBlocks(Map<String, dynamic> details) {
+    final tracks = details['tracks'];
+    if (tracks is List) {
+      for (var i = 0; i < tracks.length && i < 3; i++) {
+        final track = tracks[i];
+        if (track is! Map) continue;
+        _tracks.add(_SkiBlockDraft(
+          id: track['id']?.toString() ?? 'track_${i + 1}',
+          name: track['name']?.toString() ?? 'Tracciato ${i + 1}',
+          laps: track['laps']?.toString() ?? '',
+          metric: (track['gates'] ?? track['changes'])?.toString() ?? '',
+        ));
+      }
+    } else if (details['gatedSkiing'] is Map) {
+      final gated = details['gatedSkiing'] as Map;
+      _tracks.add(_SkiBlockDraft(
+        id: 'track_1',
+        name: 'Tracciato 1',
+        laps: gated['laps']?.toString() ?? '',
+        metric: (gated['gates'] ?? gated['changes'])?.toString() ?? '',
+      ));
+    }
+
+    final blocks = details['trainingBlocks'];
+    if (blocks is List) {
+      for (var i = 0; i < blocks.length; i++) {
+        final block = blocks[i];
+        if (block is! Map) continue;
+        _trainingBlocks.add(_SkiBlockDraft(
+          id: block['id']?.toString() ?? 'training_${i + 1}',
+          name: block['name']?.toString() ?? 'Addestramento',
+          laps: block['laps']?.toString() ?? '',
+          metric: (block['references'] ?? block['changes'])?.toString() ?? '',
+        ));
+      }
+    } else if (details['addestramento'] is Map) {
+      final block = details['addestramento'] as Map;
+      _trainingBlocks.add(_SkiBlockDraft(
+        id: 'training_1',
+        name: 'Addestramento',
+        laps: block['laps']?.toString() ?? '',
+        metric: (block['references'] ?? block['changes'])?.toString() ?? '',
+      ));
+    }
+  }
+
   int _calculateDuration() {
     final start = _startTime.hour * 60 + _startTime.minute;
     final end = _endTime.hour * 60 + _endTime.minute;
@@ -215,20 +300,48 @@ class _AddTrainingScreenState extends State<AddTrainingScreen> {
     final isStretching =
         ['stretching', 'yoga', 'pilates'].contains(widget.sportId);
     // ignore: unused_local_variable
-    final isAthletic = ['athletic_prep', 'other', 'hyperarch', 'tendon_isometrics'].contains(widget.sportId);
+    final isAthletic = [
+      'athletic_prep',
+      'other',
+      'hyperarch',
+      'tendon_isometrics'
+    ].contains(widget.sportId);
 
     final enduranceSports = [
-      'running', 'cycling', 'marathon', 'triathlon', 'rowing', 'hiking', 
-      'walking', 'trail_running', 'cross_country_skiing', 'swimming', 'spinning'
+      'running',
+      'cycling',
+      'marathon',
+      'triathlon',
+      'rowing',
+      'hiking',
+      'walking',
+      'trail_running',
+      'cross_country_skiing',
+      'swimming',
+      'spinning'
     ];
-    final isEndurance = enduranceSports.contains(widget.sportId) || 
-                       widget.sportId.contains('running') || 
-                       widget.sportId.contains('cycling');
+    final isEndurance = enduranceSports.contains(widget.sportId) ||
+        widget.sportId.contains('running') ||
+        widget.sportId.contains('cycling');
 
     // Map raw pain zones back
-    final formattedPainZones = _painZones
-        .map((z) => z == 'Altro' ? 'Altro: $_otherPain' : z)
-        .toList();
+    final formattedPainZones =
+        _painZones.map((z) => z == 'Altro' ? 'Altro: $_otherPain' : z).toList();
+
+    final tracks = isSkiing && !_specialties.contains('CL')
+        ? _tracks.map((track) => track.toTrackJson()).toList()
+        : <Map<String, dynamic>>[];
+    final trainingBlocks = isSkiing && !_specialties.contains('CL')
+        ? _trainingBlocks.map((block) => block.toTrainingJson()).toList()
+        : <Map<String, dynamic>>[];
+    final gatedLaps = tracks.fold<int>(
+      0,
+      (sum, track) =>
+          sum + (int.tryParse(track['laps']?.toString() ?? '') ?? 0),
+    );
+    final gatedChanges = tracks.isEmpty
+        ? 0
+        : (int.tryParse(tracks.first['gates']?.toString() ?? '') ?? 0);
 
     // Map details
     final details = <String, dynamic>{
@@ -238,30 +351,60 @@ class _AddTrainingScreenState extends State<AddTrainingScreen> {
       if (isSkiing) 'specialties': _specialties,
       if (isSkiing)
         'freeSkiing': {'changes': _freeSkiingChanges, 'laps': _freeSkiingLaps},
-      if (isSkiing)
+      if (isSkiing && tracks.isNotEmpty) 'tracks': tracks,
+      if (isSkiing && tracks.isNotEmpty)
         'gatedSkiing': {
-          'changes': _gatedSkiingChanges,
-          'laps': _gatedSkiingLaps
+          'changes': gatedChanges,
+          'laps': gatedLaps,
         },
+      if (isSkiing && trainingBlocks.isNotEmpty)
+        'trainingBlocks': trainingBlocks,
       if (isSkiing) 'snowCondition': _snowCondition,
       if (isSkiing) 'weatherCondition': _weatherCondition,
       if (isSkiing && _chronoLaps.isNotEmpty) 'chronoLaps': _chronoLaps,
-      if (isEndurance) 'distance': _enduranceDistance.isNotEmpty ? '$_enduranceDistance km' : null,
-      if (isEndurance) 'pace': _endurancePace.isNotEmpty ? '$_endurancePace ${isRunning ? "/km" : "km/h"}' : null,
-      if (isEndurance) 'avgHeartRate': _enduranceAvgHr.isNotEmpty ? '$_enduranceAvgHr bpm' : null,
-      if (isEndurance) 'maxHeartRate': _enduranceMaxHr.isNotEmpty ? '$_enduranceMaxHr bpm' : null,
-      if (isEndurance) 'elevation': _enduranceElevation.isNotEmpty ? '$_enduranceElevation m' : null,
-      if (isEndurance) 'cadence': _enduranceCadence.isNotEmpty ? '$_enduranceCadence ${isRunning ? "spm" : "rpm"}' : null,
-      if (isEndurance) 'surface': _enduranceSurface.isNotEmpty ? _enduranceSurface : null,
+      if (isEndurance)
+        'distance':
+            _enduranceDistance.isNotEmpty ? '$_enduranceDistance km' : null,
+      if (isEndurance)
+        'pace': _endurancePace.isNotEmpty
+            ? '$_endurancePace ${isRunning ? "/km" : "km/h"}'
+            : null,
+      if (isEndurance)
+        'avgHeartRate':
+            _enduranceAvgHr.isNotEmpty ? '$_enduranceAvgHr bpm' : null,
+      if (isEndurance)
+        'maxHeartRate':
+            _enduranceMaxHr.isNotEmpty ? '$_enduranceMaxHr bpm' : null,
+      if (isEndurance)
+        'elevation':
+            _enduranceElevation.isNotEmpty ? '$_enduranceElevation m' : null,
+      if (isEndurance)
+        'cadence': _enduranceCadence.isNotEmpty
+            ? '$_enduranceCadence ${isRunning ? "spm" : "rpm"}'
+            : null,
+      if (isEndurance)
+        'surface': _enduranceSurface.isNotEmpty ? _enduranceSurface : null,
       // Weightlifting / powerlifting / crossfit / bodybuilding exercises
       if (isWeightlifting && _wlExercises.isNotEmpty) 'exercises': _wlExercises,
       // Athletic prep / stretching exercises
-      if (isAthletic && _athleticExercises.isNotEmpty) 'exercises': _athleticExercises,
-      if (isStretching && _stretchExercises.isNotEmpty) 'exercises': _stretchExercises,
+      if (isAthletic && _athleticExercises.isNotEmpty)
+        'exercises': _athleticExercises,
+      if (isStretching && _stretchExercises.isNotEmpty)
+        'exercises': _stretchExercises,
     };
-    
+
     // Remove null values so we don't accidentally overwrite with nulls
     details.removeWhere((key, value) => value == null);
+    if (isSkiing) {
+      if (tracks.isEmpty) {
+        details.remove('tracks');
+        details.remove('gatedSkiing');
+      }
+      if (trainingBlocks.isEmpty) {
+        details.remove('trainingBlocks');
+        details.remove('addestramento');
+      }
+    }
 
     final session = TrainingSession(
       id: widget.initialSession?.id ??
@@ -281,16 +424,48 @@ class _AddTrainingScreenState extends State<AddTrainingScreen> {
     Navigator.of(context).popUntil((route) => route.isFirst);
   }
 
+  void _addTrack() {
+    if (_tracks.length >= 3) return;
+    setState(() {
+      final number = _tracks.length + 1;
+      _tracks.add(_SkiBlockDraft(
+        id: 'track_$number',
+        name: 'Tracciato $number',
+      ));
+    });
+  }
+
+  void _addTrainingBlock() {
+    setState(() {
+      _trainingBlocks.add(_SkiBlockDraft(
+        id: 'training_1',
+        name: 'Addestramento',
+      ));
+    });
+  }
+
+  int _skiBlockTotal(_SkiBlockDraft block) {
+    return (int.tryParse(block.laps) ?? 0) * (int.tryParse(block.metric) ?? 0);
+  }
+
   String _categoryLabel(String cat) {
     switch (cat) {
-      case 'barbell': return 'Bilanciere';
-      case 'dumbbell': return 'Manubri';
-      case 'cable': return 'Cavi';
-      case 'machine': return 'Macchinario';
-      case 'bodyweight': return 'Corpo Libero';
-      case 'kettlebell': return 'Kettlebell';
-      case 'band': return 'Elastico';
-      default: return cat;
+      case 'barbell':
+        return 'Bilanciere';
+      case 'dumbbell':
+        return 'Manubri';
+      case 'cable':
+        return 'Cavi';
+      case 'machine':
+        return 'Macchinario';
+      case 'bodyweight':
+        return 'Corpo Libero';
+      case 'kettlebell':
+        return 'Kettlebell';
+      case 'band':
+        return 'Elastico';
+      default:
+        return cat;
     }
   }
 
@@ -298,7 +473,10 @@ class _AddTrainingScreenState extends State<AddTrainingScreen> {
     final appState = Provider.of<AppState>(context, listen: false);
     // Find the most recent session for this sport that has exercises
     final lastSessionIndex = appState.sessions.indexWhere(
-      (s) => s.sportId == widget.sportId && s.details != null && s.details!['exercises'] != null,
+      (s) =>
+          s.sportId == widget.sportId &&
+          s.details != null &&
+          s.details!['exercises'] != null,
     );
 
     if (lastSessionIndex != -1) {
@@ -307,8 +485,14 @@ class _AddTrainingScreenState extends State<AddTrainingScreen> {
       if (d['exercises'] != null) {
         final exList = d['exercises'] as List<dynamic>;
         setState(() {
-          final isAthletic = ['athletic_prep', 'other', 'hyperarch', 'tendon_isometrics'].contains(widget.sportId);
-          final isStretching = ['stretching', 'yoga', 'pilates'].contains(widget.sportId);
+          final isAthletic = [
+            'athletic_prep',
+            'other',
+            'hyperarch',
+            'tendon_isometrics'
+          ].contains(widget.sportId);
+          final isStretching =
+              ['stretching', 'yoga', 'pilates'].contains(widget.sportId);
 
           if (isAthletic) {
             _athleticExercises.clear();
@@ -342,18 +526,21 @@ class _AddTrainingScreenState extends State<AddTrainingScreen> {
           }
         });
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text("Scheda precompilata con l'ultimo allenamento!")),
+          const SnackBar(
+              content: Text("Scheda precompilata con l'ultimo allenamento!")),
         );
       }
     } else {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Nessun allenamento precedente trovato per questo sport.')),
+        const SnackBar(
+            content: Text(
+                'Nessun allenamento precedente trovato per questo sport.')),
       );
     }
   }
 
   Widget _buildField(String label, String value, Function(String) onChanged,
-      {TextInputType type = TextInputType.text, String suffix = ''}) {
+      {Key? key, TextInputType type = TextInputType.text, String suffix = ''}) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -373,6 +560,7 @@ class _AddTrainingScreenState extends State<AddTrainingScreen> {
             children: [
               Expanded(
                 child: TextFormField(
+                  key: key,
                   initialValue: value,
                   keyboardType: type,
                   onChanged: onChanged,
@@ -454,31 +642,137 @@ class _AddTrainingScreenState extends State<AddTrainingScreen> {
     );
   }
 
+  Widget _buildSkiBlockCard({
+    required _SkiBlockDraft block,
+    required String metricLabel,
+    required String totalLabel,
+    required Color color,
+    required VoidCallback onRemove,
+  }) {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 12),
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: AppTheme.card,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.05)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                width: 32,
+                height: 32,
+                decoration: BoxDecoration(
+                  color: color.withValues(alpha: 0.14),
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: Icon(Icons.alt_route, size: 18, color: color),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      block.name,
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontWeight: FontWeight.bold,
+                        fontSize: 13,
+                      ),
+                    ),
+                    Text(
+                      '$totalLabel: ${_skiBlockTotal(block)}',
+                      style: const TextStyle(
+                        color: AppTheme.textMediumEmphasis,
+                        fontSize: 11,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              IconButton(
+                onPressed: onRemove,
+                icon: const Icon(Icons.delete_outline, size: 20),
+                color: AppTheme.textMediumEmphasis,
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          Row(
+            children: [
+              Expanded(
+                child: _buildField(
+                  'GIRI TOTALI',
+                  block.laps,
+                  (v) => setState(() => block.laps = v),
+                  key: ValueKey('${block.id}_laps'),
+                  type: TextInputType.number,
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: _buildField(
+                  metricLabel,
+                  block.metric,
+                  (v) => setState(() => block.metric = v),
+                  key: ValueKey('${block.id}_metric'),
+                  type: TextInputType.number,
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     // sport parameter provided directly by widget
 
     final isSkiing = widget.sportId == 'alpine_skiing';
     final enduranceSports = [
-      'running', 'cycling', 'marathon', 'triathlon', 'rowing', 'hiking', 
-      'walking', 'trail_running', 'cross_country_skiing', 'swimming', 'spinning'
+      'running',
+      'cycling',
+      'marathon',
+      'triathlon',
+      'rowing',
+      'hiking',
+      'walking',
+      'trail_running',
+      'cross_country_skiing',
+      'swimming',
+      'spinning'
     ];
-    final isRunning = widget.sportId.contains('running') || widget.sportId == 'track_field';
-    final isEndurance = enduranceSports.contains(widget.sportId) || 
-                       widget.sportId.contains('running') || 
-                       widget.sportId.contains('cycling');
-    final isCycling = widget.sportId.contains('cycling') || widget.sportId == 'spinning';
+    final isRunning =
+        widget.sportId.contains('running') || widget.sportId == 'track_field';
+    final isEndurance = enduranceSports.contains(widget.sportId) ||
+        widget.sportId.contains('running') ||
+        widget.sportId.contains('cycling');
+    final isCycling =
+        widget.sportId.contains('cycling') || widget.sportId == 'spinning';
     final isWeightlifting = [
       'weightlifting',
       'powerlifting',
       'crossfit',
       'bodybuilding'
     ].contains(widget.sportId);
-    final isFootball = ['soccer', 'am_football', 'rugby'].contains(widget.sportId);
-    final isTennis = ['tennis', 'padel', 'pickleball', 'squash'].contains(widget.sportId);
+    final isFootball =
+        ['soccer', 'am_football', 'rugby'].contains(widget.sportId);
+    final isTennis =
+        ['tennis', 'padel', 'pickleball', 'squash'].contains(widget.sportId);
     final isStretching =
         ['stretching', 'yoga', 'pilates'].contains(widget.sportId);
-    final isAthletic = ['athletic_prep', 'other', 'hyperarch', 'tendon_isometrics'].contains(widget.sportId);
+    final isAthletic = [
+      'athletic_prep',
+      'other',
+      'hyperarch',
+      'tendon_isometrics'
+    ].contains(widget.sportId);
 
     // Dynamic Effort Color based on React logic
     Color effortColor;
@@ -494,14 +788,15 @@ class _AddTrainingScreenState extends State<AddTrainingScreen> {
         leading: IconButton(
           icon: const Icon(Icons.close),
           onPressed: () {
-          HapticFeedback.lightImpact();
-          Navigator.of(context).pop();
-        },
+            HapticFeedback.lightImpact();
+            Navigator.of(context).pop();
+          },
         ),
         title: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Text(widget.initialSession != null ? 'Modifica ' : 'Aggiungi ', style: const TextStyle(fontSize: 16)),
+            Text(widget.initialSession != null ? 'Modifica ' : 'Aggiungi ',
+                style: const TextStyle(fontSize: 16)),
             Text(widget.sportName,
                 style: const TextStyle(
                     fontSize: 16,
@@ -540,7 +835,8 @@ class _AddTrainingScreenState extends State<AddTrainingScreen> {
                         if (d != null) setState(() => _date = d);
                       },
                     ),
-                    Divider(color: Colors.white.withValues(alpha: 0.05), height: 1),
+                    Divider(
+                        color: Colors.white.withValues(alpha: 0.05), height: 1),
                     Row(
                       children: [
                         Expanded(
@@ -610,7 +906,9 @@ class _AddTrainingScreenState extends State<AddTrainingScreen> {
                             type: TextInputType.number, suffix: 'km')),
                     const SizedBox(width: 12),
                     Expanded(
-                        child: _buildField(isRunning ? 'PASSO MEDIO' : 'VELOCITÀ MEDIA', _endurancePace,
+                        child: _buildField(
+                            isRunning ? 'PASSO MEDIO' : 'VELOCITÀ MEDIA',
+                            _endurancePace,
                             (v) => setState(() => _endurancePace = v),
                             suffix: isRunning ? '/km' : 'km/h')),
                   ],
@@ -638,43 +936,53 @@ class _AddTrainingScreenState extends State<AddTrainingScreen> {
                             type: TextInputType.number, suffix: 'm')),
                     const SizedBox(width: 12),
                     Expanded(
-                        child: _buildField(isRunning ? 'CADENZA' : 'CADENZA MEDIA', _enduranceCadence,
+                        child: _buildField(
+                            isRunning ? 'CADENZA' : 'CADENZA MEDIA',
+                            _enduranceCadence,
                             (v) => setState(() => _enduranceCadence = v),
-                            type: TextInputType.number, suffix: isRunning ? 'spm' : 'rpm')),
+                            type: TextInputType.number,
+                            suffix: isRunning ? 'spm' : 'rpm')),
                   ],
                 ),
                 const SizedBox(height: 12),
                 _buildChoiceChips(
                     'SUPERFICIE / TERRENO',
-                    ['Asfalto', 'Sterrato', 'Misto', 'Pista', 'Tapis Roulant', 'Sentiero', 'Indoor'],
+                    [
+                      'Asfalto',
+                      'Sterrato',
+                      'Misto',
+                      'Pista',
+                      'Tapis Roulant',
+                      'Sentiero',
+                      'Indoor'
+                    ],
                     _enduranceSurface,
                     (v) => setState(() => _enduranceSurface = v)),
                 const SizedBox(height: 24),
               ],
-
 
               if (isSkiing) ...[
                 const Text('Dettagli Sci',
                     style:
                         TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
                 const SizedBox(height: 12),
-                _buildChoiceChips(
-                    'SPECIALITÀ',
-                    [
-                      'SL',
-                      'GS',
-                      'SG',
-                      'DH',
-                      'CL'
-                    ],
+                _buildChoiceChips('SPECIALITÀ', ['SL', 'GS', 'SG', 'DH', 'CL'],
                     _specialties.isEmpty ? '' : _specialties[0], (v) {
                   setState(() {
                     _specialties.clear();
                     _specialties.add(v);
+                    if (v == 'CL') {
+                      _tracks.clear();
+                      _trainingBlocks.clear();
+                    }
                   });
                 }),
                 const SizedBox(height: 16),
-                const Text('Campo Libero', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 13)),
+                const Text('Campo Libero',
+                    style: TextStyle(
+                        color: Colors.white,
+                        fontWeight: FontWeight.bold,
+                        fontSize: 13)),
                 const SizedBox(height: 12),
                 Row(
                   children: [
@@ -690,21 +998,102 @@ class _AddTrainingScreenState extends State<AddTrainingScreen> {
                   ],
                 ),
                 const SizedBox(height: 16),
-                const Text('Lavoro nei Pali', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 13)),
-                const SizedBox(height: 12),
-                Row(
-                  children: [
-                    Expanded(
-                        child: _buildField('GIRI TOTALI', _gatedSkiingLaps,
-                            (v) => setState(() => _gatedSkiingLaps = v),
-                            type: TextInputType.number)),
-                    const SizedBox(width: 12),
-                    Expanded(
-                        child: _buildField('CAMBI PER GIRO', _gatedSkiingChanges,
-                            (v) => setState(() => _gatedSkiingChanges = v),
-                            type: TextInputType.number)),
-                  ],
-                ),
+                if (!_specialties.contains('CL')) ...[
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      const Text('Tracciati',
+                          style: TextStyle(
+                              color: Colors.white,
+                              fontWeight: FontWeight.bold,
+                              fontSize: 13)),
+                      if (_tracks.length < 3)
+                        TextButton.icon(
+                          onPressed: _addTrack,
+                          icon: const Icon(Icons.add, size: 16),
+                          label: const Text('AGGIUNGI',
+                              style: TextStyle(fontWeight: FontWeight.bold)),
+                        ),
+                    ],
+                  ),
+                  const SizedBox(height: 8),
+                  ..._tracks.map((track) => _buildSkiBlockCard(
+                        block: track,
+                        metricLabel: 'PORTE/GIRO',
+                        totalLabel: 'Totale passaggi',
+                        color: AppTheme.primary,
+                        onRemove: () => setState(() => _tracks.remove(track)),
+                      )),
+                  if (_tracks.isEmpty)
+                    GestureDetector(
+                      onTap: _addTrack,
+                      child: Container(
+                        width: double.infinity,
+                        padding: const EdgeInsets.symmetric(vertical: 14),
+                        decoration: BoxDecoration(
+                          color: Colors.transparent,
+                          borderRadius: BorderRadius.circular(16),
+                          border: Border.all(
+                              color: Colors.white.withValues(alpha: 0.1)),
+                        ),
+                        child: const Center(
+                          child: Text('+ AGGIUNGI TRACCIATO',
+                              style: TextStyle(
+                                  color: AppTheme.primary,
+                                  fontWeight: FontWeight.bold,
+                                  fontSize: 13)),
+                        ),
+                      ),
+                    ),
+                  const SizedBox(height: 16),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      const Text('Addestramento',
+                          style: TextStyle(
+                              color: Colors.white,
+                              fontWeight: FontWeight.bold,
+                              fontSize: 13)),
+                      TextButton.icon(
+                        onPressed:
+                            _trainingBlocks.isEmpty ? _addTrainingBlock : null,
+                        icon: const Icon(Icons.add, size: 16),
+                        label: const Text('AGGIUNGI',
+                            style: TextStyle(fontWeight: FontWeight.bold)),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 8),
+                  ..._trainingBlocks.map((block) => _buildSkiBlockCard(
+                        block: block,
+                        metricLabel: 'RIFERIMENTI/GIRO',
+                        totalLabel: 'Totale cambi',
+                        color: Colors.orange,
+                        onRemove: () =>
+                            setState(() => _trainingBlocks.remove(block)),
+                      )),
+                  if (_trainingBlocks.isEmpty)
+                    GestureDetector(
+                      onTap: _addTrainingBlock,
+                      child: Container(
+                        width: double.infinity,
+                        padding: const EdgeInsets.symmetric(vertical: 14),
+                        decoration: BoxDecoration(
+                          color: Colors.transparent,
+                          borderRadius: BorderRadius.circular(16),
+                          border: Border.all(
+                              color: Colors.white.withValues(alpha: 0.1)),
+                        ),
+                        child: const Center(
+                          child: Text('+ AGGIUNGI ADDESTRAMENTO',
+                              style: TextStyle(
+                                  color: Colors.orange,
+                                  fontWeight: FontWeight.bold,
+                                  fontSize: 13)),
+                        ),
+                      ),
+                    ),
+                ],
                 const SizedBox(height: 12),
                 _buildChoiceChips(
                     'NEVE',
@@ -768,7 +1157,6 @@ class _AddTrainingScreenState extends State<AddTrainingScreen> {
                                 TextStyle(color: AppTheme.textMediumEmphasis),
                             textAlign: TextAlign.center)),
                   ),
-                
                 if (_wlExercises.isNotEmpty)
                   ..._wlExercises.asMap().entries.map((entry) {
                     int exIdx = entry.key;
@@ -793,45 +1181,62 @@ class _AddTrainingScreenState extends State<AddTrainingScreen> {
                             padding: const EdgeInsets.all(12),
                             decoration: BoxDecoration(
                               color: Colors.white.withValues(alpha: 0.05),
-                              borderRadius: const BorderRadius.vertical(top: Radius.circular(16)),
+                              borderRadius: const BorderRadius.vertical(
+                                  top: Radius.circular(16)),
                             ),
                             child: Row(
                               mainAxisAlignment: MainAxisAlignment.spaceBetween,
                               children: [
-                                Text(ex['name'], style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+                                Text(ex['name'],
+                                    style: const TextStyle(
+                                        fontWeight: FontWeight.bold,
+                                        fontSize: 16)),
                                 Row(
                                   mainAxisSize: MainAxisSize.min,
                                   children: [
                                     if (exIdx > 0)
                                       IconButton(
-                                        icon: const Icon(Icons.keyboard_arrow_up, size: 20, color: AppTheme.textMediumEmphasis),
+                                        icon: const Icon(
+                                            Icons.keyboard_arrow_up,
+                                            size: 20,
+                                            color: AppTheme.textMediumEmphasis),
                                         padding: EdgeInsets.zero,
                                         constraints: const BoxConstraints(),
                                         onPressed: () {
                                           setState(() {
-                                            final item = _wlExercises.removeAt(exIdx);
-                                            _wlExercises.insert(exIdx - 1, item);
+                                            final item =
+                                                _wlExercises.removeAt(exIdx);
+                                            _wlExercises.insert(
+                                                exIdx - 1, item);
                                           });
                                         },
                                       ),
                                     if (exIdx < _wlExercises.length - 1)
                                       IconButton(
-                                        icon: const Icon(Icons.keyboard_arrow_down, size: 20, color: AppTheme.textMediumEmphasis),
+                                        icon: const Icon(
+                                            Icons.keyboard_arrow_down,
+                                            size: 20,
+                                            color: AppTheme.textMediumEmphasis),
                                         padding: EdgeInsets.zero,
                                         constraints: const BoxConstraints(),
                                         onPressed: () {
                                           setState(() {
-                                            final item = _wlExercises.removeAt(exIdx);
-                                            _wlExercises.insert(exIdx + 1, item);
+                                            final item =
+                                                _wlExercises.removeAt(exIdx);
+                                            _wlExercises.insert(
+                                                exIdx + 1, item);
                                           });
                                         },
                                       ),
                                     const SizedBox(width: 8),
                                     IconButton(
-                                      icon: const Icon(Icons.delete_outline, size: 20, color: AppTheme.textMediumEmphasis),
+                                      icon: const Icon(Icons.delete_outline,
+                                          size: 20,
+                                          color: AppTheme.textMediumEmphasis),
                                       padding: EdgeInsets.zero,
                                       constraints: const BoxConstraints(),
-                                      onPressed: () => setState(() => _wlExercises.removeAt(exIdx)),
+                                      onPressed: () => setState(
+                                          () => _wlExercises.removeAt(exIdx)),
                                     ),
                                   ],
                                 )
@@ -844,13 +1249,39 @@ class _AddTrainingScreenState extends State<AddTrainingScreen> {
                               children: [
                                 Row(
                                   children: [
-                                    const SizedBox(width: 32, child: Text('SET', textAlign: TextAlign.center, style: TextStyle(fontSize: 10, color: AppTheme.textMediumEmphasis))),
+                                    const SizedBox(
+                                        width: 32,
+                                        child: Text('SET',
+                                            textAlign: TextAlign.center,
+                                            style: TextStyle(
+                                                fontSize: 10,
+                                                color: AppTheme
+                                                    .textMediumEmphasis))),
                                     const SizedBox(width: 8),
-                                    const Expanded(child: Text('KG (LOAD)', textAlign: TextAlign.center, style: TextStyle(fontSize: 10, color: AppTheme.textMediumEmphasis))),
+                                    const Expanded(
+                                        child: Text('KG (LOAD)',
+                                            textAlign: TextAlign.center,
+                                            style: TextStyle(
+                                                fontSize: 10,
+                                                color: AppTheme
+                                                    .textMediumEmphasis))),
                                     const SizedBox(width: 8),
-                                    const Expanded(child: Text('REPS', textAlign: TextAlign.center, style: TextStyle(fontSize: 10, color: AppTheme.textMediumEmphasis))),
+                                    const Expanded(
+                                        child: Text('REPS',
+                                            textAlign: TextAlign.center,
+                                            style: TextStyle(
+                                                fontSize: 10,
+                                                color: AppTheme
+                                                    .textMediumEmphasis))),
                                     const SizedBox(width: 8),
-                                    const SizedBox(width: 40, child: Text('% 1RM', textAlign: TextAlign.center, style: TextStyle(fontSize: 10, color: AppTheme.textMediumEmphasis))),
+                                    const SizedBox(
+                                        width: 40,
+                                        child: Text('% 1RM',
+                                            textAlign: TextAlign.center,
+                                            style: TextStyle(
+                                                fontSize: 10,
+                                                color: AppTheme
+                                                    .textMediumEmphasis))),
                                     const SizedBox(width: 32),
                                   ],
                                 ),
@@ -858,10 +1289,12 @@ class _AddTrainingScreenState extends State<AddTrainingScreen> {
                                 ...sets.asMap().entries.map((setEntry) {
                                   int setIdx = setEntry.key;
                                   var setMap = setEntry.value;
-                                  double load = (setMap['kg'] as num).toDouble();
+                                  double load =
+                                      (setMap['kg'] as num).toDouble();
                                   String pctStr = '-';
                                   if (maxLoad > 0 && load > 0) {
-                                    pctStr = '${((load / maxLoad) * 100).toStringAsFixed(0)}%';
+                                    pctStr =
+                                        '${((load / maxLoad) * 100).toStringAsFixed(0)}%';
                                   }
 
                                   return Padding(
@@ -871,9 +1304,17 @@ class _AddTrainingScreenState extends State<AddTrainingScreen> {
                                         SizedBox(
                                           width: 32,
                                           child: Container(
-                                            padding: const EdgeInsets.symmetric(vertical: 6),
-                                            decoration: BoxDecoration(color: AppTheme.surface, borderRadius: BorderRadius.circular(4)),
-                                            child: Text('${setIdx + 1}', textAlign: TextAlign.center, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12)),
+                                            padding: const EdgeInsets.symmetric(
+                                                vertical: 6),
+                                            decoration: BoxDecoration(
+                                                color: AppTheme.surface,
+                                                borderRadius:
+                                                    BorderRadius.circular(4)),
+                                            child: Text('${setIdx + 1}',
+                                                textAlign: TextAlign.center,
+                                                style: const TextStyle(
+                                                    fontWeight: FontWeight.bold,
+                                                    fontSize: 12)),
                                           ),
                                         ),
                                         const SizedBox(width: 8),
@@ -881,20 +1322,35 @@ class _AddTrainingScreenState extends State<AddTrainingScreen> {
                                           child: SizedBox(
                                             height: 36,
                                             child: TextFormField(
-                                              initialValue: setMap['kg'] > 0 ? setMap['kg'].toString() : '',
-                                              keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                                              initialValue: setMap['kg'] > 0
+                                                  ? setMap['kg'].toString()
+                                                  : '',
+                                              keyboardType: const TextInputType
+                                                  .numberWithOptions(
+                                                  decimal: true),
                                               textAlign: TextAlign.center,
-                                              style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold),
+                                              style: const TextStyle(
+                                                  fontSize: 14,
+                                                  fontWeight: FontWeight.bold),
                                               decoration: InputDecoration(
                                                 contentPadding: EdgeInsets.zero,
                                                 filled: true,
                                                 fillColor: AppTheme.surface,
-                                                border: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: BorderSide.none),
+                                                border: OutlineInputBorder(
+                                                    borderRadius:
+                                                        BorderRadius.circular(
+                                                            8),
+                                                    borderSide:
+                                                        BorderSide.none),
                                               ),
                                               onChanged: (v) {
-                                                double newKg = double.tryParse(v.replaceAll(',', '.')) ?? 0;
+                                                double newKg = double.tryParse(
+                                                        v.replaceAll(
+                                                            ',', '.')) ??
+                                                    0;
                                                 setState(() {
-                                                  _wlExercises[exIdx]['sets'][setIdx]['kg'] = newKg;
+                                                  _wlExercises[exIdx]['sets']
+                                                      [setIdx]['kg'] = newKg;
                                                 });
                                               },
                                             ),
@@ -905,20 +1361,33 @@ class _AddTrainingScreenState extends State<AddTrainingScreen> {
                                           child: SizedBox(
                                             height: 36,
                                             child: TextFormField(
-                                              initialValue: setMap['reps'] > 0 ? setMap['reps'].toString() : '',
-                                              keyboardType: TextInputType.number,
+                                              initialValue: setMap['reps'] > 0
+                                                  ? setMap['reps'].toString()
+                                                  : '',
+                                              keyboardType:
+                                                  TextInputType.number,
                                               textAlign: TextAlign.center,
-                                              style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold),
+                                              style: const TextStyle(
+                                                  fontSize: 14,
+                                                  fontWeight: FontWeight.bold),
                                               decoration: InputDecoration(
                                                 contentPadding: EdgeInsets.zero,
                                                 filled: true,
                                                 fillColor: AppTheme.surface,
-                                                border: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: BorderSide.none),
+                                                border: OutlineInputBorder(
+                                                    borderRadius:
+                                                        BorderRadius.circular(
+                                                            8),
+                                                    borderSide:
+                                                        BorderSide.none),
                                               ),
                                               onChanged: (v) {
-                                                int newReps = int.tryParse(v) ?? 0;
+                                                int newReps =
+                                                    int.tryParse(v) ?? 0;
                                                 setState(() {
-                                                  _wlExercises[exIdx]['sets'][setIdx]['reps'] = newReps;
+                                                  _wlExercises[exIdx]['sets']
+                                                          [setIdx]['reps'] =
+                                                      newReps;
                                                 });
                                               },
                                             ),
@@ -927,15 +1396,25 @@ class _AddTrainingScreenState extends State<AddTrainingScreen> {
                                         const SizedBox(width: 8),
                                         SizedBox(
                                           width: 40,
-                                          child: Text(pctStr, textAlign: TextAlign.center, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: AppTheme.textMediumEmphasis)),
+                                          child: Text(pctStr,
+                                              textAlign: TextAlign.center,
+                                              style: const TextStyle(
+                                                  fontSize: 12,
+                                                  fontWeight: FontWeight.bold,
+                                                  color: AppTheme
+                                                      .textMediumEmphasis)),
                                         ),
                                         SizedBox(
                                           width: 32,
                                           child: IconButton(
-                                            icon: const Icon(Icons.close, size: 16, color: AppTheme.textMediumEmphasis),
+                                            icon: const Icon(Icons.close,
+                                                size: 16,
+                                                color: AppTheme
+                                                    .textMediumEmphasis),
                                             onPressed: () {
                                               setState(() {
-                                                _wlExercises[exIdx]['sets'].removeAt(setIdx);
+                                                _wlExercises[exIdx]['sets']
+                                                    .removeAt(setIdx);
                                               });
                                             },
                                           ),
@@ -948,10 +1427,14 @@ class _AddTrainingScreenState extends State<AddTrainingScreen> {
                                 TextButton(
                                   onPressed: () {
                                     setState(() {
-                                      _wlExercises[exIdx]['sets'].add({'kg': 0.0, 'reps': 0});
+                                      _wlExercises[exIdx]['sets']
+                                          .add({'kg': 0.0, 'reps': 0});
                                     });
                                   },
-                                  child: const Text('+ Add Set', style: TextStyle(fontSize: 12, color: AppTheme.textMediumEmphasis)),
+                                  child: const Text('+ Add Set',
+                                      style: TextStyle(
+                                          fontSize: 12,
+                                          color: AppTheme.textMediumEmphasis)),
                                 )
                               ],
                             ),
@@ -988,7 +1471,8 @@ class _AddTrainingScreenState extends State<AddTrainingScreen> {
                     decoration: BoxDecoration(
                       color: AppTheme.card,
                       borderRadius: BorderRadius.circular(16),
-                      border: Border.all(color: Colors.white.withValues(alpha: 0.05)),
+                      border: Border.all(
+                          color: Colors.white.withValues(alpha: 0.05)),
                     ),
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
@@ -1031,7 +1515,9 @@ class _AddTrainingScreenState extends State<AddTrainingScreen> {
                                     ),
                                     child: TextFormField(
                                       initialValue: lap['time'],
-                                      keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                                      keyboardType:
+                                          const TextInputType.numberWithOptions(
+                                              decimal: true),
                                       style: const TextStyle(
                                           color: Colors.white,
                                           fontWeight: FontWeight.bold,
@@ -1083,8 +1569,9 @@ class _AddTrainingScreenState extends State<AddTrainingScreen> {
                                             PhosphorIconsRegular.package,
                                             size: 16,
                                             color: AppTheme.textMediumEmphasis),
-                                        contentPadding: const EdgeInsets.symmetric(
-                                            horizontal: 16, vertical: 12),
+                                        contentPadding:
+                                            const EdgeInsets.symmetric(
+                                                horizontal: 16, vertical: 12),
                                         border: InputBorder.none,
                                       ),
                                       onChanged: (v) {
@@ -1114,7 +1601,8 @@ class _AddTrainingScreenState extends State<AddTrainingScreen> {
                     decoration: BoxDecoration(
                       color: Colors.transparent,
                       borderRadius: BorderRadius.circular(16),
-                      border: Border.all(color: Colors.white.withValues(alpha: 0.1)),
+                      border: Border.all(
+                          color: Colors.white.withValues(alpha: 0.1)),
                     ),
                     child: const Center(
                       child: Text('+ AGGIUNGI GIRO CRONO',
@@ -1136,12 +1624,8 @@ class _AddTrainingScreenState extends State<AddTrainingScreen> {
               Wrap(
                 spacing: 8,
                 runSpacing: 8,
-                children: [
-                  'Nessuno',
-                  'Schiena',
-                  'Ginocchio',
-                  'Altro'
-                ].map((zone) {
+                children:
+                    ['Nessuno', 'Schiena', 'Ginocchio', 'Altro'].map((zone) {
                   final isSel = _painZones.contains(zone);
                   return GestureDetector(
                     onTap: () {
@@ -1276,16 +1760,20 @@ class _AddTrainingScreenState extends State<AddTrainingScreen> {
                       children: [
                         // Header
                         Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 16, vertical: 14),
                           decoration: BoxDecoration(
                             color: Colors.white.withValues(alpha: 0.04),
-                            borderRadius: const BorderRadius.vertical(top: Radius.circular(16)),
+                            borderRadius: const BorderRadius.vertical(
+                                top: Radius.circular(16)),
                           ),
                           child: Row(
                             mainAxisAlignment: MainAxisAlignment.spaceBetween,
                             children: [
                               const Text('Seleziona Esercizio',
-                                  style: TextStyle(fontSize: 17, fontWeight: FontWeight.bold)),
+                                  style: TextStyle(
+                                      fontSize: 17,
+                                      fontWeight: FontWeight.bold)),
                               IconButton(
                                 icon: const Icon(Icons.close, size: 20),
                                 padding: EdgeInsets.zero,
@@ -1305,7 +1793,8 @@ class _AddTrainingScreenState extends State<AddTrainingScreen> {
                             decoration: InputDecoration(
                               hintText: 'Cerca esercizio o muscolo...',
                               prefixIcon: const Icon(Icons.search, size: 18),
-                              contentPadding: const EdgeInsets.symmetric(vertical: 0, horizontal: 12),
+                              contentPadding: const EdgeInsets.symmetric(
+                                  vertical: 0, horizontal: 12),
                               filled: true,
                               fillColor: AppTheme.surface,
                               border: OutlineInputBorder(
@@ -1313,7 +1802,8 @@ class _AddTrainingScreenState extends State<AddTrainingScreen> {
                                 borderSide: BorderSide.none,
                               ),
                             ),
-                            onChanged: (v) => setState(() => _exerciseSearch = v),
+                            onChanged: (v) =>
+                                setState(() => _exerciseSearch = v),
                           ),
                         ),
                         // Category filter chips
@@ -1327,36 +1817,64 @@ class _AddTrainingScreenState extends State<AddTrainingScreen> {
                               ...[
                                 ('all', 'Tutti', Icons.grid_view_rounded),
                                 ('barbell', 'Bilanciere', Icons.fitness_center),
-                                ('dumbbell', 'Manubri', Icons.sports_gymnastics),
+                                (
+                                  'dumbbell',
+                                  'Manubri',
+                                  Icons.sports_gymnastics
+                                ),
                                 ('cable', 'Cavi', Icons.cable),
                                 ('machine', 'Macchinari', Icons.settings),
-                                ('bodyweight', 'Corpo Libero', Icons.accessibility_new),
-                                ('kettlebell', 'Kettlebell', Icons.sports_handball),
+                                (
+                                  'bodyweight',
+                                  'Corpo Libero',
+                                  Icons.accessibility_new
+                                ),
+                                (
+                                  'kettlebell',
+                                  'Kettlebell',
+                                  Icons.sports_handball
+                                ),
                                 ('band', 'Elastici', Icons.lens_blur),
                               ].map((item) {
-                                final isActive = _exerciseCategoryFilter == item.$1;
+                                final isActive =
+                                    _exerciseCategoryFilter == item.$1;
                                 return GestureDetector(
-                                  onTap: () => setState(() => _exerciseCategoryFilter = item.$1),
+                                  onTap: () => setState(
+                                      () => _exerciseCategoryFilter = item.$1),
                                   child: Container(
                                     margin: const EdgeInsets.only(right: 8),
-                                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+                                    padding: const EdgeInsets.symmetric(
+                                        horizontal: 12, vertical: 4),
                                     decoration: BoxDecoration(
-                                      color: isActive ? AppTheme.secondary.withValues(alpha: 0.2) : AppTheme.surface,
+                                      color: isActive
+                                          ? AppTheme.secondary
+                                              .withValues(alpha: 0.2)
+                                          : AppTheme.surface,
                                       borderRadius: BorderRadius.circular(20),
                                       border: Border.all(
-                                        color: isActive ? AppTheme.secondary : Colors.transparent,
+                                        color: isActive
+                                            ? AppTheme.secondary
+                                            : Colors.transparent,
                                       ),
                                     ),
                                     child: Row(
                                       children: [
-                                        Icon(item.$3, size: 12, color: isActive ? AppTheme.secondary : AppTheme.textMediumEmphasis),
+                                        Icon(item.$3,
+                                            size: 12,
+                                            color: isActive
+                                                ? AppTheme.secondary
+                                                : AppTheme.textMediumEmphasis),
                                         const SizedBox(width: 4),
                                         Text(
                                           item.$2,
                                           style: TextStyle(
                                             fontSize: 11,
-                                            color: isActive ? AppTheme.secondary : AppTheme.textMediumEmphasis,
-                                            fontWeight: isActive ? FontWeight.bold : FontWeight.normal,
+                                            color: isActive
+                                                ? AppTheme.secondary
+                                                : AppTheme.textMediumEmphasis,
+                                            fontWeight: isActive
+                                                ? FontWeight.bold
+                                                : FontWeight.normal,
                                           ),
                                         ),
                                       ],
@@ -1375,8 +1893,9 @@ class _AddTrainingScreenState extends State<AddTrainingScreen> {
                             final matchesSearch = q.isEmpty ||
                                 ex.name.toLowerCase().contains(q) ||
                                 ex.targetMuscle.toLowerCase().contains(q);
-                            final matchesCat = _exerciseCategoryFilter == 'all' ||
-                                ex.category == _exerciseCategoryFilter;
+                            final matchesCat =
+                                _exerciseCategoryFilter == 'all' ||
+                                    ex.category == _exerciseCategoryFilter;
                             return matchesSearch && matchesCat;
                           }).toList();
 
@@ -1384,10 +1903,13 @@ class _AddTrainingScreenState extends State<AddTrainingScreen> {
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
                               Padding(
-                                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+                                padding: const EdgeInsets.symmetric(
+                                    horizontal: 16, vertical: 4),
                                 child: Text(
                                   '${filtered.length} esercizi',
-                                  style: const TextStyle(fontSize: 11, color: AppTheme.textMediumEmphasis),
+                                  style: const TextStyle(
+                                      fontSize: 11,
+                                      color: AppTheme.textMediumEmphasis),
                                 ),
                               ),
                               SizedBox(
@@ -1398,16 +1920,26 @@ class _AddTrainingScreenState extends State<AddTrainingScreen> {
                                     final ex = filtered[i];
                                     return ListTile(
                                       dense: true,
-                                      title: Text(ex.name, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600)),
-                                      subtitle: Text('${ex.targetMuscle}  •  ${_categoryLabel(ex.category)}',
-                                          style: const TextStyle(fontSize: 11, color: AppTheme.textMediumEmphasis)),
-                                      trailing: const Icon(Icons.add_circle, color: AppTheme.secondary, size: 22),
+                                      title: Text(ex.name,
+                                          style: const TextStyle(
+                                              fontSize: 14,
+                                              fontWeight: FontWeight.w600)),
+                                      subtitle: Text(
+                                          '${ex.targetMuscle}  •  ${_categoryLabel(ex.category)}',
+                                          style: const TextStyle(
+                                              fontSize: 11,
+                                              color:
+                                                  AppTheme.textMediumEmphasis)),
+                                      trailing: const Icon(Icons.add_circle,
+                                          color: AppTheme.secondary, size: 22),
                                       onTap: () {
                                         setState(() {
                                           _wlExercises.add({
                                             'name': ex.name,
                                             'id': ex.id,
-                                            'sets': [{'kg': 0.0, 'reps': 0}]
+                                            'sets': [
+                                              {'kg': 0.0, 'reps': 0}
+                                            ]
                                           });
                                           _showExercisePicker = false;
                                           _exerciseSearch = '';

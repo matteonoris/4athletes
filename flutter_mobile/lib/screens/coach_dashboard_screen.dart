@@ -6,14 +6,13 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../core/theme.dart';
 import '../providers/app_state.dart';
 import '../models/models.dart';
+import '../utils/coach_training_utils.dart';
 import '../utils/time_utils.dart';
 import 'coach_event_details_screen.dart';
 import 'coach_athlete_detail_screen.dart';
 import 'coach_athletic_test_screen.dart';
-import 'activity_select.dart';
 import 'profile_screen.dart';
 import 'teams_screen.dart';
-
 
 class CoachDashboardScreen extends StatefulWidget {
   const CoachDashboardScreen({super.key});
@@ -28,15 +27,16 @@ class _CoachDashboardScreenState extends State<CoachDashboardScreen> {
   DateTime _selectedDay = DateTime.now();
 
   List<Widget> get _pages => [
-    _CoachHomeView(
-      selectedDay: _selectedDay,
-      onDaySelected: (day) => setState(() => _selectedDay = day),
-    ),
-    const _CoachReportView(),
-    const _CoachTrainingView(),
-    const TeamsScreen(),
-    const ProfileScreen(),
-  ];
+        _CoachHomeView(
+          selectedDay: _selectedDay,
+          onDaySelected: (day) => setState(() => _selectedDay = day),
+          onProfileTap: () => _onTabTapped(4),
+        ),
+        const _CoachReportView(),
+        const _CoachTrainingView(),
+        const TeamsScreen(),
+        const ProfileScreen(),
+      ];
 
   void _onTabTapped(int index) {
     HapticFeedback.selectionClick();
@@ -45,13 +45,14 @@ class _CoachDashboardScreenState extends State<CoachDashboardScreen> {
     });
   }
 
-
-
-  void _showTeamSelectionIfNeeded(BuildContext context, {required bool isSkiWorkout}) {
+  void _showTeamSelectionIfNeeded(BuildContext context,
+      {required bool isSkiWorkout}) {
     final appState = Provider.of<AppState>(context, listen: false);
     if (appState.teams.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Nessun team disponibile. Crea o unisciti a un team prima.')),
+        const SnackBar(
+            content: Text(
+                'Nessun team disponibile. Crea o unisciti a un team prima.')),
       );
       return;
     }
@@ -60,51 +61,64 @@ class _CoachDashboardScreenState extends State<CoachDashboardScreen> {
         context: context,
         builder: (ctx) => AlertDialog(
           backgroundColor: AppTheme.card,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-          title: const Text('Seleziona Team', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+          shape:
+              RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          title: const Text('Seleziona Team',
+              style:
+                  TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
           content: Column(
             mainAxisSize: MainAxisSize.min,
-            children: appState.teams.map((t) => ListTile(
-              title: Text(t.name, style: const TextStyle(color: Colors.white)),
-              trailing: const Icon(Icons.arrow_forward_ios, size: 16, color: AppTheme.textMediumEmphasis),
-              onTap: () {
-                HapticFeedback.lightImpact();
-                Navigator.pop(ctx);
-                Widget dest = CoachEventDetailsScreen(
-                    selectedTeam: t, 
-                    initialDate: _selectedDay,
-                    isSkiWorkout: isSkiWorkout);
-                Navigator.push(context, MaterialPageRoute(builder: (_) => dest));
-              }
-            )).toList(),
+            children: appState.teams
+                .map((t) => ListTile(
+                    title: Text(t.name,
+                        style: const TextStyle(color: Colors.white)),
+                    trailing: const Icon(Icons.arrow_forward_ios,
+                        size: 16, color: AppTheme.textMediumEmphasis),
+                    onTap: () {
+                      HapticFeedback.lightImpact();
+                      Navigator.pop(ctx);
+                      Widget dest = CoachEventDetailsScreen(
+                          selectedTeam: t,
+                          initialDate: _selectedDay,
+                          isSkiWorkout: isSkiWorkout);
+                      Navigator.push(
+                          context, MaterialPageRoute(builder: (_) => dest));
+                    }))
+                .toList(),
           ),
         ),
       );
     } else {
       Widget dest = CoachEventDetailsScreen(
-          selectedTeam: appState.teams.first, 
+          selectedTeam: appState.teams.first,
           initialDate: _selectedDay,
           isSkiWorkout: isSkiWorkout);
       Navigator.push(context, MaterialPageRoute(builder: (_) => dest));
     }
   }
 
-  void _showTeamSelectionForTest(BuildContext context, String testId, String testTitle, String category) {
+  void _showTeamSelectionForTest(
+      BuildContext context, String testId, String testTitle, String category) {
     final appState = Provider.of<AppState>(context, listen: false);
     if (appState.teams.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Nessun team disponibile. Crea o unisciti a un team prima.')),
+        const SnackBar(
+            content: Text(
+                'Nessun team disponibile. Crea o unisciti a un team prima.')),
       );
       return;
     }
-    
+
     void navigateToTest(Team t) {
-      Navigator.push(context, MaterialPageRoute(builder: (_) => CoachAthleticTestScreen(
-        selectedTeam: t,
-        testId: testId,
-        testTitle: testTitle,
-        testCategory: category,
-      )));
+      Navigator.push(
+          context,
+          MaterialPageRoute(
+              builder: (_) => CoachAthleticTestScreen(
+                    selectedTeam: t,
+                    testId: testId,
+                    testTitle: testTitle,
+                    testCategory: category,
+                  )));
     }
 
     if (appState.teams.length > 1) {
@@ -112,19 +126,25 @@ class _CoachDashboardScreenState extends State<CoachDashboardScreen> {
         context: context,
         builder: (ctx) => AlertDialog(
           backgroundColor: AppTheme.card,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-          title: const Text('Seleziona Team', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+          shape:
+              RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          title: const Text('Seleziona Team',
+              style:
+                  TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
           content: Column(
             mainAxisSize: MainAxisSize.min,
-            children: appState.teams.map((t) => ListTile(
-              title: Text(t.name, style: const TextStyle(color: Colors.white)),
-              trailing: const Icon(Icons.arrow_forward_ios, size: 16, color: AppTheme.textMediumEmphasis),
-              onTap: () {
-                HapticFeedback.lightImpact();
-                Navigator.pop(ctx);
-                navigateToTest(t);
-              }
-            )).toList(),
+            children: appState.teams
+                .map((t) => ListTile(
+                    title: Text(t.name,
+                        style: const TextStyle(color: Colors.white)),
+                    trailing: const Icon(Icons.arrow_forward_ios,
+                        size: 16, color: AppTheme.textMediumEmphasis),
+                    onTap: () {
+                      HapticFeedback.lightImpact();
+                      Navigator.pop(ctx);
+                      navigateToTest(t);
+                    }))
+                .toList(),
           ),
         ),
       );
@@ -138,7 +158,8 @@ class _CoachDashboardScreenState extends State<CoachDashboardScreen> {
       context: context,
       backgroundColor: AppTheme.card,
       isScrollControlled: true,
-      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
+      shape: const RoundedRectangleBorder(
+          borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
       builder: (ctx) {
         return DraggableScrollableSheet(
           initialChildSize: 0.7,
@@ -150,9 +171,18 @@ class _CoachDashboardScreenState extends State<CoachDashboardScreen> {
               child: Column(
                 children: [
                   const SizedBox(height: 16),
-                  Container(width: 40, height: 4, decoration: BoxDecoration(color: Colors.white.withOpacity(0.2), borderRadius: BorderRadius.circular(2))),
+                  Container(
+                      width: 40,
+                      height: 4,
+                      decoration: BoxDecoration(
+                          color: Colors.white.withOpacity(0.2),
+                          borderRadius: BorderRadius.circular(2))),
                   const SizedBox(height: 24),
-                  const Text('Seleziona Test', style: TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.bold)),
+                  const Text('Seleziona Test',
+                      style: TextStyle(
+                          color: Colors.white,
+                          fontSize: 20,
+                          fontWeight: FontWeight.bold)),
                   const SizedBox(height: 16),
                   Expanded(
                     child: ListView(
@@ -161,47 +191,79 @@ class _CoachDashboardScreenState extends State<CoachDashboardScreen> {
                       children: [
                         const Padding(
                           padding: EdgeInsets.symmetric(vertical: 8),
-                          child: Text('SALTI', style: TextStyle(color: AppTheme.textMediumEmphasis, fontWeight: FontWeight.bold, fontSize: 12)),
+                          child: Text('SALTI',
+                              style: TextStyle(
+                                  color: AppTheme.textMediumEmphasis,
+                                  fontWeight: FontWeight.bold,
+                                  fontSize: 12)),
                         ),
                         _buildTestTile(ctx, 'Squat Jump', 'squat_jump', 'jump'),
                         _buildTestTile(ctx, 'CM Jump', 'cm_jump', 'jump'),
                         _buildTestTile(ctx, 'Drop Jump', 'drop_jump', 'jump'),
                         _buildTestTile(ctx, '45s Jump', '45s_jump', 'jump'),
-                        _buildTestTile(ctx, 'Single Leg (Left)', 'single_leg_left', 'jump'),
-                        _buildTestTile(ctx, 'Single Leg (Right)', 'single_leg_right', 'jump'),
+                        _buildTestTile(ctx, 'Single Leg (Left)',
+                            'single_leg_left', 'jump'),
+                        _buildTestTile(ctx, 'Single Leg (Right)',
+                            'single_leg_right', 'jump'),
                         const Padding(
                           padding: EdgeInsets.symmetric(vertical: 8),
-                          child: Text('MASSIMALI E FORZA', style: TextStyle(color: AppTheme.textMediumEmphasis, fontWeight: FontWeight.bold, fontSize: 12)),
+                          child: Text('MASSIMALI E FORZA',
+                              style: TextStyle(
+                                  color: AppTheme.textMediumEmphasis,
+                                  fontWeight: FontWeight.bold,
+                                  fontSize: 12)),
                         ),
                         _buildTestTile(ctx, 'Back Squat', 'back_squat', 'pr'),
                         _buildTestTile(ctx, 'Deadlift', 'deadlift', 'pr'),
                         _buildTestTile(ctx, 'Bench Press', 'bp', 'pr'),
                         _buildTestTile(ctx, 'Clean & Jerk', 'clean_jerk', 'pr'),
-                        _buildTestTile(ctx, 'Trazioni Massime', 'pullups_max', 'reps'),
+                        _buildTestTile(
+                            ctx, 'Trazioni Massime', 'pullups_max', 'reps'),
                         const SizedBox(height: 16),
                         const Padding(
                           padding: EdgeInsets.symmetric(vertical: 8),
-                          child: Text('VELOCITÀ E AEROBICO', style: TextStyle(color: AppTheme.textMediumEmphasis, fontWeight: FontWeight.bold, fontSize: 12)),
+                          child: Text('VELOCITÀ E AEROBICO',
+                              style: TextStyle(
+                                  color: AppTheme.textMediumEmphasis,
+                                  fontWeight: FontWeight.bold,
+                                  fontSize: 12)),
                         ),
-                        _buildTestTile(ctx, 'Scatto 20 m', 'sprint_20m', 'time'),
-                        _buildTestTile(ctx, 'Scatto 60 m', 'sprint_60m', 'time'),
-                        _buildTestTile(ctx, 'Test di Léger', 'leger', 'leger_test'),
+                        _buildTestTile(
+                            ctx, 'Scatto 20 m', 'sprint_20m', 'time'),
+                        _buildTestTile(
+                            ctx, 'Scatto 60 m', 'sprint_60m', 'time'),
+                        _buildTestTile(
+                            ctx, 'Test di Léger', 'leger', 'leger_test'),
                         const SizedBox(height: 16),
                         const Padding(
                           padding: EdgeInsets.symmetric(vertical: 8),
-                          child: Text('EQUILIBRIO (Score)', style: TextStyle(color: AppTheme.textMediumEmphasis, fontWeight: FontWeight.bold, fontSize: 12)),
+                          child: Text('EQUILIBRIO (Score)',
+                              style: TextStyle(
+                                  color: AppTheme.textMediumEmphasis,
+                                  fontWeight: FontWeight.bold,
+                                  fontSize: 12)),
                         ),
-                        _buildTestTile(ctx, 'Bipodale', 'balance_bipedal', 'score'),
-                        _buildTestTile(ctx, 'Monopodale SX', 'balance_single_l', 'score'),
-                        _buildTestTile(ctx, 'Monopodale DX', 'balance_single_r', 'score'),
+                        _buildTestTile(
+                            ctx, 'Bipodale', 'balance_bipedal', 'score'),
+                        _buildTestTile(
+                            ctx, 'Monopodale SX', 'balance_single_l', 'score'),
+                        _buildTestTile(
+                            ctx, 'Monopodale DX', 'balance_single_r', 'score'),
                         const SizedBox(height: 16),
                         const Padding(
                           padding: EdgeInsets.symmetric(vertical: 8),
-                          child: Text('CORE E RESISTENZA (Tempo)', style: TextStyle(color: AppTheme.textMediumEmphasis, fontWeight: FontWeight.bold, fontSize: 12)),
+                          child: Text('CORE E RESISTENZA (Tempo)',
+                              style: TextStyle(
+                                  color: AppTheme.textMediumEmphasis,
+                                  fontWeight: FontWeight.bold,
+                                  fontSize: 12)),
                         ),
-                        _buildTestTile(ctx, 'Plank Frontale', 'plank_front', 'time'),
-                        _buildTestTile(ctx, 'Plank Laterale SX', 'plank_side_l', 'time'),
-                        _buildTestTile(ctx, 'Plank Laterale DX', 'plank_side_r', 'time'),
+                        _buildTestTile(
+                            ctx, 'Plank Frontale', 'plank_front', 'time'),
+                        _buildTestTile(
+                            ctx, 'Plank Laterale SX', 'plank_side_l', 'time'),
+                        _buildTestTile(
+                            ctx, 'Plank Laterale DX', 'plank_side_r', 'time'),
                         const SizedBox(height: 24),
                       ],
                     ),
@@ -215,10 +277,12 @@ class _CoachDashboardScreenState extends State<CoachDashboardScreen> {
     );
   }
 
-  Widget _buildTestTile(BuildContext ctx, String title, String testId, String category) {
+  Widget _buildTestTile(
+      BuildContext ctx, String title, String testId, String category) {
     return ListTile(
       title: Text(title, style: const TextStyle(color: Colors.white)),
-      trailing: const Icon(Icons.chevron_right, color: AppTheme.textMediumEmphasis),
+      trailing:
+          const Icon(Icons.chevron_right, color: AppTheme.textMediumEmphasis),
       onTap: () {
         HapticFeedback.lightImpact();
         Navigator.pop(ctx);
@@ -238,7 +302,9 @@ class _CoachDashboardScreenState extends State<CoachDashboardScreen> {
       bottomNavigationBar: Container(
         decoration: BoxDecoration(
           color: AppTheme.background,
-          border: Border(top: BorderSide(color: Colors.white.withValues(alpha: 0.05), width: 1)),
+          border: Border(
+              top: BorderSide(
+                  color: Colors.white.withValues(alpha: 0.05), width: 1)),
         ),
         child: BottomNavigationBar(
           backgroundColor: AppTheme.background,
@@ -276,65 +342,110 @@ class _CoachDashboardScreenState extends State<CoachDashboardScreen> {
           ],
         ),
       ),
-      floatingActionButton: _currentIndex == 0 ? FloatingActionButton(
-        onPressed: () {
-          HapticFeedback.lightImpact();
-          showModalBottomSheet(
-            context: context,
-            backgroundColor: AppTheme.card,
-            shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
-            builder: (ctx) => SafeArea(
-              child: Padding(
-                padding: const EdgeInsets.symmetric(vertical: 24, horizontal: 16),
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Container(width: 40, height: 4, decoration: BoxDecoration(color: Colors.white.withValues(alpha: 0.2), borderRadius: BorderRadius.circular(2))),
-                    const SizedBox(height: 24),
-                    const Text('Aggiungi al Calendario', style: TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.bold)),
-                    const SizedBox(height: 24),
-                    ListTile(
-                      leading: const CircleAvatar(backgroundColor: AppTheme.primary, child: Icon(Icons.ac_unit, color: Colors.white)),
-                      title: const Text('Allenamento Sci', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
-                      subtitle: const Text('Crea evento in pista (Slalom, Gigante...)', style: TextStyle(color: AppTheme.textMediumEmphasis, fontSize: 12)),
-                      onTap: () {
-                        HapticFeedback.lightImpact();
-                        Navigator.pop(ctx);
-                        _showTeamSelectionIfNeeded(context, isSkiWorkout: true);
-                      },
+      floatingActionButton: _currentIndex == 0
+          ? FloatingActionButton(
+              onPressed: () {
+                HapticFeedback.lightImpact();
+                showModalBottomSheet(
+                  context: context,
+                  backgroundColor: AppTheme.card,
+                  shape: const RoundedRectangleBorder(
+                      borderRadius:
+                          BorderRadius.vertical(top: Radius.circular(24))),
+                  builder: (ctx) => SafeArea(
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(
+                          vertical: 24, horizontal: 16),
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Container(
+                              width: 40,
+                              height: 4,
+                              decoration: BoxDecoration(
+                                  color: Colors.white.withValues(alpha: 0.2),
+                                  borderRadius: BorderRadius.circular(2))),
+                          const SizedBox(height: 24),
+                          const Text('Aggiungi al Calendario',
+                              style: TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 20,
+                                  fontWeight: FontWeight.bold)),
+                          const SizedBox(height: 24),
+                          ListTile(
+                            leading: const CircleAvatar(
+                                backgroundColor: AppTheme.primary,
+                                child:
+                                    Icon(Icons.ac_unit, color: Colors.white)),
+                            title: const Text('Allenamento Sci',
+                                style: TextStyle(
+                                    color: Colors.white,
+                                    fontWeight: FontWeight.bold)),
+                            subtitle: const Text(
+                                'Crea evento in pista (Slalom, Gigante...)',
+                                style: TextStyle(
+                                    color: AppTheme.textMediumEmphasis,
+                                    fontSize: 12)),
+                            onTap: () {
+                              HapticFeedback.lightImpact();
+                              Navigator.pop(ctx);
+                              _showTeamSelectionIfNeeded(context,
+                                  isSkiWorkout: true);
+                            },
+                          ),
+                          const SizedBox(height: 8),
+                          ListTile(
+                            leading: const CircleAvatar(
+                                backgroundColor: Color(0xFFFF7A00),
+                                child: Icon(Icons.fitness_center,
+                                    color: Colors.white)),
+                            title: const Text('Preparazione Atletica',
+                                style: TextStyle(
+                                    color: Colors.white,
+                                    fontWeight: FontWeight.bold)),
+                            subtitle: const Text(
+                                'Scegli dal database (Forza, Corsa, ecc.)',
+                                style: TextStyle(
+                                    color: AppTheme.textMediumEmphasis,
+                                    fontSize: 12)),
+                            onTap: () {
+                              HapticFeedback.lightImpact();
+                              Navigator.pop(ctx);
+                              _showTeamSelectionIfNeeded(context,
+                                  isSkiWorkout: false);
+                            },
+                          ),
+                          const SizedBox(height: 8),
+                          ListTile(
+                            leading: const CircleAvatar(
+                                backgroundColor: Colors.blueAccent,
+                                child: Icon(Icons.speed, color: Colors.white)),
+                            title: const Text('Test Atletici',
+                                style: TextStyle(
+                                    color: Colors.white,
+                                    fontWeight: FontWeight.bold)),
+                            subtitle: const Text(
+                                'Registra salti e massimali per gli atleti',
+                                style: TextStyle(
+                                    color: AppTheme.textMediumEmphasis,
+                                    fontSize: 12)),
+                            onTap: () {
+                              HapticFeedback.lightImpact();
+                              Navigator.pop(ctx);
+                              _showTestSelectionBottomSheet(context);
+                            },
+                          ),
+                        ],
+                      ),
                     ),
-                    const SizedBox(height: 8),
-                    ListTile(
-                      leading: const CircleAvatar(backgroundColor: Color(0xFFFF7A00), child: Icon(Icons.fitness_center, color: Colors.white)),
-                      title: const Text('Preparazione Atletica', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
-                      subtitle: const Text('Scegli dal database (Forza, Corsa, ecc.)', style: TextStyle(color: AppTheme.textMediumEmphasis, fontSize: 12)),
-                      onTap: () {
-                        HapticFeedback.lightImpact();
-                        Navigator.pop(ctx);
-                        _showTeamSelectionIfNeeded(context, isSkiWorkout: false);
-                      },
-                    ),
-                    const SizedBox(height: 8),
-                    ListTile(
-                      leading: const CircleAvatar(backgroundColor: Colors.blueAccent, child: Icon(Icons.speed, color: Colors.white)),
-                      title: const Text('Test Atletici', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
-                      subtitle: const Text('Registra salti e massimali per gli atleti', style: TextStyle(color: AppTheme.textMediumEmphasis, fontSize: 12)),
-                      onTap: () {
-                        HapticFeedback.lightImpact();
-                        Navigator.pop(ctx);
-                        _showTestSelectionBottomSheet(context);
-                      },
-                    ),
-                  ],
-                ),
-              ),
-            ),
-          );
-        },
-        backgroundColor: Colors.white,
-        foregroundColor: Colors.black,
-        child: const Icon(Icons.add),
-      ) : null,
+                  ),
+                );
+              },
+              backgroundColor: Colors.white,
+              foregroundColor: Colors.black,
+              child: const Icon(Icons.add),
+            )
+          : null,
     );
   }
 }
@@ -345,11 +456,13 @@ class _CoachDashboardScreenState extends State<CoachDashboardScreen> {
 class _CoachHomeView extends StatefulWidget {
   final DateTime selectedDay;
   final ValueChanged<DateTime> onDaySelected;
+  final VoidCallback onProfileTap;
 
   const _CoachHomeView({
     super.key,
     required this.selectedDay,
     required this.onDaySelected,
+    required this.onProfileTap,
   });
 
   @override
@@ -361,23 +474,41 @@ class _CoachHomeViewState extends State<_CoachHomeView> {
   DateTime _focusedDay = DateTime.now();
 
   final List<String> _months = [
-    'Gennaio', 'Febbraio', 'Marzo', 'Aprile', 'Maggio', 'Giugno',
-    'Luglio', 'Agosto', 'Settembre', 'Ottobre', 'Novembre', 'Dicembre'
+    'Gennaio',
+    'Febbraio',
+    'Marzo',
+    'Aprile',
+    'Maggio',
+    'Giugno',
+    'Luglio',
+    'Agosto',
+    'Settembre',
+    'Ottobre',
+    'Novembre',
+    'Dicembre'
   ];
 
-  final List<String> _weekDays = ['LUN', 'MAR', 'MER', 'GIO', 'VEN', 'SAB', 'DOM'];
+  final List<String> _weekDays = [
+    'LUN',
+    'MAR',
+    'MER',
+    'GIO',
+    'VEN',
+    'SAB',
+    'DOM'
+  ];
 
   @override
   Widget build(BuildContext context) {
     final appState = Provider.of<AppState>(context);
-    
+
     // Filter events for selected day
     final dailyEvents = appState.coachEvents.where((e) {
       final eventDate = DateTime.tryParse(e.date);
       if (eventDate == null) return false;
       return eventDate.year == widget.selectedDay.year &&
-             eventDate.month == widget.selectedDay.month &&
-             eventDate.day == widget.selectedDay.day;
+          eventDate.month == widget.selectedDay.month &&
+          eventDate.day == widget.selectedDay.day;
     }).toList();
 
     return SafeArea(
@@ -390,13 +521,27 @@ class _CoachHomeViewState extends State<_CoachHomeView> {
             child: Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                const Text('WELCOME COACH', style: TextStyle(color: AppTheme.textMediumEmphasis, fontWeight: FontWeight.w900, letterSpacing: 1.5)),
-                CircleAvatar(backgroundColor: AppTheme.card, child: const Icon(Icons.person_outline, color: Colors.white)),
+                const Text('WELCOME COACH',
+                    style: TextStyle(
+                        color: AppTheme.textMediumEmphasis,
+                        fontWeight: FontWeight.w900,
+                        letterSpacing: 1.5)),
+                Semantics(
+                  button: true,
+                  label: 'Apri profilo',
+                  child: GestureDetector(
+                    onTap: widget.onProfileTap,
+                    child: const CircleAvatar(
+                      backgroundColor: AppTheme.card,
+                      child: Icon(Icons.person_outline, color: Colors.white),
+                    ),
+                  ),
+                ),
               ],
             ),
           ),
           Divider(color: Colors.white.withValues(alpha: 0.05), height: 1),
-          
+
           Expanded(
             child: ListView(
               padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 24),
@@ -404,9 +549,15 @@ class _CoachHomeViewState extends State<_CoachHomeView> {
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    const Text('Calendario', style: TextStyle(color: Colors.white, fontSize: 24, fontWeight: FontWeight.bold)),
+                    const Text('Calendario',
+                        style: TextStyle(
+                            color: Colors.white,
+                            fontSize: 24,
+                            fontWeight: FontWeight.bold)),
                     Container(
-                      decoration: BoxDecoration(color: AppTheme.card, borderRadius: BorderRadius.circular(12)),
+                      decoration: BoxDecoration(
+                          color: AppTheme.card,
+                          borderRadius: BorderRadius.circular(12)),
                       child: Row(
                         children: [
                           GestureDetector(
@@ -415,9 +566,20 @@ class _CoachHomeViewState extends State<_CoachHomeView> {
                               setState(() => _isWeekView = true);
                             },
                             child: Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                              decoration: BoxDecoration(color: _isWeekView ? AppTheme.primary : AppTheme.card, borderRadius: BorderRadius.circular(12)),
-                              child: Text('Settimana', style: TextStyle(color: _isWeekView ? Colors.white : AppTheme.textMediumEmphasis, fontWeight: FontWeight.bold, fontSize: 13)),
+                              padding: const EdgeInsets.symmetric(
+                                  horizontal: 16, vertical: 8),
+                              decoration: BoxDecoration(
+                                  color: _isWeekView
+                                      ? AppTheme.primary
+                                      : AppTheme.card,
+                                  borderRadius: BorderRadius.circular(12)),
+                              child: Text('Settimana',
+                                  style: TextStyle(
+                                      color: _isWeekView
+                                          ? Colors.white
+                                          : AppTheme.textMediumEmphasis,
+                                      fontWeight: FontWeight.bold,
+                                      fontSize: 13)),
                             ),
                           ),
                           GestureDetector(
@@ -426,9 +588,20 @@ class _CoachHomeViewState extends State<_CoachHomeView> {
                               setState(() => _isWeekView = false);
                             },
                             child: Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                              decoration: BoxDecoration(color: !_isWeekView ? AppTheme.primary : AppTheme.card, borderRadius: BorderRadius.circular(12)),
-                              child: Text('Mese', style: TextStyle(color: !_isWeekView ? Colors.white : AppTheme.textMediumEmphasis, fontWeight: FontWeight.bold, fontSize: 13)),
+                              padding: const EdgeInsets.symmetric(
+                                  horizontal: 16, vertical: 8),
+                              decoration: BoxDecoration(
+                                  color: !_isWeekView
+                                      ? AppTheme.primary
+                                      : AppTheme.card,
+                                  borderRadius: BorderRadius.circular(12)),
+                              child: Text('Mese',
+                                  style: TextStyle(
+                                      color: !_isWeekView
+                                          ? Colors.white
+                                          : AppTheme.textMediumEmphasis,
+                                      fontWeight: FontWeight.bold,
+                                      fontSize: 13)),
                             ),
                           ),
                         ],
@@ -439,7 +612,9 @@ class _CoachHomeViewState extends State<_CoachHomeView> {
                 const SizedBox(height: 20),
                 Container(
                   padding: const EdgeInsets.all(20),
-                  decoration: BoxDecoration(color: AppTheme.card, borderRadius: BorderRadius.circular(20)),
+                  decoration: BoxDecoration(
+                      color: AppTheme.card,
+                      borderRadius: BorderRadius.circular(20)),
                   child: Column(
                     children: [
                       Row(
@@ -448,33 +623,41 @@ class _CoachHomeViewState extends State<_CoachHomeView> {
                           IconButton(
                             padding: EdgeInsets.zero,
                             constraints: const BoxConstraints(),
-                            icon: const Icon(Icons.chevron_left, color: AppTheme.textMediumEmphasis),
+                            icon: const Icon(Icons.chevron_left,
+                                color: AppTheme.textMediumEmphasis),
                             onPressed: () {
                               HapticFeedback.lightImpact();
                               setState(() {
                                 if (_isWeekView) {
-                                  _focusedDay = _focusedDay.subtract(const Duration(days: 7));
+                                  _focusedDay = _focusedDay
+                                      .subtract(const Duration(days: 7));
                                 } else {
-                                  _focusedDay = DateTime(_focusedDay.year, _focusedDay.month - 1, 1);
+                                  _focusedDay = DateTime(_focusedDay.year,
+                                      _focusedDay.month - 1, 1);
                                 }
                               });
                             },
                           ),
                           Text(
-                            '${_months[_focusedDay.month - 1]} ${_focusedDay.year}',
-                            style: const TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold)
-                          ),
+                              '${_months[_focusedDay.month - 1]} ${_focusedDay.year}',
+                              style: const TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 18,
+                                  fontWeight: FontWeight.bold)),
                           IconButton(
                             padding: EdgeInsets.zero,
                             constraints: const BoxConstraints(),
-                            icon: const Icon(Icons.chevron_right, color: AppTheme.textMediumEmphasis),
+                            icon: const Icon(Icons.chevron_right,
+                                color: AppTheme.textMediumEmphasis),
                             onPressed: () {
                               HapticFeedback.lightImpact();
                               setState(() {
                                 if (_isWeekView) {
-                                  _focusedDay = _focusedDay.add(const Duration(days: 7));
+                                  _focusedDay =
+                                      _focusedDay.add(const Duration(days: 7));
                                 } else {
-                                  _focusedDay = DateTime(_focusedDay.year, _focusedDay.month + 1, 1);
+                                  _focusedDay = DateTime(_focusedDay.year,
+                                      _focusedDay.month + 1, 1);
                                 }
                               });
                             },
@@ -482,7 +665,9 @@ class _CoachHomeViewState extends State<_CoachHomeView> {
                         ],
                       ),
                       const SizedBox(height: 24),
-                      _isWeekView ? _buildWeekView(appState) : _buildMonthView(appState),
+                      _isWeekView
+                          ? _buildWeekView(appState)
+                          : _buildMonthView(appState),
                     ],
                   ),
                 ),
@@ -492,15 +677,27 @@ class _CoachHomeViewState extends State<_CoachHomeView> {
                   children: [
                     Row(
                       children: const [
-                        Icon(Icons.calendar_today_outlined, color: Colors.white, size: 20),
+                        Icon(Icons.calendar_today_outlined,
+                            color: Colors.white, size: 20),
                         SizedBox(width: 8),
-                        Text('Programma di Oggi', style: TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.bold)),
+                        Text('Programma di Oggi',
+                            style: TextStyle(
+                                color: Colors.white,
+                                fontSize: 20,
+                                fontWeight: FontWeight.bold)),
                       ],
                     ),
                     Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                      decoration: BoxDecoration(color: AppTheme.card, borderRadius: BorderRadius.circular(8)),
-                      child: Text('${dailyEvents.length} Eventi', style: const TextStyle(color: AppTheme.textMediumEmphasis, fontWeight: FontWeight.bold, fontSize: 13)),
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 12, vertical: 6),
+                      decoration: BoxDecoration(
+                          color: AppTheme.card,
+                          borderRadius: BorderRadius.circular(8)),
+                      child: Text('${dailyEvents.length} Eventi',
+                          style: const TextStyle(
+                              color: AppTheme.textMediumEmphasis,
+                              fontWeight: FontWeight.bold,
+                              fontSize: 13)),
                     ),
                   ],
                 ),
@@ -508,7 +705,9 @@ class _CoachHomeViewState extends State<_CoachHomeView> {
                 if (dailyEvents.isEmpty)
                   _buildNoEventsPlaceholder()
                 else
-                  ...dailyEvents.map((e) => _buildEventCard(context, e, appState)).toList(),
+                  ...dailyEvents
+                      .map((e) => _buildEventCard(context, e, appState))
+                      .toList(),
               ],
             ),
           ),
@@ -527,11 +726,16 @@ class _CoachHomeViewState extends State<_CoachHomeView> {
       ),
       child: Column(
         children: [
-          Icon(Icons.event_busy, color: AppTheme.textMediumEmphasis.withValues(alpha: 0.5), size: 48),
+          Icon(Icons.event_busy,
+              color: AppTheme.textMediumEmphasis.withValues(alpha: 0.5),
+              size: 48),
           const SizedBox(height: 16),
           const Text(
             'Nessun evento in programma',
-            style: TextStyle(color: AppTheme.textMediumEmphasis, fontSize: 16, fontWeight: FontWeight.bold),
+            style: TextStyle(
+                color: AppTheme.textMediumEmphasis,
+                fontSize: 16,
+                fontWeight: FontWeight.bold),
           ),
           const SizedBox(height: 4),
           const Text(
@@ -544,21 +748,27 @@ class _CoachHomeViewState extends State<_CoachHomeView> {
     );
   }
 
-  Widget _buildEventCard(BuildContext context, CalendarEvent event, AppState appState) {
-    final presentCount = event.attendees?.where((a) => a['isPresent'] == true).length ?? 0;
-    
+  Widget _buildEventCard(
+      BuildContext context, CalendarEvent event, AppState appState) {
+    final presentCount =
+        event.attendees?.where(CoachTrainingUtils.isAttendeePresent).length ??
+            0;
+
     String teamName = 'Team';
     try {
-      final ids = event.teamId.split(',');
-      if (ids.isNotEmpty && ids.first.isNotEmpty) {
-        final team = appState.teams.firstWhere((t) => t.id == ids.first.trim());
-        teamName = team.name;
-      }
+      final ids = CoachTrainingUtils.teamIdsForEvent(event);
+      final names = ids.map((id) {
+        return appState.teams.firstWhere((t) => t.id == id.trim()).name;
+      }).toList();
+      if (names.isNotEmpty) teamName = names.join(', ');
     } catch (_) {}
 
     return GestureDetector(
       onTap: () {
-        Navigator.push(context, MaterialPageRoute(builder: (_) => CoachEventDetailsScreen(event: event)));
+        Navigator.push(
+            context,
+            MaterialPageRoute(
+                builder: (_) => CoachEventDetailsScreen(event: event)));
       },
       child: Container(
         margin: const EdgeInsets.only(bottom: 16),
@@ -566,20 +776,34 @@ class _CoachHomeViewState extends State<_CoachHomeView> {
           children: [
             Container(
               padding: const EdgeInsets.all(20),
-              decoration: BoxDecoration(color: AppTheme.card, borderRadius: BorderRadius.circular(16)),
+              decoration: BoxDecoration(
+                  color: AppTheme.card,
+                  borderRadius: BorderRadius.circular(16)),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      Text('${event.startTime} - ${event.endTime}', style: const TextStyle(color: AppTheme.textMediumEmphasis, fontWeight: FontWeight.bold, fontSize: 14)),
+                      Text('${event.startTime} - ${event.endTime}',
+                          style: const TextStyle(
+                              color: AppTheme.textMediumEmphasis,
+                              fontWeight: FontWeight.bold,
+                              fontSize: 14)),
                       const SizedBox(width: 8),
                       Flexible(
                         child: Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-                          decoration: BoxDecoration(color: Colors.white.withValues(alpha: 0.05), borderRadius: BorderRadius.circular(8)),
-                          child: Text(teamName, style: const TextStyle(color: AppTheme.textMediumEmphasis, fontWeight: FontWeight.bold, fontSize: 12), overflow: TextOverflow.ellipsis),
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 12, vertical: 4),
+                          decoration: BoxDecoration(
+                              color: Colors.white.withValues(alpha: 0.05),
+                              borderRadius: BorderRadius.circular(8)),
+                          child: Text(teamName,
+                              style: const TextStyle(
+                                  color: AppTheme.textMediumEmphasis,
+                                  fontWeight: FontWeight.bold,
+                                  fontSize: 12),
+                              overflow: TextOverflow.ellipsis),
                         ),
                       ),
                     ],
@@ -588,20 +812,33 @@ class _CoachHomeViewState extends State<_CoachHomeView> {
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      Text(event.title, style: const TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold)),
-                      const Icon(Icons.chevron_right, color: AppTheme.textMediumEmphasis, size: 20),
+                      Text(event.title,
+                          style: const TextStyle(
+                              color: Colors.white,
+                              fontSize: 18,
+                              fontWeight: FontWeight.bold)),
+                      const Icon(Icons.chevron_right,
+                          color: AppTheme.textMediumEmphasis, size: 20),
                     ],
                   ),
                   const SizedBox(height: 12),
                   Row(
                     children: [
-                      const Icon(Icons.location_on_outlined, color: AppTheme.textMediumEmphasis, size: 16),
+                      const Icon(Icons.location_on_outlined,
+                          color: AppTheme.textMediumEmphasis, size: 16),
                       const SizedBox(width: 4),
-                      Text(event.location ?? 'No location', style: const TextStyle(color: AppTheme.textMediumEmphasis, fontSize: 13)),
+                      Text(event.location ?? 'No location',
+                          style: const TextStyle(
+                              color: AppTheme.textMediumEmphasis,
+                              fontSize: 13)),
                       const SizedBox(width: 16),
-                      const Icon(Icons.people_outline, color: AppTheme.textMediumEmphasis, size: 16),
+                      const Icon(Icons.people_outline,
+                          color: AppTheme.textMediumEmphasis, size: 16),
                       const SizedBox(width: 4),
-                      Text('$presentCount Presenti', style: const TextStyle(color: AppTheme.textMediumEmphasis, fontSize: 13)),
+                      Text('$presentCount Presenti',
+                          style: const TextStyle(
+                              color: AppTheme.textMediumEmphasis,
+                              fontSize: 13)),
                     ],
                   ),
                 ],
@@ -615,7 +852,9 @@ class _CoachHomeViewState extends State<_CoachHomeView> {
               child: Container(
                 decoration: BoxDecoration(
                   color: AppTheme.primary,
-                  borderRadius: const BorderRadius.only(topRight: Radius.circular(4), bottomRight: Radius.circular(4)),
+                  borderRadius: const BorderRadius.only(
+                      topRight: Radius.circular(4),
+                      bottomRight: Radius.circular(4)),
                 ),
               ),
             ),
@@ -627,17 +866,21 @@ class _CoachHomeViewState extends State<_CoachHomeView> {
 
   Widget _buildWeekView(AppState appState) {
     // Find Monday of the focused week
-    final monday = _focusedDay.subtract(Duration(days: _focusedDay.weekday - 1));
-    
+    final monday =
+        _focusedDay.subtract(Duration(days: _focusedDay.weekday - 1));
+
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: List.generate(7, (index) {
         final day = monday.add(Duration(days: index));
         final hasEvents = appState.coachEvents.any((e) {
           final eventDate = DateTime.tryParse(e.date);
-          return eventDate?.year == day.year && eventDate?.month == day.month && eventDate?.day == day.day;
+          return eventDate?.year == day.year &&
+              eventDate?.month == day.month &&
+              eventDate?.day == day.day;
         });
-        return _buildInteractiveDay(_weekDays[index], day, hasEvents: hasEvents);
+        return _buildInteractiveDay(_weekDays[index], day,
+            hasEvents: hasEvents);
       }),
     );
   }
@@ -645,18 +888,24 @@ class _CoachHomeViewState extends State<_CoachHomeView> {
   Widget _buildMonthView(AppState appState) {
     final firstDayOfMonth = DateTime(_focusedDay.year, _focusedDay.month, 1);
     final lastDayOfMonth = DateTime(_focusedDay.year, _focusedDay.month + 1, 0);
-    
+
     // Calculate leading empty spaces to align days (starting Monday)
     int leadingDays = firstDayOfMonth.weekday - 1;
-    
+
     return Column(
       children: [
         Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: _weekDays.map((d) => SizedBox(
-            width: 32,
-            child: Text(d, textAlign: TextAlign.center, style: const TextStyle(color: AppTheme.textMediumEmphasis, fontSize: 10, fontWeight: FontWeight.bold))
-          )).toList(),
+          children: _weekDays
+              .map((d) => SizedBox(
+                  width: 32,
+                  child: Text(d,
+                      textAlign: TextAlign.center,
+                      style: const TextStyle(
+                          color: AppTheme.textMediumEmphasis,
+                          fontSize: 10,
+                          fontWeight: FontWeight.bold))))
+              .toList(),
         ),
         const SizedBox(height: 12),
         GridView.builder(
@@ -671,30 +920,35 @@ class _CoachHomeViewState extends State<_CoachHomeView> {
           itemCount: leadingDays + lastDayOfMonth.day,
           itemBuilder: (context, index) {
             if (index < leadingDays) return const SizedBox.shrink();
-            
+
             final dayNumber = index - leadingDays + 1;
-            final date = DateTime(_focusedDay.year, _focusedDay.month, dayNumber);
-            
+            final date =
+                DateTime(_focusedDay.year, _focusedDay.month, dayNumber);
+
             final hasEvents = appState.coachEvents.any((e) {
               final eventDate = DateTime.tryParse(e.date);
-              return eventDate?.year == date.year && eventDate?.month == date.month && eventDate?.day == date.day;
+              return eventDate?.year == date.year &&
+                  eventDate?.month == date.month &&
+                  eventDate?.day == date.day;
             });
 
-            return _buildInteractiveDay('', date, compact: true, hasEvents: hasEvents);
+            return _buildInteractiveDay('', date,
+                compact: true, hasEvents: hasEvents);
           },
         ),
       ],
     );
   }
 
-  Widget _buildInteractiveDay(String label, DateTime date, {bool compact = false, bool hasEvents = false}) {
+  Widget _buildInteractiveDay(String label, DateTime date,
+      {bool compact = false, bool hasEvents = false}) {
     bool isSelected = date.year == widget.selectedDay.year &&
-                     date.month == widget.selectedDay.month &&
-                     date.day == widget.selectedDay.day;
-    
+        date.month == widget.selectedDay.month &&
+        date.day == widget.selectedDay.day;
+
     bool isToday = date.year == DateTime.now().year &&
-                   date.month == DateTime.now().month &&
-                   date.day == DateTime.now().day;
+        date.month == DateTime.now().month &&
+        date.day == DateTime.now().day;
 
     return GestureDetector(
       onTap: () {
@@ -707,7 +961,11 @@ class _CoachHomeViewState extends State<_CoachHomeView> {
       child: Column(
         children: [
           if (label.isNotEmpty) ...[
-            Text(label, style: const TextStyle(color: AppTheme.textMediumEmphasis, fontSize: 12, fontWeight: FontWeight.bold)),
+            Text(label,
+                style: const TextStyle(
+                    color: AppTheme.textMediumEmphasis,
+                    fontSize: 12,
+                    fontWeight: FontWeight.bold)),
             const SizedBox(height: 8),
           ],
           Container(
@@ -717,30 +975,31 @@ class _CoachHomeViewState extends State<_CoachHomeView> {
               color: isSelected ? AppTheme.primary : AppTheme.card,
               borderRadius: BorderRadius.circular(12),
               border: Border.all(
-                color: isSelected ? AppTheme.primary : (isToday ? AppTheme.primary.withValues(alpha: 0.5) : Colors.white.withValues(alpha: 0.05)),
+                color: isSelected
+                    ? AppTheme.primary
+                    : (isToday
+                        ? AppTheme.primary.withValues(alpha: 0.5)
+                        : Colors.white.withValues(alpha: 0.05)),
               ),
             ),
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                Text(
-                  date.day.toString(),
-                  style: TextStyle(
-                    color: isSelected ? Colors.white : (isToday ? AppTheme.primary : Colors.white),
-                    fontWeight: FontWeight.bold,
-                    fontSize: compact ? 14 : 16
-                  )
-                ),
+                Text(date.day.toString(),
+                    style: TextStyle(
+                        color: isSelected
+                            ? Colors.white
+                            : (isToday ? AppTheme.primary : Colors.white),
+                        fontWeight: FontWeight.bold,
+                        fontSize: compact ? 14 : 16)),
                 if (hasEvents) ...[
                   const SizedBox(height: 4),
                   Container(
-                    width: 4, 
-                    height: 4, 
-                    decoration: BoxDecoration(
-                      color: isSelected ? Colors.white : AppTheme.primary, 
-                      shape: BoxShape.circle
-                    )
-                  ),
+                      width: 4,
+                      height: 4,
+                      decoration: BoxDecoration(
+                          color: isSelected ? Colors.white : AppTheme.primary,
+                          shape: BoxShape.circle)),
                 ],
               ],
             ),
@@ -789,7 +1048,7 @@ class _CoachReportViewState extends State<_CoachReportView> {
       }
 
       final allEvents = appState.coachEvents.where((event) {
-        final eventTeamIds = event.teamId.split(',').map((id) => id.trim());
+        final eventTeamIds = CoachTrainingUtils.teamIdsForEvent(event);
         return eventTeamIds.any(teamIds.contains);
       }).toList();
 
@@ -800,9 +1059,8 @@ class _CoachReportViewState extends State<_CoachReportView> {
           .eq('role', 'athlete')
           .inFilter('team_id', teamIds);
 
-      final athleteIds = (profilesData as List)
-          .map((p) => p['id'] as String)
-          .toList();
+      final athleteIds =
+          (profilesData as List).map((p) => p['id'] as String).toList();
 
       final sessionsData = athleteIds.isEmpty
           ? <dynamic>[]
@@ -816,19 +1074,22 @@ class _CoachReportViewState extends State<_CoachReportView> {
         setState(() {
           _athletes = profilesData.map((p) {
             final athleteId = p['id'] as String;
-            final name = '${p['first_name'] ?? ''} ${p['last_name'] ?? ''}'.trim();
+            final name =
+                '${p['first_name'] ?? ''} ${p['last_name'] ?? ''}'.trim();
             final initial = ((p['first_name'] as String? ?? 'A').isNotEmpty
-                ? (p['first_name'] as String)[0]
-                : 'A').toUpperCase();
+                    ? (p['first_name'] as String)[0]
+                    : 'A')
+                .toUpperCase();
 
             // Calcola % presenze sci
-            final skiEvents = allEvents.where((e) => e.sportCategory == 'ski').toList();
+            final skiEvents =
+                allEvents.where((e) => e.sportCategory == 'ski').toList();
             int skiPresences = 0;
             for (final event in skiEvents) {
               final attendees = event.attendees ?? [];
               final found = attendees.any((a) =>
-                  a['id'] == athleteId ||
-                  a['name'] == name);
+                  (a['id'] == athleteId || a['name'] == name) &&
+                  CoachTrainingUtils.isAttendeePresent(a));
               if (found) skiPresences++;
             }
             final skiPresencePercent = skiEvents.isNotEmpty
@@ -836,13 +1097,14 @@ class _CoachReportViewState extends State<_CoachReportView> {
                 : 0;
 
             // Calcola % presenze atletica
-            final athleticEvents = allEvents.where((e) => e.sportCategory != 'ski').toList();
+            final athleticEvents =
+                allEvents.where((e) => e.sportCategory != 'ski').toList();
             int athleticPresences = 0;
             for (final event in athleticEvents) {
               final attendees = event.attendees ?? [];
               final found = attendees.any((a) =>
-                  a['id'] == athleteId ||
-                  a['name'] == name);
+                  (a['id'] == athleteId || a['name'] == name) &&
+                  CoachTrainingUtils.isAttendeePresent(a));
               if (found) athleticPresences++;
             }
             final athleticPresencePercent = athleticEvents.isNotEmpty
@@ -853,7 +1115,8 @@ class _CoachReportViewState extends State<_CoachReportView> {
             int totalMinutes = 0;
             for (final session in sessionsData) {
               if (session['user_id'] == athleteId) {
-                totalMinutes += TimeUtils.parseDurationToMinutes(session['duration']);
+                totalMinutes +=
+                    TimeUtils.parseDurationToMinutes(session['duration']);
               }
             }
             final prepHours = (totalMinutes / 60).ceil();
@@ -883,12 +1146,16 @@ class _CoachReportViewState extends State<_CoachReportView> {
       child: ListView(
         padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 24),
         children: [
-          const Text('Report Atleti', style: TextStyle(color: Colors.white, fontSize: 24, fontWeight: FontWeight.w900)),
+          const Text('Report Atleti',
+              style: TextStyle(
+                  color: Colors.white,
+                  fontSize: 24,
+                  fontWeight: FontWeight.w900)),
           const SizedBox(height: 24),
-          
           Container(
             padding: const EdgeInsets.all(24),
-            decoration: BoxDecoration(color: AppTheme.card, borderRadius: BorderRadius.circular(16)),
+            decoration: BoxDecoration(
+                color: AppTheme.card, borderRadius: BorderRadius.circular(16)),
             child: Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -896,36 +1163,50 @@ class _CoachReportViewState extends State<_CoachReportView> {
                 Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    const Text('ATLETI TOTALI', style: TextStyle(color: AppTheme.textMediumEmphasis, fontWeight: FontWeight.bold, fontSize: 12, letterSpacing: 1.2)),
+                    const Text('ATLETI TOTALI',
+                        style: TextStyle(
+                            color: AppTheme.textMediumEmphasis,
+                            fontWeight: FontWeight.bold,
+                            fontSize: 12,
+                            letterSpacing: 1.2)),
                     const SizedBox(height: 4),
-                    Text(_athletes.length.toString(), style: const TextStyle(color: Colors.white, fontSize: 32, fontWeight: FontWeight.w900)),
+                    Text(_athletes.length.toString(),
+                        style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 32,
+                            fontWeight: FontWeight.w900)),
                   ],
                 ),
                 Container(
                   padding: const EdgeInsets.all(10),
-                  decoration: BoxDecoration(color: AppTheme.background, borderRadius: BorderRadius.circular(12)),
+                  decoration: BoxDecoration(
+                      color: AppTheme.background,
+                      borderRadius: BorderRadius.circular(12)),
                   child: const Icon(Icons.people, color: AppTheme.primary),
                 ),
               ],
             ),
           ),
           const SizedBox(height: 24),
-          
           Row(
             children: [
               Expanded(
                 child: Container(
                   height: 48,
-                  decoration: BoxDecoration(color: AppTheme.card, borderRadius: BorderRadius.circular(12)),
+                  decoration: BoxDecoration(
+                      color: AppTheme.card,
+                      borderRadius: BorderRadius.circular(12)),
                   child: TextField(
                     onChanged: (val) => setState(() => _searchQuery = val),
                     style: const TextStyle(color: Colors.white),
                     decoration: const InputDecoration(
                       hintText: 'Cerca atleta...',
                       hintStyle: TextStyle(color: AppTheme.textMediumEmphasis),
-                      prefixIcon: Icon(Icons.search, color: AppTheme.textMediumEmphasis),
+                      prefixIcon: Icon(Icons.search,
+                          color: AppTheme.textMediumEmphasis),
                       border: InputBorder.none,
-                      contentPadding: EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                      contentPadding:
+                          EdgeInsets.symmetric(horizontal: 16, vertical: 12),
                     ),
                   ),
                 ),
@@ -933,24 +1214,32 @@ class _CoachReportViewState extends State<_CoachReportView> {
             ],
           ),
           const SizedBox(height: 24),
-          
           Row(
             children: const [
-              Icon(Icons.people_outline, color: AppTheme.textMediumEmphasis, size: 16),
+              Icon(Icons.people_outline,
+                  color: AppTheme.textMediumEmphasis, size: 16),
               SizedBox(width: 8),
-              Text('LISTA ATLETI', style: TextStyle(color: AppTheme.textMediumEmphasis, fontWeight: FontWeight.bold, fontSize: 12, letterSpacing: 1.2)),
+              Text('LISTA ATLETI',
+                  style: TextStyle(
+                      color: AppTheme.textMediumEmphasis,
+                      fontWeight: FontWeight.bold,
+                      fontSize: 12,
+                      letterSpacing: 1.2)),
             ],
           ),
           const SizedBox(height: 16),
-
           if (_isLoading)
-            const Center(child: CircularProgressIndicator(color: AppTheme.primary))
+            const Center(
+                child: CircularProgressIndicator(color: AppTheme.primary))
           else if (_athletes.isEmpty)
             Container(
               padding: const EdgeInsets.all(32),
-              decoration: BoxDecoration(color: AppTheme.card, borderRadius: BorderRadius.circular(16)),
+              decoration: BoxDecoration(
+                  color: AppTheme.card,
+                  borderRadius: BorderRadius.circular(16)),
               child: const Center(
-                child: Text('Nessun atleta trovato', style: TextStyle(color: AppTheme.textMediumEmphasis)),
+                child: Text('Nessun atleta trovato',
+                    style: TextStyle(color: AppTheme.textMediumEmphasis)),
               ),
             )
           else
@@ -962,7 +1251,10 @@ class _CoachReportViewState extends State<_CoachReportView> {
 
   List<Widget> _buildFilteredAthleteList() {
     var filtered = _athletes.where((a) {
-      return a['name'].toString().toLowerCase().contains(_searchQuery.toLowerCase());
+      return a['name']
+          .toString()
+          .toLowerCase()
+          .contains(_searchQuery.toLowerCase());
     }).toList();
 
     return filtered.map((a) {
@@ -990,49 +1282,70 @@ class _CoachReportViewState extends State<_CoachReportView> {
     return GestureDetector(
       onTap: () {
         HapticFeedback.lightImpact();
-        Navigator.push(context, MaterialPageRoute(builder: (_) => CoachAthleteDetailScreen(
-          athleteName: name,
-          initial: initial,
-          athleteId: athleteId,
-        )));
+        Navigator.push(
+            context,
+            MaterialPageRoute(
+                builder: (_) => CoachAthleteDetailScreen(
+                      athleteName: name,
+                      initial: initial,
+                      athleteId: athleteId,
+                    )));
       },
       child: Container(
         margin: const EdgeInsets.only(bottom: 12),
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-        decoration: BoxDecoration(color: AppTheme.card, borderRadius: BorderRadius.circular(16)),
+        decoration: BoxDecoration(
+            color: AppTheme.card, borderRadius: BorderRadius.circular(16)),
         child: Row(
           children: [
             CircleAvatar(
               backgroundColor: AppTheme.background,
               radius: 22,
-              child: Text(initial, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 18)),
+              child: Text(initial,
+                  style: const TextStyle(
+                      color: Colors.white,
+                      fontWeight: FontWeight.bold,
+                      fontSize: 18)),
             ),
             const SizedBox(width: 16),
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(name, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16)),
+                  Text(name,
+                      style: const TextStyle(
+                          color: Colors.white,
+                          fontWeight: FontWeight.bold,
+                          fontSize: 16)),
                   const SizedBox(height: 5),
                   Row(
                     children: [
-                      const Icon(Icons.fitness_center, color: AppTheme.textMediumEmphasis, size: 12),
+                      const Icon(Icons.fitness_center,
+                          color: AppTheme.textMediumEmphasis, size: 12),
                       const SizedBox(width: 4),
                       Text('${prepHours}h Extra',
-                          style: const TextStyle(color: AppTheme.textMediumEmphasis, fontSize: 12, fontWeight: FontWeight.w500)),
+                          style: const TextStyle(
+                              color: AppTheme.textMediumEmphasis,
+                              fontSize: 12,
+                              fontWeight: FontWeight.w500)),
                       const SizedBox(width: 6),
                       Container(
                         width: 3,
                         height: 3,
                         decoration: BoxDecoration(
-                          color: AppTheme.textMediumEmphasis.withValues(alpha: 0.6),
+                          color: AppTheme.textMediumEmphasis
+                              .withValues(alpha: 0.6),
                           shape: BoxShape.circle,
                         ),
                       ),
                       const SizedBox(width: 6),
                       Expanded(
-                        child: Text('$skiPresencePercent% Sci | $athleticPresencePercent% Atletica',
-                            style: const TextStyle(color: AppTheme.textMediumEmphasis, fontSize: 12, fontWeight: FontWeight.w500),
+                        child: Text(
+                            '$skiPresencePercent% Sci | $athleticPresencePercent% Atletica',
+                            style: const TextStyle(
+                                color: AppTheme.textMediumEmphasis,
+                                fontSize: 12,
+                                fontWeight: FontWeight.w500),
                             overflow: TextOverflow.ellipsis,
                             maxLines: 1),
                       ),
@@ -1043,16 +1356,19 @@ class _CoachReportViewState extends State<_CoachReportView> {
             ),
             const SizedBox(width: 12),
             Text('${prepHours}h',
-                style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16)),
+                style: const TextStyle(
+                    color: Colors.white,
+                    fontWeight: FontWeight.bold,
+                    fontSize: 16)),
             const SizedBox(width: 8),
-            const Icon(Icons.chevron_right, color: AppTheme.textMediumEmphasis, size: 20),
+            const Icon(Icons.chevron_right,
+                color: AppTheme.textMediumEmphasis, size: 20),
           ],
         ),
       ),
     );
   }
 }
-
 
 // ----------------------------------------------------
 // 3. TRAINING VIEW (Lista Eventi)
@@ -1075,23 +1391,34 @@ class _CoachTrainingViewState extends State<_CoachTrainingView> {
     'SL',
     'GS',
     'SG',
-    'DH'
+    'DH',
+    'SX'
   ];
 
   void _showFilterModal() {
     showModalBottomSheet(
       context: context,
       backgroundColor: AppTheme.card,
-      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
+      shape: const RoundedRectangleBorder(
+          borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
       builder: (ctx) => SafeArea(
         child: Padding(
           padding: const EdgeInsets.symmetric(vertical: 24, horizontal: 16),
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Container(width: 40, height: 4, decoration: BoxDecoration(color: Colors.white.withValues(alpha: 0.2), borderRadius: BorderRadius.circular(2))),
+              Container(
+                  width: 40,
+                  height: 4,
+                  decoration: BoxDecoration(
+                      color: Colors.white.withValues(alpha: 0.2),
+                      borderRadius: BorderRadius.circular(2))),
               const SizedBox(height: 24),
-              const Text('Filtra Allenamenti', style: TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.bold)),
+              const Text('Filtra Allenamenti',
+                  style: TextStyle(
+                      color: Colors.white,
+                      fontSize: 20,
+                      fontWeight: FontWeight.bold)),
               const SizedBox(height: 24),
               Wrap(
                 spacing: 8,
@@ -1105,16 +1432,24 @@ class _CoachTrainingViewState extends State<_CoachTrainingView> {
                       Navigator.pop(ctx);
                     },
                     child: Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 16, vertical: 8),
                       decoration: BoxDecoration(
-                        color: isSelected ? AppTheme.primary : Colors.white.withValues(alpha: 0.05),
+                        color: isSelected
+                            ? AppTheme.primary
+                            : Colors.white.withValues(alpha: 0.05),
                         borderRadius: BorderRadius.circular(20),
-                        border: Border.all(color: isSelected ? AppTheme.primary : Colors.white.withValues(alpha: 0.1)),
+                        border: Border.all(
+                            color: isSelected
+                                ? AppTheme.primary
+                                : Colors.white.withValues(alpha: 0.1)),
                       ),
                       child: Text(
                         f,
                         style: TextStyle(
-                          color: isSelected ? Colors.white : AppTheme.textMediumEmphasis,
+                          color: isSelected
+                              ? Colors.white
+                              : AppTheme.textMediumEmphasis,
                           fontWeight: FontWeight.bold,
                         ),
                       ),
@@ -1133,15 +1468,17 @@ class _CoachTrainingViewState extends State<_CoachTrainingView> {
   @override
   Widget build(BuildContext context) {
     final appState = Provider.of<AppState>(context);
-    
+
     final allEvents = List<CalendarEvent>.from(appState.coachEvents);
-    
+
     final now = DateTime.now();
     final today = DateTime(now.year, now.month, now.day);
 
     allEvents.sort((a, b) {
-      final dateA = DateTime.tryParse(a.date) ?? DateTime.fromMillisecondsSinceEpoch(0);
-      final dateB = DateTime.tryParse(b.date) ?? DateTime.fromMillisecondsSinceEpoch(0);
+      final dateA =
+          DateTime.tryParse(a.date) ?? DateTime.fromMillisecondsSinceEpoch(0);
+      final dateB =
+          DateTime.tryParse(b.date) ?? DateTime.fromMillisecondsSinceEpoch(0);
 
       final isPastA = dateA.isBefore(today);
       final isPastB = dateB.isBefore(today);
@@ -1165,10 +1502,11 @@ class _CoachTrainingViewState extends State<_CoachTrainingView> {
       }
 
       if (_selectedFilter == 'Tutti') return true;
-      if (_selectedFilter == 'Preparazione Atletica') return e.sportCategory == 'dryland';
+      if (_selectedFilter == 'Preparazione Atletica')
+        return e.sportCategory == 'dryland';
       if (_selectedFilter == 'Allenamento Sci') return e.sportCategory == 'ski';
-      
-      if (['SL', 'GS', 'SG', 'DH'].contains(_selectedFilter)) {
+
+      if (CoachTrainingUtils.specialties.contains(_selectedFilter)) {
         if (e.sportCategory != 'ski') return false;
         final specialties = e.technicalDetails?['specialties'] as List?;
         if (specialties != null && specialties.isNotEmpty) {
@@ -1184,24 +1522,31 @@ class _CoachTrainingViewState extends State<_CoachTrainingView> {
       child: ListView(
         padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 24),
         children: [
-          const Text('Tutti gli Allenamenti', style: TextStyle(color: Colors.white, fontSize: 24, fontWeight: FontWeight.w900)),
+          const Text('Tutti gli Allenamenti',
+              style: TextStyle(
+                  color: Colors.white,
+                  fontSize: 24,
+                  fontWeight: FontWeight.w900)),
           const SizedBox(height: 24),
-          
           Row(
             children: [
               Expanded(
                 child: Container(
                   height: 48,
-                  decoration: BoxDecoration(color: AppTheme.card, borderRadius: BorderRadius.circular(12)),
+                  decoration: BoxDecoration(
+                      color: AppTheme.card,
+                      borderRadius: BorderRadius.circular(12)),
                   child: TextField(
                     onChanged: (val) => setState(() => _searchQuery = val),
                     style: const TextStyle(color: Colors.white),
                     decoration: const InputDecoration(
                       hintText: 'Cerca per titolo, luogo...',
                       hintStyle: TextStyle(color: AppTheme.textMediumEmphasis),
-                      prefixIcon: Icon(Icons.search, color: AppTheme.textMediumEmphasis),
+                      prefixIcon: Icon(Icons.search,
+                          color: AppTheme.textMediumEmphasis),
                       border: InputBorder.none,
-                      contentPadding: EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                      contentPadding:
+                          EdgeInsets.symmetric(horizontal: 16, vertical: 12),
                     ),
                   ),
                 ),
@@ -1213,39 +1558,54 @@ class _CoachTrainingViewState extends State<_CoachTrainingView> {
                   height: 48,
                   width: 48,
                   decoration: BoxDecoration(
-                    color: _selectedFilter != 'Tutti' ? AppTheme.primary : AppTheme.card, 
-                    borderRadius: BorderRadius.circular(12)
-                  ),
-                  child: Icon(Icons.tune, color: _selectedFilter != 'Tutti' ? Colors.white : AppTheme.textMediumEmphasis),
+                      color: _selectedFilter != 'Tutti'
+                          ? AppTheme.primary
+                          : AppTheme.card,
+                      borderRadius: BorderRadius.circular(12)),
+                  child: Icon(Icons.tune,
+                      color: _selectedFilter != 'Tutti'
+                          ? Colors.white
+                          : AppTheme.textMediumEmphasis),
                 ),
               ),
             ],
           ),
           const SizedBox(height: 32),
-          
           if (filteredEvents.isEmpty)
-             const Center(
-               child: Padding(
-                 padding: EdgeInsets.all(32.0),
-                 child: Text('Nessun allenamento trovato', style: TextStyle(color: AppTheme.textMediumEmphasis)),
-               ),
-             )
+            const Center(
+              child: Padding(
+                padding: EdgeInsets.all(32.0),
+                child: Text('Nessun allenamento trovato',
+                    style: TextStyle(color: AppTheme.textMediumEmphasis)),
+              ),
+            )
           else
-            ...filteredEvents.map((e) => _buildEventCard(context, e, appState)).toList(),
+            ...filteredEvents
+                .map((e) => _buildEventCard(context, e, appState))
+                .toList(),
         ],
       ),
     );
   }
 
-  Widget _buildEventCard(BuildContext context, CalendarEvent event, AppState appState) {
-    final teamName = appState.teams.firstWhere(
-      (t) => t.id == event.teamId, 
-      orElse: () => Team(id: '', name: 'N/A', members: 0, category: '', image: '', inviteCode: '')
-    ).name;
-    
+  Widget _buildEventCard(
+      BuildContext context, CalendarEvent event, AppState appState) {
+    final eventTeamIds = CoachTrainingUtils.teamIdsForEvent(event);
+    final teamName = eventTeamIds.isEmpty
+        ? 'N/A'
+        : eventTeamIds.map((id) {
+            try {
+              return appState.teams.firstWhere((t) => t.id == id).name;
+            } catch (_) {
+              return 'N/A';
+            }
+          }).join(', ');
+
     final eventDate = DateTime.tryParse(event.date);
-    final isPast = eventDate != null && eventDate.isBefore(DateTime(DateTime.now().year, DateTime.now().month, DateTime.now().day));
-    
+    final isPast = eventDate != null &&
+        eventDate.isBefore(DateTime(
+            DateTime.now().year, DateTime.now().month, DateTime.now().day));
+
     final isSki = event.sportCategory == 'ski';
     String? specialty;
     if (isSki) {
@@ -1259,14 +1619,18 @@ class _CoachTrainingViewState extends State<_CoachTrainingView> {
 
     return GestureDetector(
       onTap: () {
-        Navigator.push(context, MaterialPageRoute(builder: (_) => CoachEventDetailsScreen(event: event)));
+        Navigator.push(
+            context,
+            MaterialPageRoute(
+                builder: (_) => CoachEventDetailsScreen(event: event)));
       },
       child: Stack(
         children: [
           Container(
             margin: const EdgeInsets.only(bottom: 16),
             padding: const EdgeInsets.all(20),
-            decoration: BoxDecoration(color: AppTheme.card, borderRadius: BorderRadius.circular(16)),
+            decoration: BoxDecoration(
+                color: AppTheme.card, borderRadius: BorderRadius.circular(16)),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
@@ -1276,28 +1640,58 @@ class _CoachTrainingViewState extends State<_CoachTrainingView> {
                     Row(
                       children: [
                         Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                          decoration: BoxDecoration(color: Colors.white.withValues(alpha: 0.05), borderRadius: BorderRadius.circular(6)),
-                          child: Text(event.date, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 12)),
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 8, vertical: 4),
+                          decoration: BoxDecoration(
+                              color: Colors.white.withValues(alpha: 0.05),
+                              borderRadius: BorderRadius.circular(6)),
+                          child: Text(event.date,
+                              style: const TextStyle(
+                                  color: Colors.white,
+                                  fontWeight: FontWeight.bold,
+                                  fontSize: 12)),
                         ),
                         if (specialty != null && specialty.isNotEmpty) ...[
                           const SizedBox(width: 8),
                           Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
-                            decoration: BoxDecoration(color: isSki ? AppTheme.primary.withValues(alpha: 0.15) : const Color(0xFFFF7A00).withValues(alpha: 0.15), borderRadius: BorderRadius.circular(6)),
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 6, vertical: 4),
+                            decoration: BoxDecoration(
+                                color: isSki
+                                    ? AppTheme.primary.withValues(alpha: 0.15)
+                                    : const Color(0xFFFF7A00)
+                                        .withValues(alpha: 0.15),
+                                borderRadius: BorderRadius.circular(6)),
                             child: Text(
-                              specialty.length > 4 ? specialty.substring(0, 4).toUpperCase() : specialty.toUpperCase(), 
-                              style: TextStyle(color: isSki ? AppTheme.primary : const Color(0xFFFF7A00), fontWeight: FontWeight.bold, fontSize: 12)
-                            ),
+                                specialty.length > 4
+                                    ? specialty.substring(0, 4).toUpperCase()
+                                    : specialty.toUpperCase(),
+                                style: TextStyle(
+                                    color: isSki
+                                        ? AppTheme.primary
+                                        : const Color(0xFFFF7A00),
+                                    fontWeight: FontWeight.bold,
+                                    fontSize: 12)),
                           ),
                         ],
                       ],
                     ),
-                    Text(isPast ? 'COMPLETATO' : 'PIANIFICATO', style: TextStyle(color: isPast ? AppTheme.textMediumEmphasis : AppTheme.primary, fontWeight: FontWeight.bold, fontSize: 12, letterSpacing: 1)),
+                    Text(isPast ? 'COMPLETATO' : 'PIANIFICATO',
+                        style: TextStyle(
+                            color: isPast
+                                ? AppTheme.textMediumEmphasis
+                                : AppTheme.primary,
+                            fontWeight: FontWeight.bold,
+                            fontSize: 12,
+                            letterSpacing: 1)),
                   ],
                 ),
                 const SizedBox(height: 16),
-                Text(event.title, style: const TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold)),
+                Text(event.title,
+                    style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold)),
                 const SizedBox(height: 12),
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -1308,20 +1702,31 @@ class _CoachTrainingViewState extends State<_CoachTrainingView> {
                         children: [
                           Row(
                             children: [
-                              const Icon(Icons.people_outline, color: AppTheme.textMediumEmphasis, size: 16),
+                              const Icon(Icons.people_outline,
+                                  color: AppTheme.textMediumEmphasis, size: 16),
                               const SizedBox(width: 4),
                               Expanded(
-                                child: Text(teamName, style: const TextStyle(color: AppTheme.textMediumEmphasis, fontSize: 13, fontWeight: FontWeight.bold), overflow: TextOverflow.ellipsis),
+                                child: Text(teamName,
+                                    style: const TextStyle(
+                                        color: AppTheme.textMediumEmphasis,
+                                        fontSize: 13,
+                                        fontWeight: FontWeight.bold),
+                                    overflow: TextOverflow.ellipsis),
                               ),
                             ],
                           ),
                           const SizedBox(height: 4),
                           Row(
                             children: [
-                              const Icon(Icons.location_on_outlined, color: AppTheme.textMediumEmphasis, size: 16),
+                              const Icon(Icons.location_on_outlined,
+                                  color: AppTheme.textMediumEmphasis, size: 16),
                               const SizedBox(width: 4),
                               Expanded(
-                                child: Text(event.location ?? 'N/A', style: const TextStyle(color: AppTheme.textMediumEmphasis, fontSize: 13), overflow: TextOverflow.ellipsis),
+                                child: Text(event.location ?? 'N/A',
+                                    style: const TextStyle(
+                                        color: AppTheme.textMediumEmphasis,
+                                        fontSize: 13),
+                                    overflow: TextOverflow.ellipsis),
                               ),
                             ],
                           ),
@@ -1330,9 +1735,16 @@ class _CoachTrainingViewState extends State<_CoachTrainingView> {
                     ),
                     const SizedBox(width: 12),
                     Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                      decoration: BoxDecoration(color: AppTheme.background, borderRadius: BorderRadius.circular(8)),
-                      child: Text('${event.startTime} - ${event.endTime}', style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 14)),
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 12, vertical: 8),
+                      decoration: BoxDecoration(
+                          color: AppTheme.background,
+                          borderRadius: BorderRadius.circular(8)),
+                      child: Text('${event.startTime} - ${event.endTime}',
+                          style: const TextStyle(
+                              color: Colors.white,
+                              fontWeight: FontWeight.bold,
+                              fontSize: 14)),
                     ),
                   ],
                 ),
@@ -1346,8 +1758,12 @@ class _CoachTrainingViewState extends State<_CoachTrainingView> {
             width: 4,
             child: Container(
               decoration: BoxDecoration(
-                color: isPast ? Colors.white.withValues(alpha: 0.2) : AppTheme.primary,
-                borderRadius: const BorderRadius.only(topRight: Radius.circular(4), bottomRight: Radius.circular(4)),
+                color: isPast
+                    ? Colors.white.withValues(alpha: 0.2)
+                    : AppTheme.primary,
+                borderRadius: const BorderRadius.only(
+                    topRight: Radius.circular(4),
+                    bottomRight: Radius.circular(4)),
               ),
             ),
           ),

@@ -1,13 +1,13 @@
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:provider/provider.dart';
 import 'package:phosphor_flutter/phosphor_flutter.dart';
 import 'package:permission_handler/permission_handler.dart';
 
 import '../core/theme.dart';
-import '../providers/app_state.dart';
 import '../services/health_service.dart';
-import 'home_screen.dart';
+import 'notification_permission_screen.dart';
 
 class HealthPermissionScreen extends StatefulWidget {
   const HealthPermissionScreen({super.key});
@@ -21,20 +21,18 @@ class _HealthPermissionScreenState extends State<HealthPermissionScreen> {
 
   Future<void> _requestPermissions() async {
     setState(() => _isLoading = true);
-    
-    // Attempt to request permissions
-    bool success = await HealthService().requestPermissions();
-    
+
+    final result = await HealthService().requestPermissionsDetailed();
+
     if (mounted) {
       setState(() => _isLoading = false);
-      if (success) {
-        // If successful, we can navigate home
+      if (result.isGranted) {
         _navigateToHome();
       } else {
-        // If failed, show a message and still allow them to go to settings or skip
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Permessi non concessi completamente. Puoi gestirli in seguito.'),
+          SnackBar(
+            content: Text(result.message ??
+                'Permessi non concessi completamente. Puoi gestirli in seguito.'),
             backgroundColor: AppTheme.error,
           ),
         );
@@ -44,12 +42,17 @@ class _HealthPermissionScreenState extends State<HealthPermissionScreen> {
 
   void _navigateToHome() {
     Navigator.of(context).pushReplacement(
-      MaterialPageRoute(builder: (_) => const HomeScreen()),
+      MaterialPageRoute(builder: (_) => const NotificationPermissionScreen()),
     );
   }
 
   @override
   Widget build(BuildContext context) {
+    final platformName = Platform.isIOS ? 'Apple Health' : 'Health Connect';
+    final settingsLabel = Platform.isIOS
+        ? 'Apri Impostazioni / Salute'
+        : 'Apri Impostazioni Health Connect';
+
     return Scaffold(
       backgroundColor: AppTheme.background,
       body: SafeArea(
@@ -66,7 +69,8 @@ class _HealthPermissionScreenState extends State<HealthPermissionScreen> {
                     color: AppTheme.card,
                     shape: BoxShape.circle,
                   ),
-                  child: const Icon(Icons.health_and_safety, color: AppTheme.primary, size: 64),
+                  child: const Icon(Icons.health_and_safety,
+                      color: AppTheme.primary, size: 64),
                 ),
               ),
               const SizedBox(height: 32),
@@ -82,7 +86,7 @@ class _HealthPermissionScreenState extends State<HealthPermissionScreen> {
               ),
               const SizedBox(height: 8),
               Text(
-                'Massimizza le tue performance',
+                platformName,
                 textAlign: TextAlign.center,
                 style: Theme.of(context).textTheme.headlineMedium?.copyWith(
                       color: Colors.white,
@@ -90,10 +94,13 @@ class _HealthPermissionScreenState extends State<HealthPermissionScreen> {
                     ),
               ),
               const SizedBox(height: 24),
-              const Text(
-                'Per offrirti analisi dettagliate sul tuo allenamento, recupero e sonno, 4ATHLETES necessita di accedere ai tuoi dati da Apple Health / Google Health Connect. Richiederemo i seguenti permessi:',
+              Text(
+                Platform.isIOS
+                    ? 'Per offrirti analisi dettagliate su allenamento, recupero e sonno, 4ATHLETES richiede accesso ai dati Apple Health supportati.'
+                    : 'Per offrirti analisi dettagliate su allenamento, recupero e sonno, 4ATHLETES richiede accesso a Health Connect. Se non e installato, ti porteremo al Play Store.',
                 textAlign: TextAlign.center,
-                style: TextStyle(color: AppTheme.textMediumEmphasis, fontSize: 14),
+                style: const TextStyle(
+                    color: AppTheme.textMediumEmphasis, fontSize: 14),
               ),
               const SizedBox(height: 24),
               Expanded(
@@ -102,34 +109,60 @@ class _HealthPermissionScreenState extends State<HealthPermissionScreen> {
                   decoration: BoxDecoration(
                     color: AppTheme.card,
                     borderRadius: BorderRadius.circular(16),
-                    border: Border.all(color: Colors.white.withValues(alpha: 0.05)),
+                    border:
+                        Border.all(color: Colors.white.withValues(alpha: 0.05)),
                   ),
                   child: ListView(
                     children: [
-                      _buildPermissionItem(PhosphorIconsRegular.heartbeat, 'Frequenza Cardiaca & HRV', 'Per valutare sforzo e recupero.'),
-                      _buildPermissionItem(PhosphorIconsRegular.personSimpleRun, 'Allenamenti e Passi', 'Per tracciare il tuo volume di allenamento.'),
-                      _buildPermissionItem(PhosphorIconsRegular.fire, 'Calorie Attive', 'Per stimare il consumo energetico.'),
-                      _buildPermissionItem(PhosphorIconsRegular.thermometer, 'Parametri Vitali', 'SpO2, temperatura, respirazione, peso e distanze.'),
+                      _buildPermissionItem(
+                          PhosphorIconsRegular.heartbeat,
+                          'Frequenza cardiaca & HRV',
+                          'Per valutare sforzo, recupero e carico interno.'),
+                      _buildPermissionItem(
+                          PhosphorIconsRegular.personSimpleRun,
+                          'Allenamenti, passi e distanze',
+                          'Per importare sessioni e volume di allenamento.'),
+                      _buildPermissionItem(
+                          PhosphorIconsRegular.fire,
+                          'Calorie attive',
+                          'Per stimare consumo energetico e intensita.'),
+                      _buildPermissionItem(
+                          PhosphorIconsRegular.thermometer,
+                          'Parametri vitali',
+                          'SpO2, temperatura, respirazione, peso e altezza.'),
+                      _buildPermissionItem(
+                          PhosphorIconsRegular.drop,
+                          'Ciclo mestruale',
+                          'Per personalizzare recupero e fasi fisiologiche.'),
                     ],
                   ),
                 ),
               ),
               const SizedBox(height: 24),
               ElevatedButton(
-                onPressed: _isLoading ? null : () {
-                  HapticFeedback.lightImpact();
-                  _requestPermissions();
-                },
+                onPressed: _isLoading
+                    ? null
+                    : () {
+                        HapticFeedback.lightImpact();
+                        _requestPermissions();
+                      },
                 style: ElevatedButton.styleFrom(
                   backgroundColor: AppTheme.primary,
                   foregroundColor: Colors.white,
                   padding: const EdgeInsets.symmetric(vertical: 18),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                  shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(16)),
                   elevation: 8,
                 ),
-                child: _isLoading 
-                    ? const SizedBox(height: 24, width: 24, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
-                    : const Text('Concedi Permessi', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+                child: _isLoading
+                    ? const SizedBox(
+                        height: 24,
+                        width: 24,
+                        child: CircularProgressIndicator(
+                            color: Colors.white, strokeWidth: 2))
+                    : const Text('Consenti e completa',
+                        style: TextStyle(
+                            fontSize: 16, fontWeight: FontWeight.bold)),
               ),
               const SizedBox(height: 12),
               OutlinedButton(
@@ -141,9 +174,11 @@ class _HealthPermissionScreenState extends State<HealthPermissionScreen> {
                   foregroundColor: Colors.white,
                   side: BorderSide(color: Colors.white.withValues(alpha: 0.2)),
                   padding: const EdgeInsets.symmetric(vertical: 16),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                  shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(16)),
                 ),
-                child: const Text('Apri Impostazioni di Sistema', style: TextStyle(fontWeight: FontWeight.bold)),
+                child: Text(settingsLabel,
+                    style: const TextStyle(fontWeight: FontWeight.bold)),
               ),
               const SizedBox(height: 12),
               TextButton(
@@ -151,7 +186,10 @@ class _HealthPermissionScreenState extends State<HealthPermissionScreen> {
                   HapticFeedback.lightImpact();
                   _navigateToHome();
                 },
-                child: const Text('Salta per ora', style: TextStyle(color: AppTheme.textMediumEmphasis, fontWeight: FontWeight.bold)),
+                child: const Text('Salta per ora',
+                    style: TextStyle(
+                        color: AppTheme.textMediumEmphasis,
+                        fontWeight: FontWeight.bold)),
               ),
             ],
           ),
@@ -178,9 +216,15 @@ class _HealthPermissionScreenState extends State<HealthPermissionScreen> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(title, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 14)),
+                Text(title,
+                    style: const TextStyle(
+                        color: Colors.white,
+                        fontWeight: FontWeight.bold,
+                        fontSize: 14)),
                 const SizedBox(height: 2),
-                Text(subtitle, style: const TextStyle(color: AppTheme.textMediumEmphasis, fontSize: 12)),
+                Text(subtitle,
+                    style: const TextStyle(
+                        color: AppTheme.textMediumEmphasis, fontSize: 12)),
               ],
             ),
           )

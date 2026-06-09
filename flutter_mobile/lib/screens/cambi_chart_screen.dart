@@ -19,7 +19,9 @@ class CambiChartScreen extends StatelessWidget {
     if (specialty == 'GS') return Colors.lightBlue;
     if (specialty == 'SG') return Colors.greenAccent;
     if (specialty == 'DH') return Colors.purpleAccent;
+    if (specialty == 'SX') return Colors.redAccent;
     if (specialty == 'CL') return Colors.orangeAccent;
+    if (specialty == 'ADD') return Colors.amberAccent;
     return Colors.grey;
   }
 
@@ -27,13 +29,13 @@ class CambiChartScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     // Ordiniamo i mesi in ordine cronologico
     final sortedMonths = cambiByMonthAndSpecialty.keys.toList()..sort();
-    
+
     // Trova tutte le specialità uniche
     final Set<String> allSpecialties = {};
     for (var m in cambiByMonthAndSpecialty.values) {
       allSpecialties.addAll(m.keys);
     }
-    
+
     // Calcoliamo il massimo per asse Y
     double maxY = 0;
     for (var m in cambiByMonthAndSpecialty.values) {
@@ -43,7 +45,7 @@ class CambiChartScreen extends StatelessWidget {
       }
       if (sum > maxY) maxY = sum;
     }
-    
+
     // Aggiungi un po' di margine al top
     maxY = (maxY * 1.2).ceilToDouble();
     if (maxY < 10) maxY = 10;
@@ -53,7 +55,8 @@ class CambiChartScreen extends StatelessWidget {
       appBar: AppBar(
         backgroundColor: AppTheme.background,
         elevation: 0,
-        title: Text('Cambi di Direzione - $athleteName', style: const TextStyle(fontSize: 16)),
+        title: Text('Cambi di Direzione - $athleteName',
+            style: const TextStyle(fontSize: 16)),
       ),
       body: Padding(
         padding: const EdgeInsets.all(24.0),
@@ -61,7 +64,7 @@ class CambiChartScreen extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             const Text(
-              'Andamento Passaggi (Pali)',
+              'Volume sci mensile',
               style: TextStyle(
                 color: Colors.white,
                 fontSize: 20,
@@ -70,20 +73,20 @@ class CambiChartScreen extends StatelessWidget {
             ),
             const SizedBox(height: 8),
             const Text(
-              'Suddivisione per mese e specialità',
+              'Cambi totali divisi tra campo libero, pali e addestramento',
               style: TextStyle(
                 color: AppTheme.textMediumEmphasis,
                 fontSize: 14,
               ),
             ),
             const SizedBox(height: 32),
-            
+
             // Grafico
             Expanded(
               child: sortedMonths.isEmpty
                   ? const Center(
-                      child: Text('Nessun dato disponibile', style: TextStyle(color: AppTheme.textMediumEmphasis))
-                    )
+                      child: Text('Nessun dato disponibile',
+                          style: TextStyle(color: AppTheme.textMediumEmphasis)))
                   : BarChart(
                       BarChartData(
                         alignment: BarChartAlignment.spaceAround,
@@ -96,13 +99,18 @@ class CambiChartScreen extends StatelessWidget {
                             getTooltipItem: (group, groupIndex, rod, rodIndex) {
                               final month = sortedMonths[groupIndex];
                               final data = cambiByMonthAndSpecialty[month]!;
-                              
+
                               // Create tooltip items per specialty
                               List<TextSpan> spans = [];
                               int i = 0;
-                              for (var spec in data.keys) {
+                              final tooltipSpecs = data.keys.toList()
+                                ..sort((a, b) =>
+                                    _sortIndex(a).compareTo(_sortIndex(b)));
+                              for (var spec in tooltipSpecs) {
                                 if (data[spec]! > 0) {
-                                  if (i > 0) spans.add(const TextSpan(text: '\n'));
+                                  if (i > 0) {
+                                    spans.add(const TextSpan(text: '\n'));
+                                  }
                                   spans.add(
                                     TextSpan(
                                       text: '$spec: ${data[spec]}',
@@ -157,7 +165,9 @@ class CambiChartScreen extends StatelessWidget {
                               showTitles: true,
                               reservedSize: 40,
                               getTitlesWidget: (value, meta) {
-                                if (value == maxY) return const SizedBox.shrink();
+                                if (value == maxY) {
+                                  return const SizedBox.shrink();
+                                }
                                 return Text(
                                   value.toInt().toString(),
                                   style: const TextStyle(
@@ -168,14 +178,16 @@ class CambiChartScreen extends StatelessWidget {
                               },
                             ),
                           ),
-                          topTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
-                          rightTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+                          topTitles: const AxisTitles(
+                              sideTitles: SideTitles(showTitles: false)),
+                          rightTitles: const AxisTitles(
+                              sideTitles: SideTitles(showTitles: false)),
                         ),
                         gridData: FlGridData(
                           show: true,
                           drawVerticalLine: false,
                           getDrawingHorizontalLine: (value) => FlLine(
-                            color: Colors.white.withOpacity(0.05),
+                            color: Colors.white.withValues(alpha: 0.05),
                             strokeWidth: 1,
                             dashArray: [5, 5],
                           ),
@@ -184,28 +196,28 @@ class CambiChartScreen extends StatelessWidget {
                         barGroups: List.generate(sortedMonths.length, (index) {
                           final month = sortedMonths[index];
                           final data = cambiByMonthAndSpecialty[month]!;
-                          
+
                           // Crea la lista di rod impilati (stacked)
                           List<BarChartRodStackItem> stackItems = [];
                           double currentY = 0;
-                          
+
                           // Ordiniamo le specialità per consistenza visiva (SL, GS, ecc.)
-                          final sortedSpecs = data.keys.toList()..sort();
-                          
+                          final sortedSpecs = data.keys.toList()
+                            ..sort((a, b) =>
+                                _sortIndex(a).compareTo(_sortIndex(b)));
+
                           for (var spec in sortedSpecs) {
                             final val = data[spec]!.toDouble();
                             if (val > 0) {
-                              stackItems.add(
-                                BarChartRodStackItem(
-                                  currentY,
-                                  currentY + val,
-                                  _getColorForSpecialty(spec),
-                                )
-                              );
+                              stackItems.add(BarChartRodStackItem(
+                                currentY,
+                                currentY + val,
+                                _getColorForSpecialty(spec),
+                              ));
                               currentY += val;
                             }
                           }
-                          
+
                           return BarChartGroupData(
                             x: index,
                             barRods: [
@@ -214,7 +226,8 @@ class CambiChartScreen extends StatelessWidget {
                                 width: 24,
                                 borderRadius: BorderRadius.circular(4),
                                 rodStackItems: stackItems,
-                                color: Colors.transparent, // Lo sfondo è trasparente, usiamo gli stack
+                                color: Colors
+                                    .transparent, // Lo sfondo è trasparente, usiamo gli stack
                               ),
                             ],
                           );
@@ -222,16 +235,18 @@ class CambiChartScreen extends StatelessWidget {
                       ),
                     ),
             ),
-            
+
             const SizedBox(height: 32),
-            
+
             // Legenda
             if (allSpecialties.isNotEmpty)
               Wrap(
                 spacing: 16,
                 runSpacing: 8,
                 alignment: WrapAlignment.center,
-                children: (allSpecialties.toList()..sort()).map((spec) {
+                children: (allSpecialties.toList()
+                      ..sort((a, b) => _sortIndex(a).compareTo(_sortIndex(b))))
+                    .map((spec) {
                   return Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
@@ -279,5 +294,11 @@ class CambiChartScreen extends StatelessWidget {
     } catch (_) {
       return yyyyMM;
     }
+  }
+
+  int _sortIndex(String specialty) {
+    const order = ['CL', 'SL', 'GS', 'SG', 'DH', 'SX', 'ADD'];
+    final index = order.indexOf(specialty);
+    return index == -1 ? order.length : index;
   }
 }

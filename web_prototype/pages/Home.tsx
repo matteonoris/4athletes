@@ -160,9 +160,13 @@ const Home: React.FC<Props> = ({ setView, userProfile, sessions = [], bodyLogs =
       {/* Header */}
       <header className="flex justify-between items-center">
         <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-full bg-gray-700 bg-cover bg-center border-2 border-secondary/20" 
-               style={{backgroundImage: `url("${userProfile.avatarUrl}")`}}>
-          </div>
+          <button
+            type="button"
+            aria-label="Apri profilo"
+            onClick={() => setView('profile')}
+            className="w-10 h-10 rounded-full bg-gray-700 bg-cover bg-center border-2 border-secondary/20 shrink-0"
+            style={{backgroundImage: `url("${userProfile.avatarUrl}")`}}
+          />
           <div>
             <p className="text-xs text-gray-400 font-medium uppercase tracking-wider">{t.today}</p>
             <h1 className="text-lg font-bold capitalize">{currentDate}</h1>

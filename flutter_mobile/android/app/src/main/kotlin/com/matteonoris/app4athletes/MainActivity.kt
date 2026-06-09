@@ -1,14 +1,21 @@
 package com.matteonoris.app4athletes
 
 import androidx.annotation.NonNull
+import androidx.health.connect.client.HealthConnectClient
 import io.flutter.embedding.android.FlutterFragmentActivity
 import io.flutter.embedding.engine.FlutterEngine
 import io.flutter.plugin.common.MethodChannel
 import kotlinx.coroutines.*
+import androidx.health.connect.client.records.DistanceRecord
 import androidx.health.connect.client.records.ExerciseSessionRecord
+import androidx.health.connect.client.records.ExerciseSegment
 import androidx.health.connect.client.records.HeartRateRecord
+import androidx.health.connect.client.records.TotalCaloriesBurnedRecord
+import androidx.health.connect.client.request.ReadRecordsRequest
+import androidx.health.connect.client.time.TimeRangeFilter
 import java.time.Duration
 import java.time.Instant
+import java.time.temporal.ChronoUnit
 import kotlin.math.pow
 import kotlin.math.sqrt
 
@@ -26,22 +33,13 @@ class MainActivity: FlutterFragmentActivity() {
             } else if (call.method == "getNormalizedWorkouts") {
                 CoroutineScope(Dispatchers.Main).launch {
                     try {
-                        val pipeline = FitnessDataPipeline()
-                        // Mock data for compilation since HealthConnectClient needs context and permission check
-                        val rawDataList = emptyList<RawWorkoutData>() 
-                        val normalized = pipeline.processWorkouts(rawDataList)
-                        val jsonList = normalized.map { nw ->
-                            mapOf(
-                                "id" to nw.id,
-                                "sourceName" to nw.sourceName,
-                                "startTime" to nw.startTime.toEpochMilli(),
-                                "endTime" to nw.endTime.toEpochMilli(),
-                                "activeDuration" to nw.activeDuration.seconds.toDouble(),
-                                "totalDistance" to (nw.totalDistance ?: 0.0),
-                                "averagePace" to (nw.averagePace ?: 0.0)
-                            )
+                        val days = call.argument<Int>("days") ?: 7
+                        val workouts = withContext(Dispatchers.IO) {
+                            HealthConnectWorkoutReader(
+                                HealthConnectClient.getOrCreate(applicationContext)
+                            ).readRecentWorkouts(days)
                         }
-                        result.success(jsonList)
+                        result.success(workouts)
                     } catch (e: Exception) {
                         result.error("PIPELINE_ERROR", "Errore: ${e.message}", null)
                     }
@@ -49,6 +47,143 @@ class MainActivity: FlutterFragmentActivity() {
             } else {
                 result.notImplemented()
             }
+        }
+    }
+}
+
+class HealthConnectWorkoutReader(
+    private val healthConnectClient: HealthConnectClient
+) {
+    suspend fun readRecentWorkouts(days: Int): List<Map<String, Any?>> {
+        val endTime = Instant.now()
+        val startTime = endTime.minus(days.toLong(), ChronoUnit.DAYS)
+        val sessions = healthConnectClient.readRecords(
+            ReadRecordsRequest(
+                recordType = ExerciseSessionRecord::class,
+                timeRangeFilter = TimeRangeFilter.between(startTime, endTime)
+            )
+        ).records
+
+        return sessions.mapNotNull { session ->
+            val distanceMeters = readDistanceMeters(session)
+            val energyKcal = readEnergyKcal(session)
+            val heartRateSamples = readHeartRateSamples(session)
+            val activeSeconds = activeDurationSeconds(session)
+            mapOf<String, Any?>(
+                "id" to session.metadata.id,
+                "sourceName" to session.metadata.dataOrigin.packageName,
+                "sourceId" to session.metadata.dataOrigin.packageName,
+                "activityType" to activityTypeName(session.exerciseType),
+                "startTime" to session.startTime.toEpochMilli(),
+                "endTime" to session.endTime.toEpochMilli(),
+                "totalDurationSeconds" to Duration.between(session.startTime, session.endTime).seconds,
+                "activeDurationSeconds" to activeSeconds,
+                "movingDurationSeconds" to activeSeconds,
+                "distanceMeters" to distanceMeters,
+                "energyTotalKcal" to energyKcal,
+                "hrSamples" to heartRateSamples
+            )
+        }
+    }
+
+    private suspend fun readDistanceMeters(session: ExerciseSessionRecord): Double {
+        return healthConnectClient.readRecords(
+            ReadRecordsRequest(
+                recordType = DistanceRecord::class,
+                timeRangeFilter = TimeRangeFilter.between(session.startTime, session.endTime)
+            )
+        ).records
+            .filter { it.metadata.dataOrigin.packageName == session.metadata.dataOrigin.packageName }
+            .sumOf { it.distance.inMeters }
+    }
+
+    private suspend fun readEnergyKcal(session: ExerciseSessionRecord): Double {
+        return healthConnectClient.readRecords(
+            ReadRecordsRequest(
+                recordType = TotalCaloriesBurnedRecord::class,
+                timeRangeFilter = TimeRangeFilter.between(session.startTime, session.endTime)
+            )
+        ).records
+            .filter { it.metadata.dataOrigin.packageName == session.metadata.dataOrigin.packageName }
+            .sumOf { it.energy.inKilocalories }
+    }
+
+    private suspend fun readHeartRateSamples(session: ExerciseSessionRecord): List<Map<String, Any>> {
+        val records = healthConnectClient.readRecords(
+            ReadRecordsRequest(
+                recordType = HeartRateRecord::class,
+                timeRangeFilter = TimeRangeFilter.between(session.startTime, session.endTime)
+            )
+        ).records
+
+        if (records.isEmpty()) return emptyList()
+
+        val sessionPackage = session.metadata.dataOrigin.packageName
+        val sessionSourceRecords = records
+            .filter { it.metadata.dataOrigin.packageName == sessionPackage }
+        val selectedRecords = if (sampleCount(sessionSourceRecords) >= 5) {
+            sessionSourceRecords
+        } else {
+            records
+                .groupBy { it.metadata.dataOrigin.packageName }
+                .maxByOrNull { sampleCount(it.value) }
+                ?.value ?: records
+        }
+
+        return selectedRecords
+            .flatMap { record ->
+                record.samples.map { sample ->
+                    mapOf(
+                        "time" to sample.time.toEpochMilli(),
+                        "bpm" to sample.beatsPerMinute
+                    )
+                }
+            }
+            .sortedBy { it["time"] as Long }
+    }
+
+    private fun sampleCount(records: List<HeartRateRecord>): Int {
+        return records.sumOf { it.samples.size }
+    }
+
+    private fun activeDurationSeconds(session: ExerciseSessionRecord): Long {
+        if (session.segments.isEmpty()) {
+            return Duration.between(session.startTime, session.endTime).seconds
+        }
+
+        val activeMillis = session.segments
+            .filter { it.segmentType != ExerciseSegment.EXERCISE_SEGMENT_TYPE_PAUSE }
+            .sumOf { Duration.between(it.startTime, it.endTime).toMillis() }
+
+        return if (activeMillis > 0) {
+            Duration.ofMillis(activeMillis).seconds
+        } else {
+            Duration.between(session.startTime, session.endTime).seconds
+        }
+    }
+
+    private fun activityTypeName(type: Int): String {
+        return when (type) {
+            ExerciseSessionRecord.EXERCISE_TYPE_RUNNING -> "RUNNING"
+            ExerciseSessionRecord.EXERCISE_TYPE_RUNNING_TREADMILL -> "RUNNING_TREADMILL"
+            ExerciseSessionRecord.EXERCISE_TYPE_BIKING -> "BIKING"
+            ExerciseSessionRecord.EXERCISE_TYPE_BIKING_STATIONARY -> "BIKING_STATIONARY"
+            ExerciseSessionRecord.EXERCISE_TYPE_WALKING -> "WALKING"
+            ExerciseSessionRecord.EXERCISE_TYPE_HIKING -> "HIKING"
+            ExerciseSessionRecord.EXERCISE_TYPE_SWIMMING_OPEN_WATER -> "SWIMMING_OPEN_WATER"
+            ExerciseSessionRecord.EXERCISE_TYPE_SWIMMING_POOL -> "SWIMMING_POOL"
+            ExerciseSessionRecord.EXERCISE_TYPE_STRENGTH_TRAINING -> "STRENGTH_TRAINING"
+            ExerciseSessionRecord.EXERCISE_TYPE_WEIGHTLIFTING -> "WEIGHTLIFTING"
+            ExerciseSessionRecord.EXERCISE_TYPE_HIGH_INTENSITY_INTERVAL_TRAINING -> "HIGH_INTENSITY_INTERVAL_TRAINING"
+            ExerciseSessionRecord.EXERCISE_TYPE_YOGA -> "YOGA"
+            ExerciseSessionRecord.EXERCISE_TYPE_SKIING -> "SKIING"
+            ExerciseSessionRecord.EXERCISE_TYPE_SNOWBOARDING -> "SNOWBOARDING"
+            ExerciseSessionRecord.EXERCISE_TYPE_ROWING -> "ROWING"
+            ExerciseSessionRecord.EXERCISE_TYPE_ROWING_MACHINE -> "ROWING_MACHINE"
+            ExerciseSessionRecord.EXERCISE_TYPE_SOCCER -> "SOCCER"
+            ExerciseSessionRecord.EXERCISE_TYPE_BASKETBALL -> "BASKETBALL"
+            ExerciseSessionRecord.EXERCISE_TYPE_TENNIS -> "TENNIS"
+            else -> "OTHER"
         }
     }
 }

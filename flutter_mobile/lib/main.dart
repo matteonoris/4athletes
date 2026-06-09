@@ -4,11 +4,13 @@ import 'package:intl/date_symbol_data_local.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+import 'core/dev_flags.dart';
 import 'core/theme.dart';
 import 'providers/app_state.dart';
 import 'screens/auth_screen.dart';
 import 'screens/home_screen.dart';
 import 'screens/coach_dashboard_screen.dart';
+import 'services/training_reminder_notification_service.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -27,7 +29,8 @@ void main() async {
       envAnonKey != 'inserisci_la_tua_anon_key_qui';
 
   if (!hasRealConfig) {
-    debugPrint("ATTENZIONE: Variabili d'ambiente Supabase non configurate correttamente nel file .env");
+    debugPrint(
+        "ATTENZIONE: Variabili d'ambiente Supabase non configurate correttamente nel file .env");
   }
 
   await Supabase.initialize(
@@ -38,7 +41,10 @@ void main() async {
   );
 
   final appState = AppState();
+  await TrainingReminderNotificationService.instance.initialize();
   await appState.init();
+  await TrainingReminderNotificationService.instance
+      .syncForProfile(appState.userProfile);
   await initializeDateFormatting('it', null);
 
   runApp(
@@ -60,17 +66,6 @@ class FourAthletesApp extends StatefulWidget {
 
 class _FourAthletesAppState extends State<FourAthletesApp> {
   @override
-  void initState() {
-    super.initState();
-    _checkFirstLaunchAndNotifications();
-  }
-
-  void _checkFirstLaunchAndNotifications() async {
-    // In a real app we would use flutter_local_notifications and permission_handler here
-    debugPrint("Initializing notification logic...");
-  }
-
-  @override
   Widget build(BuildContext context) {
     return Consumer<AppState>(
       builder: (context, appState, child) {
@@ -88,11 +83,13 @@ class _FourAthletesAppState extends State<FourAthletesApp> {
           title: '4athletes',
           debugShowCheckedModeBanner: false,
           theme: AppTheme.darkTheme,
-          home: appState.isLoggedIn
-              ? (appState.userProfile?.role == 'coach'
-                  ? const CoachDashboardScreen()
-                  : const HomeScreen())
-              : const AuthScreen(),
+          home: kOnboardingPreviewMode
+              ? const AuthScreen()
+              : appState.isLoggedIn
+                  ? (appState.userProfile?.role == 'coach'
+                      ? const CoachDashboardScreen()
+                      : const HomeScreen())
+                  : const AuthScreen(),
         );
       },
     );

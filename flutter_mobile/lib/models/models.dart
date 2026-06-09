@@ -212,7 +212,7 @@ class UserProfile {
 class BodyMetricLog {
   String id;
   String date;
-  String type; // 'weight' | 'height'
+  String type; // 'weight' | 'height' | 'fat'
   double value;
 
   BodyMetricLog({
@@ -363,7 +363,7 @@ class CalendarEvent {
   String? drylandSpecialty;
   Map<String, dynamic>? technicalDetails;
   List<Map<String, dynamic>>? attendees;
-  String status; // 'planned' | 'completed'
+  String status; // 'planned' | 'completed' | 'cancelled'
 
   CalendarEvent({
     required this.id,

@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:fl_chart/fl_chart.dart';
@@ -39,19 +41,26 @@ class _BodyMetricsScreenState extends State<BodyMetricsScreen> {
           builder: (context, setDialogState) {
             return AlertDialog(
               backgroundColor: AppTheme.card,
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+              shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(16)),
               title: Text(
-                _selectedType == 'weight' ? 'Aggiungi Peso' : 'Aggiungi Altezza',
-                style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.white),
+                _selectedType == 'weight'
+                    ? 'Aggiungi Peso'
+                    : 'Aggiungi Altezza',
+                style: const TextStyle(
+                    fontWeight: FontWeight.bold, color: Colors.white),
               ),
               content: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
                   TextField(
                     autofocus: true,
-                    keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                    keyboardType:
+                        const TextInputType.numberWithOptions(decimal: true),
                     decoration: InputDecoration(
-                      hintText: _selectedType == 'weight' ? 'Peso (kg)' : 'Altezza (cm)',
+                      hintText: _selectedType == 'weight'
+                          ? 'Peso (kg)'
+                          : 'Altezza (cm)',
                     ),
                     onChanged: (v) => valStr = v,
                     style: const TextStyle(color: Colors.white),
@@ -59,8 +68,10 @@ class _BodyMetricsScreenState extends State<BodyMetricsScreen> {
                   if (_selectedType == 'weight') ...[
                     const SizedBox(height: 16),
                     TextField(
-                      keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                      decoration: const InputDecoration(hintText: 'Massa grassa % (opzionale)'),
+                      keyboardType:
+                          const TextInputType.numberWithOptions(decimal: true),
+                      decoration: const InputDecoration(
+                          hintText: 'Massa grassa % (opzionale)'),
                       onChanged: (v) => fatStr = v,
                       style: const TextStyle(color: Colors.white),
                     ),
@@ -90,7 +101,8 @@ class _BodyMetricsScreenState extends State<BodyMetricsScreen> {
                       }
                     },
                     child: Container(
-                      padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
+                      padding: const EdgeInsets.symmetric(
+                          vertical: 12, horizontal: 16),
                       decoration: BoxDecoration(
                         color: AppTheme.surface,
                         borderRadius: BorderRadius.circular(12),
@@ -98,10 +110,14 @@ class _BodyMetricsScreenState extends State<BodyMetricsScreen> {
                       child: Row(
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
-                          const Text('Data', style: TextStyle(color: AppTheme.textMediumEmphasis)),
+                          const Text('Data',
+                              style: TextStyle(
+                                  color: AppTheme.textMediumEmphasis)),
                           Text(
                             DateFormat('dd/MM/yyyy').format(selectedDate),
-                            style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+                            style: const TextStyle(
+                                color: Colors.white,
+                                fontWeight: FontWeight.bold),
                           ),
                         ],
                       ),
@@ -112,33 +128,33 @@ class _BodyMetricsScreenState extends State<BodyMetricsScreen> {
               actions: [
                 TextButton(
                   onPressed: () => Navigator.pop(context),
-                  child: const Text('Annulla', style: TextStyle(color: AppTheme.textMediumEmphasis)),
+                  child: const Text('Annulla',
+                      style: TextStyle(color: AppTheme.textMediumEmphasis)),
                 ),
                 ElevatedButton(
                   onPressed: () {
                     final v = double.tryParse(valStr.replaceAll(',', '.'));
                     if (v != null) {
-                      final appState = Provider.of<AppState>(context, listen: false);
-                      final dateStr = selectedDate.toIso8601String().split('T')[0];
-                      appState.addBodyLog(
-                        BodyMetricLog(
-                          id: DateTime.now().millisecondsSinceEpoch.toString(),
-                          date: dateStr,
-                          type: _selectedType,
-                          value: v,
-                        )
-                      );
+                      final appState =
+                          Provider.of<AppState>(context, listen: false);
+                      final dateStr =
+                          selectedDate.toIso8601String().split('T')[0];
+                      appState.addBodyLog(BodyMetricLog(
+                        id: DateTime.now().millisecondsSinceEpoch.toString(),
+                        date: dateStr,
+                        type: _selectedType,
+                        value: v,
+                      ));
                       if (_selectedType == 'weight' && fatStr.isNotEmpty) {
                         final f = double.tryParse(fatStr.replaceAll(',', '.'));
                         if (f != null) {
-                          appState.addBodyLog(
-                            BodyMetricLog(
-                              id: (DateTime.now().millisecondsSinceEpoch + 1).toString(),
-                              date: dateStr,
-                              type: 'fat',
-                              value: f,
-                            )
-                          );
+                          appState.addBodyLog(BodyMetricLog(
+                            id: (DateTime.now().millisecondsSinceEpoch + 1)
+                                .toString(),
+                            date: dateStr,
+                            type: 'fat',
+                            value: f,
+                          ));
                         }
                       }
                     }
@@ -160,27 +176,39 @@ class _BodyMetricsScreenState extends State<BodyMetricsScreen> {
     final user = appState.userProfile;
     final showHeightChip = user == null || user.age < 18;
 
-    final logs = appState.bodyLogs.where((l) => l.type == _selectedType).toList()
-      ..sort((a, b) => DateTime.parse(a.date).compareTo(DateTime.parse(b.date)));
-    
+    final logs = appState.bodyLogs
+        .where((l) => l.type == _selectedType)
+        .toList()
+      ..sort(
+          (a, b) => DateTime.parse(a.date).compareTo(DateTime.parse(b.date)));
+
     final now = DateTime.now();
     final cutoff = now.subtract(Duration(days: _selectedDays));
-    final filteredLogs = logs.where((l) => DateTime.parse(l.date).isAfter(cutoff)).toList();
-    
+    final filteredLogs =
+        logs.where((l) => DateTime.parse(l.date).isAfter(cutoff)).toList();
+
     // For weight, we also show fat trends if available
-    final filteredFat = _selectedType == 'weight' 
-        ? appState.bodyLogs.where((l) => l.type == 'fat' && DateTime.parse(l.date).isAfter(cutoff)).toList()
+    final filteredFat = _selectedType == 'weight'
+        ? (appState.bodyLogs
+            .where((l) =>
+                l.type == 'fat' && DateTime.parse(l.date).isAfter(cutoff))
+            .toList()
+          ..sort((a, b) => a.date.compareTo(b.date)))
         : <BodyMetricLog>[];
 
-    final Color mainColor = _selectedType == 'weight' ? AppTheme.primary : const Color(0xFF9462E5);
+    final Color mainColor =
+        _selectedType == 'weight' ? AppTheme.primary : const Color(0xFF9462E5);
 
     return Scaffold(
       appBar: AppBar(
-        title: Text(_selectedType == 'weight' ? 'Peso e Composizione' : 'Andamento Altezza'),
+        title: Text(_selectedType == 'weight'
+            ? 'Peso e Composizione'
+            : 'Andamento Altezza'),
         actions: [
           IconButton(
             onPressed: _showAddMetricDialog,
-            icon: const Icon(Icons.add_circle_outline, size: 28, color: AppTheme.primary),
+            icon: const Icon(Icons.add_circle_outline,
+                size: 28, color: AppTheme.primary),
           ),
           const SizedBox(width: 8),
         ],
@@ -213,13 +241,22 @@ class _BodyMetricsScreenState extends State<BodyMetricsScreen> {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(
-                          _selectedType == 'weight' ? 'Andamento Peso' : 'Andamento Altezza',
-                          style: const TextStyle(color: AppTheme.textMediumEmphasis, fontWeight: FontWeight.bold),
+                          _selectedType == 'weight'
+                              ? 'Andamento Peso'
+                              : 'Andamento Altezza',
+                          style: const TextStyle(
+                              color: AppTheme.textMediumEmphasis,
+                              fontWeight: FontWeight.bold),
                         ),
                         const SizedBox(height: 4),
                         Text(
-                          logs.isNotEmpty ? '${logs.last.value.toStringAsFixed(1)} ${_selectedType == 'weight' ? 'kg' : 'cm'}' : '--',
-                          style: Theme.of(context).textTheme.headlineMedium?.copyWith(fontWeight: FontWeight.bold),
+                          logs.isNotEmpty
+                              ? '${logs.last.value.toStringAsFixed(1)} ${_selectedType == 'weight' ? 'kg' : 'cm'}'
+                              : '--',
+                          style: Theme.of(context)
+                              .textTheme
+                              .headlineMedium
+                              ?.copyWith(fontWeight: FontWeight.bold),
                         ),
                       ],
                     ),
@@ -230,54 +267,107 @@ class _BodyMetricsScreenState extends State<BodyMetricsScreen> {
                 if (filteredLogs.isEmpty)
                   const SizedBox(
                     height: 220,
-                    child: Center(child: Text('Nessun dato per questo intervallo', style: TextStyle(color: AppTheme.textMediumEmphasis))),
+                    child: Center(
+                        child: Text('Nessun dato per questo intervallo',
+                            style:
+                                TextStyle(color: AppTheme.textMediumEmphasis))),
                   )
                 else
                   Builder(
                     builder: (context) {
                       // Calculate ranges for dual axis scaling
-                      double minW = filteredLogs.map((e) => e.value).reduce((a, b) => a < b ? a : b);
-                      double maxW = filteredLogs.map((e) => e.value).reduce((a, b) => a > b ? a : b);
-                      double minF = filteredFat.isNotEmpty ? filteredFat.map((e) => e.value).reduce((a, b) => a < b ? a : b) : 10;
-                      double maxF = filteredFat.isNotEmpty ? filteredFat.map((e) => e.value).reduce((a, b) => a > b ? a : b) : 25;
+                      double minW = filteredLogs
+                          .map((e) => e.value)
+                          .reduce((a, b) => a < b ? a : b);
+                      double maxW = filteredLogs
+                          .map((e) => e.value)
+                          .reduce((a, b) => a > b ? a : b);
+                      double minF = filteredFat.isNotEmpty
+                          ? filteredFat
+                              .map((e) => e.value)
+                              .reduce((a, b) => a < b ? a : b)
+                          : 10;
+                      double maxF = filteredFat.isNotEmpty
+                          ? filteredFat
+                              .map((e) => e.value)
+                              .reduce((a, b) => a > b ? a : b)
+                          : 25;
 
-                      minW -= 2; maxW += 2;
-                      minF -= 2; maxF += 2;
+                      minW -= 2;
+                      maxW += 2;
+                      minF -= 2;
+                      maxF += 2;
+                      final chartStart =
+                          DateTime(cutoff.year, cutoff.month, cutoff.day);
+                      final chartEnd = DateTime.now();
+                      final chartDays = math.max(
+                        1,
+                        DateTime(chartEnd.year, chartEnd.month, chartEnd.day)
+                            .difference(chartStart)
+                            .inDays,
+                      );
+                      double xForDate(String date) {
+                        final parsed = DateTime.tryParse(date);
+                        if (parsed == null) return 0;
+                        return DateTime(parsed.year, parsed.month, parsed.day)
+                            .difference(chartStart)
+                            .inDays
+                            .clamp(0, chartDays)
+                            .toDouble();
+                      }
 
                       double scaleFat(double fat) {
                         if (maxF == minF) return (maxW + minW) / 2;
-                        return ((fat - minF) / (maxF - minF)) * (maxW - minW) + minW;
+                        return ((fat - minF) / (maxF - minF)) * (maxW - minW) +
+                            minW;
                       }
 
                       return SizedBox(
                         height: 240,
                         child: LineChart(
                           LineChartData(
+                            minX: 0,
+                            maxX: chartDays.toDouble(),
                             minY: minW,
                             maxY: maxW,
                             gridData: FlGridData(
                               show: true,
                               drawVerticalLine: true,
-                              getDrawingHorizontalLine: (value) => FlLine(color: Colors.white.withValues(alpha: 0.05), strokeWidth: 1),
-                              getDrawingVerticalLine: (value) => FlLine(color: Colors.white.withValues(alpha: 0.05), strokeWidth: 1, dashArray: [5, 5]),
+                              getDrawingHorizontalLine: (value) => FlLine(
+                                  color: Colors.white.withValues(alpha: 0.05),
+                                  strokeWidth: 1),
+                              getDrawingVerticalLine: (value) => FlLine(
+                                  color: Colors.white.withValues(alpha: 0.05),
+                                  strokeWidth: 1,
+                                  dashArray: [5, 5]),
                             ),
                             titlesData: FlTitlesData(
-                              topTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+                              topTitles: const AxisTitles(
+                                  sideTitles: SideTitles(showTitles: false)),
                               bottomTitles: AxisTitles(
                                 sideTitles: SideTitles(
                                   showTitles: true,
                                   reservedSize: 30,
-                                  interval: (filteredLogs.length > 2) ? (filteredLogs.length - 1) / 2 : 1.0,
+                                  interval: chartDays / 2,
                                   getTitlesWidget: (value, meta) {
-                                    final idx = value.round();
-                                    if (value != idx.toDouble() || idx < 0 || idx >= filteredLogs.length) return const SizedBox.shrink();
-                                    
-                                    final d = DateTime.parse(filteredLogs[idx].date);
+                                    final isEdgeOrMiddle = (value - 0).abs() <
+                                            0.01 ||
+                                        (value - chartDays / 2).abs() < 0.01 ||
+                                        (value - chartDays).abs() < 0.01;
+                                    if (!isEdgeOrMiddle) {
+                                      return const SizedBox.shrink();
+                                    }
+
+                                    final d = chartStart
+                                        .add(Duration(days: value.round()));
                                     return Padding(
                                       padding: const EdgeInsets.only(top: 8),
                                       child: Text(
                                         DateFormat('E d', 'it').format(d),
-                                        style: const TextStyle(color: AppTheme.textMediumEmphasis, fontSize: 10, fontWeight: FontWeight.bold),
+                                        style: const TextStyle(
+                                            color: AppTheme.textMediumEmphasis,
+                                            fontSize: 10,
+                                            fontWeight: FontWeight.bold),
                                       ),
                                     );
                                   },
@@ -288,10 +378,16 @@ class _BodyMetricsScreenState extends State<BodyMetricsScreen> {
                                   showTitles: _selectedType == 'weight',
                                   reservedSize: 40,
                                   getTitlesWidget: (value, meta) {
-                                    double fatVal = ((value - minW) / (maxW - minW)) * (maxF - minF) + minF;
+                                    double fatVal =
+                                        ((value - minW) / (maxW - minW)) *
+                                                (maxF - minF) +
+                                            minF;
                                     return Text(
                                       fatVal.toStringAsFixed(0),
-                                      style: const TextStyle(color: AppTheme.secondary, fontSize: 10, fontWeight: FontWeight.bold),
+                                      style: const TextStyle(
+                                          color: AppTheme.secondary,
+                                          fontSize: 10,
+                                          fontWeight: FontWeight.bold),
                                     );
                                   },
                                 ),
@@ -303,7 +399,10 @@ class _BodyMetricsScreenState extends State<BodyMetricsScreen> {
                                   getTitlesWidget: (value, meta) {
                                     return Text(
                                       value.toStringAsFixed(0),
-                                      style: TextStyle(color: mainColor, fontSize: 10, fontWeight: FontWeight.bold),
+                                      style: TextStyle(
+                                          color: mainColor,
+                                          fontSize: 10,
+                                          fontWeight: FontWeight.bold),
                                     );
                                   },
                                 ),
@@ -312,34 +411,56 @@ class _BodyMetricsScreenState extends State<BodyMetricsScreen> {
                             borderData: FlBorderData(show: false),
                             lineBarsData: [
                               LineChartBarData(
-                                spots: filteredLogs.asMap().entries.map((e) => FlSpot(e.key.toDouble(), e.value.value)).toList(),
+                                spots: filteredLogs
+                                    .map((log) =>
+                                        FlSpot(xForDate(log.date), log.value))
+                                    .toList(),
                                 isCurved: true,
                                 color: mainColor,
                                 barWidth: 4,
                                 isStrokeCapRound: true,
                                 dotData: FlDotData(
                                   show: true,
-                                  getDotPainter: (spot, percent, barData, index) => FlDotCirclePainter(radius: 4, color: mainColor, strokeWidth: 2, strokeColor: AppTheme.card),
+                                  getDotPainter:
+                                      (spot, percent, barData, index) =>
+                                          FlDotCirclePainter(
+                                              radius: 4,
+                                              color: mainColor,
+                                              strokeWidth: 2,
+                                              strokeColor: AppTheme.card),
                                 ),
                                 belowBarData: BarAreaData(
                                   show: true,
                                   gradient: LinearGradient(
-                                    colors: [mainColor.withValues(alpha: 0.3), Colors.transparent],
+                                    colors: [
+                                      mainColor.withValues(alpha: 0.3),
+                                      Colors.transparent
+                                    ],
                                     begin: Alignment.topCenter,
                                     end: Alignment.bottomCenter,
                                   ),
                                 ),
                               ),
-                              if (_selectedType == 'weight' && filteredFat.isNotEmpty)
+                              if (_selectedType == 'weight' &&
+                                  filteredFat.isNotEmpty)
                                 LineChartBarData(
-                                  spots: filteredFat.asMap().entries.map((e) => FlSpot(e.key.toDouble(), scaleFat(e.value.value))).toList(),
+                                  spots: filteredFat
+                                      .map((log) => FlSpot(xForDate(log.date),
+                                          scaleFat(log.value)))
+                                      .toList(),
                                   isCurved: true,
                                   color: AppTheme.secondary,
                                   barWidth: 3,
                                   isStrokeCapRound: true,
                                   dotData: FlDotData(
                                     show: true,
-                                    getDotPainter: (spot, percent, barData, index) => FlDotCirclePainter(radius: 4, color: AppTheme.secondary, strokeWidth: 2, strokeColor: AppTheme.card),
+                                    getDotPainter:
+                                        (spot, percent, barData, index) =>
+                                            FlDotCirclePainter(
+                                                radius: 4,
+                                                color: AppTheme.secondary,
+                                                strokeWidth: 2,
+                                                strokeColor: AppTheme.card),
                                   ),
                                 ),
                             ],
@@ -360,12 +481,14 @@ class _BodyMetricsScreenState extends State<BodyMetricsScreen> {
             const CustomCard(
               child: Padding(
                 padding: EdgeInsets.all(24),
-                child: Center(child: Text('Nessuna misura registrata', style: TextStyle(color: AppTheme.textMediumEmphasis))),
+                child: Center(
+                    child: Text('Nessuna misura registrata',
+                        style: TextStyle(color: AppTheme.textMediumEmphasis))),
               ),
             )
           else
-            ...logs.reversed.map((log) => _buildHistoryItem(log)).toList(),
-          
+            ...logs.reversed.map((log) => _buildHistoryItem(log)),
+
           const SizedBox(height: 40),
         ],
       ),
@@ -379,9 +502,13 @@ class _BodyMetricsScreenState extends State<BodyMetricsScreen> {
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
         decoration: BoxDecoration(
-          color: isSelected ? AppTheme.primary.withValues(alpha: 0.2) : AppTheme.card,
+          color: isSelected
+              ? AppTheme.primary.withValues(alpha: 0.2)
+              : AppTheme.card,
           borderRadius: BorderRadius.circular(20),
-          border: Border.all(color: isSelected ? AppTheme.primary : Colors.transparent, width: 1),
+          border: Border.all(
+              color: isSelected ? AppTheme.primary : Colors.transparent,
+              width: 1),
         ),
         child: Text(
           label,
@@ -426,7 +553,9 @@ class _BodyMetricsScreenState extends State<BodyMetricsScreen> {
           label,
           style: TextStyle(
             fontSize: 12,
-            color: isSelected ? AppTheme.textHighEmphasis : AppTheme.textMediumEmphasis,
+            color: isSelected
+                ? AppTheme.textHighEmphasis
+                : AppTheme.textMediumEmphasis,
             fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
           ),
         ),
@@ -448,12 +577,15 @@ class _BodyMetricsScreenState extends State<BodyMetricsScreen> {
               children: [
                 Text(
                   DateFormat('dd MMMM yyyy').format(date),
-                  style: const TextStyle(fontWeight: FontWeight.bold, color: AppTheme.textHighEmphasis),
+                  style: const TextStyle(
+                      fontWeight: FontWeight.bold,
+                      color: AppTheme.textHighEmphasis),
                 ),
                 const SizedBox(height: 4),
                 Text(
                   _selectedType == 'weight' ? 'Peso Corporeo' : 'Altezza',
-                  style: const TextStyle(color: AppTheme.textMediumEmphasis, fontSize: 12),
+                  style: const TextStyle(
+                      color: AppTheme.textMediumEmphasis, fontSize: 12),
                 ),
               ],
             ),
@@ -461,13 +593,18 @@ class _BodyMetricsScreenState extends State<BodyMetricsScreen> {
               children: [
                 Text(
                   '${log.value.toStringAsFixed(1)} ${_selectedType == 'weight' ? 'kg' : 'cm'}',
-                  style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 18, color: AppTheme.primary),
+                  style: const TextStyle(
+                      fontWeight: FontWeight.bold,
+                      fontSize: 18,
+                      color: AppTheme.primary),
                 ),
                 const SizedBox(width: 8),
                 IconButton(
-                  icon: const Icon(Icons.delete_outline, color: AppTheme.error, size: 20),
+                  icon: const Icon(Icons.delete_outline,
+                      color: AppTheme.error, size: 20),
                   onPressed: () {
-                    Provider.of<AppState>(context, listen: false).deleteBodyLog(log.id);
+                    Provider.of<AppState>(context, listen: false)
+                        .deleteBodyLog(log.id);
                   },
                 ),
               ],

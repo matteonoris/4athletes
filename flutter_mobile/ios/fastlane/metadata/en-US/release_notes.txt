@@ -1,5 +1,6 @@
-TestFlight build with clearer Apple sign-in feedback.
+TestFlight build focused on training tracking, health sync, and coach workflows.
 
-- Apple sign-in now shows a readable message when the provider is not enabled.
-- Keeps the login screen behavior stable while provider configuration is finalized.
-- No app data migration is required for this build.
+- Adds richer ski and dryland activity tracking with improved training metrics.
+- Improves Apple Health and Health Connect imports, normalization, and display.
+- Updates coach dashboards, athlete details, event views, and analytics.
+- Adds reminder notification support for training workflows.

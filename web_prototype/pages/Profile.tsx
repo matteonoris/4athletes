@@ -30,6 +30,7 @@ const Profile: React.FC<Props> = ({ setView, userProfile, onSave, onLogout, show
   // Device Management State
   const [showDeviceModal, setShowDeviceModal] = useState(false);
   const [connectingProvider, setConnectingProvider] = useState<string | null>(null);
+  const isCoach = draftProfile.role === 'coach';
 
   // Use the CURRENT profile language for the UI until saved
   const t = translations[userProfile.language];
@@ -201,7 +202,7 @@ const Profile: React.FC<Props> = ({ setView, userProfile, onSave, onLogout, show
         />
 
         {/* Device Management Modal */}
-        {showDeviceModal && (
+        {!isCoach && showDeviceModal && (
             <div className="fixed inset-0 z-[60] flex items-end sm:items-center justify-center">
                 <div className="absolute inset-0 bg-black/70 backdrop-blur-sm" onClick={() => setShowDeviceModal(false)}></div>
                 <div className="bg-card w-full max-w-md h-[80vh] sm:h-auto sm:rounded-2xl rounded-t-3xl border-t sm:border border-white/10 relative z-10 animate-in slide-in-from-bottom duration-300 flex flex-col">
@@ -529,18 +530,20 @@ const Profile: React.FC<Props> = ({ setView, userProfile, onSave, onLogout, show
                     </div>
                 )}
 
-                {/* Connected Devices - UPDATED */}
-                <div onClick={() => setShowDeviceModal(true)} className="flex items-center justify-between p-4 cursor-pointer hover:bg-white/5">
-                    <div className="flex items-center gap-3">
-                        <div className="w-8 h-8 rounded-full bg-secondary/10 flex items-center justify-center text-secondary"><Watch className="w-4 h-4" /></div>
-                        <span className="font-medium">{t.connectedDevices}</span>
+                {!isCoach && (
+                    /* Connected Devices - UPDATED */
+                    <div onClick={() => setShowDeviceModal(true)} className="flex items-center justify-between p-4 cursor-pointer hover:bg-white/5">
+                        <div className="flex items-center gap-3">
+                            <div className="w-8 h-8 rounded-full bg-secondary/10 flex items-center justify-center text-secondary"><Watch className="w-4 h-4" /></div>
+                            <span className="font-medium">{t.connectedDevices}</span>
+                        </div>
+                         <div className="flex items-center gap-2 text-gray-500">
+                            {draftProfile.connectedDevices.length > 0 && <div className="w-2 h-2 rounded-full bg-green-500 animate-pulse"></div>}
+                            <span className="text-sm">{draftProfile.connectedDevices.length} {t.active}</span>
+                            <ChevronRight className="w-5 h-5" />
+                        </div>
                     </div>
-                     <div className="flex items-center gap-2 text-gray-500">
-                        {draftProfile.connectedDevices.length > 0 && <div className="w-2 h-2 rounded-full bg-green-500 animate-pulse"></div>}
-                        <span className="text-sm">{draftProfile.connectedDevices.length} {t.active}</span>
-                        <ChevronRight className="w-5 h-5" />
-                    </div>
-                </div>
+                )}
             </div>
         </section>
         

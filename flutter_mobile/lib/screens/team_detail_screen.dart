@@ -5,10 +5,13 @@ import 'package:share_plus/share_plus.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../models/models.dart';
+import '../models/training_activity_models.dart';
 import 'coach_athlete_detail_screen.dart';
 import 'package:provider/provider.dart';
 import '../providers/app_state.dart';
+import '../utils/coach_training_utils.dart';
 import '../utils/time_utils.dart';
+import '../utils/training_metrics_utils.dart';
 
 class TeamDetailScreen extends StatefulWidget {
   final Team team;
@@ -48,7 +51,8 @@ class _TeamDetailScreenState extends State<TeamDetailScreen> {
           .eq('team_id', widget.team.id)
           .eq('role', 'athlete');
 
-      final List<Map<String, dynamic>> athletes = List<Map<String, dynamic>>.from(athletesResponse);
+      final List<Map<String, dynamic>> athletes =
+          List<Map<String, dynamic>>.from(athletesResponse);
 
       List<Map<String, dynamic>> sessions = [];
       if (athletes.isNotEmpty) {
@@ -80,7 +84,8 @@ class _TeamDetailScreenState extends State<TeamDetailScreen> {
       return today.subtract(const Duration(days: 7));
     } else if (_timeFilter == 'This Month') {
       return DateTime(today.year, today.month, 1);
-    } else { // This Season
+    } else {
+      // This Season
       return DateTime(today.year - (today.month < 5 ? 1 : 0), 5, 1);
     }
   }
@@ -97,12 +102,21 @@ class _TeamDetailScreenState extends State<TeamDetailScreen> {
       final athleteId = athlete['id'];
       double oreFuoriSci = 0.0;
       int cambiTotale = 0;
-      int cambiSL = 0;
-      int cambiGS = 0;
-      int cambiSG = 0;
-      int cambiDH = 0;
+      int passaggiSL = 0;
+      int passaggiGS = 0;
+      int passaggiSG = 0;
+      int passaggiDH = 0;
+      int passaggiSX = 0;
+      double enduranceHours = 0.0;
+      double zone23Hours = 0.0;
+      double zone45Hours = 0.0;
+      double strengthVolumeKg = 0.0;
+      int plyoContacts = 0;
+      int strengthSessions = 0;
+      int enduranceSessions = 0;
 
-      final athleteSessions = _rawSessions.where((s) => s['user_id'] == athleteId);
+      final athleteSessions =
+          _rawSessions.where((s) => s['user_id'] == athleteId);
 
       for (var session in athleteSessions) {
         final dateStr = session['date'] ?? '';
@@ -110,103 +124,73 @@ class _TeamDetailScreenState extends State<TeamDetailScreen> {
         if (sessionDate == null || sessionDate.isBefore(startDate)) continue;
 
         final sportId = session['sport_id'] ?? '';
-        bool isAlpineSkiing = sportId == 'alpine_skiing' || sportId == 'skiing' || sportId == 'snowboarding' || sportId == 'ski';
+        bool isAlpineSkiing = sportId == 'alpine_skiing' ||
+            sportId == 'skiing' ||
+            sportId == 'snowboarding' ||
+            sportId == 'ski';
         final durationStr = session['duration']?.toString() ?? '0';
         final details = session['details'] as Map<String, dynamic>?;
 
         if (!isAlpineSkiing) {
+          final trainingSession = TrainingSession(
+            id: session['id']?.toString() ?? '',
+            sportId: sportId.toString(),
+            date: dateStr.toString(),
+            startTime: session['start_time']?.toString() ?? '',
+            endTime: session['end_time']?.toString() ?? '',
+            duration: durationStr,
+            effort: CoachTrainingUtils.asInt(session['effort'], fallback: 0),
+            eventId: session['event_id']?.toString(),
+            details: details,
+          );
+          final activity =
+              TrainingActivity.fromTrainingSession(trainingSession);
+          if (activity.status == ActivityStatus.cancelled) continue;
+
           oreFuoriSci += _parseDurationToHours(durationStr);
+          final strength = TrainingMetricsUtils.strengthSummary([activity]);
+          final plyo = TrainingMetricsUtils.plyometricSummary([activity]);
+          final endurance = TrainingMetricsUtils.enduranceSummary([activity]);
+          strengthVolumeKg += strength.volumeKg;
+          plyoContacts += plyo.totalContacts;
+          if (strength.totalSets > 0) strengthSessions++;
+          if (endurance.durationSeconds > 0 || endurance.distanceKm > 0) {
+            enduranceSessions++;
+          }
+          enduranceHours += endurance.durationSeconds / 3600;
+          zone23Hours += endurance.zone23Seconds / 3600;
+          zone45Hours += endurance.zone45Seconds / 3600;
         } else {
-          int cambia = 0;
-          int gatedCambia = 0;
-          
-          if (details != null) {
-            var gated = details['gatedSkiing'];
-            if (gated == null && details['technicalDetails'] != null) {
-               gated = details['technicalDetails']['gatedSkiing'];
-            }
-            if (gated is Map<String, dynamic> || gated != null) {
-              var gatedMap = gated is Map ? gated : {};
-              if (gatedMap.isNotEmpty) {
-                 int ch = int.tryParse(gatedMap['changes']?.toString() ?? '0') ?? 0;
-                 int laps = 1;
-                 if (details['laps'] != null) {
-                    laps = int.tryParse(details['laps'].toString()) ?? 1;
-                 } else {
-                    laps = int.tryParse(gatedMap['laps']?.toString() ?? '1') ?? 1;
-                 }
-                 gatedCambia = ch * laps;
-              }
-            }
-
-            int freeCambia = 0;
-            var free = details['freeSkiing'];
-            if (free == null && details['technicalDetails'] != null) {
-               free = details['technicalDetails']['freeSkiing'];
-            }
-            if (free is Map<String, dynamic> || free != null) {
-              var freeMap = free is Map ? free : {};
-              if (freeMap.isNotEmpty) {
-                 int ch = int.tryParse(freeMap['changes']?.toString() ?? '0') ?? 0;
-                 int laps = 1;
-                 if (details['freeLaps'] != null) {
-                    laps = int.tryParse(details['freeLaps'].toString()) ?? 1;
-                 } else if (details['laps'] != null && details['specialty'] == 'CL') {
-                    laps = int.tryParse(details['laps'].toString()) ?? 1;
-                 } else {
-                    laps = int.tryParse(freeMap['laps']?.toString() ?? '1') ?? 1;
-                 }
-                 freeCambia = ch * laps;
-              }
-            }
-            
-            cambia = gatedCambia + freeCambia;
-
-            if (cambia == 0) {
-              // Fallback old format
-              int vol = 0;
-              final runs = details['runs'];
-              if (runs is List) vol += runs.length;
-              final c = details['cambi'];
-              if (c is int) vol += c;
-              if (c is double) vol += c.toInt();
-              if (c is String) vol += int.tryParse(c) ?? 0;
-              cambia = vol;
-              gatedCambia = vol; // old format typically means gated
-            }
-          }
-
-          cambiTotale += cambia;
-
-          if (details != null) {
-            List<dynamic>? specs = details['specialties'];
-            if (specs == null && details['technicalDetails'] != null) {
-               specs = details['technicalDetails']['specialties'];
-            }
-            if (specs != null) {
-              for (var s in specs) {
-                String specStr = s.toString().toUpperCase();
-                if (specStr.contains('SL') || specStr.contains('SLALOM')) cambiSL += gatedCambia;
-                if (specStr.contains('GS') || specStr.contains('GIGANTE')) cambiGS += gatedCambia;
-                if (specStr.contains('SG') || specStr.contains('SUPER')) cambiSG += gatedCambia;
-                if (specStr.contains('DH') || specStr.contains('DISCESA')) cambiDH += gatedCambia;
-              }
-            }
-          }
+          final summary = CoachTrainingUtils.volumeFromDetails(details);
+          cambiTotale += summary.totalDirectionChanges;
+          passaggiSL += summary.polePassesBySpecialty['SL'] ?? 0;
+          passaggiGS += summary.polePassesBySpecialty['GS'] ?? 0;
+          passaggiSG += summary.polePassesBySpecialty['SG'] ?? 0;
+          passaggiDH += summary.polePassesBySpecialty['DH'] ?? 0;
+          passaggiSX += summary.polePassesBySpecialty['SX'] ?? 0;
         }
       }
 
       _teamAthletes.add({
         'id': athleteId,
-        'name': '${athlete['first_name'] ?? ''} ${athlete['last_name'] ?? ''}'.trim(),
+        'name': '${athlete['first_name'] ?? ''} ${athlete['last_name'] ?? ''}'
+            .trim(),
         'avatar': athlete['avatar_url'] ?? '',
         'subtitle': athlete['skill_level'] ?? 'Athlete',
         'Ore': oreFuoriSci,
         'Tot. Dir': cambiTotale.toDouble(),
-        'Cambi SL': cambiSL.toDouble(),
-        'Cambi GS': cambiGS.toDouble(),
-        'Cambi SG': cambiSG.toDouble(),
-        'Cambi DH': cambiDH.toDouble(),
+        'Pass. SL': passaggiSL.toDouble(),
+        'Pass. GS': passaggiGS.toDouble(),
+        'Pass. SG': passaggiSG.toDouble(),
+        'Pass. DH': passaggiDH.toDouble(),
+        'Pass. SX': passaggiSX.toDouble(),
+        'Ore Res.': enduranceHours,
+        'Z2-3': zone23Hours,
+        'Z4-5': zone45Hours,
+        'Vol. Kg': strengthVolumeKg,
+        'Contatti': plyoContacts.toDouble(),
+        'Sed. Forza': strengthSessions.toDouble(),
+        'Sed. End.': enduranceSessions.toDouble(),
       });
     }
   }
@@ -217,22 +201,29 @@ class _TeamDetailScreenState extends State<TeamDetailScreen> {
 
   String _getCategoryUnit(String category) {
     if (category.contains('Ore')) return 'h';
-    if (category.contains('Sessioni')) return 'sess';
+    if (category.startsWith('Z')) return 'h';
+    if (category.contains('Vol. Kg')) return 'kg';
+    if (category.contains('Sed.')) return 'sess';
     return '';
   }
 
   IconData _getCategoryIcon(String category) {
     if (category.contains('Ore')) return PhosphorIcons.clock();
+    if (category.startsWith('Z')) return PhosphorIcons.heart();
+    if (category.contains('Vol. Kg')) return PhosphorIcons.barbell();
+    if (category.contains('Contatti')) return PhosphorIcons.lightning();
+    if (category.contains('Sed.')) return PhosphorIcons.listChecks();
     if (category.contains('Tot. Dir')) return PhosphorIcons.waveSine();
-    if (category.contains('Cambi SL')) return PhosphorIcons.lightning();
-    if (category.contains('Cambi GS')) return PhosphorIcons.snowflake();
+    if (category.contains('Pass. SL')) return PhosphorIcons.lightning();
+    if (category.contains('Pass. GS')) return PhosphorIcons.snowflake();
     return PhosphorIcons.trendUp();
   }
 
   final GlobalKey _shareButtonKey = GlobalKey();
 
   void _shareCode() {
-    final box = _shareButtonKey.currentContext?.findRenderObject() as RenderBox?;
+    final box =
+        _shareButtonKey.currentContext?.findRenderObject() as RenderBox?;
     final origin = box != null
         ? box.localToGlobal(Offset.zero) & box.size
         : const Rect.fromLTWH(0, 0, 1, 1);
@@ -254,7 +245,6 @@ class _TeamDetailScreenState extends State<TeamDetailScreen> {
     );
   }
 
-
   double _getTotalValue() {
     double total = 0;
     for (var a in _teamAthletes) {
@@ -268,8 +258,10 @@ class _TeamDetailScreenState extends State<TeamDetailScreen> {
       context: context,
       builder: (ctx) => AlertDialog(
         backgroundColor: const Color(0xFF1E2126),
-        title: const Text('Abbandona Team', style: TextStyle(color: Colors.white)),
-        content: const Text('Sei sicuro di voler abbandonare questo team?', style: TextStyle(color: Colors.white70)),
+        title:
+            const Text('Abbandona Team', style: TextStyle(color: Colors.white)),
+        content: const Text('Sei sicuro di voler abbandonare questo team?',
+            style: TextStyle(color: Colors.white70)),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(ctx).pop(),
@@ -279,13 +271,15 @@ class _TeamDetailScreenState extends State<TeamDetailScreen> {
             onPressed: () async {
               Navigator.of(ctx).pop();
               try {
-                await Provider.of<AppState>(context, listen: false).leaveTeam(widget.team.id);
+                await Provider.of<AppState>(context, listen: false)
+                    .leaveTeam(widget.team.id);
                 if (mounted) {
                   Navigator.of(context).pop();
                 }
               } catch (e) {
                 if (mounted) {
-                  ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Errore durante l\'uscita dal team')));
+                  ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+                      content: Text('Errore durante l\'uscita dal team')));
                 }
               }
             },
@@ -297,13 +291,17 @@ class _TeamDetailScreenState extends State<TeamDetailScreen> {
     );
   }
 
-  void _confirmRemoveAthlete(BuildContext context, String athleteId, String athleteName) {
+  void _confirmRemoveAthlete(
+      BuildContext context, String athleteId, String athleteName) {
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
         backgroundColor: const Color(0xFF1E2126),
-        title: const Text('Rimuovi Atleta', style: TextStyle(color: Colors.white)),
-        content: Text('Sei sicuro di voler rimuovere $athleteName da questo team?', style: const TextStyle(color: Colors.white70)),
+        title:
+            const Text('Rimuovi Atleta', style: TextStyle(color: Colors.white)),
+        content: Text(
+            'Sei sicuro di voler rimuovere $athleteName da questo team?',
+            style: const TextStyle(color: Colors.white70)),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(ctx).pop(),
@@ -313,11 +311,13 @@ class _TeamDetailScreenState extends State<TeamDetailScreen> {
             onPressed: () async {
               Navigator.of(ctx).pop();
               try {
-                await Provider.of<AppState>(context, listen: false).removeAthleteFromTeam(athleteId, widget.team.id);
+                await Provider.of<AppState>(context, listen: false)
+                    .removeAthleteFromTeam(athleteId, widget.team.id);
                 _loadLeaderboardData();
               } catch (e) {
                 if (mounted) {
-                  ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Errore durante la rimozione')));
+                  ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+                      content: Text('Errore durante la rimozione')));
                 }
               }
             },
@@ -331,7 +331,8 @@ class _TeamDetailScreenState extends State<TeamDetailScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final isAthlete = Provider.of<AppState>(context).userProfile?.role == 'athlete';
+    final isAthlete =
+        Provider.of<AppState>(context).userProfile?.role == 'athlete';
     final isCoach = Provider.of<AppState>(context).userProfile?.role == 'coach';
 
     _generateTeamData();
@@ -366,7 +367,8 @@ class _TeamDetailScreenState extends State<TeamDetailScreen> {
                     color: Colors.white,
                     fontSize: 18)),
             const SizedBox(height: 2),
-            Text('${_isLoading ? widget.team.members : sortedAthletes.length} MEMBERS',
+            Text(
+                '${_isLoading ? widget.team.members : sortedAthletes.length} MEMBERS',
                 style: const TextStyle(
                     color: Color(0xFF1A9DF0),
                     fontWeight: FontWeight.bold,
@@ -458,15 +460,23 @@ class _TeamDetailScreenState extends State<TeamDetailScreen> {
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
                   OutlinedButton.icon(
-                    onPressed: () => setState(() => _showFilters = !_showFilters),
-                    icon: Icon(_showFilters ? Icons.keyboard_arrow_up : Icons.keyboard_arrow_down, size: 16, color: Colors.white),
+                    onPressed: () =>
+                        setState(() => _showFilters = !_showFilters),
+                    icon: Icon(
+                        _showFilters
+                            ? Icons.keyboard_arrow_up
+                            : Icons.keyboard_arrow_down,
+                        size: 16,
+                        color: Colors.white),
                     label: const Text('FILTRI',
                         style: TextStyle(
                             color: Colors.white,
                             fontWeight: FontWeight.bold,
                             fontSize: 12)),
                     style: OutlinedButton.styleFrom(
-                      backgroundColor: _showFilters ? const Color(0xFF1A9DF0) : Colors.transparent,
+                      backgroundColor: _showFilters
+                          ? const Color(0xFF1A9DF0)
+                          : Colors.transparent,
                       side: BorderSide(color: const Color(0xFF1A9DF0)),
                       shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(10)),
@@ -490,8 +500,12 @@ class _TeamDetailScreenState extends State<TeamDetailScreen> {
                           child: Text(
                             choice,
                             style: TextStyle(
-                              color: _timeFilter == choice ? const Color(0xFF1A9DF0) : Colors.white,
-                              fontWeight: _timeFilter == choice ? FontWeight.bold : FontWeight.normal,
+                              color: _timeFilter == choice
+                                  ? const Color(0xFF1A9DF0)
+                                  : Colors.white,
+                              fontWeight: _timeFilter == choice
+                                  ? FontWeight.bold
+                                  : FontWeight.normal,
                             ),
                           ),
                         );
@@ -515,7 +529,8 @@ class _TeamDetailScreenState extends State<TeamDetailScreen> {
                                   fontSize: 12,
                                   color: Colors.white)),
                           const SizedBox(width: 4),
-                          const Icon(Icons.keyboard_arrow_down, size: 16, color: Colors.grey),
+                          const Icon(Icons.keyboard_arrow_down,
+                              size: 16, color: Colors.grey),
                         ],
                       ),
                     ),
@@ -556,15 +571,24 @@ class _TeamDetailScreenState extends State<TeamDetailScreen> {
             SliverToBoxAdapter(
               child: SingleChildScrollView(
                 scrollDirection: Axis.horizontal,
-                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
                 child: Row(
                   children: [
                     'Ore',
                     'Tot. Dir',
-                    'Cambi SL',
-                    'Cambi GS',
-                    'Cambi SG',
-                    'Cambi DH'
+                    'Pass. SL',
+                    'Pass. GS',
+                    'Pass. SG',
+                    'Pass. DH',
+                    'Pass. SX',
+                    'Ore Res.',
+                    'Z2-3',
+                    'Z4-5',
+                    'Vol. Kg',
+                    'Contatti',
+                    'Sed. Forza',
+                    'Sed. End.'
                   ].map((cat) {
                     bool isSelected = _categoryFilter == cat;
                     return Padding(
@@ -588,7 +612,8 @@ class _TeamDetailScreenState extends State<TeamDetailScreen> {
                             children: [
                               Icon(_getCategoryIcon(cat),
                                   size: 14,
-                                  color: isSelected ? Colors.white : Colors.grey),
+                                  color:
+                                      isSelected ? Colors.white : Colors.grey),
                               const SizedBox(width: 6),
                               Text(cat,
                                   style: TextStyle(
@@ -648,7 +673,8 @@ class _TeamDetailScreenState extends State<TeamDetailScreen> {
               : sortedAthletes.isEmpty
                   ? const SliverToBoxAdapter(
                       child: Padding(
-                        padding: EdgeInsets.symmetric(vertical: 60, horizontal: 16),
+                        padding:
+                            EdgeInsets.symmetric(vertical: 60, horizontal: 16),
                         child: Center(
                           child: Text(
                             'Nessun atleta in questo team.',
@@ -664,181 +690,240 @@ class _TeamDetailScreenState extends State<TeamDetailScreen> {
                       delegate: SliverChildBuilderDelegate(
                         (context, index) {
                           final athlete = sortedAthletes[index];
-                          double val = _getCategoryValue(athlete, _categoryFilter);
+                          double val =
+                              _getCategoryValue(athlete, _categoryFilter);
                           bool isFirst = index == 0;
 
                           return GestureDetector(
-                            onTap: () {
-                              if (isCoach) {
-                                HapticFeedback.lightImpact();
-                                String name = athlete['name'] ?? 'Atleta';
-                                String initial = name.isNotEmpty ? name[0].toUpperCase() : 'A';
-                                Navigator.push(
-                                  context,
-                                  MaterialPageRoute(
-                                    builder: (_) => CoachAthleteDetailScreen(
-                                      athleteName: name,
-                                      initial: initial,
-                                      athleteId: athlete['id'],
+                              onTap: () {
+                                if (isCoach) {
+                                  HapticFeedback.lightImpact();
+                                  String name = athlete['name'] ?? 'Atleta';
+                                  String initial = name.isNotEmpty
+                                      ? name[0].toUpperCase()
+                                      : 'A';
+                                  Navigator.push(
+                                    context,
+                                    MaterialPageRoute(
+                                      builder: (_) => CoachAthleteDetailScreen(
+                                        athleteName: name,
+                                        initial: initial,
+                                        athleteId: athlete['id'],
+                                      ),
                                     ),
-                                  ),
-                                );
-                              }
-                            },
-                            child: Container(
-                              margin:
-                                  const EdgeInsets.only(bottom: 12, left: 16, right: 16),
-                              decoration: BoxDecoration(
-                                color: const Color(0xFF1C2229),
-                                borderRadius: BorderRadius.circular(16),
-                              ),
-                              child: Stack(
-                              children: [
-                                // Highlight on left for #1
-                                if (isFirst) ...[
-                                  Positioned(
-                                    left: 0,
-                                    top: 0,
-                                    bottom: 0,
-                                    child: Container(
-                                        width: 3,
-                                        decoration: const BoxDecoration(
-                                          color: Color(0xFF1A9DF0),
-                                          borderRadius: BorderRadius.only(
-                                              topLeft: Radius.circular(16),
-                                              bottomLeft: Radius.circular(16)),
-                                        )),
-                                  ),
-                                ],
-                                Padding(
-                                  padding: const EdgeInsets.all(16.0),
-                                  child: Row(
-                                    children: [
-                                      // Rank / Trophy
-                                      SizedBox(
-                                        width: 28,
-                                        child: Center(
-                                          child: index == 0
-                                              ? const Icon(Icons.emoji_events_outlined,
-                                                  color: Color(0xFFFFD700), size: 24)
-                                              : Text('${index + 1}',
+                                  );
+                                }
+                              },
+                              child: Container(
+                                margin: const EdgeInsets.only(
+                                    bottom: 12, left: 16, right: 16),
+                                decoration: BoxDecoration(
+                                  color: const Color(0xFF1C2229),
+                                  borderRadius: BorderRadius.circular(16),
+                                ),
+                                child: Stack(
+                                  children: [
+                                    // Highlight on left for #1
+                                    if (isFirst) ...[
+                                      Positioned(
+                                        left: 0,
+                                        top: 0,
+                                        bottom: 0,
+                                        child: Container(
+                                            width: 3,
+                                            decoration: const BoxDecoration(
+                                              color: Color(0xFF1A9DF0),
+                                              borderRadius: BorderRadius.only(
+                                                  topLeft: Radius.circular(16),
+                                                  bottomLeft:
+                                                      Radius.circular(16)),
+                                            )),
+                                      ),
+                                    ],
+                                    Padding(
+                                      padding: const EdgeInsets.all(16.0),
+                                      child: Row(
+                                        children: [
+                                          // Rank / Trophy
+                                          SizedBox(
+                                            width: 28,
+                                            child: Center(
+                                              child: index == 0
+                                                  ? const Icon(
+                                                      Icons
+                                                          .emoji_events_outlined,
+                                                      color: Color(0xFFFFD700),
+                                                      size: 24)
+                                                  : Text(
+                                                      '${index + 1}',
+                                                      style: TextStyle(
+                                                          fontSize: 18,
+                                                          fontWeight: FontWeight
+                                                              .w900,
+                                                          color: index ==
+                                                                  1
+                                                              ? Colors.white
+                                                              : (index ==
+                                                                      2
+                                                                  ? const Color(
+                                                                      0xFFCD7F32)
+                                                                  : const Color(
+                                                                      0xFF424750)))),
+                                            ),
+                                          ),
+                                          const SizedBox(width: 12),
+                                          // Avatar
+                                          Container(
+                                            width: 44,
+                                            height: 44,
+                                            decoration: BoxDecoration(
+                                              color: const Color(0xFF2A313C),
+                                              borderRadius:
+                                                  BorderRadius.circular(12),
+                                              image: athlete['avatar']
+                                                              ?.isNotEmpty ==
+                                                          true &&
+                                                      athlete['avatar']
+                                                          .toString()
+                                                          .startsWith('http')
+                                                  ? DecorationImage(
+                                                      image: NetworkImage(
+                                                          athlete['avatar']),
+                                                      fit: BoxFit.cover)
+                                                  : null,
+                                            ),
+                                            child: athlete['avatar']?.isEmpty ==
+                                                        true ||
+                                                    !athlete['avatar']
+                                                        .toString()
+                                                        .startsWith('http')
+                                                ? Center(
+                                                    child: Text(
+                                                        athlete['name'] !=
+                                                                    null &&
+                                                                athlete['name']
+                                                                    .isNotEmpty
+                                                            ? athlete['name'][0]
+                                                            : 'A',
+                                                        style: const TextStyle(
+                                                            fontWeight:
+                                                                FontWeight.bold,
+                                                            color:
+                                                                Colors.white)))
+                                                : null,
+                                          ),
+                                          const SizedBox(width: 16),
+                                          // Profile Info and Progress Bar
+                                          Expanded(
+                                            child: Column(
+                                              crossAxisAlignment:
+                                                  CrossAxisAlignment.start,
+                                              children: [
+                                                Text(athlete['name'],
+                                                    style: const TextStyle(
+                                                        fontWeight:
+                                                            FontWeight.bold,
+                                                        color: Colors.white,
+                                                        fontSize: 14)),
+                                                const SizedBox(height: 2),
+                                                Text(
+                                                    athlete['subtitle'] ??
+                                                        'Athlete',
+                                                    style: const TextStyle(
+                                                        color: Colors.grey,
+                                                        fontSize: 11)),
+                                                const SizedBox(height: 8),
+                                                LayoutBuilder(builder:
+                                                    (context, constraints) {
+                                                  double percentage =
+                                                      val / maxValue;
+                                                  if (percentage > 1.0)
+                                                    percentage = 1.0;
+                                                  return Stack(
+                                                    children: [
+                                                      Container(
+                                                        height: 4,
+                                                        width: constraints
+                                                            .maxWidth,
+                                                        decoration: BoxDecoration(
+                                                            color: const Color(
+                                                                0xFF2A313C),
+                                                            borderRadius:
+                                                                BorderRadius
+                                                                    .circular(
+                                                                        2)),
+                                                      ),
+                                                      Container(
+                                                        height: 4,
+                                                        width: constraints
+                                                                .maxWidth *
+                                                            percentage,
+                                                        decoration: BoxDecoration(
+                                                            color: isFirst
+                                                                ? const Color(
+                                                                    0xFF1A9DF0)
+                                                                : const Color(
+                                                                    0xFF4A5565),
+                                                            borderRadius:
+                                                                BorderRadius
+                                                                    .circular(
+                                                                        2)),
+                                                      ),
+                                                    ],
+                                                  );
+                                                }),
+                                              ],
+                                            ),
+                                          ),
+                                          const SizedBox(width: 16),
+                                          // Value
+                                          Row(
+                                            crossAxisAlignment:
+                                                CrossAxisAlignment.baseline,
+                                            textBaseline:
+                                                TextBaseline.alphabetic,
+                                            children: [
+                                              Text(val.toStringAsFixed(1),
                                                   style: TextStyle(
                                                       fontSize: 18,
-                                                      fontWeight: FontWeight.w900,
-                                                      color: index == 1
-                                                          ? Colors.white
-                                                          : (index == 2
-                                                              ? const Color(0xFFCD7F32)
-                                                              : const Color(
-                                                                  0xFF424750)))),
-                                        ),
-                                      ),
-                                      const SizedBox(width: 12),
-                                      // Avatar
-                                      Container(
-                                        width: 44,
-                                        height: 44,
-                                        decoration: BoxDecoration(
-                                          color: const Color(0xFF2A313C),
-                                          borderRadius: BorderRadius.circular(12),
-                                          image: athlete['avatar']?.isNotEmpty == true && athlete['avatar'].toString().startsWith('http')
-                                              ? DecorationImage(
-                                                  image: NetworkImage(athlete['avatar']),
-                                                  fit: BoxFit.cover)
-                                              : null,
-                                        ),
-                                        child: athlete['avatar']?.isEmpty == true || !athlete['avatar'].toString().startsWith('http')
-                                            ? Center(
-                                                child: Text(
-                                                    athlete['name'] != null && athlete['name'].isNotEmpty
-                                                        ? athlete['name'][0]
-                                                        : 'A',
-                                                    style: const TextStyle(
-                                                        fontWeight: FontWeight.bold,
-                                                        color: Colors.white)))
-                                            : null,
-                                      ),
-                                      const SizedBox(width: 16),
-                                      // Profile Info and Progress Bar
-                                      Expanded(
-                                        child: Column(
-                                          crossAxisAlignment: CrossAxisAlignment.start,
-                                          children: [
-                                            Text(athlete['name'],
-                                                style: const TextStyle(
-                                                    fontWeight: FontWeight.bold,
-                                                    color: Colors.white,
-                                                    fontSize: 14)),
-                                            const SizedBox(height: 2),
-                                            Text(athlete['subtitle'] ?? 'Athlete',
-                                                style: const TextStyle(
-                                                    color: Colors.grey, fontSize: 11)),
-                                            const SizedBox(height: 8),
-                                            LayoutBuilder(
-                                                builder: (context, constraints) {
-                                              double percentage = val / maxValue;
-                                              if (percentage > 1.0) percentage = 1.0;
-                                              return Stack(
-                                                children: [
-                                                  Container(
-                                                    height: 4,
-                                                    width: constraints.maxWidth,
-                                                    decoration: BoxDecoration(
-                                                        color: const Color(0xFF2A313C),
-                                                        borderRadius:
-                                                            BorderRadius.circular(2)),
-                                                  ),
-                                                  Container(
-                                                    height: 4,
-                                                    width:
-                                                        constraints.maxWidth * percentage,
-                                                    decoration: BoxDecoration(
-                                                        color: isFirst
-                                                            ? const Color(0xFF1A9DF0)
-                                                            : const Color(0xFF4A5565),
-                                                        borderRadius:
-                                                            BorderRadius.circular(2)),
-                                                  ),
-                                                ],
-                                              );
-                                            }),
+                                                      fontWeight:
+                                                          FontWeight.w900,
+                                                      color: isFirst
+                                                          ? const Color(
+                                                              0xFF1A9DF0)
+                                                          : Colors.white)),
+                                              const SizedBox(width: 2),
+                                              Text(
+                                                  _getCategoryUnit(
+                                                      _categoryFilter),
+                                                  style: const TextStyle(
+                                                      fontSize: 12,
+                                                      color: Colors.grey)),
+                                            ],
+                                          ),
+                                          if (isCoach) ...[
+                                            const SizedBox(width: 8),
+                                            IconButton(
+                                              icon: Icon(
+                                                  PhosphorIcons.userMinus(),
+                                                  color: Colors.redAccent,
+                                                  size: 20),
+                                              padding: EdgeInsets.zero,
+                                              constraints:
+                                                  const BoxConstraints(),
+                                              onPressed: () =>
+                                                  _confirmRemoveAthlete(
+                                                      context,
+                                                      athlete['id'],
+                                                      athlete['name']),
+                                            ),
                                           ],
-                                        ),
-                                      ),
-                                      const SizedBox(width: 16),
-                                      // Value
-                                      Row(
-                                        crossAxisAlignment: CrossAxisAlignment.baseline,
-                                        textBaseline: TextBaseline.alphabetic,
-                                        children: [
-                                          Text(val.toStringAsFixed(1),
-                                              style: TextStyle(
-                                                  fontSize: 18,
-                                                  fontWeight: FontWeight.w900,
-                                                  color: isFirst
-                                                      ? const Color(0xFF1A9DF0)
-                                                      : Colors.white)),
-                                          const SizedBox(width: 2),
-                                          Text(_getCategoryUnit(_categoryFilter),
-                                              style: const TextStyle(
-                                                  fontSize: 12, color: Colors.grey)),
                                         ],
                                       ),
-                                      if (isCoach) ...[
-                                        const SizedBox(width: 8),
-                                        IconButton(
-                                          icon: Icon(PhosphorIcons.userMinus(), color: Colors.redAccent, size: 20),
-                                          padding: EdgeInsets.zero,
-                                          constraints: const BoxConstraints(),
-                                          onPressed: () => _confirmRemoveAthlete(context, athlete['id'], athlete['name']),
-                                        ),
-                                      ],
-                                    ],
-                                  ),
+                                    ),
+                                  ],
                                 ),
-                              ],
-                            ),
-                          ));
+                              ));
                         },
                         childCount: sortedAthletes.length,
                       ),

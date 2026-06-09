@@ -10,6 +10,7 @@ import '../core/theme.dart';
 import '../models/models.dart';
 import '../providers/app_state.dart';
 import '../services/health_service.dart';
+import '../services/training_reminder_notification_service.dart';
 import 'auth_screen.dart';
 import 'hr_zones_screen.dart';
 
@@ -54,6 +55,36 @@ class _ProfileScreenState extends State<ProfileScreen> {
     });
   }
 
+  Future<void> _setNotificationsEnabled(
+      UserProfile profile, bool enabled) async {
+    final appState = Provider.of<AppState>(context, listen: false);
+
+    if (!enabled) {
+      await TrainingReminderNotificationService.instance
+          .cancelDailyTrainingReminder();
+      if (!mounted) return;
+      setState(() => profile.notificationsEnabled = false);
+      appState.updateProfile(profile);
+      return;
+    }
+
+    final granted = await TrainingReminderNotificationService.instance
+        .requestPermissionAndSchedule();
+    if (!mounted) return;
+
+    setState(() => profile.notificationsEnabled = granted);
+    appState.updateProfile(profile);
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(granted
+            ? 'Reminder serale attivato alle 21:00.'
+            : 'Permesso notifiche non concesso. Controlla le impostazioni del telefono.'),
+        backgroundColor: granted ? AppTheme.success : AppTheme.error,
+      ),
+    );
+  }
+
   void _showDeviceModal() {
     showModalBottomSheet(
       context: context,
@@ -73,7 +104,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
             children: [
               ListTile(
                 leading: const Icon(Icons.camera_alt, color: Colors.white),
-                title: const Text('Scatta Foto', style: TextStyle(color: Colors.white)),
+                title: const Text('Scatta Foto',
+                    style: TextStyle(color: Colors.white)),
                 onTap: () {
                   Navigator.pop(context);
                   _pickImage(ImageSource.camera);
@@ -81,7 +113,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
               ),
               ListTile(
                 leading: const Icon(Icons.photo_library, color: Colors.white),
-                title: const Text('Scegli da Galleria', style: TextStyle(color: Colors.white)),
+                title: const Text('Scegli da Galleria',
+                    style: TextStyle(color: Colors.white)),
                 onTap: () {
                   Navigator.pop(context);
                   _pickImage(ImageSource.gallery);
@@ -101,7 +134,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
         if (!status.isGranted) {
           if (mounted) {
             ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(content: Text('Permesso fotocamera negato.', style: TextStyle(color: Colors.white)), backgroundColor: AppTheme.error),
+              const SnackBar(
+                  content: Text('Permesso fotocamera negato.',
+                      style: TextStyle(color: Colors.white)),
+                  backgroundColor: AppTheme.error),
             );
           }
           return;
@@ -115,14 +151,17 @@ class _ProfileScreenState extends State<ProfileScreen> {
       final ImagePicker picker = ImagePicker();
       final XFile? image = await picker.pickImage(source: source);
       if (image != null) {
+        if (!mounted) return;
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Caricamento in corso...'), backgroundColor: AppTheme.primary),
+            const SnackBar(
+                content: Text('Caricamento in corso...'),
+                backgroundColor: AppTheme.primary),
           );
         }
         final appState = Provider.of<AppState>(context, listen: false);
         final publicUrl = await appState.uploadProfileImage(File(image.path));
-        
+
         if (publicUrl != null) {
           setState(() {
             appState.userProfile?.avatarUrl = publicUrl;
@@ -130,13 +169,17 @@ class _ProfileScreenState extends State<ProfileScreen> {
           _triggerAutoSave();
           if (mounted) {
             ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(content: Text('Immagine profilo aggiornata!'), backgroundColor: AppTheme.success),
+              const SnackBar(
+                  content: Text('Immagine profilo aggiornata!'),
+                  backgroundColor: AppTheme.success),
             );
           }
         } else {
           if (mounted) {
             ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(content: Text('Errore di caricamento.'), backgroundColor: AppTheme.error),
+              const SnackBar(
+                  content: Text('Errore di caricamento.'),
+                  backgroundColor: AppTheme.error),
             );
           }
         }
@@ -144,7 +187,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Errore: $e', style: const TextStyle(color: Colors.white)), backgroundColor: AppTheme.error),
+          SnackBar(
+              content: Text('Errore: $e',
+                  style: const TextStyle(color: Colors.white)),
+              backgroundColor: AppTheme.error),
         );
       }
     }
@@ -169,6 +215,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
     if (p == null) {
       return const Scaffold(body: Center(child: CircularProgressIndicator()));
     }
+    final isCoach = p.role == 'coach';
 
     return Scaffold(
       appBar: AppBar(
@@ -176,7 +223,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
             const Text('Impostazioni Profilo', style: TextStyle(fontSize: 16)),
         bottom: PreferredSize(
           preferredSize: const Size.fromHeight(1),
-          child: Container(color: Colors.white.withValues(alpha: 0.05), height: 1),
+          child:
+              Container(color: Colors.white.withValues(alpha: 0.05), height: 1),
         ),
       ),
       body: ListView(
@@ -266,155 +314,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
                             color: AppTheme.textMediumEmphasis,
                             fontWeight: FontWeight.bold,
                             letterSpacing: 1)),
-                  ],
-                ),
-              ],
-            ),
-          ),
-
-          // Vitals Grid
-          if (p.role != 'coach')
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const Text('Dati Fisiologici',
-                    style:
-                        TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
-                const SizedBox(height: 12),
-                Row(
-                  children: [
-
-                    // Height (Editable)
-                    Expanded(
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(
-                            horizontal: 16, vertical: 12),
-                        decoration: BoxDecoration(
-                          color: AppTheme.card,
-                          borderRadius: BorderRadius.circular(12),
-                          border:
-                              Border.all(color: Colors.white.withValues(alpha: 0.05)),
-                        ),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            const Row(
-                              children: [
-                                Icon(Icons.straighten,
-                                    size: 14,
-                                    color: AppTheme.textMediumEmphasis),
-                                SizedBox(width: 4),
-                                Text('ALTEZZA',
-                                    style: TextStyle(
-                                        fontSize: 10,
-                                        fontWeight: FontWeight.bold,
-                                        color: AppTheme.textMediumEmphasis)),
-                              ],
-                            ),
-                            Row(
-                              crossAxisAlignment: CrossAxisAlignment.center,
-                              children: [
-                                Expanded(
-                                  child: TextFormField(
-                                    initialValue: p.height.toString(),
-                                    keyboardType: TextInputType.number,
-                                    style: const TextStyle(
-                                        fontSize: 20,
-                                        fontWeight: FontWeight.bold),
-                                    decoration: const InputDecoration(
-                                      isDense: true,
-                                      contentPadding: EdgeInsets.zero,
-                                      border: InputBorder.none,
-                                      focusedBorder: InputBorder.none,
-                                      enabledBorder: InputBorder.none,
-                                      errorBorder: InputBorder.none,
-                                      disabledBorder: InputBorder.none,
-                                      fillColor: Colors.transparent,
-                                      filled: false,
-                                    ),
-                                    onChanged: (val) {
-                                      setState(() => p.height = double.tryParse(val) ?? p.height);
-                                      _triggerAutoSave();
-                                    },
-                                  ),
-                                ),
-                                Text(p.unitSystem == 'metric' ? 'cm' : 'ft',
-                                    style: const TextStyle(
-                                        fontSize: 12,
-                                        color: AppTheme.textMediumEmphasis)),
-                              ],
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
-                    const SizedBox(width: 12),
-                    // Max HR (Editable)
-                    Expanded(
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(
-                            horizontal: 16, vertical: 12),
-                        decoration: BoxDecoration(
-                          color: AppTheme.card,
-                          borderRadius: BorderRadius.circular(12),
-                          border:
-                              Border.all(color: Colors.white.withValues(alpha: 0.05)),
-                        ),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            const Row(
-                              children: [
-                                Icon(Icons.favorite,
-                                    size: 14,
-                                    color: AppTheme.textMediumEmphasis),
-                                SizedBox(width: 4),
-                                Text('MAX HR',
-                                    style: TextStyle(
-                                        fontSize: 10,
-                                        fontWeight: FontWeight.bold,
-                                        color: AppTheme.textMediumEmphasis)),
-                              ],
-                            ),
-                            Row(
-                              crossAxisAlignment: CrossAxisAlignment.center,
-                              children: [
-                                Expanded(
-                                  child: TextFormField(
-                                    initialValue: p.maxHr.toString(),
-                                    keyboardType: TextInputType.number,
-                                    style: const TextStyle(
-                                        fontSize: 20,
-                                        fontWeight: FontWeight.bold),
-                                    decoration: const InputDecoration(
-                                      isDense: true,
-                                      contentPadding: EdgeInsets.zero,
-                                      border: InputBorder.none,
-                                      focusedBorder: InputBorder.none,
-                                      enabledBorder: InputBorder.none,
-                                      errorBorder: InputBorder.none,
-                                      disabledBorder: InputBorder.none,
-                                      fillColor: Colors.transparent,
-                                      filled: false,
-                                    ),
-                                    onChanged: (val) {
-                                      setState(() => p.maxHr = int.tryParse(val) ?? p.maxHr);
-                                      _triggerAutoSave();
-                                    },
-                                  ),
-                                ),
-                                const Text('bpm',
-                                    style: TextStyle(
-                                        fontSize: 12,
-                                        color: AppTheme.textMediumEmphasis)),
-                              ],
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
                   ],
                 ),
               ],
@@ -576,17 +475,16 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   decoration: BoxDecoration(
                     color: AppTheme.card,
                     borderRadius: BorderRadius.circular(16),
-                    border: Border.all(color: Colors.white.withValues(alpha: 0.05)),
+                    border:
+                        Border.all(color: Colors.white.withValues(alpha: 0.05)),
                   ),
                   clipBehavior: Clip.antiAlias,
                   child: Column(
                     children: [
                       // Notifications
                       ListTile(
-                        onTap: () {
-                          setState(() => p.notificationsEnabled = !p.notificationsEnabled);
-                          _triggerAutoSave();
-                        },
+                        onTap: () => _setNotificationsEnabled(
+                            p, !p.notificationsEnabled),
                         leading: Container(
                           padding: const EdgeInsets.all(8),
                           decoration: BoxDecoration(
@@ -598,16 +496,20 @@ class _ProfileScreenState extends State<ProfileScreen> {
                         title: const Text('Notifiche',
                             style: TextStyle(
                                 fontWeight: FontWeight.w500, fontSize: 14)),
+                        subtitle: const Text(
+                          'Reminder allenamenti alle 21:00',
+                          style: TextStyle(
+                              color: AppTheme.textMediumEmphasis, fontSize: 12),
+                        ),
                         trailing: Switch(
                           value: p.notificationsEnabled,
-                          onChanged: (val) {
-                            setState(() => p.notificationsEnabled = val);
-                            _triggerAutoSave();
-                          },
+                          onChanged: (val) => _setNotificationsEnabled(p, val),
                           activeThumbColor: AppTheme.secondary,
                         ),
                       ),
-                      Divider(color: Colors.white.withValues(alpha: 0.05), height: 1),
+                      Divider(
+                          color: Colors.white.withValues(alpha: 0.05),
+                          height: 1),
 
                       // Units Selector
                       ListTile(
@@ -650,25 +552,22 @@ class _ProfileScreenState extends State<ProfileScreen> {
                           child: Column(
                             children: [
                               _buildRadioItem(
-                                  'metric',
-                                  'Metric (kg, cm)',
-                                  p.unitSystem,
+                                  'metric', 'Metric (kg, cm)', p.unitSystem,
                                   (val) {
-                                    setState(() => p.unitSystem = val!);
-                                    _triggerAutoSave();
-                                  }),
-                              _buildRadioItem(
-                                  'imperial',
-                                  'Imperial (lbs, ft)',
-                                  p.unitSystem,
-                                  (val) {
-                                    setState(() => p.unitSystem = val!);
-                                    _triggerAutoSave();
-                                  }),
+                                setState(() => p.unitSystem = val!);
+                                _triggerAutoSave();
+                              }),
+                              _buildRadioItem('imperial', 'Imperial (lbs, ft)',
+                                  p.unitSystem, (val) {
+                                setState(() => p.unitSystem = val!);
+                                _triggerAutoSave();
+                              }),
                             ],
                           ),
                         ),
-                      Divider(color: Colors.white.withValues(alpha: 0.05), height: 1),
+                      Divider(
+                          color: Colors.white.withValues(alpha: 0.05),
+                          height: 1),
 
                       // Language Selector
                       ListTile(
@@ -709,106 +608,122 @@ class _ProfileScreenState extends State<ProfileScreen> {
                             children: [
                               _buildRadioItem('en', 'English', p.language,
                                   (val) {
-                                    setState(() => p.language = val!);
-                                    _triggerAutoSave();
-                                  }),
+                                setState(() => p.language = val!);
+                                _triggerAutoSave();
+                              }),
                               _buildRadioItem('it', 'Italiano', p.language,
                                   (val) {
-                                    setState(() => p.language = val!);
-                                    _triggerAutoSave();
-                                  }),
+                                setState(() => p.language = val!);
+                                _triggerAutoSave();
+                              }),
                             ],
                           ),
                         ),
-                      Divider(color: Colors.white.withValues(alpha: 0.05), height: 1),
+                      Divider(
+                          color: Colors.white.withValues(alpha: 0.05),
+                          height: 1),
 
-                      // Heart Rate Zones
-                      ListTile(
-                        onTap: () {
-                          Navigator.push(
-                            context,
-                            MaterialPageRoute(
-                                builder: (_) => const HrZonesScreen()),
-                          );
-                        },
-                        leading: Container(
-                          padding: const EdgeInsets.all(8),
-                          decoration: BoxDecoration(
-                              color: AppTheme.secondary.withValues(alpha: 0.1),
-                              shape: BoxShape.circle),
-                          child: const Icon(Icons.favorite_outline,
-                              color: AppTheme.secondary, size: 16),
+                      if (!isCoach) ...[
+                        // Heart Rate Zones
+                        ListTile(
+                          onTap: () {
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                  builder: (_) => const HrZonesScreen()),
+                            );
+                          },
+                          leading: Container(
+                            padding: const EdgeInsets.all(8),
+                            decoration: BoxDecoration(
+                                color:
+                                    AppTheme.secondary.withValues(alpha: 0.1),
+                                shape: BoxShape.circle),
+                            child: const Icon(Icons.favorite_outline,
+                                color: AppTheme.secondary, size: 16),
+                          ),
+                          title: const Text('Zone Cardiache',
+                              style: TextStyle(
+                                  fontWeight: FontWeight.w500, fontSize: 14)),
+                          trailing: const Icon(Icons.keyboard_arrow_right,
+                              size: 16, color: AppTheme.textMediumEmphasis),
                         ),
-                        title: const Text('Zone Cardiache',
-                            style: TextStyle(
-                                fontWeight: FontWeight.w500, fontSize: 14)),
-                        trailing: const Icon(Icons.keyboard_arrow_right,
-                            size: 16, color: AppTheme.textMediumEmphasis),
-                      ),
-                      Divider(color: Colors.white.withValues(alpha: 0.05), height: 1),
+                        Divider(
+                            color: Colors.white.withValues(alpha: 0.05),
+                            height: 1),
 
-                      // Health Permissions (Apple Health / Google Health Connect)
-                      ListTile(
-                        onTap: () async {
-                          // Ask for permissions which will also initialize the service
-                          await HealthService().requestPermissions();
-                          // Open app settings since OS-level permissions usually need manual toggling after first time
-                          openAppSettings();
-                        },
-                        leading: Container(
-                          padding: const EdgeInsets.all(8),
-                          decoration: BoxDecoration(
-                              color: AppTheme.secondary.withValues(alpha: 0.1),
-                              shape: BoxShape.circle),
-                          child: const Icon(Icons.health_and_safety_outlined,
-                              color: AppTheme.secondary, size: 16),
+                        // Health Permissions (Apple Health / Google Health Connect)
+                        ListTile(
+                          onTap: () async {
+                            // Ask for permissions which will also initialize the service
+                            await HealthService().requestPermissions();
+                            // Open app settings since OS-level permissions usually need manual toggling after first time
+                            openAppSettings();
+                          },
+                          leading: Container(
+                            padding: const EdgeInsets.all(8),
+                            decoration: BoxDecoration(
+                                color:
+                                    AppTheme.secondary.withValues(alpha: 0.1),
+                                shape: BoxShape.circle),
+                            child: const Icon(Icons.health_and_safety_outlined,
+                                color: AppTheme.secondary, size: 16),
+                          ),
+                          title: const Text('Consensi Salute',
+                              style: TextStyle(
+                                  fontWeight: FontWeight.w500, fontSize: 14)),
+                          subtitle: Text(
+                              Platform.isIOS
+                                  ? 'Apple Health'
+                                  : 'Health Connect',
+                              style: const TextStyle(
+                                  fontSize: 10,
+                                  color: AppTheme.textMediumEmphasis)),
+                          trailing: const Icon(Icons.open_in_new,
+                              size: 16, color: AppTheme.textMediumEmphasis),
                         ),
-                        title: const Text('Consensi Salute',
-                            style: TextStyle(
-                                fontWeight: FontWeight.w500, fontSize: 14)),
-                        subtitle: Text(Platform.isIOS ? 'Apple Health' : 'Health Connect', 
-                            style: const TextStyle(fontSize: 10, color: AppTheme.textMediumEmphasis)),
-                        trailing: const Icon(Icons.open_in_new,
-                            size: 16, color: AppTheme.textMediumEmphasis),
-                      ),
-                      Divider(color: Colors.white.withValues(alpha: 0.05), height: 1),
+                        Divider(
+                            color: Colors.white.withValues(alpha: 0.05),
+                            height: 1),
 
-                      // Connected Devices
-                      ListTile(
-                        onTap: _showDeviceModal,
-                        leading: Container(
-                          padding: const EdgeInsets.all(8),
-                          decoration: BoxDecoration(
-                              color: AppTheme.secondary.withValues(alpha: 0.1),
-                              shape: BoxShape.circle),
-                          child: const Icon(Icons.watch,
-                              color: AppTheme.secondary, size: 16),
+                        // Connected Devices
+                        ListTile(
+                          onTap: _showDeviceModal,
+                          leading: Container(
+                            padding: const EdgeInsets.all(8),
+                            decoration: BoxDecoration(
+                                color:
+                                    AppTheme.secondary.withValues(alpha: 0.1),
+                                shape: BoxShape.circle),
+                            child: const Icon(Icons.watch,
+                                color: AppTheme.secondary, size: 16),
+                          ),
+                          title: const Text('Dispositivi Connessi',
+                              style: TextStyle(
+                                  fontWeight: FontWeight.w500, fontSize: 14)),
+                          trailing: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              if (p.connectedDevices.isNotEmpty)
+                                Container(
+                                  width: 8,
+                                  height: 8,
+                                  decoration: const BoxDecoration(
+                                      color: AppTheme.success,
+                                      shape: BoxShape.circle),
+                                ),
+                              const SizedBox(width: 8),
+                              Text('${p.connectedDevices.length} attivi',
+                                  style: const TextStyle(
+                                      fontSize: 12,
+                                      color: AppTheme.textMediumEmphasis)),
+                              const SizedBox(width: 8),
+                              const Icon(Icons.keyboard_arrow_right,
+                                  size: 16, color: AppTheme.textMediumEmphasis),
+                            ],
+                          ),
                         ),
-                        title: const Text('Dispositivi Connessi',
-                            style: TextStyle(
-                                fontWeight: FontWeight.w500, fontSize: 14)),
-                        trailing: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            if (p.connectedDevices.isNotEmpty)
-                              Container(
-                                width: 8,
-                                height: 8,
-                                decoration: const BoxDecoration(
-                                    color: AppTheme.success,
-                                    shape: BoxShape.circle),
-                              ),
-                            const SizedBox(width: 8),
-                            Text('${p.connectedDevices.length} attivi',
-                                style: const TextStyle(
-                                    fontSize: 12,
-                                    color: AppTheme.textMediumEmphasis)),
-                            const SizedBox(width: 8),
-                            const Icon(Icons.keyboard_arrow_right,
-                                size: 16, color: AppTheme.textMediumEmphasis),
-                          ],
-                        ),
-                      ),
+                      ],
                     ],
                   ),
                 ),
@@ -849,8 +764,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
         decoration: BoxDecoration(
-          color:
-              isSelected ? Colors.white.withValues(alpha: 0.05) : Colors.transparent,
+          color: isSelected
+              ? Colors.white.withValues(alpha: 0.05)
+              : Colors.transparent,
           borderRadius: BorderRadius.circular(8),
         ),
         child: Row(
@@ -889,9 +805,9 @@ class _DeviceManagementModal extends StatelessWidget {
       BuildContext context, String provider, String name, String type) async {
     if (provider == 'health_connect') {
       bool success = await HealthService().requestPermissions();
-      
+
       if (!context.mounted) return;
-      
+
       if (success) {
         final state = Provider.of<AppState>(context, listen: false);
         final p = state.userProfile!;
@@ -904,34 +820,45 @@ class _DeviceManagementModal extends StatelessWidget {
           lastSync: 'Adesso',
         ));
         state.updateProfile(p);
-        
+
         ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
             content: Text('Connesso con successo!'),
             backgroundColor: AppTheme.success));
-            
+
         // Prompt for immediate sync
         final confirm = await showDialog<bool>(
           context: context,
           builder: (ctx) => AlertDialog(
             backgroundColor: AppTheme.surface,
-            title: const Text('Sincronizza Dati', style: TextStyle(color: Colors.white)),
-            content: const Text('Vuoi importare ora gli allenamenti degli ultimi 7 giorni?', style: TextStyle(color: AppTheme.textMediumEmphasis)),
+            title: const Text('Sincronizza Dati',
+                style: TextStyle(color: Colors.white)),
+            content: const Text(
+                'Vuoi importare ora gli allenamenti degli ultimi 7 giorni?',
+                style: TextStyle(color: AppTheme.textMediumEmphasis)),
             actions: [
               TextButton(
                 onPressed: () => Navigator.of(ctx).pop(false),
-                child: const Text('Non ora', style: TextStyle(color: AppTheme.textMediumEmphasis)),
+                child: const Text('Non ora',
+                    style: TextStyle(color: AppTheme.textMediumEmphasis)),
               ),
               TextButton(
                 onPressed: () => Navigator.of(ctx).pop(true),
-                child: const Text('Sincronizza', style: TextStyle(color: AppTheme.primary, fontWeight: FontWeight.bold)),
+                child: const Text('Sincronizza',
+                    style: TextStyle(
+                        color: AppTheme.primary, fontWeight: FontWeight.bold)),
               ),
             ],
           ),
         );
         if (confirm == true) {
-          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Sincronizzazione in corso...')));
+          if (!context.mounted) return;
+          ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(content: Text('Sincronizzazione in corso...')));
           await state.syncHealthWorkouts();
-          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Sincronizzazione completata!'), backgroundColor: AppTheme.success));
+          if (!context.mounted) return;
+          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+              content: Text('Sincronizzazione completata!'),
+              backgroundColor: AppTheme.success));
         }
       } else {
         ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
@@ -956,6 +883,52 @@ class _DeviceManagementModal extends StatelessWidget {
     state.updateProfile(p);
   }
 
+  Future<void> _clearHealthCacheAndResync(BuildContext context) async {
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: AppTheme.surface,
+        title: const Text('Attenzione', style: TextStyle(color: Colors.white)),
+        content: const Text(
+          'Questa azione svuota la cache locale degli score salute e forza una nuova sincronizzazione da Apple Health / Health Connect. Non elimina allenamenti o metriche salvate, ma gli score potrebbero cambiare se i dati importati sono diversi. Vuoi continuare?',
+          style: TextStyle(color: AppTheme.textMediumEmphasis),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(false),
+            child: const Text('Annulla',
+                style: TextStyle(color: AppTheme.textMediumEmphasis)),
+          ),
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(true),
+            child: const Text('Svuota e risincronizza',
+                style: TextStyle(
+                    color: AppTheme.error, fontWeight: FontWeight.bold)),
+          ),
+        ],
+      ),
+    );
+    if (confirm != true || !context.mounted) return;
+
+    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+        content: Text('Pulizia cache e sincronizzazione in corso...')));
+
+    try {
+      final removedCount = await Provider.of<AppState>(context, listen: false)
+          .clearHealthScoreCacheAndResync(DateTime.now());
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: Text(
+              'Cache salute svuotata ($removedCount elementi). Sincronizzazione completata.'),
+          backgroundColor: AppTheme.success));
+    } catch (e) {
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: Text('Errore durante la risincronizzazione: $e'),
+          backgroundColor: AppTheme.error));
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final p = Provider.of<AppState>(context).userProfile!;
@@ -967,7 +940,8 @@ class _DeviceManagementModal extends StatelessWidget {
         'id': 'health_connect',
         'name': Platform.isIOS ? 'Apple Health' : 'Google Health Connect',
         'type': 'api',
-        'color': Platform.isIOS ? const Color(0xFFFFFFFF) : const Color(0xFF4285F4),
+        'color':
+            Platform.isIOS ? const Color(0xFFFFFFFF) : const Color(0xFF4285F4),
         'icon': Icons.favorite
       },
       {
@@ -1004,7 +978,8 @@ class _DeviceManagementModal extends StatelessWidget {
             padding: const EdgeInsets.all(16),
             decoration: BoxDecoration(
                 border: Border(
-                    bottom: BorderSide(color: Colors.white.withValues(alpha: 0.05)))),
+                    bottom: BorderSide(
+                        color: Colors.white.withValues(alpha: 0.05)))),
             child: Column(
               children: [
                 Container(
@@ -1059,8 +1034,8 @@ class _DeviceManagementModal extends StatelessWidget {
                             width: 40,
                             height: 40,
                             decoration: BoxDecoration(
-                                color:
-                                    (meta['color'] as Color).withValues(alpha: 0.1),
+                                color: (meta['color'] as Color)
+                                    .withValues(alpha: 0.1),
                                 shape: BoxShape.circle),
                             child: Icon(meta['icon'] as IconData,
                                 color: meta['color'] as Color, size: 20),
@@ -1101,36 +1076,69 @@ class _DeviceManagementModal extends StatelessWidget {
                               ],
                             ),
                           ),
-                          if (d.provider == 'health_connect')
+                          if (d.provider == 'health_connect') ...[
                             IconButton(
-                              icon: const Icon(Icons.sync, color: AppTheme.primary),
+                              icon: const Icon(Icons.sync,
+                                  color: AppTheme.primary),
                               tooltip: 'Sincronizza Allenamenti',
                               onPressed: () async {
                                 final confirm = await showDialog<bool>(
                                   context: context,
                                   builder: (ctx) => AlertDialog(
                                     backgroundColor: AppTheme.surface,
-                                    title: const Text('Sincronizza Dati', style: TextStyle(color: Colors.white)),
-                                    content: const Text('Vuoi importare gli allenamenti degli ultimi 7 giorni?', style: TextStyle(color: AppTheme.textMediumEmphasis)),
+                                    title: const Text('Sincronizza Dati',
+                                        style: TextStyle(color: Colors.white)),
+                                    content: const Text(
+                                        'Vuoi importare gli allenamenti degli ultimi 7 giorni?',
+                                        style: TextStyle(
+                                            color:
+                                                AppTheme.textMediumEmphasis)),
                                     actions: [
                                       TextButton(
-                                        onPressed: () => Navigator.of(ctx).pop(false),
-                                        child: const Text('Annulla', style: TextStyle(color: AppTheme.textMediumEmphasis)),
+                                        onPressed: () =>
+                                            Navigator.of(ctx).pop(false),
+                                        child: const Text('Annulla',
+                                            style: TextStyle(
+                                                color: AppTheme
+                                                    .textMediumEmphasis)),
                                       ),
                                       TextButton(
-                                        onPressed: () => Navigator.of(ctx).pop(true),
-                                        child: const Text('Sincronizza', style: TextStyle(color: AppTheme.primary, fontWeight: FontWeight.bold)),
+                                        onPressed: () =>
+                                            Navigator.of(ctx).pop(true),
+                                        child: const Text('Sincronizza',
+                                            style: TextStyle(
+                                                color: AppTheme.primary,
+                                                fontWeight: FontWeight.bold)),
                                       ),
                                     ],
                                   ),
                                 );
                                 if (confirm == true) {
-                                  ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Sincronizzazione in corso...')));
-                                  await Provider.of<AppState>(context, listen: false).syncHealthWorkouts();
-                                  ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Sincronizzazione completata!'), backgroundColor: AppTheme.success));
+                                  if (!context.mounted) return;
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                      const SnackBar(
+                                          content: Text(
+                                              'Sincronizzazione in corso...')));
+                                  await Provider.of<AppState>(context,
+                                          listen: false)
+                                      .syncHealthWorkouts();
+                                  if (!context.mounted) return;
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                      const SnackBar(
+                                          content: Text(
+                                              'Sincronizzazione completata!'),
+                                          backgroundColor: AppTheme.success));
                                 }
                               },
                             ),
+                            IconButton(
+                              icon: const Icon(Icons.delete_sweep_outlined,
+                                  color: AppTheme.error),
+                              tooltip: 'Svuota cache salute',
+                              onPressed: () =>
+                                  _clearHealthCacheAndResync(context),
+                            ),
+                          ],
                           IconButton(
                             icon: const Icon(Icons.power_off,
                                 color: AppTheme.textMediumEmphasis),
@@ -1159,8 +1167,8 @@ class _DeviceManagementModal extends StatelessWidget {
                       margin: const EdgeInsets.only(bottom: 8),
                       padding: const EdgeInsets.all(16),
                       decoration: BoxDecoration(
-                        border:
-                            Border.all(color: Colors.white.withValues(alpha: 0.05)),
+                        border: Border.all(
+                            color: Colors.white.withValues(alpha: 0.05)),
                         borderRadius: BorderRadius.circular(16),
                         color: AppTheme.card,
                       ),
@@ -1170,7 +1178,8 @@ class _DeviceManagementModal extends StatelessWidget {
                             width: 40,
                             height: 40,
                             decoration: BoxDecoration(
-                                color: (i['color'] as Color).withValues(alpha: 0.1),
+                                color: (i['color'] as Color)
+                                    .withValues(alpha: 0.1),
                                 shape: BoxShape.circle),
                             child: Icon(i['icon'] as IconData,
                                 color: i['color'] as Color, size: 20),

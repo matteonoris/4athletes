@@ -33,19 +33,53 @@ class AnalyticsDetailsScreen extends StatefulWidget {
 class _AnalyticsDetailsScreenState extends State<AnalyticsDetailsScreen> {
   String _selectedTimeframe = '1M'; // '1M' | '3M' | '6M' | '1Y' | 'ALL'
 
-  int _getDecimalPlaces() {
-    final twoDecimals = [
-      'sprint_20m',
-      'sprint_60m',
-      'balance_bipedal',
-      'balance_single_l',
-      'balance_single_r',
-      'single_leg',
-      'leger_vam',
-      'leger_vo2max'
-    ];
-    if (twoDecimals.contains(widget.exerciseId)) return 2;
+  bool get _isDropJumpDetail =>
+      widget.type == 'jump' && widget.exerciseId == 'drop_jump';
+
+  int _decimalPlacesFor(String exerciseId, String type) {
+    final integerMetrics = {
+      'leger_distance',
+      'pullups_max',
+      'recovery_score',
+      'sleep_score',
+    };
+    if (integerMetrics.contains(exerciseId)) return 0;
+    if (type == 'pr' || type == 'jump' || type == 'body') return 2;
     return 0;
+  }
+
+  int _getDecimalPlaces() {
+    return _decimalPlacesFor(widget.exerciseId, widget.type);
+  }
+
+  String _formatValue(double value, {String? exerciseId, String? type}) {
+    final dec = _decimalPlacesFor(
+      exerciseId ?? widget.exerciseId,
+      type ?? widget.type,
+    );
+    return value.toStringAsFixed(dec);
+  }
+
+  List<JumpLog> _dropJumpRsiLogs(AppState appState) {
+    final source = widget.preloadedLogs ?? appState.jumpLogs;
+    return source
+        .whereType<JumpLog>()
+        .where((l) => l.type == 'drop_jump_rsi')
+        .toList()
+      ..sort(
+          (a, b) => DateTime.parse(a.date).compareTo(DateTime.parse(b.date)));
+  }
+
+  JumpLog? _pairedDropJumpRsiLog(AppState appState, JumpLog heightLog) {
+    final matches =
+        _dropJumpRsiLogs(appState).where((l) => l.date == heightLog.date);
+    if (matches.isEmpty) return null;
+    return matches.first;
+  }
+
+  double? _pairedDropJumpRsiValue(AppState appState, dynamic log) {
+    if (!_isDropJumpDetail || log is! JumpLog) return null;
+    return _pairedDropJumpRsiLog(appState, log)?.value;
   }
 
   List<dynamic> _filterLogsByTimeframe(List<dynamic> allLogs) {
@@ -75,7 +109,11 @@ class _AnalyticsDetailsScreenState extends State<AnalyticsDetailsScreen> {
 
   void _showAddOrEditLogDialog({dynamic existingLog}) {
     final isEditing = existingLog != null;
-    final int dec = _getDecimalPlaces() > 0 ? _getDecimalPlaces() : 1;
+    final appState = Provider.of<AppState>(context, listen: false);
+    final pairedRsiLog = _isDropJumpDetail && existingLog is JumpLog
+        ? _pairedDropJumpRsiLog(appState, existingLog)
+        : null;
+    final int dec = _getDecimalPlaces();
     final TextEditingController valCtrl = TextEditingController(
         text: isEditing
             ? (widget.type == 'pr'
@@ -84,6 +122,9 @@ class _AnalyticsDetailsScreenState extends State<AnalyticsDetailsScreen> {
                     ? (existingLog as BodyMetricLog).value.toStringAsFixed(dec)
                     : (existingLog as JumpLog).value.toStringAsFixed(dec))
             : '');
+    final TextEditingController rsiCtrl = TextEditingController(
+        text:
+            pairedRsiLog != null ? pairedRsiLog.value.toStringAsFixed(2) : '');
     DateTime selectedDate = isEditing
         ? DateTime.parse((existingLog as dynamic).date)
         : DateTime.now();
@@ -115,6 +156,22 @@ class _AnalyticsDetailsScreenState extends State<AnalyticsDetailsScreen> {
                   border: InputBorder.none,
                 ),
               ),
+              if (_isDropJumpDetail) ...[
+                const SizedBox(height: 12),
+                TextField(
+                  controller: rsiCtrl,
+                  keyboardType:
+                      const TextInputType.numberWithOptions(decimal: true),
+                  style: const TextStyle(
+                      fontSize: 24, fontWeight: FontWeight.bold),
+                  textAlign: TextAlign.center,
+                  decoration: const InputDecoration(
+                    hintText: 'RSI',
+                    suffixText: ' RSI',
+                    border: InputBorder.none,
+                  ),
+                ),
+              ],
               const SizedBox(height: 20),
               InkWell(
                 onTap: () async {
@@ -163,21 +220,32 @@ class _AnalyticsDetailsScreenState extends State<AnalyticsDetailsScreen> {
                 child: const Text('Annulla')),
             ElevatedButton(
               onPressed: () async {
+                final navigator = Navigator.of(context);
                 final val = double.tryParse(valCtrl.text.replaceAll(',', '.'));
                 if (val != null) {
-                  final appState =
-                      Provider.of<AppState>(context, listen: false);
+                  final rsiVal =
+                      double.tryParse(rsiCtrl.text.replaceAll(',', '.'));
 
                   if (isEditing) {
                     if (widget.athleteId != null) {
                       if (widget.type == 'pr') {
-                        await appState.deletePRLogForAthlete(existingLog.id, widget.exerciseId, widget.athleteId!);
+                        await appState.deletePRLogForAthlete(existingLog.id,
+                            widget.exerciseId, widget.athleteId!);
                       } else if (widget.type == 'body') {
                         await appState.deleteBodyLogForAthlete(existingLog.id);
                       } else {
                         await appState.deleteJumpLogForAthlete(existingLog.id);
+                        if (pairedRsiLog != null) {
+                          await appState
+                              .deleteJumpLogForAthlete(pairedRsiLog.id);
+                        }
                       }
-                      widget.preloadedLogs?.removeWhere((l) => l.id == existingLog.id);
+                      widget.preloadedLogs
+                          ?.removeWhere((l) => l.id == existingLog.id);
+                      if (pairedRsiLog != null) {
+                        widget.preloadedLogs
+                            ?.removeWhere((l) => l.id == pairedRsiLog.id);
+                      }
                     } else {
                       if (widget.type == 'pr') {
                         appState.deletePRLog(existingLog.id);
@@ -185,6 +253,9 @@ class _AnalyticsDetailsScreenState extends State<AnalyticsDetailsScreen> {
                         appState.deleteBodyLog(existingLog.id);
                       } else {
                         appState.deleteJumpLog(existingLog.id);
+                        if (pairedRsiLog != null) {
+                          appState.deleteJumpLog(pairedRsiLog.id);
+                        }
                       }
                     }
                   }
@@ -206,7 +277,8 @@ class _AnalyticsDetailsScreenState extends State<AnalyticsDetailsScreen> {
                         date: selectedDate.toIso8601String().split('T')[0],
                         value: val,
                       );
-                      await appState.addBodyLogForAthlete(log, widget.athleteId!);
+                      await appState.addBodyLogForAthlete(
+                          log, widget.athleteId!);
                       widget.preloadedLogs?.add(log);
                     } else {
                       final log = JumpLog(
@@ -215,8 +287,20 @@ class _AnalyticsDetailsScreenState extends State<AnalyticsDetailsScreen> {
                         date: selectedDate.toIso8601String().split('T')[0],
                         value: val,
                       );
-                      await appState.addJumpLogForAthlete(log, widget.athleteId!);
+                      await appState.addJumpLogForAthlete(
+                          log, widget.athleteId!);
                       widget.preloadedLogs?.add(log);
+                      if (_isDropJumpDetail && rsiVal != null && rsiVal > 0) {
+                        final rsiLog = JumpLog(
+                          id: pairedRsiLog?.id ?? '',
+                          type: 'drop_jump_rsi',
+                          date: selectedDate.toIso8601String().split('T')[0],
+                          value: rsiVal,
+                        );
+                        await appState.addJumpLogForAthlete(
+                            rsiLog, widget.athleteId!);
+                        widget.preloadedLogs?.add(rsiLog);
+                      }
                     }
                     if (mounted) setState(() {});
                   } else {
@@ -247,9 +331,18 @@ class _AnalyticsDetailsScreenState extends State<AnalyticsDetailsScreen> {
                         date: selectedDate.toIso8601String().split('T')[0],
                         value: val,
                       ));
+                      if (_isDropJumpDetail && rsiVal != null && rsiVal > 0) {
+                        appState.addJumpLog(JumpLog(
+                          id: pairedRsiLog?.id ??
+                              '${DateTime.now().millisecondsSinceEpoch}-rsi',
+                          type: 'drop_jump_rsi',
+                          date: selectedDate.toIso8601String().split('T')[0],
+                          value: rsiVal,
+                        ));
+                      }
                     }
                   }
-                  if (mounted) Navigator.pop(context);
+                  if (mounted) navigator.pop();
                 }
               },
               child: const Text('Salva'),
@@ -290,8 +383,9 @@ class _AnalyticsDetailsScreenState extends State<AnalyticsDetailsScreen> {
             .where((l) => l.type == widget.exerciseId)
             .toList();
       } else {
-        allLogs =
-            appState.jumpLogs.where((l) => l.type == widget.exerciseId).toList();
+        allLogs = appState.jumpLogs
+            .where((l) => l.type == widget.exerciseId)
+            .toList();
       }
     }
 
@@ -409,15 +503,24 @@ class _AnalyticsDetailsScreenState extends State<AnalyticsDetailsScreen> {
 
   String _getUnit() {
     if (widget.type == 'pr') return 'kg';
-    if (widget.type == 'jump') return 'cm'; 
+    if (widget.exerciseId == 'drop_jump_rsi') return '';
+    if (widget.type == 'jump') return 'cm';
     if (widget.type == 'body') {
-       if (widget.exerciseId == 'sleep_score' || widget.exerciseId == 'recovery_score' || widget.exerciseId.startsWith('balance_')) return '';
-       if (widget.exerciseId == 'sprint_20m' || widget.exerciseId == 'sprint_60m' || widget.exerciseId.startsWith('plank_')) return 's';
-       if (widget.exerciseId == 'pullups_max') return 'reps';
-       if (widget.exerciseId == 'leger_vam') return 'km/h';
-       if (widget.exerciseId == 'leger_vo2max') return 'ml/kg/min';
-       if (widget.exerciseId == 'leger_distance') return 'm';
-       return '';
+      if (widget.exerciseId == 'sleep_score' ||
+          widget.exerciseId == 'recovery_score' ||
+          widget.exerciseId.startsWith('balance_')) {
+        return '';
+      }
+      if (widget.exerciseId == 'sprint_20m' ||
+          widget.exerciseId == 'sprint_60m' ||
+          widget.exerciseId.startsWith('plank_')) {
+        return 's';
+      }
+      if (widget.exerciseId == 'pullups_max') return 'reps';
+      if (widget.exerciseId == 'leger_vam') return 'km/h';
+      if (widget.exerciseId == 'leger_vo2max') return 'ml/kg/min';
+      if (widget.exerciseId == 'leger_distance') return 'm';
+      return '';
     }
     return '';
   }
@@ -427,8 +530,10 @@ class _AnalyticsDetailsScreenState extends State<AnalyticsDetailsScreen> {
     dynamic targetLog;
     double targetVal = -1.0;
 
-    bool showLatest = widget.exerciseId == 'sleep_score' || widget.exerciseId == 'recovery_score';
-    bool wantMin = widget.exerciseId == 'sprint_20m' || widget.exerciseId == 'sprint_60m';
+    bool showLatest = widget.exerciseId == 'sleep_score' ||
+        widget.exerciseId == 'recovery_score';
+    bool wantMin =
+        widget.exerciseId == 'sprint_20m' || widget.exerciseId == 'sprint_60m';
 
     if (showLatest) {
       targetLog = logs.last;
@@ -462,7 +567,10 @@ class _AnalyticsDetailsScreenState extends State<AnalyticsDetailsScreen> {
     if (targetLog == null) return const SizedBox();
     String dateStr = (targetLog as dynamic).date;
     String unit = _getUnit();
-    String prefixTitle = showLatest ? 'LATEST' : (wantMin ? 'PERIOD MIN' : 'PERIOD MAX');
+    String prefixTitle =
+        showLatest ? 'LATEST' : (wantMin ? 'PERIOD MIN' : 'PERIOD MAX');
+    final appState = Provider.of<AppState>(context, listen: false);
+    final rsiVal = _pairedDropJumpRsiValue(appState, targetLog);
 
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 20),
@@ -474,7 +582,7 @@ class _AnalyticsDetailsScreenState extends State<AnalyticsDetailsScreen> {
           children: [
             Text(prefixTitle,
                 style: TextStyle(
-                    color: AppTheme.textMediumEmphasis.withOpacity(0.7),
+                    color: AppTheme.textMediumEmphasis.withValues(alpha: 0.7),
                     fontSize: 11,
                     fontWeight: FontWeight.bold,
                     letterSpacing: 1.5)),
@@ -490,11 +598,12 @@ class _AnalyticsDetailsScreenState extends State<AnalyticsDetailsScreen> {
                         color: Colors.white,
                         height: 1)),
                 if (unit.isNotEmpty) const SizedBox(width: 8),
-                if (unit.isNotEmpty) Text(unit,
-                    style: const TextStyle(
-                        fontSize: 20,
-                        color: AppTheme.textMediumEmphasis,
-                        fontWeight: FontWeight.w600)),
+                if (unit.isNotEmpty)
+                  Text(unit,
+                      style: const TextStyle(
+                          fontSize: 20,
+                          color: AppTheme.textMediumEmphasis,
+                          fontWeight: FontWeight.w600)),
               ],
             ),
             const SizedBox(height: 12),
@@ -508,6 +617,14 @@ class _AnalyticsDetailsScreenState extends State<AnalyticsDetailsScreen> {
                         color: AppTheme.textMediumEmphasis, fontSize: 13)),
               ],
             ),
+            if (rsiVal != null) ...[
+              const SizedBox(height: 8),
+              Text('RSI: ${rsiVal.toStringAsFixed(2)}',
+                  style: const TextStyle(
+                      color: AppTheme.secondary,
+                      fontSize: 13,
+                      fontWeight: FontWeight.bold)),
+            ],
           ],
         ),
       ),
@@ -515,19 +632,70 @@ class _AnalyticsDetailsScreenState extends State<AnalyticsDetailsScreen> {
   }
 
   Widget _buildChartSection(List<dynamic> logs) {
-    if (widget.exerciseId == 'leger_vo2max' || widget.exerciseId == 'leger_distance') {
+    if (widget.exerciseId == 'leger_vo2max' ||
+        widget.exerciseId == 'leger_distance') {
       return const SizedBox.shrink();
     }
-    
+
+    final primaryChart = _buildLineChartCard(
+      logs: logs,
+      valueOf: (log) => widget.type == 'pr'
+          ? (log as PRLog).weight
+          : widget.type == 'body'
+              ? (log as BodyMetricLog).value
+              : (log as JumpLog).value,
+      decimalPlaces: _getDecimalPlaces(),
+      unit: _getUnit(),
+      color: AppTheme.secondary,
+      emptyMessage: 'Nessun dato per il grafico',
+    );
+
+    if (!_isDropJumpDetail) return primaryChart;
+
+    final appState = Provider.of<AppState>(context, listen: false);
+    final rsiLogs = _filterLogsByTimeframe(_dropJumpRsiLogs(appState));
+    if (rsiLogs.isEmpty) return primaryChart;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        primaryChart,
+        const SizedBox(height: 24),
+        const Padding(
+          padding: EdgeInsets.symmetric(horizontal: 20),
+          child: Text('RSI Trend',
+              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+        ),
+        const SizedBox(height: 16),
+        _buildLineChartCard(
+          logs: rsiLogs,
+          valueOf: (log) => (log as JumpLog).value,
+          decimalPlaces: 2,
+          unit: '',
+          color: AppTheme.primary,
+          emptyMessage: 'Nessun dato RSI per il grafico',
+        ),
+      ],
+    );
+  }
+
+  Widget _buildLineChartCard({
+    required List<dynamic> logs,
+    required double Function(dynamic log) valueOf,
+    required int decimalPlaces,
+    required String unit,
+    required Color color,
+    required String emptyMessage,
+  }) {
     if (logs.isEmpty) {
-      return const Padding(
-        padding: EdgeInsets.symmetric(horizontal: 20),
+      return Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 20),
         child: CustomCard(
-          color: Color(0xFF22282D),
+          color: const Color(0xFF22282D),
           height: 250,
           child: Center(
-            child: Text('Nessun dato per il grafico',
-                style: TextStyle(
+            child: Text(emptyMessage,
+                style: const TextStyle(
                     color: AppTheme.textMediumEmphasis, fontSize: 13)),
           ),
         ),
@@ -535,21 +703,21 @@ class _AnalyticsDetailsScreenState extends State<AnalyticsDetailsScreen> {
     }
 
     List<FlSpot> spots = [];
-    double minY = 1000, maxY = 0;
+    double minY = double.infinity, maxY = -double.infinity;
 
     for (int i = 0; i < logs.length; i++) {
-      double val = widget.type == 'pr'
-          ? (logs[i] as PRLog).weight
-          : widget.type == 'body'
-              ? (logs[i] as BodyMetricLog).value
-              : (logs[i] as JumpLog).value;
+      double val = valueOf(logs[i]);
       spots.add(FlSpot(i.toDouble(), val));
       if (val < minY) minY = val;
       if (val > maxY) maxY = val;
     }
 
-    minY = (minY - 10).clamp(0, 500);
-    maxY = maxY + 10;
+    final range = maxY - minY;
+    final pad = range == 0
+        ? (maxY.abs() * 0.2).clamp(0.5, 10.0)
+        : (range * 0.2).clamp(0.2, 20.0);
+    minY = (minY - pad).clamp(0.0, double.infinity);
+    maxY = maxY + pad;
 
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 20),
@@ -560,6 +728,8 @@ class _AnalyticsDetailsScreenState extends State<AnalyticsDetailsScreen> {
             const EdgeInsets.only(top: 32, bottom: 16, left: 16, right: 32),
         child: LineChart(
           LineChartData(
+            minY: minY,
+            maxY: maxY,
             gridData: const FlGridData(show: false),
             titlesData: FlTitlesData(
               show: true,
@@ -598,10 +768,12 @@ class _AnalyticsDetailsScreenState extends State<AnalyticsDetailsScreen> {
               leftTitles: AxisTitles(
                 sideTitles: SideTitles(
                   showTitles: true,
-                  reservedSize: 35,
+                  reservedSize: 44,
                   getTitlesWidget: (val, meta) {
-                    final dec = _getDecimalPlaces();
-                    return Text(dec == 0 ? val.toInt().toString() : val.toStringAsFixed(dec),
+                    return Text(
+                        decimalPlaces == 0
+                            ? val.toInt().toString()
+                            : val.toStringAsFixed(decimalPlaces),
                         style: const TextStyle(
                             color: AppTheme.textMediumEmphasis, fontSize: 10));
                   },
@@ -609,11 +781,25 @@ class _AnalyticsDetailsScreenState extends State<AnalyticsDetailsScreen> {
               ),
             ),
             borderData: FlBorderData(show: false),
+            lineTouchData: LineTouchData(
+              touchTooltipData: LineTouchTooltipData(
+                getTooltipItems: (touchedSpots) {
+                  return touchedSpots.map((spot) {
+                    final formatted = spot.y.toStringAsFixed(decimalPlaces);
+                    return LineTooltipItem(
+                      unit.isEmpty ? formatted : '$formatted $unit',
+                      const TextStyle(
+                          color: Colors.white, fontWeight: FontWeight.bold),
+                    );
+                  }).toList();
+                },
+              ),
+            ),
             lineBarsData: [
               LineChartBarData(
                 spots: spots,
                 isCurved: false,
-                color: AppTheme.secondary, // Greenish line as requested
+                color: color, // Greenish line as requested
                 barWidth: 2, // Width to see trend line
                 isStrokeCapRound: true,
                 dotData: FlDotData(
@@ -621,7 +807,7 @@ class _AnalyticsDetailsScreenState extends State<AnalyticsDetailsScreen> {
                   getDotPainter: (spot, percent, barData, index) {
                     return FlDotCirclePainter(
                       radius: 4,
-                      color: AppTheme.secondary,
+                      color: color,
                       strokeWidth: 2,
                       strokeColor: const Color(0xFF22282D),
                     );
@@ -638,6 +824,7 @@ class _AnalyticsDetailsScreenState extends State<AnalyticsDetailsScreen> {
 
   Widget _buildHistoryRow(dynamic log) {
     final date = DateTime.parse(log.date);
+    final appState = Provider.of<AppState>(context, listen: false);
     double val = widget.type == 'pr'
         ? (log as PRLog).weight
         : widget.type == 'body'
@@ -654,13 +841,20 @@ class _AnalyticsDetailsScreenState extends State<AnalyticsDetailsScreen> {
     List<String> giorni = ['lun', 'mar', 'mer', 'gio', 'ven', 'sab', 'dom'];
     String giornoStr = giorni[date.weekday - 1];
     String meseStr = _getMonStrFull(date.month);
-    
-    String desc = widget.type == 'pr' ? '1 Rep Max' : (widget.type == 'jump' ? 'Max Height' : 'Registrazione');
+
+    String desc = widget.type == 'pr'
+        ? '1 Rep Max'
+        : (widget.type == 'jump' ? 'Max Height' : 'Registrazione');
+    final pairedRsiLog = _isDropJumpDetail && log is JumpLog
+        ? _pairedDropJumpRsiLog(appState, log)
+        : null;
 
     return Padding(
       padding: const EdgeInsets.only(bottom: 12, left: 20, right: 20),
       child: GestureDetector(
-        onTap: widget.isReadOnly ? null : () => _showAddOrEditLogDialog(existingLog: log),
+        onTap: widget.isReadOnly
+            ? null
+            : () => _showAddOrEditLogDialog(existingLog: log),
         child: CustomCard(
           color: const Color(0xFF22282D),
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 20),
@@ -679,10 +873,18 @@ class _AnalyticsDetailsScreenState extends State<AnalyticsDetailsScreen> {
                     Text(desc,
                         style: const TextStyle(
                             color: AppTheme.textMediumEmphasis, fontSize: 12)),
+                    if (pairedRsiLog != null) ...[
+                      const SizedBox(height: 4),
+                      Text('RSI: ${pairedRsiLog.value.toStringAsFixed(2)}',
+                          style: const TextStyle(
+                              color: AppTheme.secondary,
+                              fontSize: 12,
+                              fontWeight: FontWeight.bold)),
+                    ],
                   ],
                 ),
               ),
-              Text(val.toStringAsFixed(_getDecimalPlaces()),
+              Text(_formatValue(val),
                   style: const TextStyle(
                       fontSize: 22,
                       fontWeight: FontWeight.w900,
@@ -701,13 +903,22 @@ class _AnalyticsDetailsScreenState extends State<AnalyticsDetailsScreen> {
                         Provider.of<AppState>(context, listen: false);
                     if (widget.athleteId != null) {
                       if (widget.type == 'pr') {
-                        await appState.deletePRLogForAthlete(id, widget.exerciseId, widget.athleteId!);
+                        await appState.deletePRLogForAthlete(
+                            id, widget.exerciseId, widget.athleteId!);
                       } else if (widget.type == 'body') {
                         await appState.deleteBodyLogForAthlete(id);
                       } else {
                         await appState.deleteJumpLogForAthlete(id);
+                        if (pairedRsiLog != null) {
+                          await appState
+                              .deleteJumpLogForAthlete(pairedRsiLog.id);
+                        }
                       }
                       widget.preloadedLogs?.removeWhere((l) => l.id == id);
+                      if (pairedRsiLog != null) {
+                        widget.preloadedLogs
+                            ?.removeWhere((l) => l.id == pairedRsiLog.id);
+                      }
                       if (mounted) setState(() {});
                     } else {
                       if (widget.type == 'pr') {
@@ -716,6 +927,9 @@ class _AnalyticsDetailsScreenState extends State<AnalyticsDetailsScreen> {
                         appState.deleteBodyLog(id);
                       } else {
                         appState.deleteJumpLog(id);
+                        if (pairedRsiLog != null) {
+                          appState.deleteJumpLog(pairedRsiLog.id);
+                        }
                       }
                     }
                   },

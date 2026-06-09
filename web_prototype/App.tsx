@@ -38,8 +38,7 @@ const ALL_AVAILABLE_TEAMS: Team[] = [
 
 function App() {
   const [currentView, setView] = useState<ViewState>(() => {
-    const isLoggedIn = localStorage.getItem('isLoggedIn') === 'true';
-    return isLoggedIn ? 'home' : 'auth';
+    return 'auth';
   });
 
   const [selectedSportId, setSelectedSportId] = useState<string>('weightlifting');

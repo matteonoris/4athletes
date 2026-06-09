@@ -5,7 +5,10 @@ import 'package:phosphor_flutter/phosphor_flutter.dart';
 
 import '../core/theme.dart';
 import '../models/models.dart';
+import '../models/training_activity_models.dart';
 import '../providers/app_state.dart';
+import '../utils/coach_training_utils.dart';
+import '../utils/training_metrics_utils.dart';
 import '../utils/time_utils.dart';
 import 'analytics_details_screen.dart';
 import 'coach_body_metric_detail_screen.dart';
@@ -87,117 +90,102 @@ class _CoachAthleteDetailScreenState extends State<CoachAthleteDetailScreen> {
   }
 
   void _computePresence(AppState appState, List<TrainingSession> sessions) {
-    final allEvents = appState.coachEvents;
-    
+    final allEvents = appState.coachEvents
+        .where((e) => e.status != CoachTrainingUtils.statusCancelled)
+        .toList();
+
     // Ski presence
     final skiEvents = allEvents.where((e) => e.sportCategory == 'ski').toList();
     int skiPresent = 0;
     for (final ev in skiEvents) {
       final attendees = ev.attendees ?? [];
       if (attendees.any((a) =>
-          (a['id'] == widget.athleteId ||
-          a['name'] == widget.athleteName) && a['isPresent'] == true)) {
+          (a['id'] == widget.athleteId || a['name'] == widget.athleteName) &&
+          CoachTrainingUtils.isAttendeePresent(a))) {
         skiPresent++;
       }
     }
-    _skiPresencePercent = skiEvents.isNotEmpty ? (skiPresent / skiEvents.length * 100).round() : 0;
+    _skiPresencePercent = skiEvents.isNotEmpty
+        ? (skiPresent / skiEvents.length * 100).round()
+        : 0;
 
     // Athletic presence
-    final athleticEvents = allEvents.where((e) => e.sportCategory != 'ski').toList();
+    final athleticEvents =
+        allEvents.where((e) => e.sportCategory != 'ski').toList();
     int athleticPresent = 0;
     for (final ev in athleticEvents) {
       final attendees = ev.attendees ?? [];
       if (attendees.any((a) =>
-          (a['id'] == widget.athleteId ||
-          a['name'] == widget.athleteName) && a['isPresent'] == true)) {
+          (a['id'] == widget.athleteId || a['name'] == widget.athleteName) &&
+          CoachTrainingUtils.isAttendeePresent(a))) {
         athleticPresent++;
       }
     }
-    _athleticPresencePercent = athleticEvents.isNotEmpty ? (athleticPresent / athleticEvents.length * 100).round() : 0;
+    _athleticPresencePercent = athleticEvents.isNotEmpty
+        ? (athleticPresent / athleticEvents.length * 100).round()
+        : 0;
 
     int extraMin = 0;
     int cambi = 0;
     Map<String, int> bySpecialty = {};
     Map<String, Map<String, int>> byMonthAndSpecialty = {};
+    final sessionEventIds = <String>{};
 
-    void addCambi(String dateStr, int volume, String rawSpecialty) {
+    void addSkiVolume(String dateStr, int volume, String rawSpecialty) {
       if (volume <= 0) return;
 
-      String specialty = rawSpecialty;
-      if (specialty.contains('SL') || specialty.toLowerCase().contains('slalom')) specialty = 'SL';
-      else if (specialty.contains('GS') || specialty.toLowerCase().contains('gigante')) specialty = 'GS';
-      else if (specialty.contains('SG') || specialty.toLowerCase().contains('super')) specialty = 'SG';
-      else if (specialty.contains('DH') || specialty.toLowerCase().contains('discesa')) specialty = 'DH';
-      else if (specialty.contains('CL') || specialty.toLowerCase().contains('libero')) specialty = 'CL';
+      final specialty = CoachTrainingUtils.normalizeSpecialty(rawSpecialty);
 
-      cambi += volume;
       bySpecialty[specialty] = (bySpecialty[specialty] ?? 0) + volume;
-      
+
       try {
         final date = DateTime.parse(dateStr);
-        final monthKey = '${date.year}-${date.month.toString().padLeft(2, '0')}';
+        final monthKey =
+            '${date.year}-${date.month.toString().padLeft(2, '0')}';
         byMonthAndSpecialty.putIfAbsent(monthKey, () => {});
-        byMonthAndSpecialty[monthKey]![specialty] = (byMonthAndSpecialty[monthKey]![specialty] ?? 0) + volume;
+        byMonthAndSpecialty[monthKey]![specialty] =
+            (byMonthAndSpecialty[monthKey]![specialty] ?? 0) + volume;
       } catch (_) {}
     }
 
+    void addSummary(String dateStr, TrainingVolumeSummary summary) {
+      cambi += summary.totalSkiDirectionChanges;
+      addSkiVolume(dateStr, summary.freeDirectionChanges, 'CL');
+      for (final entry in summary.polePassesBySpecialty.entries) {
+        addSkiVolume(dateStr, entry.value, entry.key);
+      }
+      addSkiVolume(dateStr, summary.trainingDirectionChanges, 'ADD');
+    }
+
     for (final s in sessions) {
-      if (s.sportId != 'alpine_skiing' && s.sportId != 'ski' && s.sportId != 'skiing' && s.sportId != 'snowboarding') {
+      if (s.eventId != null && s.eventId!.isNotEmpty) {
+        sessionEventIds.add(s.eventId!);
+      }
+      if (s.sportId != 'alpine_skiing' &&
+          s.sportId != 'ski' &&
+          s.sportId != 'skiing' &&
+          s.sportId != 'snowboarding') {
         extraMin += TimeUtils.parseDurationToMinutes(s.duration);
       } else {
-        final details = s.details;
-        if (details != null) {
-          var gatedStr = details['gatedSkiing'];
-          if (gatedStr == null && details['technicalDetails'] != null) {
-            gatedStr = details['technicalDetails']['gatedSkiing'];
-          }
-          if (gatedStr is Map<String, dynamic>) {
-            final changes = int.tryParse(gatedStr['changes']?.toString() ?? '0') ?? 0;
-            int laps = 1;
-            if (details['laps'] != null) {
-               laps = int.tryParse(details['laps'].toString()) ?? 1;
-            } else {
-               laps = int.tryParse(gatedStr['laps']?.toString() ?? '1') ?? 1;
-            }
-            final vol = changes * laps;
-            var specialties = details['specialties'] as List<dynamic>?;
-            if (specialties == null && details['technicalDetails'] != null) {
-               specialties = details['technicalDetails']['specialties'] as List<dynamic>?;
-            }
-            final specName = (specialties != null && specialties.isNotEmpty) ? specialties[0].toString() : 'Mixed';
-            addCambi(s.date, vol, specName);
-          } else {
-            // Fallback old format
-            int vol = 0;
-            final runs = details['runs'];
-            if (runs is List) vol += runs.length;
-            final c = details['cambi'];
-            if (c is int) vol += c;
-            if (c is double) vol += c.toInt();
-            addCambi(s.date, vol, 'Mixed');
-          }
-        }
+        final summary = CoachTrainingUtils.volumeFromDetails(s.details);
+        addSummary(s.date, summary);
       }
     }
 
-    // Add from coach events
     for (final ev in skiEvents) {
+      if (ev.status != CoachTrainingUtils.statusCompleted) continue;
+      if (sessionEventIds.contains(ev.id)) continue;
       final attendees = ev.attendees ?? [];
       final athleteName = widget.athleteName;
-      final attendee = attendees.cast<Map<String,dynamic>?>().firstWhere(
-        (a) => a != null && (a['id'] == widget.athleteId || a['name'] == athleteName),
-        orElse: () => null
-      );
-      if (attendee != null && attendee['isPresent'] == true) {
-        final tech = ev.technicalDetails;
-        if (tech != null && tech['gatedSkiing'] != null) {
-          final changes = int.tryParse(tech['gatedSkiing']['changes']?.toString() ?? '0') ?? 0;
-          final laps = int.tryParse(attendee['laps']?.toString() ?? tech['gatedSkiing']['laps']?.toString() ?? '0') ?? 0;
-          final vol = changes * laps;
-          final specialties = tech['specialties'] as List<dynamic>?;
-          final specName = (specialties != null && specialties.isNotEmpty) ? specialties[0].toString() : 'Mixed';
-          addCambi(ev.date, vol, specName);
-        }
+      final attendee = attendees.cast<Map<String, dynamic>?>().firstWhere(
+          (a) =>
+              a != null &&
+              (a['id'] == widget.athleteId || a['name'] == athleteName),
+          orElse: () => null);
+      if (attendee != null && CoachTrainingUtils.isAttendeePresent(attendee)) {
+        final summary =
+            CoachTrainingUtils.volumeFromEventAttendee(ev, attendee);
+        addSummary(ev.date, summary);
       }
     }
 
@@ -210,19 +198,22 @@ class _CoachAthleteDetailScreenState extends State<CoachAthleteDetailScreen> {
   // ─── Jump helpers ────────────────────────────────────────────
   double _latestJump(String type) {
     final filtered = _jumpLogs.where((j) => j.type == type).toList()
-      ..sort((a, b) => DateTime.parse(b.date).compareTo(DateTime.parse(a.date)));
+      ..sort(
+          (a, b) => DateTime.parse(b.date).compareTo(DateTime.parse(a.date)));
     return filtered.isNotEmpty ? filtered.first.value : 0;
   }
 
   double _latestPR(String exerciseId) {
     final filtered = _prLogs.where((l) => l.exerciseId == exerciseId).toList()
-      ..sort((a, b) => DateTime.parse(b.date).compareTo(DateTime.parse(a.date)));
+      ..sort(
+          (a, b) => DateTime.parse(b.date).compareTo(DateTime.parse(a.date)));
     return filtered.isNotEmpty ? filtered.first.weight : 0;
   }
 
-  List<BodyMetricLog> _logsOf(String type) =>
-      _bodyLogs.where((l) => l.type == type).toList()
-        ..sort((a, b) => DateTime.parse(a.date).compareTo(DateTime.parse(b.date)));
+  List<BodyMetricLog> _logsOf(String type) => _bodyLogs
+      .where((l) => l.type == type)
+      .toList()
+    ..sort((a, b) => DateTime.parse(a.date).compareTo(DateTime.parse(b.date)));
 
   // ─── Sport helpers ───────────────────────────────────────────
   String _sportLabel(String id) {
@@ -247,7 +238,15 @@ class _CoachAthleteDetailScreenState extends State<CoachAthleteDetailScreen> {
 
   IconData _sportIcon(String id) {
     if (id == 'alpine_skiing') return Icons.ac_unit;
-    if (['weightlifting', 'powerlifting', 'crossfit', 'bodybuilding', 'athletic_prep'].contains(id)) return Icons.fitness_center;
+    if ([
+      'weightlifting',
+      'powerlifting',
+      'crossfit',
+      'bodybuilding',
+      'athletic_prep'
+    ].contains(id)) {
+      return Icons.fitness_center;
+    }
     if (id.contains('running')) return Icons.directions_run;
     if (id.contains('cycling')) return Icons.directions_bike;
     if (id == 'swimming') return Icons.pool;
@@ -256,7 +255,15 @@ class _CoachAthleteDetailScreenState extends State<CoachAthleteDetailScreen> {
 
   Color _sportColor(String id) {
     if (id == 'alpine_skiing') return AppTheme.primary;
-    if (['weightlifting', 'powerlifting', 'crossfit', 'bodybuilding', 'athletic_prep'].contains(id)) return const Color(0xFFFF7A00);
+    if ([
+      'weightlifting',
+      'powerlifting',
+      'crossfit',
+      'bodybuilding',
+      'athletic_prep'
+    ].contains(id)) {
+      return const Color(0xFFFF7A00);
+    }
     if (id.contains('running')) return Colors.greenAccent;
     return AppTheme.secondary;
   }
@@ -270,7 +277,8 @@ class _CoachAthleteDetailScreenState extends State<CoachAthleteDetailScreen> {
     return Scaffold(
       backgroundColor: AppTheme.background,
       body: _isLoading
-          ? const Center(child: CircularProgressIndicator(color: AppTheme.primary))
+          ? const Center(
+              child: CircularProgressIndicator(color: AppTheme.primary))
           : _error != null
               ? _buildError()
               : _buildContent(),
@@ -282,9 +290,15 @@ class _CoachAthleteDetailScreenState extends State<CoachAthleteDetailScreen> {
       child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
         const Icon(Icons.error_outline, color: AppTheme.error, size: 48),
         const SizedBox(height: 16),
-        Text(_error!, style: const TextStyle(color: AppTheme.textMediumEmphasis)),
+        Text(_error!,
+            style: const TextStyle(color: AppTheme.textMediumEmphasis)),
         const SizedBox(height: 16),
-        ElevatedButton(onPressed: () { setState(() => _isLoading = true); _loadAll(); }, child: const Text('Riprova')),
+        ElevatedButton(
+            onPressed: () {
+              setState(() => _isLoading = true);
+              _loadAll();
+            },
+            child: const Text('Riprova')),
       ]),
     );
   }
@@ -292,17 +306,23 @@ class _CoachAthleteDetailScreenState extends State<CoachAthleteDetailScreen> {
   Widget _buildContent() {
     final weightLogs = _logsOf('weight');
     final heightLogs = _logsOf('height');
-    final showHeight = heightLogs.isNotEmpty && (_profile == null || _profile!.age < 18);
+    final showHeight =
+        heightLogs.isNotEmpty && (_profile == null || _profile!.age < 18);
 
     // All jump types present for this athlete
-    final jumpTypes = _jumpLogs.map((j) => j.type).toSet().toList();
+    final jumpTypes = _jumpLogs
+        .map((j) => j.type)
+        .where((t) => t != 'drop_jump_rsi')
+        .toSet()
+        .toList();
 
     // PR exercises present for this athlete
     final prExercises = _prLogs.map((l) => l.exerciseId).toSet().toList();
 
     // Body metric types
     final bodyTypes = _bodyLogs.map((l) => l.type).toSet().toList();
-    final additionalMetrics = bodyTypes.where((t) => _bodyLabels.containsKey(t)).toList();
+    final additionalMetrics =
+        bodyTypes.where((t) => _bodyLabels.containsKey(t)).toList();
 
     return CustomScrollView(
       slivers: [
@@ -314,8 +334,10 @@ class _CoachAthleteDetailScreenState extends State<CoachAthleteDetailScreen> {
           leading: IconButton(
             icon: Container(
               padding: const EdgeInsets.all(8),
-              decoration: const BoxDecoration(color: AppTheme.card, shape: BoxShape.circle),
-              child: const Icon(Icons.arrow_back, color: Colors.white, size: 20),
+              decoration: const BoxDecoration(
+                  color: AppTheme.card, shape: BoxShape.circle),
+              child:
+                  const Icon(Icons.arrow_back, color: Colors.white, size: 20),
             ),
             onPressed: () => Navigator.pop(context),
           ),
@@ -324,21 +346,32 @@ class _CoachAthleteDetailScreenState extends State<CoachAthleteDetailScreen> {
               radius: 18,
               backgroundColor: AppTheme.primary.withValues(alpha: 0.2),
               child: Text(widget.initial,
-                  style: const TextStyle(color: AppTheme.primary, fontWeight: FontWeight.bold, fontSize: 16)),
+                  style: const TextStyle(
+                      color: AppTheme.primary,
+                      fontWeight: FontWeight.bold,
+                      fontSize: 16)),
             ),
             const SizedBox(width: 10),
             Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
               Text(widget.athleteName,
-                  style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16)),
+                  style: const TextStyle(
+                      color: Colors.white,
+                      fontWeight: FontWeight.bold,
+                      fontSize: 16)),
               if (_profile?.skiClub != null)
                 Text(_profile!.skiClub!,
-                    style: const TextStyle(color: AppTheme.textMediumEmphasis, fontSize: 11)),
+                    style: const TextStyle(
+                        color: AppTheme.textMediumEmphasis, fontSize: 11)),
             ]),
           ]),
           actions: [
             IconButton(
-              icon: const Icon(Icons.refresh, color: AppTheme.textMediumEmphasis),
-              onPressed: () { setState(() => _isLoading = true); _loadAll(); },
+              icon:
+                  const Icon(Icons.refresh, color: AppTheme.textMediumEmphasis),
+              onPressed: () {
+                setState(() => _isLoading = true);
+                _loadAll();
+              },
             ),
           ],
         ),
@@ -352,43 +385,55 @@ class _CoachAthleteDetailScreenState extends State<CoachAthleteDetailScreen> {
                 // ─── Stats Row ─────────────────────────────
                 _buildStatsRow(),
                 const SizedBox(height: 12),
-                
+
                 // ─── Cambi di Direzione Card ───────────────
                 _buildCambiCard(),
+                const SizedBox(height: 20),
+                _buildDrylandPrepCard(),
                 const SizedBox(height: 20),
 
                 // ─── Peso & Altezza mini charts ────────────
                 if (weightLogs.isNotEmpty || showHeight) ...[
                   Row(children: [
                     if (weightLogs.isNotEmpty)
-                      Expanded(child: _buildMiniChart(
+                      Expanded(
+                          child: _buildMiniChart(
                         title: 'Peso',
                         icon: PhosphorIconsRegular.scales,
                         logs: weightLogs,
                         color: AppTheme.secondary,
                         unit: 'kg',
-                        onTap: () => Navigator.push(context, MaterialPageRoute(
-                          builder: (_) => CoachBodyMetricDetailScreen(
-                            title: 'Peso', type: 'weight',
-                            logs: weightLogs, athleteName: widget.athleteName,
-                          ),
-                        )),
+                        onTap: () => Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (_) => CoachBodyMetricDetailScreen(
+                                title: 'Peso',
+                                type: 'weight',
+                                logs: weightLogs,
+                                athleteName: widget.athleteName,
+                              ),
+                            )),
                       )),
                     if (weightLogs.isNotEmpty && showHeight)
                       const SizedBox(width: 12),
                     if (showHeight)
-                      Expanded(child: _buildMiniChart(
+                      Expanded(
+                          child: _buildMiniChart(
                         title: 'Altezza',
                         icon: PhosphorIconsRegular.ruler,
                         logs: heightLogs,
                         color: Colors.purpleAccent,
                         unit: 'cm',
-                        onTap: () => Navigator.push(context, MaterialPageRoute(
-                          builder: (_) => CoachBodyMetricDetailScreen(
-                            title: 'Altezza', type: 'height',
-                            logs: heightLogs, athleteName: widget.athleteName,
-                          ),
-                        )),
+                        onTap: () => Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (_) => CoachBodyMetricDetailScreen(
+                                title: 'Altezza',
+                                type: 'height',
+                                logs: heightLogs,
+                                athleteName: widget.athleteName,
+                              ),
+                            )),
                       )),
                   ]),
                   const SizedBox(height: 20),
@@ -396,7 +441,8 @@ class _CoachAthleteDetailScreenState extends State<CoachAthleteDetailScreen> {
 
                 // ─── Profilo Salto ─────────────────────────
                 if (jumpTypes.isNotEmpty) ...[
-                  _buildSectionTitle(Icons.trending_up, 'Profilo Salto', AppTheme.secondary),
+                  _buildSectionTitle(
+                      Icons.trending_up, 'Profilo Salto', AppTheme.secondary),
                   const SizedBox(height: 12),
                   _buildJumpGrid(jumpTypes),
                   const SizedBox(height: 20),
@@ -404,7 +450,8 @@ class _CoachAthleteDetailScreenState extends State<CoachAthleteDetailScreen> {
 
                 // ─── Massimali 1RM ─────────────────────────
                 if (prExercises.isNotEmpty) ...[
-                  _buildSectionTitle(PhosphorIconsRegular.barbell, 'Massimali (1RM)', const Color(0xFFFF7A00)),
+                  _buildSectionTitle(PhosphorIconsRegular.barbell,
+                      'Massimali (1RM)', const Color(0xFFFF7A00)),
                   const SizedBox(height: 12),
                   _buildPRGrid(prExercises),
                   const SizedBox(height: 20),
@@ -412,21 +459,27 @@ class _CoachAthleteDetailScreenState extends State<CoachAthleteDetailScreen> {
 
                 // ─── Altri Test & Metriche ──────────────────
                 if (additionalMetrics.isNotEmpty) ...[
-                  _buildSectionTitle(PhosphorIconsRegular.heartbeat, 'Test & Metriche (Recupero/Sonno)', AppTheme.secondary),
+                  _buildSectionTitle(PhosphorIconsRegular.heartbeat,
+                      'Test & Metriche (Recupero/Sonno)', AppTheme.secondary),
                   const SizedBox(height: 12),
                   _buildBodyGrid(additionalMetrics),
                   const SizedBox(height: 20),
                 ],
 
                 // ─── Storico Attività ──────────────────────
-                _buildSectionTitle(Icons.history, 'Storico Attività', AppTheme.primary),
+                _buildSectionTitle(
+                    Icons.history, 'Storico Attività', AppTheme.primary),
                 const SizedBox(height: 12),
                 if (_sessions.isEmpty)
                   Container(
                     padding: const EdgeInsets.all(32),
-                    decoration: BoxDecoration(color: AppTheme.card, borderRadius: BorderRadius.circular(16)),
-                    child: const Center(child: Text('Nessuna sessione registrata',
-                        style: TextStyle(color: AppTheme.textMediumEmphasis))),
+                    decoration: BoxDecoration(
+                        color: AppTheme.card,
+                        borderRadius: BorderRadius.circular(16)),
+                    child: const Center(
+                        child: Text('Nessuna sessione registrata',
+                            style:
+                                TextStyle(color: AppTheme.textMediumEmphasis))),
                   )
                 else
                   ..._sessions.take(10).map((s) => _buildSessionRow(s)),
@@ -439,69 +492,231 @@ class _CoachAthleteDetailScreenState extends State<CoachAthleteDetailScreen> {
   }
 
   // ─── Stats Row ─────────────────────────────────────────────────
+  Widget _buildDrylandPrepCard() {
+    final drylandSessions = _sessions.where((session) =>
+        session.sportId != 'alpine_skiing' &&
+        session.sportId != 'ski' &&
+        session.sportId != 'skiing' &&
+        session.sportId != 'snowboarding');
+    final activities = drylandSessions
+        .map((session) => TrainingActivity.fromTrainingSession(session))
+        .where((activity) => activity.status != ActivityStatus.cancelled)
+        .toList();
+
+    final strength = TrainingMetricsUtils.strengthSummary(activities);
+    final plyo = TrainingMetricsUtils.plyometricSummary(activities);
+    final speed = TrainingMetricsUtils.speedAgilitySummary(activities);
+    final endurance = TrainingMetricsUtils.enduranceSummary(activities);
+    final hasData = activities.isNotEmpty ||
+        strength.totalSets > 0 ||
+        plyo.totalContacts > 0 ||
+        speed.drillCount > 0 ||
+        endurance.durationSeconds > 0;
+
+    if (!hasData) return const SizedBox.shrink();
+
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: AppTheme.card,
+        borderRadius: BorderRadius.circular(14),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(10),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFFF7A00).withValues(alpha: 0.15),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: const Icon(
+                  PhosphorIconsRegular.barbell,
+                  color: Color(0xFFFF7A00),
+                  size: 22,
+                ),
+              ),
+              const SizedBox(width: 12),
+              const Expanded(
+                child: Text(
+                  'Preparazione atletica',
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontWeight: FontWeight.bold,
+                    fontSize: 16,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 14),
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: [
+              _prepMetric('Ore', (_extraSciMinutes / 60).toStringAsFixed(1)),
+              if (strength.volumeKg > 0)
+                _prepMetric('Volume kg', strength.volumeKg.round().toString()),
+              if (strength.totalSets > 0)
+                _prepMetric('Serie forza', strength.totalSets.toString()),
+              if (plyo.totalContacts > 0)
+                _prepMetric('Contatti', plyo.totalContacts.toString()),
+              if (speed.drillCount > 0)
+                _prepMetric('Drill', speed.drillCount.toString()),
+              if (endurance.durationSeconds > 0)
+                _prepMetric(
+                  'Resistenza',
+                  '${(endurance.durationSeconds / 60).round()}m',
+                ),
+              if (endurance.zone23Seconds > 0)
+                _prepMetric(
+                    'Z2-Z3', '${(endurance.zone23Seconds / 60).round()}m'),
+              if (endurance.zone45Seconds > 0)
+                _prepMetric(
+                    'Z4-Z5', '${(endurance.zone45Seconds / 60).round()}m'),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _prepMetric(String label, String value) {
+    return Container(
+      width: 104,
+      padding: const EdgeInsets.all(10),
+      decoration: BoxDecoration(
+        color: AppTheme.background,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.06)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            label.toUpperCase(),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: const TextStyle(
+              color: AppTheme.textMediumEmphasis,
+              fontSize: 9,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+          const SizedBox(height: 6),
+          Text(
+            value,
+            style: const TextStyle(
+              color: Colors.white,
+              fontWeight: FontWeight.w900,
+              fontSize: 16,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   Widget _buildStatsRow() {
     final extraLabel = _formatDuration(_extraSciMinutes);
     return Row(children: [
-      Expanded(child: Container(
+      Expanded(
+          child: Container(
         padding: const EdgeInsets.symmetric(vertical: 18, horizontal: 10),
-        decoration: BoxDecoration(color: AppTheme.card, borderRadius: BorderRadius.circular(14)),
+        decoration: BoxDecoration(
+            color: AppTheme.card, borderRadius: BorderRadius.circular(14)),
         child: Column(children: [
           const Text('PRESENZE',
-              style: TextStyle(color: AppTheme.textMediumEmphasis,
-                  fontWeight: FontWeight.bold, fontSize: 9, letterSpacing: 1)),
+              style: TextStyle(
+                  color: AppTheme.textMediumEmphasis,
+                  fontWeight: FontWeight.bold,
+                  fontSize: 9,
+                  letterSpacing: 1)),
           const SizedBox(height: 6),
           Text('$_skiPresencePercent% Sci\n$_athleticPresencePercent% Atl',
               textAlign: TextAlign.center,
-              style: const TextStyle(color: AppTheme.secondary, fontWeight: FontWeight.w900, fontSize: 13, height: 1.2)),
+              style: const TextStyle(
+                  color: AppTheme.secondary,
+                  fontWeight: FontWeight.w900,
+                  fontSize: 13,
+                  height: 1.2)),
         ]),
       )),
       const SizedBox(width: 10),
-      Expanded(child: _buildStatCard('EXTRA SCI', extraLabel, const Color(0xFFFF7A00))),
+      Expanded(
+          child:
+              _buildStatCard('EXTRA SCI', extraLabel, const Color(0xFFFF7A00))),
     ]);
   }
 
   Widget _buildCambiCard() {
+    final sortedVolumeEntries = _cambiBySpecialty.entries.toList()
+      ..sort((a, b) =>
+          _skiVolumeSortIndex(a.key).compareTo(_skiVolumeSortIndex(b.key)));
+
     return GestureDetector(
       onTap: () {
         if (_totalCambi == 0) return;
-        Navigator.push(context, MaterialPageRoute(
-          builder: (_) => CambiChartScreen(
-            athleteName: widget.athleteName,
-            cambiByMonthAndSpecialty: _cambiByMonthAndSpecialty,
-          )
-        ));
+        Navigator.push(
+            context,
+            MaterialPageRoute(
+                builder: (_) => CambiChartScreen(
+                      athleteName: widget.athleteName,
+                      cambiByMonthAndSpecialty: _cambiByMonthAndSpecialty,
+                    )));
       },
       child: Container(
         padding: const EdgeInsets.all(16),
-        decoration: BoxDecoration(color: AppTheme.card, borderRadius: BorderRadius.circular(14)),
+        decoration: BoxDecoration(
+            color: AppTheme.card, borderRadius: BorderRadius.circular(14)),
         child: Row(
           children: [
             Container(
               padding: const EdgeInsets.all(10),
-              decoration: BoxDecoration(color: AppTheme.primary.withValues(alpha: 0.15), borderRadius: BorderRadius.circular(12)),
-              child: const Icon(Icons.show_chart, color: AppTheme.primary, size: 24),
+              decoration: BoxDecoration(
+                  color: AppTheme.primary.withValues(alpha: 0.15),
+                  borderRadius: BorderRadius.circular(12)),
+              child: const Icon(Icons.show_chart,
+                  color: AppTheme.primary, size: 24),
             ),
             const SizedBox(width: 16),
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const Text('CAMBI DI DIR. (PALI)', style: TextStyle(color: AppTheme.textMediumEmphasis, fontWeight: FontWeight.bold, fontSize: 11)),
+                  const Text('CAMBI DI DIR. TOTALI',
+                      style: TextStyle(
+                          color: AppTheme.textMediumEmphasis,
+                          fontWeight: FontWeight.bold,
+                          fontSize: 11)),
                   const SizedBox(height: 4),
-                  Text('$_totalCambi', style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w900, fontSize: 22)),
+                  Text('$_totalCambi',
+                      style: const TextStyle(
+                          color: Colors.white,
+                          fontWeight: FontWeight.w900,
+                          fontSize: 22)),
                   const SizedBox(height: 6),
                   if (_cambiBySpecialty.isNotEmpty)
                     Wrap(
                       spacing: 12,
                       runSpacing: 4,
-                      children: _cambiBySpecialty.entries.map((e) {
-                        Color col = e.key == 'SL' ? AppTheme.secondary : (e.key == 'GS' ? Colors.lightBlue : (e.key == 'SG' ? Colors.greenAccent : (e.key == 'DH' ? Colors.purpleAccent : (e.key == 'CL' ? Colors.orangeAccent : Colors.grey))));
+                      children: sortedVolumeEntries.map((e) {
+                        final col = _colorForSkiVolumeKey(e.key);
                         return Row(
                           mainAxisSize: MainAxisSize.min,
                           children: [
-                            Container(width: 6, height: 6, decoration: BoxDecoration(color: col, shape: BoxShape.circle)),
+                            Container(
+                                width: 6,
+                                height: 6,
+                                decoration: BoxDecoration(
+                                    color: col, shape: BoxShape.circle)),
                             const SizedBox(width: 4),
-                            Text('${e.key} ${e.value}', style: const TextStyle(color: AppTheme.textMediumEmphasis, fontSize: 11)),
+                            Text('${e.key} ${e.value}',
+                                style: const TextStyle(
+                                    color: AppTheme.textMediumEmphasis,
+                                    fontSize: 11)),
                           ],
                         );
                       }).toList(),
@@ -516,16 +731,39 @@ class _CoachAthleteDetailScreenState extends State<CoachAthleteDetailScreen> {
     );
   }
 
+  int _skiVolumeSortIndex(String key) {
+    const order = ['CL', 'SL', 'GS', 'SG', 'DH', 'SX', 'ADD'];
+    final index = order.indexOf(key);
+    return index == -1 ? order.length : index;
+  }
+
+  Color _colorForSkiVolumeKey(String key) {
+    if (key == 'CL') return Colors.orangeAccent;
+    if (key == 'SL') return AppTheme.secondary;
+    if (key == 'GS') return Colors.lightBlue;
+    if (key == 'SG') return Colors.greenAccent;
+    if (key == 'DH') return Colors.purpleAccent;
+    if (key == 'SX') return Colors.redAccent;
+    if (key == 'ADD') return Colors.amberAccent;
+    return Colors.grey;
+  }
+
   Widget _buildStatCard(String label, String value, Color valueColor) {
     return Container(
       padding: const EdgeInsets.symmetric(vertical: 18, horizontal: 10),
-      decoration: BoxDecoration(color: AppTheme.card, borderRadius: BorderRadius.circular(14)),
+      decoration: BoxDecoration(
+          color: AppTheme.card, borderRadius: BorderRadius.circular(14)),
       child: Column(children: [
         Text(label,
-            style: const TextStyle(color: AppTheme.textMediumEmphasis,
-                fontWeight: FontWeight.bold, fontSize: 9, letterSpacing: 1)),
+            style: const TextStyle(
+                color: AppTheme.textMediumEmphasis,
+                fontWeight: FontWeight.bold,
+                fontSize: 9,
+                letterSpacing: 1)),
         const SizedBox(height: 6),
-        Text(value, style: TextStyle(color: valueColor, fontWeight: FontWeight.w900, fontSize: 20)),
+        Text(value,
+            style: TextStyle(
+                color: valueColor, fontWeight: FontWeight.w900, fontSize: 20)),
       ]),
     );
   }
@@ -540,8 +778,8 @@ class _CoachAthleteDetailScreenState extends State<CoachAthleteDetailScreen> {
     required VoidCallback onTap,
   }) {
     final latest = logs.last.value;
-    final spots = List.generate(logs.length,
-        (i) => FlSpot(i.toDouble(), logs[i].value));
+    final spots =
+        List.generate(logs.length, (i) => FlSpot(i.toDouble(), logs[i].value));
     double minY = logs.map((l) => l.value).reduce((a, b) => a < b ? a : b);
     double maxY = logs.map((l) => l.value).reduce((a, b) => a > b ? a : b);
     final pad = (maxY - minY) * 0.2 + 0.5;
@@ -563,39 +801,48 @@ class _CoachAthleteDetailScreenState extends State<CoachAthleteDetailScreen> {
             Icon(icon, color: color, size: 14),
             const SizedBox(width: 6),
             Text(title,
-                style: TextStyle(color: color, fontWeight: FontWeight.bold, fontSize: 12)),
+                style: TextStyle(
+                    color: color, fontWeight: FontWeight.bold, fontSize: 12)),
             const Spacer(),
-            const Icon(Icons.chevron_right, color: AppTheme.textMediumEmphasis, size: 14),
+            const Icon(Icons.chevron_right,
+                color: AppTheme.textMediumEmphasis, size: 14),
           ]),
           const SizedBox(height: 4),
-          Text('${latest.toStringAsFixed(1)} $unit',
-              style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 18)),
+          Text('${latest.toStringAsFixed(2)} $unit',
+              style: const TextStyle(
+                  color: Colors.white,
+                  fontWeight: FontWeight.bold,
+                  fontSize: 18)),
           const Spacer(),
           SizedBox(
             height: 48,
             child: LineChart(LineChartData(
-              minY: minY, maxY: maxY,
+              minY: minY,
+              maxY: maxY,
               gridData: const FlGridData(show: false),
               titlesData: const FlTitlesData(show: false),
               borderData: FlBorderData(show: false),
               lineTouchData: const LineTouchData(enabled: false),
-              lineBarsData: [LineChartBarData(
-                spots: spots,
-                isCurved: true,
-                curveSmoothness: 0.3,
-                color: color,
-                barWidth: 2,
-                dotData: const FlDotData(show: false),
-                belowBarData: BarAreaData(
-                  show: true,
-                  color: color.withValues(alpha: 0.1),
-                ),
-              )],
+              lineBarsData: [
+                LineChartBarData(
+                  spots: spots,
+                  isCurved: true,
+                  curveSmoothness: 0.3,
+                  color: color,
+                  barWidth: 2,
+                  dotData: const FlDotData(show: false),
+                  belowBarData: BarAreaData(
+                    show: true,
+                    color: color.withValues(alpha: 0.1),
+                  ),
+                )
+              ],
             )),
           ),
           const SizedBox(height: 4),
           Text(logs.last.date,
-              style: const TextStyle(color: AppTheme.textMediumEmphasis, fontSize: 9)),
+              style: const TextStyle(
+                  color: AppTheme.textMediumEmphasis, fontSize: 9)),
         ]),
       ),
     );
@@ -623,43 +870,59 @@ class _CoachAthleteDetailScreenState extends State<CoachAthleteDetailScreen> {
       children: types.map((t) {
         final val = _latestJump(t);
         final label = _jumpLabels[t] ?? t.toUpperCase().replaceAll('_', '\n');
-        final isRsi = t == 'drop_jump_rsi';
+        final rsiVal = t == 'drop_jump' ? _latestJump('drop_jump_rsi') : 0.0;
         return GestureDetector(
-          onTap: () => Navigator.push(context, MaterialPageRoute(
-            builder: (_) => AnalyticsDetailsScreen(
-              title: label.replaceAll('\n', ' '),
-              type: 'jump',
-              exerciseId: t,
-              preloadedLogs: _jumpLogs,
-              isReadOnly: false,
-              athleteId: widget.athleteId,
-            ),
-          )),
+          onTap: () => Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (_) => AnalyticsDetailsScreen(
+                  title: label.replaceAll('\n', ' '),
+                  type: 'jump',
+                  exerciseId: t,
+                  preloadedLogs: _jumpLogs,
+                  isReadOnly: false,
+                  athleteId: widget.athleteId,
+                ),
+              )),
           child: Container(
             padding: const EdgeInsets.all(8),
             decoration: BoxDecoration(
               color: AppTheme.card,
               borderRadius: BorderRadius.circular(14),
             ),
-            child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
+            child:
+                Column(mainAxisAlignment: MainAxisAlignment.center, children: [
               RichText(
                 textAlign: TextAlign.center,
                 text: TextSpan(children: [
                   TextSpan(
-                      text: val > 0 ? (isRsi ? val.toStringAsFixed(2) : val.toStringAsFixed(0)) : '--',
+                      text: val > 0 ? val.toStringAsFixed(2) : '--',
                       style: const TextStyle(
-                          fontSize: 20, fontWeight: FontWeight.bold, color: Colors.white)),
-                  if (val > 0 && !isRsi)
+                          fontSize: 20,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.white)),
+                  if (val > 0)
                     const TextSpan(
                         text: ' cm',
-                        style: TextStyle(fontSize: 11, color: AppTheme.textMediumEmphasis)),
+                        style: TextStyle(
+                            fontSize: 11, color: AppTheme.textMediumEmphasis)),
                 ]),
               ),
+              if (rsiVal > 0) ...[
+                const SizedBox(height: 3),
+                Text('RSI ${rsiVal.toStringAsFixed(2)}',
+                    textAlign: TextAlign.center,
+                    style: const TextStyle(
+                        fontSize: 10,
+                        fontWeight: FontWeight.bold,
+                        color: AppTheme.secondary)),
+              ],
               const SizedBox(height: 4),
               Text(label,
                   textAlign: TextAlign.center,
                   style: const TextStyle(
-                      fontSize: 9, fontWeight: FontWeight.bold,
+                      fontSize: 9,
+                      fontWeight: FontWeight.bold,
                       color: AppTheme.textMediumEmphasis)),
             ]),
           ),
@@ -694,34 +957,43 @@ class _CoachAthleteDetailScreenState extends State<CoachAthleteDetailScreen> {
         final val = _latestPR(ex);
         final label = _prLabels[ex] ?? ex.replaceAll('_', ' ');
         return GestureDetector(
-          onTap: () => Navigator.push(context, MaterialPageRoute(
-            builder: (_) => AnalyticsDetailsScreen(
-              title: label, type: 'pr', exerciseId: ex,
-              preloadedLogs: _prLogs,
-              isReadOnly: false,
-              athleteId: widget.athleteId,
-            ),
-          )),
+          onTap: () => Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (_) => AnalyticsDetailsScreen(
+                  title: label,
+                  type: 'pr',
+                  exerciseId: ex,
+                  preloadedLogs: _prLogs,
+                  isReadOnly: false,
+                  athleteId: widget.athleteId,
+                ),
+              )),
           child: Container(
             padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-            decoration: BoxDecoration(color: AppTheme.card, borderRadius: BorderRadius.circular(12)),
+            decoration: BoxDecoration(
+                color: AppTheme.card, borderRadius: BorderRadius.circular(12)),
             child: Row(children: [
               Expanded(
                 child: Text(label,
                     style: const TextStyle(
                         color: AppTheme.textMediumEmphasis,
-                        fontSize: 12, fontWeight: FontWeight.bold)),
+                        fontSize: 12,
+                        fontWeight: FontWeight.bold)),
               ),
               RichText(
                 text: TextSpan(children: [
                   TextSpan(
-                      text: val > 0 ? val.toStringAsFixed(0) : '--',
+                      text: val > 0 ? val.toStringAsFixed(2) : '--',
                       style: const TextStyle(
-                          color: Colors.white, fontSize: 18, fontWeight: FontWeight.w900)),
+                          color: Colors.white,
+                          fontSize: 18,
+                          fontWeight: FontWeight.w900)),
                   if (val > 0)
                     const TextSpan(
                         text: ' kg',
-                        style: TextStyle(color: AppTheme.textMediumEmphasis, fontSize: 11)),
+                        style: TextStyle(
+                            color: AppTheme.textMediumEmphasis, fontSize: 11)),
                 ]),
               ),
             ]),
@@ -766,6 +1038,16 @@ class _CoachAthleteDetailScreenState extends State<CoachAthleteDetailScreen> {
     'leger_distance': 'm',
   };
 
+  int _bodyDecimalPlaces(String type) {
+    const integerMetrics = {
+      'leger_distance',
+      'pullups_max',
+      'recovery_score',
+      'sleep_score',
+    };
+    return integerMetrics.contains(type) ? 0 : 2;
+  }
+
   Widget _buildBodyGrid(List<String> types) {
     return GridView.count(
       crossAxisCount: 2,
@@ -779,35 +1061,45 @@ class _CoachAthleteDetailScreenState extends State<CoachAthleteDetailScreen> {
         final val = logs.isNotEmpty ? logs.last.value : 0.0;
         final label = _bodyLabels[t] ?? t;
         final unit = _bodyUnits[t] ?? '';
+        final decimals = _bodyDecimalPlaces(t);
         return GestureDetector(
-          onTap: () => Navigator.push(context, MaterialPageRoute(
-            builder: (_) => AnalyticsDetailsScreen(
-              title: label, type: 'body', exerciseId: t,
-              preloadedLogs: _bodyLogs,
-              isReadOnly: false,
-              athleteId: widget.athleteId,
-            ),
-          )),
+          onTap: () => Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (_) => AnalyticsDetailsScreen(
+                  title: label,
+                  type: 'body',
+                  exerciseId: t,
+                  preloadedLogs: _bodyLogs,
+                  isReadOnly: false,
+                  athleteId: widget.athleteId,
+                ),
+              )),
           child: Container(
             padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-            decoration: BoxDecoration(color: AppTheme.card, borderRadius: BorderRadius.circular(12)),
+            decoration: BoxDecoration(
+                color: AppTheme.card, borderRadius: BorderRadius.circular(12)),
             child: Row(children: [
               Expanded(
                 child: Text(label,
                     style: const TextStyle(
                         color: AppTheme.textMediumEmphasis,
-                        fontSize: 12, fontWeight: FontWeight.bold)),
+                        fontSize: 12,
+                        fontWeight: FontWeight.bold)),
               ),
               RichText(
                 text: TextSpan(children: [
                   TextSpan(
-                      text: val > 0 ? (unit == 's' ? val.toStringAsFixed(2) : val.toStringAsFixed(0)) : '--',
+                      text: val > 0 ? val.toStringAsFixed(decimals) : '--',
                       style: const TextStyle(
-                          color: Colors.white, fontSize: 18, fontWeight: FontWeight.w900)),
+                          color: Colors.white,
+                          fontSize: 18,
+                          fontWeight: FontWeight.w900)),
                   if (val > 0 && unit.isNotEmpty)
                     TextSpan(
                         text: ' $unit',
-                        style: const TextStyle(color: AppTheme.textMediumEmphasis, fontSize: 11)),
+                        style: const TextStyle(
+                            color: AppTheme.textMediumEmphasis, fontSize: 11)),
                 ]),
               ),
             ]),
@@ -823,7 +1115,8 @@ class _CoachAthleteDetailScreenState extends State<CoachAthleteDetailScreen> {
       Icon(icon, color: color, size: 18),
       const SizedBox(width: 8),
       Text(title,
-          style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16)),
+          style: const TextStyle(
+              color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16)),
     ]);
   }
 
@@ -831,12 +1124,16 @@ class _CoachAthleteDetailScreenState extends State<CoachAthleteDetailScreen> {
   Widget _buildSessionRow(TrainingSession session) {
     final color = _sportColor(session.sportId);
     return GestureDetector(
-      onTap: () => Navigator.push(context,
-          MaterialPageRoute(builder: (_) => ActivityDetailsScreen(session: session, prLogs: _prLogs))),
+      onTap: () => Navigator.push(
+          context,
+          MaterialPageRoute(
+              builder: (_) =>
+                  ActivityDetailsScreen(session: session, prLogs: _prLogs))),
       child: Container(
         margin: const EdgeInsets.only(bottom: 10),
         padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
-        decoration: BoxDecoration(color: AppTheme.card, borderRadius: BorderRadius.circular(14)),
+        decoration: BoxDecoration(
+            color: AppTheme.card, borderRadius: BorderRadius.circular(14)),
         child: Row(children: [
           Container(
             padding: const EdgeInsets.all(10),
@@ -848,22 +1145,30 @@ class _CoachAthleteDetailScreenState extends State<CoachAthleteDetailScreen> {
           ),
           const SizedBox(width: 14),
           Expanded(
-            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            child:
+                Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
               Text(_sportLabel(session.sportId),
-                  style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 14)),
+                  style: const TextStyle(
+                      color: Colors.white,
+                      fontWeight: FontWeight.bold,
+                      fontSize: 14)),
               const SizedBox(height: 3),
               Row(children: [
                 Text(session.date,
-                    style: const TextStyle(color: AppTheme.textMediumEmphasis, fontSize: 11)),
+                    style: const TextStyle(
+                        color: AppTheme.textMediumEmphasis, fontSize: 11)),
                 const SizedBox(width: 8),
-                const Icon(Icons.access_time, color: AppTheme.textMediumEmphasis, size: 11),
+                const Icon(Icons.access_time,
+                    color: AppTheme.textMediumEmphasis, size: 11),
                 const SizedBox(width: 3),
                 Text(TimeUtils.formatDuration(session.duration),
-                    style: const TextStyle(color: AppTheme.textMediumEmphasis, fontSize: 11)),
+                    style: const TextStyle(
+                        color: AppTheme.textMediumEmphasis, fontSize: 11)),
               ]),
             ]),
           ),
-          const Icon(Icons.chevron_right, color: AppTheme.textMediumEmphasis, size: 18),
+          const Icon(Icons.chevron_right,
+              color: AppTheme.textMediumEmphasis, size: 18),
         ]),
       ),
     );

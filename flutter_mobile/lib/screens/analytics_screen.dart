@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:phosphor_flutter/phosphor_flutter.dart';
-import 'package:fl_chart/fl_chart.dart';
 
 import '../core/theme.dart';
 import '../providers/app_state.dart';
@@ -9,7 +8,6 @@ import '../widgets/custom_card.dart';
 import '../models/models.dart';
 import 'activity_details_screen.dart';
 import 'analytics_details_screen.dart';
-import 'health_metrics_screen.dart';
 
 class AnalyticsScreen extends StatefulWidget {
   const AnalyticsScreen({super.key});
@@ -24,16 +22,16 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
     if (val <= 0) return '--';
     if (type == 'weight') {
       return unitSystem == 'metric'
-          ? val.toStringAsFixed(1)
-          : (val * 2.20462).toStringAsFixed(1);
+          ? val.toStringAsFixed(2)
+          : (val * 2.20462).toStringAsFixed(2);
     } else if (type == 'height') {
       return unitSystem == 'metric'
-          ? val.toStringAsFixed(0)
+          ? val.toStringAsFixed(2)
           : (val / 30.48).toStringAsFixed(2);
     } else if (type == 'jump') {
       return unitSystem == 'metric'
-          ? val.toStringAsFixed(1)
-          : (val * 0.393701).toStringAsFixed(1);
+          ? val.toStringAsFixed(2)
+          : (val * 0.393701).toStringAsFixed(2);
     }
     return val.toString();
   }
@@ -61,34 +59,6 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
     return filtered.isNotEmpty ? filtered.first.value : 0.0;
   }
 
-  // Process Logs with Trends Helper
-  List<Map<String, dynamic>> _getProcessedLogs(
-      List<BodyMetricLog> bodyLogs, String type) {
-    final logs = bodyLogs.where((l) => l.type == type).toList()
-      ..sort(
-          (a, b) => DateTime.parse(b.date).compareTo(DateTime.parse(a.date)));
-
-    return logs.take(10).toList().asMap().entries.map((e) {
-      final index = e.key;
-      final log = e.value;
-      String? trend;
-      double diff = 0;
-
-      if (index < logs.length - 1) {
-        final prevVal = logs[index + 1].value;
-        diff = log.value - prevVal;
-        if (diff > 0) {
-          trend = 'up';
-        } else if (diff < 0) {
-          trend = 'down';
-        } else {
-          trend = 'equal';
-        }
-      }
-      return {'log': log, 'trend': trend, 'diff': diff};
-    }).toList();
-  }
-
   String? _selectedTeamId;
 
   @override
@@ -114,15 +84,6 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
     final slLeftVal = _getLatestJump(appState.jumpLogs, 'single_leg_left');
     final slRightVal = _getLatestJump(appState.jumpLogs, 'single_leg_right');
 
-    // Body Logs
-    final recentWeightLogs = _getProcessedLogs(appState.bodyLogs, 'weight');
-    final recentHeightLogs = _getProcessedLogs(appState.bodyLogs, 'height');
-    final recentFatLogs = _getProcessedLogs(appState.bodyLogs, 'fat');
-    
-    final recentSpo2Logs = _getProcessedLogs(appState.bodyLogs, 'spo2');
-    final recentRespLogs = _getProcessedLogs(appState.bodyLogs, 'resp');
-    final recentTempLogs = _getProcessedLogs(appState.bodyLogs, 'temp');
-
     // Recent Sessions
     final recentSessions = appState.sessions.take(3).toList();
 
@@ -139,11 +100,6 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
     final plankSideL = _getLatestBodyVal(appState.bodyLogs, 'plank_side_l');
     final plankSideR = _getLatestBodyVal(appState.bodyLogs, 'plank_side_r');
     final pullupsMax = _getLatestBodyVal(appState.bodyLogs, 'pullups_max');
-    
-    // Recovery & Sleep trends
-    final sleepLogs = appState.bodyLogs.where((l) => l.type == 'sleep_score').toList()..sort((a,b) => DateTime.parse(a.date).compareTo(DateTime.parse(b.date)));
-    final recoveryLogs = appState.bodyLogs.where((l) => l.type == 'recovery_score').toList()..sort((a,b) => DateTime.parse(a.date).compareTo(DateTime.parse(b.date)));
-
     return Scaffold(
       appBar: AppBar(
         title: const Text('Analytics',
@@ -172,13 +128,15 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
                   value: _selectedTeamId,
                   isExpanded: true,
                   dropdownColor: AppTheme.card,
-                  icon: const Icon(Icons.arrow_drop_down, color: AppTheme.textMediumEmphasis),
+                  icon: const Icon(Icons.arrow_drop_down,
+                      color: AppTheme.textMediumEmphasis),
                   items: appState.teams.map((team) {
                     return DropdownMenuItem<String>(
                       value: team.id,
                       child: Text(
                         team.name,
-                        style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+                        style: const TextStyle(
+                            color: Colors.white, fontWeight: FontWeight.bold),
                       ),
                     );
                   }).toList(),
@@ -210,7 +168,13 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
             childAspectRatio: 1.2,
             children: [
               GestureDetector(
-                onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const AnalyticsDetailsScreen(title: 'Squat Jump', type: 'jump', exerciseId: 'squat_jump'))),
+                onTap: () => Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                        builder: (_) => const AnalyticsDetailsScreen(
+                            title: 'Squat Jump',
+                            type: 'jump',
+                            exerciseId: 'squat_jump'))),
                 child: _JumpCard(
                     title: 'Squat Jump',
                     val: squatJumpVal,
@@ -218,7 +182,13 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
                     unitSystem: unitSystem),
               ),
               GestureDetector(
-                onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const AnalyticsDetailsScreen(title: 'CM Jump', type: 'jump', exerciseId: 'cm_jump'))),
+                onTap: () => Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                        builder: (_) => const AnalyticsDetailsScreen(
+                            title: 'CM Jump',
+                            type: 'jump',
+                            exerciseId: 'cm_jump'))),
                 child: _JumpCard(
                     title: 'CM Jump',
                     val: cmJumpVal,
@@ -227,7 +197,13 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
                     isHighlighted: true),
               ),
               GestureDetector(
-                onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const AnalyticsDetailsScreen(title: 'Drop Jump', type: 'jump', exerciseId: 'drop_jump'))),
+                onTap: () => Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                        builder: (_) => const AnalyticsDetailsScreen(
+                            title: 'Drop Jump',
+                            type: 'jump',
+                            exerciseId: 'drop_jump'))),
                 child: _JumpCard(
                     title: 'Drop Jump',
                     val: dropJumpVal,
@@ -236,7 +212,13 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
                     unitSystem: unitSystem),
               ),
               GestureDetector(
-                onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const AnalyticsDetailsScreen(title: '45s Jump', type: 'jump', exerciseId: '45s_jump'))),
+                onTap: () => Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                        builder: (_) => const AnalyticsDetailsScreen(
+                            title: '45s Jump',
+                            type: 'jump',
+                            exerciseId: '45s_jump'))),
                 child: _JumpCard(
                     title: '45s\nJump',
                     val: jump45sVal,
@@ -253,7 +235,14 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
                       children: [
                         Expanded(
                           child: InkWell(
-                            onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const AnalyticsDetailsScreen(title: 'Single Leg SX', type: 'jump', exerciseId: 'single_leg_left'))),
+                            onTap: () => Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                    builder: (_) =>
+                                        const AnalyticsDetailsScreen(
+                                            title: 'Single Leg SX',
+                                            type: 'jump',
+                                            exerciseId: 'single_leg_left'))),
                             child: Column(
                               mainAxisAlignment: MainAxisAlignment.center,
                               children: [
@@ -287,7 +276,14 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
                         Container(width: 1, height: 40, color: Colors.white10),
                         Expanded(
                           child: InkWell(
-                            onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const AnalyticsDetailsScreen(title: 'Single Leg DX', type: 'jump', exerciseId: 'single_leg_right'))),
+                            onTap: () => Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                    builder: (_) =>
+                                        const AnalyticsDetailsScreen(
+                                            title: 'Single Leg DX',
+                                            type: 'jump',
+                                            exerciseId: 'single_leg_right'))),
                             child: Column(
                               mainAxisAlignment: MainAxisAlignment.center,
                               children: [
@@ -325,7 +321,13 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
                       left: 0,
                       right: 0,
                       child: GestureDetector(
-                        onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const AnalyticsDetailsScreen(title: 'Single Leg Jump', type: 'jump', exerciseId: 'single_leg'))),
+                        onTap: () => Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                                builder: (_) => const AnalyticsDetailsScreen(
+                                    title: 'Single Leg Jump',
+                                    type: 'jump',
+                                    exerciseId: 'single_leg'))),
                         child: Column(
                           children: [
                             if (slLeftVal > 0 || slRightVal > 0)
@@ -339,10 +341,12 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
                                   children: [
                                     Container(
                                       width: 96 *
-                                          (slLeftVal / (slLeftVal + slRightVal)),
+                                          (slLeftVal /
+                                              (slLeftVal + slRightVal)),
                                       decoration: BoxDecoration(
                                           color: AppTheme.secondary,
-                                          borderRadius: BorderRadius.circular(4)),
+                                          borderRadius:
+                                              BorderRadius.circular(4)),
                                     ),
                                   ],
                                 ),
@@ -381,28 +385,52 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
             childAspectRatio: 1.8,
             children: [
               GestureDetector(
-                onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const AnalyticsDetailsScreen(title: 'Back Squat', type: 'pr', exerciseId: 'back_squat'))),
+                onTap: () => Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                        builder: (_) => const AnalyticsDetailsScreen(
+                            title: 'Back Squat',
+                            type: 'pr',
+                            exerciseId: 'back_squat'))),
                 child: _MaxLoadCard(
-                    title: 'Back Squat', 
-                    val: _getLatestPR(appState.prLogs, 'back_squat'), 
+                    title: 'Back Squat',
+                    val: _getLatestPR(appState.prLogs, 'back_squat'),
                     unit: weightUnit),
               ),
               GestureDetector(
-                onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const AnalyticsDetailsScreen(title: 'Deadlift', type: 'pr', exerciseId: 'deadlift'))),
+                onTap: () => Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                        builder: (_) => const AnalyticsDetailsScreen(
+                            title: 'Deadlift',
+                            type: 'pr',
+                            exerciseId: 'deadlift'))),
                 child: _MaxLoadCard(
-                    title: 'Deadlift', 
-                    val: _getLatestPR(appState.prLogs, 'deadlift'), 
+                    title: 'Deadlift',
+                    val: _getLatestPR(appState.prLogs, 'deadlift'),
                     unit: weightUnit),
               ),
               GestureDetector(
-                onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const AnalyticsDetailsScreen(title: 'Bench Press', type: 'pr', exerciseId: 'bp'))),
+                onTap: () => Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                        builder: (_) => const AnalyticsDetailsScreen(
+                            title: 'Bench Press',
+                            type: 'pr',
+                            exerciseId: 'bp'))),
                 child: _MaxLoadCard(
                     title: 'Bench Press',
                     val: _getLatestPR(appState.prLogs, 'bp'),
                     unit: weightUnit),
               ),
               GestureDetector(
-                onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const AnalyticsDetailsScreen(title: 'Clean & Jerk', type: 'pr', exerciseId: 'clean_jerk'))),
+                onTap: () => Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                        builder: (_) => const AnalyticsDetailsScreen(
+                            title: 'Clean & Jerk',
+                            type: 'pr',
+                            exerciseId: 'clean_jerk'))),
                 child: _MaxLoadCard(
                     title: 'Clean & Jerk',
                     val: _getLatestPR(appState.prLogs, 'clean_jerk'),
@@ -429,24 +457,59 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
             childAspectRatio: 2.2,
             children: [
               GestureDetector(
-                onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const AnalyticsDetailsScreen(title: 'Scatto 20 m', type: 'body', exerciseId: 'sprint_20m'))),
-                child: _MaxLoadCard(title: 'Scatto 20 m', val: sprint20m, unit: 's'),
+                onTap: () => Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                        builder: (_) => const AnalyticsDetailsScreen(
+                            title: 'Scatto 20 m',
+                            type: 'body',
+                            exerciseId: 'sprint_20m'))),
+                child: _MaxLoadCard(
+                    title: 'Scatto 20 m', val: sprint20m, unit: 's'),
               ),
               GestureDetector(
-                onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const AnalyticsDetailsScreen(title: 'Scatto 60 m', type: 'body', exerciseId: 'sprint_60m'))),
-                child: _MaxLoadCard(title: 'Scatto 60 m', val: sprint60m, unit: 's'),
+                onTap: () => Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                        builder: (_) => const AnalyticsDetailsScreen(
+                            title: 'Scatto 60 m',
+                            type: 'body',
+                            exerciseId: 'sprint_60m'))),
+                child: _MaxLoadCard(
+                    title: 'Scatto 60 m', val: sprint60m, unit: 's'),
               ),
               GestureDetector(
-                onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const AnalyticsDetailsScreen(title: 'Léger VAM', type: 'body', exerciseId: 'leger_vam'))),
-                child: _MaxLoadCard(title: 'Léger VAM', val: legerVam, unit: 'km/h'),
+                onTap: () => Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                        builder: (_) => const AnalyticsDetailsScreen(
+                            title: 'Léger VAM',
+                            type: 'body',
+                            exerciseId: 'leger_vam'))),
+                child: _MaxLoadCard(
+                    title: 'Léger VAM', val: legerVam, unit: 'km/h'),
               ),
               GestureDetector(
-                onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const AnalyticsDetailsScreen(title: 'Léger Vo2Max', type: 'body', exerciseId: 'leger_vo2max'))),
-                child: _MaxLoadCard(title: 'Léger Vo2Max', val: legerVo2Max, unit: 'ml/kg/min'),
+                onTap: () => Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                        builder: (_) => const AnalyticsDetailsScreen(
+                            title: 'Léger Vo2Max',
+                            type: 'body',
+                            exerciseId: 'leger_vo2max'))),
+                child: _MaxLoadCard(
+                    title: 'Léger Vo2Max', val: legerVo2Max, unit: 'ml/kg/min'),
               ),
               GestureDetector(
-                onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const AnalyticsDetailsScreen(title: 'Léger Distanza', type: 'body', exerciseId: 'leger_distance'))),
-                child: _MaxLoadCard(title: 'Léger Dist.', val: legerDist, unit: 'm'),
+                onTap: () => Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                        builder: (_) => const AnalyticsDetailsScreen(
+                            title: 'Léger Distanza',
+                            type: 'body',
+                            exerciseId: 'leger_distance'))),
+                child: _MaxLoadCard(
+                    title: 'Léger Dist.', val: legerDist, unit: 'm'),
               ),
             ],
           ),
@@ -469,16 +532,37 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
             childAspectRatio: 2.2,
             children: [
               GestureDetector(
-                onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const AnalyticsDetailsScreen(title: 'Bipodale', type: 'body', exerciseId: 'balance_bipedal'))),
-                child: _MaxLoadCard(title: 'Bipodale', val: balBipedal, unit: ''),
+                onTap: () => Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                        builder: (_) => const AnalyticsDetailsScreen(
+                            title: 'Bipodale',
+                            type: 'body',
+                            exerciseId: 'balance_bipedal'))),
+                child:
+                    _MaxLoadCard(title: 'Bipodale', val: balBipedal, unit: ''),
               ),
               GestureDetector(
-                onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const AnalyticsDetailsScreen(title: 'Monopodale SX', type: 'body', exerciseId: 'balance_single_l'))),
-                child: _MaxLoadCard(title: 'Mono SX', val: balSingleL, unit: ''),
+                onTap: () => Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                        builder: (_) => const AnalyticsDetailsScreen(
+                            title: 'Monopodale SX',
+                            type: 'body',
+                            exerciseId: 'balance_single_l'))),
+                child:
+                    _MaxLoadCard(title: 'Mono SX', val: balSingleL, unit: ''),
               ),
               GestureDetector(
-                onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const AnalyticsDetailsScreen(title: 'Monopodale DX', type: 'body', exerciseId: 'balance_single_r'))),
-                child: _MaxLoadCard(title: 'Mono DX', val: balSingleR, unit: ''),
+                onTap: () => Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                        builder: (_) => const AnalyticsDetailsScreen(
+                            title: 'Monopodale DX',
+                            type: 'body',
+                            exerciseId: 'balance_single_r'))),
+                child:
+                    _MaxLoadCard(title: 'Mono DX', val: balSingleR, unit: ''),
               ),
             ],
           ),
@@ -501,52 +585,50 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
             childAspectRatio: 2.2,
             children: [
               GestureDetector(
-                onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const AnalyticsDetailsScreen(title: 'Plank Frontale', type: 'body', exerciseId: 'plank_front'))),
-                child: _MaxLoadCard(title: 'Plank Front.', val: plankFront, unit: 's'),
+                onTap: () => Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                        builder: (_) => const AnalyticsDetailsScreen(
+                            title: 'Plank Frontale',
+                            type: 'body',
+                            exerciseId: 'plank_front'))),
+                child: _MaxLoadCard(
+                    title: 'Plank Front.', val: plankFront, unit: 's'),
               ),
               GestureDetector(
-                onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const AnalyticsDetailsScreen(title: 'Plank Laterale SX', type: 'body', exerciseId: 'plank_side_l'))),
-                child: _MaxLoadCard(title: 'Plank Lat SX', val: plankSideL, unit: 's'),
+                onTap: () => Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                        builder: (_) => const AnalyticsDetailsScreen(
+                            title: 'Plank Laterale SX',
+                            type: 'body',
+                            exerciseId: 'plank_side_l'))),
+                child: _MaxLoadCard(
+                    title: 'Plank Lat SX', val: plankSideL, unit: 's'),
               ),
               GestureDetector(
-                onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const AnalyticsDetailsScreen(title: 'Plank Laterale DX', type: 'body', exerciseId: 'plank_side_r'))),
-                child: _MaxLoadCard(title: 'Plank Lat DX', val: plankSideR, unit: 's'),
+                onTap: () => Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                        builder: (_) => const AnalyticsDetailsScreen(
+                            title: 'Plank Laterale DX',
+                            type: 'body',
+                            exerciseId: 'plank_side_r'))),
+                child: _MaxLoadCard(
+                    title: 'Plank Lat DX', val: plankSideR, unit: 's'),
               ),
               GestureDetector(
-                onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const AnalyticsDetailsScreen(title: 'Trazioni Massime', type: 'body', exerciseId: 'pullups_max'))),
-                child: _MaxLoadCard(title: 'Trazioni Max', val: pullupsMax, unit: 'reps'),
+                onTap: () => Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                        builder: (_) => const AnalyticsDetailsScreen(
+                            title: 'Trazioni Massime',
+                            type: 'body',
+                            exerciseId: 'pullups_max'))),
+                child: _MaxLoadCard(
+                    title: 'Trazioni Max', val: pullupsMax, unit: 'reps'),
               ),
             ],
-          ),
-
-          const SizedBox(height: 32),
-
-          // SALUTE & RECUPERO
-          Text('SALUTE & RECUPERO',
-              style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                  color: AppTheme.textMediumEmphasis,
-                  letterSpacing: 1.5,
-                  fontWeight: FontWeight.bold)),
-          const SizedBox(height: 12),
-          SizedBox(
-            height: 120,
-            child: Row(
-              children: [
-                Expanded(
-                  child: GestureDetector(
-                    onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const AnalyticsDetailsScreen(title: 'Sleep Score', type: 'body', exerciseId: 'sleep_score'))),
-                    child: _TrendBox(title: 'Sleep Score', logs: sleepLogs, color: Colors.indigoAccent),
-                  ),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: GestureDetector(
-                    onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const AnalyticsDetailsScreen(title: 'Recovery Score', type: 'body', exerciseId: 'recovery_score'))),
-                    child: _TrendBox(title: 'Recovery Score', logs: recoveryLogs, color: Colors.green),
-                  ),
-                ),
-              ],
-            ),
           ),
 
           const SizedBox(height: 32),
@@ -653,148 +735,6 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
           }),
 
           const SizedBox(height: 32),
-
-          // HEALTH METRICS
-          Text('HEALTH METRICS',
-              style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                  color: AppTheme.textMediumEmphasis,
-                  letterSpacing: 1.5,
-                  fontWeight: FontWeight.bold)),
-          const SizedBox(height: 12),
-          Row(
-            children: [
-              Expanded(
-                child: GestureDetector(
-                  onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const HealthMetricsScreen(initialMetric: 'hrv'))),
-                  child: const CustomCard(
-                    padding: EdgeInsets.all(16),
-                    child: Column(
-                      children: [
-                        Icon(Icons.favorite, color: AppTheme.primary, size: 28),
-                        SizedBox(height: 8),
-                        Text('HRV', style: TextStyle(fontWeight: FontWeight.bold)),
-                        SizedBox(height: 4),
-                        Text('Vai ai grafici', style: TextStyle(fontSize: 10, color: AppTheme.textMediumEmphasis)),
-                      ],
-                    ),
-                  ),
-                ),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: GestureDetector(
-                  onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const HealthMetricsScreen(initialMetric: 'resting_hr'))),
-                  child: const CustomCard(
-                    padding: EdgeInsets.all(16),
-                    child: Column(
-                      children: [
-                        Icon(Icons.monitor_heart, color: AppTheme.error, size: 28),
-                        SizedBox(height: 8),
-                        Text('Battiti a Riposo', style: TextStyle(fontWeight: FontWeight.bold)),
-                        SizedBox(height: 4),
-                        Text('Vai ai grafici', style: TextStyle(fontSize: 10, color: AppTheme.textMediumEmphasis)),
-                      ],
-                    ),
-                  ),
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 12),
-          if (recentSpo2Logs.isNotEmpty || recentRespLogs.isNotEmpty || recentTempLogs.isNotEmpty)
-            Row(
-              children: [
-                if (recentSpo2Logs.isNotEmpty)
-                  Expanded(
-                    child: GestureDetector(
-                      onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const HealthMetricsScreen(initialMetric: 'spo2'))),
-                      child: const CustomCard(
-                        padding: EdgeInsets.all(16),
-                        child: Column(
-                          children: [
-                            Icon(Icons.bloodtype, color: Colors.blueAccent, size: 28),
-                            SizedBox(height: 8),
-                            Text('SpO2', style: TextStyle(fontWeight: FontWeight.bold)),
-                            SizedBox(height: 4),
-                            Text('Vai ai grafici', style: TextStyle(fontSize: 10, color: AppTheme.textMediumEmphasis)),
-                          ],
-                        ),
-                      ),
-                    ),
-                  ),
-                if (recentSpo2Logs.isNotEmpty && (recentRespLogs.isNotEmpty || recentTempLogs.isNotEmpty))
-                  const SizedBox(width: 12),
-                if (recentRespLogs.isNotEmpty)
-                  Expanded(
-                    child: GestureDetector(
-                      onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const HealthMetricsScreen(initialMetric: 'resp'))),
-                      child: const CustomCard(
-                        padding: EdgeInsets.all(16),
-                        child: Column(
-                          children: [
-                            Icon(Icons.air, color: Colors.tealAccent, size: 28),
-                            SizedBox(height: 8),
-                            Text('Freq. Respiratoria', style: TextStyle(fontWeight: FontWeight.bold), textAlign: TextAlign.center),
-                            SizedBox(height: 4),
-                            Text('Vai ai grafici', style: TextStyle(fontSize: 10, color: AppTheme.textMediumEmphasis)),
-                          ],
-                        ),
-                      ),
-                    ),
-                  ),
-                if (recentRespLogs.isNotEmpty && recentTempLogs.isNotEmpty)
-                  const SizedBox(width: 12),
-                if (recentTempLogs.isNotEmpty)
-                  Expanded(
-                    child: GestureDetector(
-                      onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const HealthMetricsScreen(initialMetric: 'temp'))),
-                      child: const CustomCard(
-                        padding: EdgeInsets.all(16),
-                        child: Column(
-                          children: [
-                            Icon(Icons.thermostat, color: Colors.orangeAccent, size: 28),
-                            SizedBox(height: 8),
-                            Text('Temperatura', style: TextStyle(fontWeight: FontWeight.bold)),
-                            SizedBox(height: 4),
-                            Text('Vai ai grafici', style: TextStyle(fontSize: 10, color: AppTheme.textMediumEmphasis)),
-                          ],
-                        ),
-                      ),
-                    ),
-                  ),
-              ],
-            ),
-          const SizedBox(height: 32),
-
-          // HISTORY LISTS
-          _HistorySection(
-              title: 'Storico Peso',
-              icon: PhosphorIconsRegular.scales,
-              iconColor: AppTheme.secondary,
-              logsInfo: recentWeightLogs,
-              type: 'weight',
-              unitSystem: unitSystem,
-              onDelete: (id) => appState.deleteBodyLog(id)),
-          const SizedBox(height: 24),
-          if (user == null || user.age < 18) ...[
-            _HistorySection(
-                title: 'Storico Altezza',
-                icon: PhosphorIconsRegular.ruler,
-                iconColor: Colors.purpleAccent,
-                logsInfo: recentHeightLogs,
-                type: 'height',
-                unitSystem: unitSystem,
-                onDelete: (id) => appState.deleteBodyLog(id)),
-            const SizedBox(height: 24),
-          ],
-          _HistorySection(
-              title: 'Storico Massa Grassa',
-              icon: PhosphorIconsRegular.percent,
-              iconColor: Colors.greenAccent,
-              logsInfo: recentFatLogs,
-              type: 'fat',
-              unitSystem: unitSystem,
-              onDelete: (id) => appState.deleteBodyLog(id)),
         ],
       ),
     );
@@ -824,7 +764,8 @@ class _JumpCard extends StatelessWidget {
   Widget build(BuildContext context) {
     return CustomCard(
       padding: const EdgeInsets.all(8),
-      borderColor: isHighlighted ? AppTheme.secondary.withValues(alpha: 0.5) : null,
+      borderColor:
+          isHighlighted ? AppTheme.secondary.withValues(alpha: 0.5) : null,
       child: Stack(
         alignment: Alignment.center,
         children: [
@@ -844,8 +785,8 @@ class _JumpCard extends StatelessWidget {
                     TextSpan(
                         text: val > 0
                             ? (unitSystem == 'metric'
-                                ? val.toStringAsFixed(1)
-                                : (val * 0.393701).toStringAsFixed(1))
+                                ? val.toStringAsFixed(2)
+                                : (val * 0.393701).toStringAsFixed(2))
                             : '--',
                         style: const TextStyle(
                             fontSize: 18, fontWeight: FontWeight.bold)),
@@ -894,6 +835,7 @@ class _MaxLoadCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final bool hasPr = val > 0;
+    final decimals = unit == 'reps' || unit == 'm' ? 0 : 2;
     return CustomCard(
       padding: const EdgeInsets.all(12),
       child: Column(
@@ -930,11 +872,13 @@ class _MaxLoadCard extends StatelessWidget {
             text: TextSpan(
               children: [
                 TextSpan(
-                    text: hasPr ? (unit == 's' ? val.toStringAsFixed(2) : val.toStringAsFixed(0)) : '--',
+                    text: hasPr ? val.toStringAsFixed(decimals) : '--',
                     style: TextStyle(
                         fontSize: 24,
                         fontWeight: FontWeight.w900,
-                        color: hasPr ? Colors.white : AppTheme.textMediumEmphasis)),
+                        color: hasPr
+                            ? Colors.white
+                            : AppTheme.textMediumEmphasis)),
                 if (hasPr)
                   TextSpan(
                       text: ' $unit',
@@ -949,6 +893,7 @@ class _MaxLoadCard extends StatelessWidget {
   }
 }
 
+// ignore: unused_element
 class _HistorySection extends StatelessWidget {
   final String title;
   final IconData icon;
@@ -1005,89 +950,112 @@ class _HistorySection extends StatelessWidget {
     String valStr = log.value.toString();
     DateTime selectedDate = DateTime.parse(log.date);
 
-    showDialog(context: context, builder: (context) {
-      return StatefulBuilder(
-        builder: (context, setDialogState) {
-          return AlertDialog(
-            backgroundColor: AppTheme.card,
-            title: Text(type == 'weight' ? 'Modifica Peso' : type == 'height' ? 'Modifica Altezza' : 'Modifica Massa Grassa', style: const TextStyle(fontWeight: FontWeight.bold)),
-            content: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                TextField(
-                  keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                  decoration: InputDecoration(hintText: type == 'weight' ? 'es. 65.5' : type == 'height' ? 'es. 172' : 'es. 15.2'),
-                  onChanged: (v) => valStr = v,
-                  controller: TextEditingController(text: log.value.toString())..selection = TextSelection.fromPosition(TextPosition(offset: log.value.toString().length)),
-                  style: const TextStyle(color: Colors.white),
-                ),
-                const SizedBox(height: 16),
-                InkWell(
-                  onTap: () async {
-                    final d = await showDatePicker(
-                      context: context,
-                      initialDate: selectedDate,
-                      firstDate: DateTime(2020),
-                      lastDate: DateTime.now(),
-                      builder: (context, child) => Theme(
-                        data: ThemeData.dark().copyWith(
-                          colorScheme: const ColorScheme.dark(
-                            primary: AppTheme.primary,
-                            onPrimary: Colors.white,
-                            surface: AppTheme.card,
-                            onSurface: Colors.white,
+    showDialog(
+        context: context,
+        builder: (context) {
+          return StatefulBuilder(builder: (context, setDialogState) {
+            return AlertDialog(
+              backgroundColor: AppTheme.card,
+              title: Text(
+                  type == 'weight'
+                      ? 'Modifica Peso'
+                      : type == 'height'
+                          ? 'Modifica Altezza'
+                          : 'Modifica Massa Grassa',
+                  style: const TextStyle(fontWeight: FontWeight.bold)),
+              content: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  TextField(
+                    keyboardType:
+                        const TextInputType.numberWithOptions(decimal: true),
+                    decoration: InputDecoration(
+                        hintText: type == 'weight'
+                            ? 'es. 65.5'
+                            : type == 'height'
+                                ? 'es. 172'
+                                : 'es. 15.2'),
+                    onChanged: (v) => valStr = v,
+                    controller: TextEditingController(
+                        text: log.value.toString())
+                      ..selection = TextSelection.fromPosition(
+                          TextPosition(offset: log.value.toString().length)),
+                    style: const TextStyle(color: Colors.white),
+                  ),
+                  const SizedBox(height: 16),
+                  InkWell(
+                    onTap: () async {
+                      final d = await showDatePicker(
+                        context: context,
+                        initialDate: selectedDate,
+                        firstDate: DateTime(2020),
+                        lastDate: DateTime.now(),
+                        builder: (context, child) => Theme(
+                          data: ThemeData.dark().copyWith(
+                            colorScheme: const ColorScheme.dark(
+                              primary: AppTheme.primary,
+                              onPrimary: Colors.white,
+                              surface: AppTheme.card,
+                              onSurface: Colors.white,
+                            ),
                           ),
+                          child: child!,
                         ),
-                        child: child!,
+                      );
+                      if (d != null) {
+                        setDialogState(() => selectedDate = d);
+                      }
+                    },
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(
+                          vertical: 16, horizontal: 16),
+                      decoration: BoxDecoration(
+                        color: AppTheme.surface,
+                        borderRadius: BorderRadius.circular(12),
                       ),
-                    );
-                    if (d != null) {
-                      setDialogState(() => selectedDate = d);
-                    }
-                  },
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 16),
-                    decoration: BoxDecoration(
-                      color: AppTheme.surface,
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    child: Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        const Text('Data', style: TextStyle(color: AppTheme.textMediumEmphasis)),
-                        Text('${selectedDate.day}/${selectedDate.month}/${selectedDate.year}', style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
-                      ],
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          const Text('Data',
+                              style: TextStyle(
+                                  color: AppTheme.textMediumEmphasis)),
+                          Text(
+                              '${selectedDate.day}/${selectedDate.month}/${selectedDate.year}',
+                              style: const TextStyle(
+                                  color: Colors.white,
+                                  fontWeight: FontWeight.bold)),
+                        ],
+                      ),
                     ),
                   ),
-                ),
-              ],
-            ),
-            actions: [
-              TextButton(onPressed: () => Navigator.pop(context), child: const Text('Annulla', style: TextStyle(color: AppTheme.textMediumEmphasis))),
-              ElevatedButton(
-                onPressed: () {
-                  final v = double.tryParse(valStr.replaceAll(',', '.'));
-                  if (v != null) {
-                    final appState = Provider.of<AppState>(context, listen: false);
-                    appState.deleteBodyLog(log.id); // remove old
-                    appState.addBodyLog(
-                      BodyMetricLog(
-                        id: log.id,
-                        date: selectedDate.toIso8601String().split('T')[0],
-                        type: type,
-                        value: v,
-                      )
-                    );
-                  }
-                  Navigator.pop(context);
-                }, 
-                child: const Text('Salva')
+                ],
               ),
-            ],
-          );
-        }
-      );
-    });
+              actions: [
+                TextButton(
+                    onPressed: () => Navigator.pop(context),
+                    child: const Text('Annulla',
+                        style: TextStyle(color: AppTheme.textMediumEmphasis))),
+                ElevatedButton(
+                    onPressed: () {
+                      final v = double.tryParse(valStr.replaceAll(',', '.'));
+                      if (v != null) {
+                        final appState =
+                            Provider.of<AppState>(context, listen: false);
+                        appState.deleteBodyLog(log.id); // remove old
+                        appState.addBodyLog(BodyMetricLog(
+                          id: log.id,
+                          date: selectedDate.toIso8601String().split('T')[0],
+                          type: type,
+                          value: v,
+                        ));
+                      }
+                      Navigator.pop(context);
+                    },
+                    child: const Text('Salva')),
+              ],
+            );
+          });
+        });
   }
 
   Widget _buildHeader() {
@@ -1127,7 +1095,7 @@ class _HistorySection extends StatelessWidget {
 
     final displayVal = type == 'weight'
         ? (unitSystem == 'metric' ? log.value : log.value * 2.20462)
-        : type == 'height' 
+        : type == 'height'
             ? (unitSystem == 'metric' ? log.value : log.value / 30.48)
             : log.value; // fat
     final unit = type == 'weight'
@@ -1204,7 +1172,7 @@ class _HistorySection extends StatelessWidget {
                                     ? AppTheme.secondary
                                     : Colors.green),
                             const SizedBox(width: 2),
-                            Text('+${displayDiff.abs().toStringAsFixed(1)}',
+                            Text('+${displayDiff.abs().toStringAsFixed(2)}',
                                 style: TextStyle(
                                     fontSize: 10,
                                     fontWeight: FontWeight.bold,
@@ -1218,7 +1186,7 @@ class _HistorySection extends StatelessWidget {
                                     ? Colors.green
                                     : AppTheme.error),
                             const SizedBox(width: 2),
-                            Text('-${displayDiff.abs().toStringAsFixed(1)}',
+                            Text('-${displayDiff.abs().toStringAsFixed(2)}',
                                 style: TextStyle(
                                     fontSize: 10,
                                     fontWeight: FontWeight.bold,
@@ -1283,73 +1251,6 @@ class _HistorySection extends StatelessWidget {
       'DIC'
     ];
     return mons[m - 1];
-  }
-}
-
-class _TrendBox extends StatelessWidget {
-  final String title;
-  final List<BodyMetricLog> logs;
-  final Color color;
-
-  const _TrendBox({required this.title, required this.logs, required this.color});
-
-  @override
-  Widget build(BuildContext context) {
-    final hasData = logs.isNotEmpty;
-    final val = hasData ? logs.last.value.toStringAsFixed(0) : '--';
-    List<FlSpot> spots = [];
-    if (hasData) {
-      for (int i = 0; i < logs.length; i++) {
-        spots.add(FlSpot(i.toDouble(), logs[i].value));
-      }
-    }
-
-    return CustomCard(
-      padding: const EdgeInsets.all(12),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Text(title.toUpperCase(),
-                  style: const TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: AppTheme.textMediumEmphasis)),
-              Icon(PhosphorIconsRegular.chartLineUp, size: 16, color: color),
-            ],
-          ),
-          const SizedBox(height: 4),
-          Text(val, style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: hasData ? Colors.white : AppTheme.textMediumEmphasis)),
-          const Spacer(),
-          if (hasData && logs.length > 1)
-            SizedBox(
-              height: 40,
-              child: LineChart(
-                LineChartData(
-                  gridData: const FlGridData(show: false),
-                  titlesData: const FlTitlesData(show: false),
-                  borderData: FlBorderData(show: false),
-                  lineBarsData: [
-                    LineChartBarData(
-                      spots: spots,
-                      isCurved: true,
-                      color: color,
-                      barWidth: 2,
-                      isStrokeCapRound: true,
-                      dotData: const FlDotData(show: false),
-                      belowBarData: BarAreaData(
-                        show: true,
-                        color: color.withValues(alpha: 0.2),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            )
-          else
-            const Center(child: Text('Nessun trend', style: TextStyle(fontSize: 10, color: AppTheme.textMediumEmphasis))),
-        ],
-      ),
-    );
   }
 }
 
