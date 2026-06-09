@@ -193,7 +193,11 @@ def build_ios_ipa(version_name, build_number)
       sh("xcodebuild", "-exportArchive",
         "-archivePath", "build/ios/archive/Runner.xcarchive",
         "-exportPath", "build/ios/ipa",
-        "-exportOptionsPlist", export_options_plist
+        "-exportOptionsPlist", export_options_plist,
+        "-allowProvisioningUpdates",
+        "-authenticationKeyPath", asc_key_filepath,
+        "-authenticationKeyID", ENV["ASC_KEY_ID"],
+        "-authenticationKeyIssuerID", ENV["ASC_ISSUER_ID"]
       )
     end
   end
