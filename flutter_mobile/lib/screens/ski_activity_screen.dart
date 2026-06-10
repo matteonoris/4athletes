@@ -461,8 +461,9 @@ class _SkiActivityScreenState extends State<SkiActivityScreen> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(title,
-              style: const TextStyle(
-                  color: Colors.white, fontWeight: FontWeight.bold)),
+              style: TextStyle(
+                  color: AppTheme.textHighEmphasis,
+                  fontWeight: FontWeight.bold)),
           const SizedBox(height: 10),
           Row(
             children: [
@@ -543,8 +544,9 @@ class _SkiActivityScreenState extends State<SkiActivityScreen> {
                     color: AppTheme.textMediumEmphasis, fontSize: 11)),
             const SizedBox(height: 4),
             Text(value,
-                style: const TextStyle(
-                    color: Colors.white, fontWeight: FontWeight.bold)),
+                style: TextStyle(
+                    color: AppTheme.textHighEmphasis,
+                    fontWeight: FontWeight.bold)),
           ],
         ),
       ),
@@ -560,7 +562,7 @@ class _SkiActivityScreenState extends State<SkiActivityScreen> {
     return TextField(
       controller: controller,
       maxLines: maxLines,
-      style: const TextStyle(color: Colors.white),
+      style: TextStyle(color: AppTheme.textHighEmphasis),
       decoration: InputDecoration(
         labelText: label,
         prefixIcon: Icon(icon),
@@ -579,7 +581,8 @@ class _SkiActivityScreenState extends State<SkiActivityScreen> {
       controller: controller,
       keyboardType: TextInputType.number,
       inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-      style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+      style: TextStyle(
+          color: AppTheme.textHighEmphasis, fontWeight: FontWeight.bold),
       decoration: InputDecoration(
         labelText: label,
         filled: true,

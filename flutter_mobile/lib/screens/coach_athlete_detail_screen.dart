@@ -353,8 +353,8 @@ class _CoachAthleteDetailScreenState extends State<CoachAthleteDetailScreen> {
             const SizedBox(width: 10),
             Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
               Text(widget.athleteName,
-                  style: const TextStyle(
-                      color: Colors.white,
+                  style: TextStyle(
+                      color: AppTheme.textHighEmphasis,
                       fontWeight: FontWeight.bold,
                       fontSize: 16)),
               if (_profile?.skiClub != null)
@@ -537,11 +537,11 @@ class _CoachAthleteDetailScreenState extends State<CoachAthleteDetailScreen> {
                 ),
               ),
               const SizedBox(width: 12),
-              const Expanded(
+              Expanded(
                 child: Text(
                   'Preparazione atletica',
                   style: TextStyle(
-                    color: Colors.white,
+                    color: AppTheme.textHighEmphasis,
                     fontWeight: FontWeight.bold,
                     fontSize: 16,
                   ),
@@ -606,8 +606,8 @@ class _CoachAthleteDetailScreenState extends State<CoachAthleteDetailScreen> {
           const SizedBox(height: 6),
           Text(
             value,
-            style: const TextStyle(
-              color: Colors.white,
+            style: TextStyle(
+              color: AppTheme.textHighEmphasis,
               fontWeight: FontWeight.w900,
               fontSize: 16,
             ),
@@ -691,8 +691,8 @@ class _CoachAthleteDetailScreenState extends State<CoachAthleteDetailScreen> {
                           fontSize: 11)),
                   const SizedBox(height: 4),
                   Text('$_totalCambi',
-                      style: const TextStyle(
-                          color: Colors.white,
+                      style: TextStyle(
+                          color: AppTheme.textHighEmphasis,
                           fontWeight: FontWeight.w900,
                           fontSize: 22)),
                   const SizedBox(height: 6),
@@ -807,8 +807,8 @@ class _CoachAthleteDetailScreenState extends State<CoachAthleteDetailScreen> {
           ]),
           const SizedBox(height: 4),
           Text('${latest.toStringAsFixed(2)} $unit',
-              style: const TextStyle(
-                  color: Colors.white,
+              style: TextStyle(
+                  color: AppTheme.textHighEmphasis,
                   fontWeight: FontWeight.bold,
                   fontSize: 18)),
           const Spacer(),
@@ -983,8 +983,8 @@ class _CoachAthleteDetailScreenState extends State<CoachAthleteDetailScreen> {
                 text: TextSpan(children: [
                   TextSpan(
                       text: val > 0 ? val.toStringAsFixed(2) : '--',
-                      style: const TextStyle(
-                          color: Colors.white,
+                      style: TextStyle(
+                          color: AppTheme.textHighEmphasis,
                           fontSize: 18,
                           fontWeight: FontWeight.w900)),
                   if (val > 0)
@@ -1089,8 +1089,8 @@ class _CoachAthleteDetailScreenState extends State<CoachAthleteDetailScreen> {
                 text: TextSpan(children: [
                   TextSpan(
                       text: val > 0 ? val.toStringAsFixed(decimals) : '--',
-                      style: const TextStyle(
-                          color: Colors.white,
+                      style: TextStyle(
+                          color: AppTheme.textHighEmphasis,
                           fontSize: 18,
                           fontWeight: FontWeight.w900)),
                   if (val > 0 && unit.isNotEmpty)
@@ -1113,8 +1113,10 @@ class _CoachAthleteDetailScreenState extends State<CoachAthleteDetailScreen> {
       Icon(icon, color: color, size: 18),
       const SizedBox(width: 8),
       Text(title,
-          style: const TextStyle(
-              color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16)),
+          style: TextStyle(
+              color: AppTheme.textHighEmphasis,
+              fontWeight: FontWeight.bold,
+              fontSize: 16)),
     ]);
   }
 
@@ -1146,8 +1148,8 @@ class _CoachAthleteDetailScreenState extends State<CoachAthleteDetailScreen> {
             child:
                 Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
               Text(_sportLabel(session.sportId),
-                  style: const TextStyle(
-                      color: Colors.white,
+                  style: TextStyle(
+                      color: AppTheme.textHighEmphasis,
                       fontWeight: FontWeight.bold,
                       fontSize: 14)),
               const SizedBox(height: 3),

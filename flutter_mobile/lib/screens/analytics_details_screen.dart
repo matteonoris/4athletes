@@ -788,8 +788,9 @@ class _AnalyticsDetailsScreenState extends State<AnalyticsDetailsScreen> {
                     final formatted = spot.y.toStringAsFixed(decimalPlaces);
                     return LineTooltipItem(
                       unit.isEmpty ? formatted : '$formatted $unit',
-                      const TextStyle(
-                          color: Colors.white, fontWeight: FontWeight.bold),
+                      TextStyle(
+                          color: AppTheme.textHighEmphasis,
+                          fontWeight: FontWeight.bold),
                     );
                   }).toList();
                 },

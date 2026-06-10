@@ -322,8 +322,8 @@ class _CoachAthleticTestScreenState extends State<CoachAthleticTestScreen> {
                 Expanded(
                   child: Text(
                     a['name'],
-                    style: const TextStyle(
-                        color: Colors.white,
+                    style: TextStyle(
+                        color: AppTheme.textHighEmphasis,
                         fontSize: 16,
                         fontWeight: FontWeight.bold),
                   ),
@@ -357,8 +357,8 @@ class _CoachAthleticTestScreenState extends State<CoachAthleticTestScreen> {
                 flex: 2,
                 child: Text(
                   a['name'],
-                  style: const TextStyle(
-                      color: Colors.white,
+                  style: TextStyle(
+                      color: AppTheme.textHighEmphasis,
                       fontSize: 16,
                       fontWeight: FontWeight.bold),
                 ),
@@ -370,8 +370,8 @@ class _CoachAthleticTestScreenState extends State<CoachAthleticTestScreen> {
                   controller: a['valueCtrl'],
                   keyboardType:
                       const TextInputType.numberWithOptions(decimal: true),
-                  style: const TextStyle(
-                      color: Colors.white,
+                  style: TextStyle(
+                      color: AppTheme.textHighEmphasis,
                       fontSize: 18,
                       fontWeight: FontWeight.bold),
                   textAlign: TextAlign.center,
@@ -400,8 +400,8 @@ class _CoachAthleticTestScreenState extends State<CoachAthleticTestScreen> {
                     controller: a['rsiCtrl'],
                     keyboardType:
                         const TextInputType.numberWithOptions(decimal: true),
-                    style: const TextStyle(
-                        color: Colors.white,
+                    style: TextStyle(
+                        color: AppTheme.textHighEmphasis,
                         fontSize: 18,
                         fontWeight: FontWeight.bold),
                     textAlign: TextAlign.center,
@@ -429,8 +429,8 @@ class _CoachAthleticTestScreenState extends State<CoachAthleticTestScreen> {
                     controller: a['vo2maxCtrl'],
                     keyboardType:
                         const TextInputType.numberWithOptions(decimal: true),
-                    style: const TextStyle(
-                        color: Colors.white,
+                    style: TextStyle(
+                        color: AppTheme.textHighEmphasis,
                         fontSize: 18,
                         fontWeight: FontWeight.bold),
                     textAlign: TextAlign.center,
@@ -456,8 +456,8 @@ class _CoachAthleticTestScreenState extends State<CoachAthleticTestScreen> {
                     controller: a['distCtrl'],
                     keyboardType:
                         const TextInputType.numberWithOptions(decimal: true),
-                    style: const TextStyle(
-                        color: Colors.white,
+                    style: TextStyle(
+                        color: AppTheme.textHighEmphasis,
                         fontSize: 18,
                         fontWeight: FontWeight.bold),
                     textAlign: TextAlign.center,

@@ -613,9 +613,9 @@ class _JoinTeamModalState extends State<_JoinTeamModal> {
                               Icon(PhosphorIcons.checkCircle(),
                                   color: Colors.white, size: 20),
                               const SizedBox(width: 8),
-                              const Text('Benvenuto!',
+                              Text('Benvenuto!',
                                   style: TextStyle(
-                                      color: Colors.white,
+                                      color: AppTheme.textHighEmphasis,
                                       fontWeight: FontWeight.bold)),
                             ],
                           )

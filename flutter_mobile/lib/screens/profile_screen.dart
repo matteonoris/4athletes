@@ -96,7 +96,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
       context: context,
       builder: (ctx) => AlertDialog(
         backgroundColor: AppTheme.surface,
-        title: const Text('Attenzione', style: TextStyle(color: Colors.white)),
+        title: Text('Attenzione',
+            style: TextStyle(color: AppTheme.textHighEmphasis)),
         content: Text(
           'Questa azione svuota la cache locale degli score salute e forza una nuova sincronizzazione da Apple Health / Health Connect. Non elimina allenamenti o metriche salvate, ma gli score potrebbero cambiare se i dati importati sono diversi. Vuoi continuare?',
           style: TextStyle(color: AppTheme.textMediumEmphasis),
@@ -156,8 +157,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
             children: [
               ListTile(
                 leading: const Icon(Icons.camera_alt, color: Colors.white),
-                title: const Text('Scatta Foto',
-                    style: TextStyle(color: Colors.white)),
+                title: Text('Scatta Foto',
+                    style: TextStyle(color: AppTheme.textHighEmphasis)),
                 onTap: () {
                   Navigator.pop(context);
                   _pickImage(ImageSource.camera);
@@ -165,8 +166,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
               ),
               ListTile(
                 leading: const Icon(Icons.photo_library, color: Colors.white),
-                title: const Text('Scegli da Galleria',
-                    style: TextStyle(color: Colors.white)),
+                title: Text('Scegli da Galleria',
+                    style: TextStyle(color: AppTheme.textHighEmphasis)),
                 onTap: () {
                   Navigator.pop(context);
                   _pickImage(ImageSource.gallery);
@@ -186,9 +187,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
         if (!status.isGranted) {
           if (mounted) {
             ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(
+              SnackBar(
                   content: Text('Permesso fotocamera negato.',
-                      style: TextStyle(color: Colors.white)),
+                      style: TextStyle(color: AppTheme.textHighEmphasis)),
                   backgroundColor: AppTheme.error),
             );
           }
@@ -241,7 +242,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
               content: Text('Errore: $e',
-                  style: const TextStyle(color: Colors.white)),
+                  style: TextStyle(color: AppTheme.textHighEmphasis)),
               backgroundColor: AppTheme.error),
         );
       }
@@ -973,8 +974,8 @@ class _DeviceManagementModal extends StatelessWidget {
           context: context,
           builder: (ctx) => AlertDialog(
             backgroundColor: AppTheme.surface,
-            title: const Text('Sincronizza Dati',
-                style: TextStyle(color: Colors.white)),
+            title: Text('Sincronizza Dati',
+                style: TextStyle(color: AppTheme.textHighEmphasis)),
             content: Text(
                 'Vuoi importare ora gli allenamenti degli ultimi 7 giorni?',
                 style: TextStyle(color: AppTheme.textMediumEmphasis)),
@@ -1183,8 +1184,9 @@ class _DeviceManagementModal extends StatelessWidget {
                                   context: context,
                                   builder: (ctx) => AlertDialog(
                                     backgroundColor: AppTheme.surface,
-                                    title: const Text('Sincronizza Dati',
-                                        style: TextStyle(color: Colors.white)),
+                                    title: Text('Sincronizza Dati',
+                                        style: TextStyle(
+                                            color: AppTheme.textHighEmphasis)),
                                     content: Text(
                                         'Vuoi importare gli allenamenti degli ultimi 7 giorni?',
                                         style: TextStyle(

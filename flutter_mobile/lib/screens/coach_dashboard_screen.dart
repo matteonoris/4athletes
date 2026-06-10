@@ -63,15 +63,16 @@ class _CoachDashboardScreenState extends State<CoachDashboardScreen> {
           backgroundColor: AppTheme.card,
           shape:
               RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-          title: const Text('Seleziona Team',
-              style:
-                  TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+          title: Text('Seleziona Team',
+              style: TextStyle(
+                  color: AppTheme.textHighEmphasis,
+                  fontWeight: FontWeight.bold)),
           content: Column(
             mainAxisSize: MainAxisSize.min,
             children: appState.teams
                 .map((t) => ListTile(
                     title: Text(t.name,
-                        style: const TextStyle(color: Colors.white)),
+                        style: TextStyle(color: AppTheme.textHighEmphasis)),
                     trailing: Icon(Icons.arrow_forward_ios,
                         size: 16, color: AppTheme.textMediumEmphasis),
                     onTap: () {
@@ -128,15 +129,16 @@ class _CoachDashboardScreenState extends State<CoachDashboardScreen> {
           backgroundColor: AppTheme.card,
           shape:
               RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-          title: const Text('Seleziona Team',
-              style:
-                  TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+          title: Text('Seleziona Team',
+              style: TextStyle(
+                  color: AppTheme.textHighEmphasis,
+                  fontWeight: FontWeight.bold)),
           content: Column(
             mainAxisSize: MainAxisSize.min,
             children: appState.teams
                 .map((t) => ListTile(
                     title: Text(t.name,
-                        style: const TextStyle(color: Colors.white)),
+                        style: TextStyle(color: AppTheme.textHighEmphasis)),
                     trailing: Icon(Icons.arrow_forward_ios,
                         size: 16, color: AppTheme.textMediumEmphasis),
                     onTap: () {
@@ -178,9 +180,9 @@ class _CoachDashboardScreenState extends State<CoachDashboardScreen> {
                           color: Colors.white.withOpacity(0.2),
                           borderRadius: BorderRadius.circular(2))),
                   const SizedBox(height: 24),
-                  const Text('Seleziona Test',
+                  Text('Seleziona Test',
                       style: TextStyle(
-                          color: Colors.white,
+                          color: AppTheme.textHighEmphasis,
                           fontSize: 20,
                           fontWeight: FontWeight.bold)),
                   const SizedBox(height: 16),
@@ -280,7 +282,7 @@ class _CoachDashboardScreenState extends State<CoachDashboardScreen> {
   Widget _buildTestTile(
       BuildContext ctx, String title, String testId, String category) {
     return ListTile(
-      title: Text(title, style: const TextStyle(color: Colors.white)),
+      title: Text(title, style: TextStyle(color: AppTheme.textHighEmphasis)),
       trailing: Icon(Icons.chevron_right, color: AppTheme.textMediumEmphasis),
       onTap: () {
         HapticFeedback.lightImpact();
@@ -365,9 +367,9 @@ class _CoachDashboardScreenState extends State<CoachDashboardScreen> {
                                   color: Colors.white.withValues(alpha: 0.2),
                                   borderRadius: BorderRadius.circular(2))),
                           const SizedBox(height: 24),
-                          const Text('Aggiungi al Calendario',
+                          Text('Aggiungi al Calendario',
                               style: TextStyle(
-                                  color: Colors.white,
+                                  color: AppTheme.textHighEmphasis,
                                   fontSize: 20,
                                   fontWeight: FontWeight.bold)),
                           const SizedBox(height: 24),
@@ -376,9 +378,9 @@ class _CoachDashboardScreenState extends State<CoachDashboardScreen> {
                                 backgroundColor: AppTheme.primary,
                                 child:
                                     Icon(Icons.ac_unit, color: Colors.white)),
-                            title: const Text('Allenamento Sci',
+                            title: Text('Allenamento Sci',
                                 style: TextStyle(
-                                    color: Colors.white,
+                                    color: AppTheme.textHighEmphasis,
                                     fontWeight: FontWeight.bold)),
                             subtitle: Text(
                                 'Crea evento in pista (Slalom, Gigante...)',
@@ -398,9 +400,9 @@ class _CoachDashboardScreenState extends State<CoachDashboardScreen> {
                                 backgroundColor: Color(0xFFFF7A00),
                                 child: Icon(Icons.fitness_center,
                                     color: Colors.white)),
-                            title: const Text('Preparazione Atletica',
+                            title: Text('Preparazione Atletica',
                                 style: TextStyle(
-                                    color: Colors.white,
+                                    color: AppTheme.textHighEmphasis,
                                     fontWeight: FontWeight.bold)),
                             subtitle: Text(
                                 'Scegli dal database (Forza, Corsa, ecc.)',
@@ -419,9 +421,9 @@ class _CoachDashboardScreenState extends State<CoachDashboardScreen> {
                             leading: const CircleAvatar(
                                 backgroundColor: Colors.blueAccent,
                                 child: Icon(Icons.speed, color: Colors.white)),
-                            title: const Text('Test Atletici',
+                            title: Text('Test Atletici',
                                 style: TextStyle(
-                                    color: Colors.white,
+                                    color: AppTheme.textHighEmphasis,
                                     fontWeight: FontWeight.bold)),
                             subtitle: Text(
                                 'Registra salti e massimali per gli atleti',
@@ -548,9 +550,9 @@ class _CoachHomeViewState extends State<_CoachHomeView> {
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    const Text('Calendario',
+                    Text('Calendario',
                         style: TextStyle(
-                            color: Colors.white,
+                            color: AppTheme.textHighEmphasis,
                             fontSize: 24,
                             fontWeight: FontWeight.bold)),
                     Container(
@@ -639,8 +641,8 @@ class _CoachHomeViewState extends State<_CoachHomeView> {
                           ),
                           Text(
                               '${_months[_focusedDay.month - 1]} ${_focusedDay.year}',
-                              style: const TextStyle(
-                                  color: Colors.white,
+                              style: TextStyle(
+                                  color: AppTheme.textHighEmphasis,
                                   fontSize: 18,
                                   fontWeight: FontWeight.bold)),
                           IconButton(
@@ -675,13 +677,13 @@ class _CoachHomeViewState extends State<_CoachHomeView> {
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
                     Row(
-                      children: const [
+                      children: [
                         Icon(Icons.calendar_today_outlined,
                             color: Colors.white, size: 20),
                         SizedBox(width: 8),
                         Text('Programma di Oggi',
                             style: TextStyle(
-                                color: Colors.white,
+                                color: AppTheme.textHighEmphasis,
                                 fontSize: 20,
                                 fontWeight: FontWeight.bold)),
                       ],
@@ -812,8 +814,8 @@ class _CoachHomeViewState extends State<_CoachHomeView> {
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
                       Text(event.title,
-                          style: const TextStyle(
-                              color: Colors.white,
+                          style: TextStyle(
+                              color: AppTheme.textHighEmphasis,
                               fontSize: 18,
                               fontWeight: FontWeight.bold)),
                       Icon(Icons.chevron_right,
@@ -1145,9 +1147,9 @@ class _CoachReportViewState extends State<_CoachReportView> {
       child: ListView(
         padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 24),
         children: [
-          const Text('Report Atleti',
+          Text('Report Atleti',
               style: TextStyle(
-                  color: Colors.white,
+                  color: AppTheme.textHighEmphasis,
                   fontSize: 24,
                   fontWeight: FontWeight.w900)),
           const SizedBox(height: 24),
@@ -1170,8 +1172,8 @@ class _CoachReportViewState extends State<_CoachReportView> {
                             letterSpacing: 1.2)),
                     const SizedBox(height: 4),
                     Text(_athletes.length.toString(),
-                        style: const TextStyle(
-                            color: Colors.white,
+                        style: TextStyle(
+                            color: AppTheme.textHighEmphasis,
                             fontSize: 32,
                             fontWeight: FontWeight.w900)),
                   ],
@@ -1197,7 +1199,7 @@ class _CoachReportViewState extends State<_CoachReportView> {
                       borderRadius: BorderRadius.circular(12)),
                   child: TextField(
                     onChanged: (val) => setState(() => _searchQuery = val),
-                    style: const TextStyle(color: Colors.white),
+                    style: TextStyle(color: AppTheme.textHighEmphasis),
                     decoration: InputDecoration(
                       hintText: 'Cerca atleta...',
                       hintStyle: TextStyle(color: AppTheme.textMediumEmphasis),
@@ -1301,8 +1303,8 @@ class _CoachReportViewState extends State<_CoachReportView> {
               backgroundColor: AppTheme.background,
               radius: 22,
               child: Text(initial,
-                  style: const TextStyle(
-                      color: Colors.white,
+                  style: TextStyle(
+                      color: AppTheme.textHighEmphasis,
                       fontWeight: FontWeight.bold,
                       fontSize: 18)),
             ),
@@ -1312,8 +1314,8 @@ class _CoachReportViewState extends State<_CoachReportView> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(name,
-                      style: const TextStyle(
-                          color: Colors.white,
+                      style: TextStyle(
+                          color: AppTheme.textHighEmphasis,
                           fontWeight: FontWeight.bold,
                           fontSize: 16)),
                   const SizedBox(height: 5),
@@ -1355,8 +1357,8 @@ class _CoachReportViewState extends State<_CoachReportView> {
             ),
             const SizedBox(width: 12),
             Text('${prepHours}h',
-                style: const TextStyle(
-                    color: Colors.white,
+                style: TextStyle(
+                    color: AppTheme.textHighEmphasis,
                     fontWeight: FontWeight.bold,
                     fontSize: 16)),
             const SizedBox(width: 8),
@@ -1413,9 +1415,9 @@ class _CoachTrainingViewState extends State<_CoachTrainingView> {
                       color: Colors.white.withValues(alpha: 0.2),
                       borderRadius: BorderRadius.circular(2))),
               const SizedBox(height: 24),
-              const Text('Filtra Allenamenti',
+              Text('Filtra Allenamenti',
                   style: TextStyle(
-                      color: Colors.white,
+                      color: AppTheme.textHighEmphasis,
                       fontSize: 20,
                       fontWeight: FontWeight.bold)),
               const SizedBox(height: 24),
@@ -1521,9 +1523,9 @@ class _CoachTrainingViewState extends State<_CoachTrainingView> {
       child: ListView(
         padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 24),
         children: [
-          const Text('Tutti gli Allenamenti',
+          Text('Tutti gli Allenamenti',
               style: TextStyle(
-                  color: Colors.white,
+                  color: AppTheme.textHighEmphasis,
                   fontSize: 24,
                   fontWeight: FontWeight.w900)),
           const SizedBox(height: 24),
@@ -1537,7 +1539,7 @@ class _CoachTrainingViewState extends State<_CoachTrainingView> {
                       borderRadius: BorderRadius.circular(12)),
                   child: TextField(
                     onChanged: (val) => setState(() => _searchQuery = val),
-                    style: const TextStyle(color: Colors.white),
+                    style: TextStyle(color: AppTheme.textHighEmphasis),
                     decoration: InputDecoration(
                       hintText: 'Cerca per titolo, luogo...',
                       hintStyle: TextStyle(color: AppTheme.textMediumEmphasis),
@@ -1645,8 +1647,8 @@ class _CoachTrainingViewState extends State<_CoachTrainingView> {
                               color: Colors.white.withValues(alpha: 0.05),
                               borderRadius: BorderRadius.circular(6)),
                           child: Text(event.date,
-                              style: const TextStyle(
-                                  color: Colors.white,
+                              style: TextStyle(
+                                  color: AppTheme.textHighEmphasis,
                                   fontWeight: FontWeight.bold,
                                   fontSize: 12)),
                         ),
@@ -1687,8 +1689,8 @@ class _CoachTrainingViewState extends State<_CoachTrainingView> {
                 ),
                 const SizedBox(height: 16),
                 Text(event.title,
-                    style: const TextStyle(
-                        color: Colors.white,
+                    style: TextStyle(
+                        color: AppTheme.textHighEmphasis,
                         fontSize: 18,
                         fontWeight: FontWeight.bold)),
                 const SizedBox(height: 12),
@@ -1740,8 +1742,8 @@ class _CoachTrainingViewState extends State<_CoachTrainingView> {
                           color: AppTheme.background,
                           borderRadius: BorderRadius.circular(8)),
                       child: Text('${event.startTime} - ${event.endTime}',
-                          style: const TextStyle(
-                              color: Colors.white,
+                          style: TextStyle(
+                              color: AppTheme.textHighEmphasis,
                               fontWeight: FontWeight.bold,
                               fontSize: 14)),
                     ),

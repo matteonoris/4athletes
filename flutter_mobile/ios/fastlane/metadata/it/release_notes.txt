@@ -1,6 +1,5 @@
-Build TestFlight dedicata a personalizzazione profilo, sincronizzazione salute e flussi coach.
+Build TestFlight dedicata alla leggibilita' in light mode.
 
-- Aggiunge la preferenza tema chiaro/scuro nell'area profilo.
-- Migliora layout e leggibilita' in schermate atleta e coach.
-- Aggiunge un'azione profilo per svuotare la cache salute locale e risincronizzare i dati.
-- Aggiorna schermate salute, analytics, dettagli attivita' e flussi coach.
+- Corregge contrasto di testi e campi durante l'onboarding in light mode.
+- Migliora la leggibilita' dei testi nel cambio tema chiaro/scuro.
+- Mantiene la selezione tema nell'area profilo condivisa da atleta e coach.

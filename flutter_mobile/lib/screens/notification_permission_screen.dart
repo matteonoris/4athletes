@@ -220,8 +220,8 @@ class _NotificationPermissionScreenState
               children: [
                 Text(
                   title,
-                  style: const TextStyle(
-                    color: Colors.white,
+                  style: TextStyle(
+                    color: AppTheme.textHighEmphasis,
                     fontWeight: FontWeight.bold,
                     fontSize: 14,
                   ),

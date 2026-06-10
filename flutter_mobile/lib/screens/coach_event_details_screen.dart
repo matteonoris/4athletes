@@ -995,8 +995,8 @@ class _CoachEventDetailsScreenState extends State<CoachEventDetailsScreen> {
       ),
       child: Text(
         '$label: $value',
-        style: const TextStyle(
-          color: Colors.white,
+        style: TextStyle(
+          color: AppTheme.textHighEmphasis,
           fontSize: 12,
           fontWeight: FontWeight.bold,
         ),
@@ -1010,7 +1010,7 @@ class _CoachEventDetailsScreenState extends State<CoachEventDetailsScreen> {
       children: [
         TextField(
           onChanged: (value) => setState(() => _exerciseSearch = value),
-          style: const TextStyle(color: Colors.white),
+          style: TextStyle(color: AppTheme.textHighEmphasis),
           decoration: InputDecoration(
             hintText: 'Cerca esercizio',
             prefixIcon: const Icon(Icons.search),
@@ -1091,8 +1091,9 @@ class _CoachEventDetailsScreenState extends State<CoachEventDetailsScreen> {
           dense: true,
           contentPadding: EdgeInsets.zero,
           title: Text(exercise.name,
-              style: const TextStyle(
-                  color: Colors.white, fontWeight: FontWeight.bold)),
+              style: TextStyle(
+                  color: AppTheme.textHighEmphasis,
+                  fontWeight: FontWeight.bold)),
           subtitle: Text('${exercise.targetMuscle} - ${exercise.category}',
               style: TextStyle(color: AppTheme.textMediumEmphasis)),
           trailing: IconButton(
@@ -1122,8 +1123,8 @@ class _CoachEventDetailsScreenState extends State<CoachEventDetailsScreen> {
               Expanded(
                 child: Text(
                   exercise['name']?.toString() ?? '',
-                  style: const TextStyle(
-                    color: Colors.white,
+                  style: TextStyle(
+                    color: AppTheme.textHighEmphasis,
                     fontWeight: FontWeight.bold,
                   ),
                 ),
@@ -1283,7 +1284,7 @@ class _CoachEventDetailsScreenState extends State<CoachEventDetailsScreen> {
           TextFormField(
             initialValue: entry['exerciseName']?.toString() ?? '',
             onChanged: (value) => entry['exerciseName'] = value,
-            style: const TextStyle(color: Colors.white),
+            style: TextStyle(color: AppTheme.textHighEmphasis),
             decoration: const InputDecoration(labelText: 'Esercizio'),
           ),
           const SizedBox(height: 8),
@@ -1369,7 +1370,7 @@ class _CoachEventDetailsScreenState extends State<CoachEventDetailsScreen> {
           TextFormField(
             initialValue: drill['name']?.toString() ?? '',
             onChanged: (value) => drill['name'] = value,
-            style: const TextStyle(color: Colors.white),
+            style: TextStyle(color: AppTheme.textHighEmphasis),
             decoration: const InputDecoration(labelText: 'Drill'),
           ),
           const SizedBox(height: 8),
@@ -1642,7 +1643,7 @@ class _CoachEventDetailsScreenState extends State<CoachEventDetailsScreen> {
   ) {
     return TextFormField(
       initialValue: value,
-      style: const TextStyle(color: Colors.white, fontSize: 12),
+      style: TextStyle(color: AppTheme.textHighEmphasis, fontSize: 12),
       decoration: InputDecoration(labelText: label),
       onChanged: (raw) => setState(() => onChanged(raw)),
     );
@@ -1659,7 +1660,7 @@ class _CoachEventDetailsScreenState extends State<CoachEventDetailsScreen> {
       inputFormatters: [
         FilteringTextInputFormatter.allow(RegExp(r'[0-9.,]')),
       ],
-      style: const TextStyle(color: Colors.white, fontSize: 12),
+      style: TextStyle(color: AppTheme.textHighEmphasis, fontSize: 12),
       decoration: InputDecoration(labelText: label),
       onChanged: (raw) {
         final parsed = double.tryParse(raw.replaceAll(',', '.')) ?? 0;
@@ -1748,13 +1749,14 @@ class _CoachEventDetailsScreenState extends State<CoachEventDetailsScreen> {
       builder: (context) => AlertDialog(
         backgroundColor: AppTheme.card,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        title: const Text(
+        title: Text(
           'Salva template',
-          style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+          style: TextStyle(
+              color: AppTheme.textHighEmphasis, fontWeight: FontWeight.bold),
         ),
         content: TextField(
           controller: nameCtrl,
-          style: const TextStyle(color: Colors.white),
+          style: TextStyle(color: AppTheme.textHighEmphasis),
           decoration: const InputDecoration(labelText: 'Nome template'),
         ),
         actions: [
@@ -1845,13 +1847,14 @@ class _CoachEventDetailsScreenState extends State<CoachEventDetailsScreen> {
       builder: (context) => AlertDialog(
         backgroundColor: AppTheme.card,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        title: const Text(
+        title: Text(
           'Esercizio custom',
-          style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+          style: TextStyle(
+              color: AppTheme.textHighEmphasis, fontWeight: FontWeight.bold),
         ),
         content: TextField(
           controller: nameCtrl,
-          style: const TextStyle(color: Colors.white),
+          style: TextStyle(color: AppTheme.textHighEmphasis),
           decoration: const InputDecoration(labelText: 'Nome esercizio'),
         ),
         actions: [
@@ -2009,8 +2012,8 @@ class _CoachEventDetailsScreenState extends State<CoachEventDetailsScreen> {
                     Expanded(
                       child: Text(
                         athlete['name']?.toString() ?? 'Atleta',
-                        style: const TextStyle(
-                          color: Colors.white,
+                        style: TextStyle(
+                          color: AppTheme.textHighEmphasis,
                           fontWeight: FontWeight.bold,
                         ),
                       ),
@@ -2152,10 +2155,11 @@ class _CoachEventDetailsScreenState extends State<CoachEventDetailsScreen> {
             SwitchListTile(
               value: _chronoEnabled,
               onChanged: (value) => setState(() => _chronoEnabled = value),
-              title: const Text(
+              title: Text(
                 'Crono',
-                style:
-                    TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+                style: TextStyle(
+                    color: AppTheme.textHighEmphasis,
+                    fontWeight: FontWeight.bold),
               ),
               subtitle: Text(
                 'Abilita dati cronometrati personali.',
@@ -2202,8 +2206,8 @@ class _CoachEventDetailsScreenState extends State<CoachEventDetailsScreen> {
                           Expanded(
                             child: Text(
                               athlete['name']?.toString() ?? 'Atleta',
-                              style: const TextStyle(
-                                color: Colors.white,
+                              style: TextStyle(
+                                color: AppTheme.textHighEmphasis,
                                 fontWeight: FontWeight.bold,
                               ),
                             ),
@@ -2257,8 +2261,8 @@ class _CoachEventDetailsScreenState extends State<CoachEventDetailsScreen> {
               const SizedBox(width: 8),
               Text(
                 title,
-                style: const TextStyle(
-                  color: Colors.white,
+                style: TextStyle(
+                  color: AppTheme.textHighEmphasis,
                   fontSize: 16,
                   fontWeight: FontWeight.bold,
                 ),
@@ -2385,8 +2389,8 @@ class _CoachEventDetailsScreenState extends State<CoachEventDetailsScreen> {
             controller: controller,
             readOnly: onTap != null,
             onTap: onTap,
-            style: const TextStyle(
-              color: Colors.white,
+            style: TextStyle(
+              color: AppTheme.textHighEmphasis,
               fontSize: 16,
               fontWeight: FontWeight.bold,
             ),
@@ -2416,7 +2420,7 @@ class _CoachEventDetailsScreenState extends State<CoachEventDetailsScreen> {
       ),
       child: TextField(
         onChanged: (value) => setState(() => _searchQuery = value),
-        style: const TextStyle(color: Colors.white),
+        style: TextStyle(color: AppTheme.textHighEmphasis),
         decoration: InputDecoration(
           border: InputBorder.none,
           prefixIcon: Icon(Icons.search, color: AppTheme.textMediumEmphasis),
@@ -2462,8 +2466,8 @@ class _CoachEventDetailsScreenState extends State<CoachEventDetailsScreen> {
                 children: [
                   Text(
                     athlete['name']?.toString() ?? 'Atleta',
-                    style: const TextStyle(
-                      color: Colors.white,
+                    style: TextStyle(
+                      color: AppTheme.textHighEmphasis,
                       fontWeight: FontWeight.bold,
                     ),
                   ),
@@ -2663,8 +2667,8 @@ class _CoachEventDetailsScreenState extends State<CoachEventDetailsScreen> {
             keyboardType: TextInputType.number,
             textAlign: TextAlign.center,
             onChanged: (_) => setState(() {}),
-            style: const TextStyle(
-              color: Colors.white,
+            style: TextStyle(
+              color: AppTheme.textHighEmphasis,
               fontWeight: FontWeight.bold,
             ),
             decoration: const InputDecoration(
@@ -2700,7 +2704,7 @@ class _CoachEventDetailsScreenState extends State<CoachEventDetailsScreen> {
           child: TextField(
             controller: _notesCtrl,
             maxLines: 4,
-            style: const TextStyle(color: Colors.white),
+            style: TextStyle(color: AppTheme.textHighEmphasis),
             decoration: InputDecoration(
               border: InputBorder.none,
               contentPadding: const EdgeInsets.all(14),
@@ -2741,8 +2745,8 @@ class _CoachEventDetailsScreenState extends State<CoachEventDetailsScreen> {
       ),
       child: Text(
         '$label $value',
-        style: const TextStyle(
-          color: Colors.white,
+        style: TextStyle(
+          color: AppTheme.textHighEmphasis,
           fontSize: 11,
           fontWeight: FontWeight.bold,
         ),
@@ -2891,8 +2895,8 @@ class _CoachEventDetailsScreenState extends State<CoachEventDetailsScreen> {
               children: [
                 Text(
                   title,
-                  style: const TextStyle(
-                    color: Colors.white,
+                  style: TextStyle(
+                    color: AppTheme.textHighEmphasis,
                     fontSize: 18,
                     fontWeight: FontWeight.bold,
                   ),
@@ -3083,8 +3087,8 @@ class _CoachEventDetailsScreenState extends State<CoachEventDetailsScreen> {
                 children: [
                   Text(
                     athlete['name']?.toString() ?? 'Atleta',
-                    style: const TextStyle(
-                      color: Colors.white,
+                    style: TextStyle(
+                      color: AppTheme.textHighEmphasis,
                       fontSize: 20,
                       fontWeight: FontWeight.bold,
                     ),
@@ -3197,7 +3201,7 @@ class _CoachEventDetailsScreenState extends State<CoachEventDetailsScreen> {
             child: TextField(
               controller: controller,
               maxLines: maxLines,
-              style: const TextStyle(color: Colors.white),
+              style: TextStyle(color: AppTheme.textHighEmphasis),
               decoration: const InputDecoration(
                 border: InputBorder.none,
                 contentPadding: EdgeInsets.all(12),
@@ -3289,9 +3293,10 @@ class _CoachEventDetailsScreenState extends State<CoachEventDetailsScreen> {
       builder: (context) => AlertDialog(
         backgroundColor: AppTheme.card,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        title: const Text(
+        title: Text(
           'Conferma salvataggio',
-          style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+          style: TextStyle(
+              color: AppTheme.textHighEmphasis, fontWeight: FontWeight.bold),
         ),
         content: Text(
           message,
@@ -3319,9 +3324,10 @@ class _CoachEventDetailsScreenState extends State<CoachEventDetailsScreen> {
       builder: (context) => AlertDialog(
         backgroundColor: AppTheme.card,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        title: const Text(
+        title: Text(
           'Elimina evento',
-          style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+          style: TextStyle(
+              color: AppTheme.textHighEmphasis, fontWeight: FontWeight.bold),
         ),
         content: Text(
           'Vuoi eliminare questo allenamento?',

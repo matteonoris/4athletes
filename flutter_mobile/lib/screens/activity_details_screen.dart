@@ -1069,8 +1069,9 @@ class ActivityDetailsScreen extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(title,
-              style: const TextStyle(
-                  color: Colors.white, fontWeight: FontWeight.bold)),
+              style: TextStyle(
+                  color: AppTheme.textHighEmphasis,
+                  fontWeight: FontWeight.bold)),
           const SizedBox(height: 8),
           ...rows.map(
             (row) => Padding(
@@ -1197,10 +1198,10 @@ class ActivityDetailsScreen extends StatelessWidget {
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(16),
                   ),
-                  title: const Text(
+                  title: Text(
                     'Elimina Allenamento',
                     style: TextStyle(
-                      color: Colors.white,
+                      color: AppTheme.textHighEmphasis,
                       fontWeight: FontWeight.bold,
                     ),
                   ),
@@ -1504,8 +1505,8 @@ class ActivityDetailsScreen extends StatelessWidget {
         children: [
           Text(
             _drylandBlockLabel(block.type),
-            style: const TextStyle(
-              color: Colors.white,
+            style: TextStyle(
+              color: AppTheme.textHighEmphasis,
               fontWeight: FontWeight.bold,
             ),
           ),
@@ -1618,9 +1619,10 @@ class ActivityDetailsScreen extends StatelessWidget {
                   backgroundColor: AppTheme.card,
                   shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(16)),
-                  title: const Text('Elimina Allenamento',
+                  title: Text('Elimina Allenamento',
                       style: TextStyle(
-                          color: Colors.white, fontWeight: FontWeight.bold)),
+                          color: AppTheme.textHighEmphasis,
+                          fontWeight: FontWeight.bold)),
                   content: Text(
                       'Sei sicuro di voler eliminare questo allenamento?',
                       style: TextStyle(color: AppTheme.textMediumEmphasis)),

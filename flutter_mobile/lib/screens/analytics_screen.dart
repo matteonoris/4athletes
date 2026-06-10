@@ -135,8 +135,9 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
                       value: team.id,
                       child: Text(
                         team.name,
-                        style: const TextStyle(
-                            color: Colors.white, fontWeight: FontWeight.bold),
+                        style: TextStyle(
+                            color: AppTheme.textHighEmphasis,
+                            fontWeight: FontWeight.bold),
                       ),
                     );
                   }).toList(),
@@ -980,7 +981,7 @@ class _HistorySection extends StatelessWidget {
                         text: log.value.toString())
                       ..selection = TextSelection.fromPosition(
                           TextPosition(offset: log.value.toString().length)),
-                    style: const TextStyle(color: Colors.white),
+                    style: TextStyle(color: AppTheme.textHighEmphasis),
                   ),
                   const SizedBox(height: 16),
                   InkWell(
@@ -1021,8 +1022,8 @@ class _HistorySection extends StatelessWidget {
                                   color: AppTheme.textMediumEmphasis)),
                           Text(
                               '${selectedDate.day}/${selectedDate.month}/${selectedDate.year}',
-                              style: const TextStyle(
-                                  color: Colors.white,
+                              style: TextStyle(
+                                  color: AppTheme.textHighEmphasis,
                                   fontWeight: FontWeight.bold)),
                         ],
                       ),

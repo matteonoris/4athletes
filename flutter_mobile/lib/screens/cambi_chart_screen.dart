@@ -63,10 +63,10 @@ class CambiChartScreen extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            const Text(
+            Text(
               'Volume sci mensile',
               style: TextStyle(
-                color: Colors.white,
+                color: AppTheme.textHighEmphasis,
                 fontSize: 20,
                 fontWeight: FontWeight.bold,
               ),
@@ -126,8 +126,8 @@ class CambiChartScreen extends StatelessWidget {
                               }
                               return BarTooltipItem(
                                 '${_formatMonth(month)}\n',
-                                const TextStyle(
-                                  color: Colors.white,
+                                TextStyle(
+                                  color: AppTheme.textHighEmphasis,
                                   fontWeight: FontWeight.bold,
                                   fontSize: 14,
                                 ),

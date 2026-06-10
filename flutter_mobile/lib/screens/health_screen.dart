@@ -898,8 +898,8 @@ class _BodyCompositionLineChart extends StatelessWidget {
                 isFat
                     ? '${unscaleFat(spot.y).toStringAsFixed(1)} %'
                     : '${spot.y.toStringAsFixed(1)} kg',
-                const TextStyle(
-                  color: Colors.white,
+                TextStyle(
+                  color: AppTheme.textHighEmphasis,
                   fontWeight: FontWeight.bold,
                 ),
               );
@@ -1368,8 +1368,8 @@ class _LineSeriesChart extends StatelessWidget {
             getTooltipItems: (spots) => spots.map((spot) {
               return LineTooltipItem(
                 '${spot.y.toStringAsFixed(decimals)} $unit',
-                const TextStyle(
-                  color: Colors.white,
+                TextStyle(
+                  color: AppTheme.textHighEmphasis,
                   fontWeight: FontWeight.bold,
                 ),
               );
@@ -1438,8 +1438,8 @@ class _SleepNeedChart extends StatelessWidget {
                   if (value == null) return null;
                   return BarTooltipItem(
                     'Sonno\n${formatMinutesAsHours(value)}',
-                    const TextStyle(
-                      color: Colors.white,
+                    TextStyle(
+                      color: AppTheme.textHighEmphasis,
                       fontWeight: FontWeight.bold,
                     ),
                   );
@@ -1546,8 +1546,8 @@ class _SleepDebtChart extends StatelessWidget {
               final label = value > 0 ? 'Debito' : 'Surplus';
               return BarTooltipItem(
                 '$label\n${formatMinutesAsHours(value.abs())}',
-                const TextStyle(
-                  color: Colors.white,
+                TextStyle(
+                  color: AppTheme.textHighEmphasis,
                   fontWeight: FontWeight.bold,
                 ),
               );
@@ -1619,8 +1619,8 @@ class _SleepArchitectureChart extends StatelessWidget {
                 '\nREM ${formatMinutesAsHours(point.rem)}'
                 '\nLeggero ${formatMinutesAsHours(point.light)}'
                 '\nSveglio ${formatMinutesAsHours(point.awake)}',
-                const TextStyle(
-                  color: Colors.white,
+                TextStyle(
+                  color: AppTheme.textHighEmphasis,
                   fontWeight: FontWeight.bold,
                 ),
               );
@@ -1736,8 +1736,8 @@ class _SleepRegularityChart extends StatelessWidget {
                   : 'Risveglio';
               return LineTooltipItem(
                 '$label\n${_formatClockAxis(spot.y)}',
-                const TextStyle(
-                  color: Colors.white,
+                TextStyle(
+                  color: AppTheme.textHighEmphasis,
                   fontWeight: FontWeight.bold,
                 ),
               );

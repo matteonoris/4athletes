@@ -583,8 +583,9 @@ class _AddTrainingScreenState extends State<AddTrainingScreen> {
                   initialValue: value,
                   keyboardType: type,
                   onChanged: onChanged,
-                  style: const TextStyle(
-                      color: Colors.white, fontWeight: FontWeight.bold),
+                  style: TextStyle(
+                      color: AppTheme.textHighEmphasis,
+                      fontWeight: FontWeight.bold),
                   decoration: const InputDecoration(
                     border: InputBorder.none,
                     focusedBorder: InputBorder.none,
@@ -697,8 +698,8 @@ class _AddTrainingScreenState extends State<AddTrainingScreen> {
                   children: [
                     Text(
                       block.name,
-                      style: const TextStyle(
-                        color: Colors.white,
+                      style: TextStyle(
+                        color: AppTheme.textHighEmphasis,
                         fontWeight: FontWeight.bold,
                         fontSize: 13,
                       ),
@@ -991,9 +992,9 @@ class _AddTrainingScreenState extends State<AddTrainingScreen> {
                   });
                 }),
                 const SizedBox(height: 16),
-                const Text('Campo Libero',
+                Text('Campo Libero',
                     style: TextStyle(
-                        color: Colors.white,
+                        color: AppTheme.textHighEmphasis,
                         fontWeight: FontWeight.bold,
                         fontSize: 13)),
                 const SizedBox(height: 12),
@@ -1015,9 +1016,9 @@ class _AddTrainingScreenState extends State<AddTrainingScreen> {
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      const Text('Tracciati',
+                      Text('Tracciati',
                           style: TextStyle(
-                              color: Colors.white,
+                              color: AppTheme.textHighEmphasis,
                               fontWeight: FontWeight.bold,
                               fontSize: 13)),
                       if (_tracks.length < 3)
@@ -1062,9 +1063,9 @@ class _AddTrainingScreenState extends State<AddTrainingScreen> {
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      const Text('Addestramento',
+                      Text('Addestramento',
                           style: TextStyle(
-                              color: Colors.white,
+                              color: AppTheme.textHighEmphasis,
                               fontWeight: FontWeight.bold,
                               fontSize: 13)),
                       TextButton.icon(
@@ -1523,8 +1524,8 @@ class _AddTrainingScreenState extends State<AddTrainingScreen> {
                                       keyboardType:
                                           const TextInputType.numberWithOptions(
                                               decimal: true),
-                                      style: const TextStyle(
-                                          color: Colors.white,
+                                      style: TextStyle(
+                                          color: AppTheme.textHighEmphasis,
                                           fontWeight: FontWeight.bold,
                                           fontSize: 14),
                                       decoration: InputDecoration(
@@ -1562,8 +1563,8 @@ class _AddTrainingScreenState extends State<AddTrainingScreen> {
                                     ),
                                     child: TextFormField(
                                       initialValue: lap['material'],
-                                      style: const TextStyle(
-                                          color: Colors.white,
+                                      style: TextStyle(
+                                          color: AppTheme.textHighEmphasis,
                                           fontWeight: FontWeight.bold,
                                           fontSize: 14),
                                       decoration: InputDecoration(

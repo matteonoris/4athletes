@@ -217,8 +217,8 @@ class _HealthPermissionScreenState extends State<HealthPermissionScreen> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(title,
-                    style: const TextStyle(
-                        color: Colors.white,
+                    style: TextStyle(
+                        color: AppTheme.textHighEmphasis,
                         fontWeight: FontWeight.bold,
                         fontSize: 14)),
                 const SizedBox(height: 2),

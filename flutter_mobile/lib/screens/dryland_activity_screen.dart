@@ -376,11 +376,12 @@ class _DrylandActivityScreenState extends State<DrylandActivityScreen> {
       builder: (context) => AlertDialog(
         backgroundColor: AppTheme.card,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        title: const Text('Salva template',
-            style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+        title: Text('Salva template',
+            style: TextStyle(
+                color: AppTheme.textHighEmphasis, fontWeight: FontWeight.bold)),
         content: TextField(
           controller: nameCtrl,
-          style: const TextStyle(color: Colors.white),
+          style: TextStyle(color: AppTheme.textHighEmphasis),
           decoration: const InputDecoration(labelText: 'Nome template'),
         ),
         actions: [
@@ -575,7 +576,7 @@ class _DrylandActivityScreenState extends State<DrylandActivityScreen> {
                       label: Text(template.name),
                       onPressed: () => _applyTemplate(template),
                       backgroundColor: AppTheme.surface,
-                      labelStyle: const TextStyle(color: Colors.white),
+                      labelStyle: TextStyle(color: AppTheme.textHighEmphasis),
                       side: BorderSide(
                           color: Colors.white.withValues(alpha: 0.08)),
                     );
@@ -607,7 +608,7 @@ class _DrylandActivityScreenState extends State<DrylandActivityScreen> {
               Expanded(
                 child: TextField(
                   onChanged: (value) => setState(() => _exerciseSearch = value),
-                  style: const TextStyle(color: Colors.white),
+                  style: TextStyle(color: AppTheme.textHighEmphasis),
                   decoration: const InputDecoration(
                     hintText: 'Cerca esercizio',
                     prefixIcon: Icon(Icons.search),
@@ -677,8 +678,9 @@ class _DrylandActivityScreenState extends State<DrylandActivityScreen> {
         return ListTile(
           dense: true,
           title: Text(exercise.name,
-              style: const TextStyle(
-                  color: Colors.white, fontWeight: FontWeight.bold)),
+              style: TextStyle(
+                  color: AppTheme.textHighEmphasis,
+                  fontWeight: FontWeight.bold)),
           subtitle: Text('${exercise.targetMuscle} - ${exercise.category}',
               style: TextStyle(color: AppTheme.textMediumEmphasis)),
           trailing: const Icon(Icons.add, color: AppTheme.primary),
@@ -728,11 +730,12 @@ class _DrylandActivityScreenState extends State<DrylandActivityScreen> {
       context: context,
       builder: (context) => AlertDialog(
         backgroundColor: AppTheme.card,
-        title: const Text('Esercizio personalizzato',
-            style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+        title: Text('Esercizio personalizzato',
+            style: TextStyle(
+                color: AppTheme.textHighEmphasis, fontWeight: FontWeight.bold)),
         content: TextField(
           controller: ctrl,
-          style: const TextStyle(color: Colors.white),
+          style: TextStyle(color: AppTheme.textHighEmphasis),
           decoration: const InputDecoration(labelText: 'Nome esercizio'),
         ),
         actions: [
@@ -769,8 +772,9 @@ class _DrylandActivityScreenState extends State<DrylandActivityScreen> {
             children: [
               Expanded(
                 child: Text(exercise['name']?.toString() ?? '',
-                    style: const TextStyle(
-                        color: Colors.white, fontWeight: FontWeight.bold)),
+                    style: TextStyle(
+                        color: AppTheme.textHighEmphasis,
+                        fontWeight: FontWeight.bold)),
               ),
               IconButton(
                 icon: const Icon(Icons.delete_outline, color: AppTheme.error),
@@ -845,8 +849,8 @@ class _DrylandActivityScreenState extends State<DrylandActivityScreen> {
         ],
         textAlign: TextAlign.center,
         cursorColor: AppTheme.primary,
-        style: const TextStyle(
-          color: Colors.white,
+        style: TextStyle(
+          color: AppTheme.textHighEmphasis,
           fontSize: 14,
           fontWeight: FontWeight.w700,
         ),
@@ -888,8 +892,8 @@ class _DrylandActivityScreenState extends State<DrylandActivityScreen> {
         initialValue: set['tempo']?.toString() ?? '',
         textAlign: TextAlign.center,
         cursorColor: AppTheme.primary,
-        style: const TextStyle(
-          color: Colors.white,
+        style: TextStyle(
+          color: AppTheme.textHighEmphasis,
           fontSize: 14,
           fontWeight: FontWeight.w700,
         ),
@@ -1540,9 +1544,10 @@ class _DrylandActivityScreenState extends State<DrylandActivityScreen> {
         children: [
           Row(
             children: [
-              const Text('RPE',
+              Text('RPE',
                   style: TextStyle(
-                      color: Colors.white, fontWeight: FontWeight.bold)),
+                      color: AppTheme.textHighEmphasis,
+                      fontWeight: FontWeight.bold)),
               const Spacer(),
               Text('${_rpe.round()}/10',
                   style: const TextStyle(
@@ -1580,8 +1585,8 @@ class _DrylandActivityScreenState extends State<DrylandActivityScreen> {
               Icon(icon, color: AppTheme.primary, size: 18),
               const SizedBox(width: 8),
               Text(title,
-                  style: const TextStyle(
-                      color: Colors.white,
+                  style: TextStyle(
+                      color: AppTheme.textHighEmphasis,
                       fontWeight: FontWeight.bold,
                       fontSize: 16)),
             ],
@@ -1615,8 +1620,9 @@ class _DrylandActivityScreenState extends State<DrylandActivityScreen> {
                     color: AppTheme.textMediumEmphasis, fontSize: 10)),
             const SizedBox(height: 4),
             Text(value,
-                style: const TextStyle(
-                    color: Colors.white, fontWeight: FontWeight.bold)),
+                style: TextStyle(
+                    color: AppTheme.textHighEmphasis,
+                    fontWeight: FontWeight.bold)),
           ],
         ),
       ),
@@ -1636,7 +1642,7 @@ class _DrylandActivityScreenState extends State<DrylandActivityScreen> {
       initialValue: controller == null ? initialValue : null,
       maxLines: maxLines,
       onChanged: onChanged,
-      style: const TextStyle(color: Colors.white),
+      style: TextStyle(color: AppTheme.textHighEmphasis),
       decoration: InputDecoration(
         labelText: label,
         prefixIcon: icon == null ? null : Icon(icon),
@@ -1652,7 +1658,7 @@ class _DrylandActivityScreenState extends State<DrylandActivityScreen> {
       inputFormatters: [
         FilteringTextInputFormatter.allow(RegExp(r'[0-9,.]')),
       ],
-      style: const TextStyle(color: Colors.white, fontSize: 12),
+      style: TextStyle(color: AppTheme.textHighEmphasis, fontSize: 12),
       decoration: InputDecoration(labelText: label, isDense: true),
       onChanged: (text) {
         final parsed = double.tryParse(text.replaceAll(',', '.')) ?? 0;

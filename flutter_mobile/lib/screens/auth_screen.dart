@@ -220,10 +220,11 @@ class _AuthScreenState extends State<AuthScreen>
       confirmText: 'Conferma',
       builder: (context, child) => Theme(
         data: Theme.of(context).copyWith(
-          colorScheme: ColorScheme.dark(
-            primary: AppTheme.primary,
-            surface: AppTheme.surface,
-          ),
+          colorScheme: Theme.of(context).colorScheme.copyWith(
+                primary: AppTheme.primary,
+                surface: AppTheme.surface,
+                onSurface: AppTheme.textHighEmphasis,
+              ),
         ),
         child: child!,
       ),
@@ -341,7 +342,7 @@ class _AuthScreenState extends State<AuthScreen>
           '4ATHLETES',
           textAlign: TextAlign.center,
           style: Theme.of(context).textTheme.headlineLarge?.copyWith(
-                color: Colors.white,
+                color: AppTheme.textHighEmphasis,
                 fontWeight: FontWeight.w900,
                 letterSpacing: 1.5,
               ),
@@ -388,13 +389,13 @@ class _AuthScreenState extends State<AuthScreen>
             },
             icon: Icon(
               PhosphorIcons.appleLogo(PhosphorIconsStyle.fill),
-              color: Colors.white,
+              color: AppTheme.textHighEmphasis,
               size: 24,
             ),
-            label: const Text(
+            label: Text(
               'Continua con Apple',
               style: TextStyle(
-                color: Colors.white,
+                color: AppTheme.textHighEmphasis,
                 fontWeight: FontWeight.bold,
                 fontSize: 16,
               ),
@@ -404,7 +405,9 @@ class _AuthScreenState extends State<AuthScreen>
               padding: const EdgeInsets.symmetric(vertical: 16),
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(16),
-                side: BorderSide(color: Colors.white.withValues(alpha: 0.05)),
+                side: BorderSide(
+                  color: AppTheme.textLowEmphasis.withValues(alpha: 0.2),
+                ),
               ),
               elevation: 0,
             ),
@@ -430,9 +433,9 @@ class _AuthScreenState extends State<AuthScreen>
                   color: AppTheme.card,
                   shape: BoxShape.circle,
                 ),
-                child: const Icon(
+                child: Icon(
                   Icons.arrow_back_ios_new,
-                  color: Colors.white,
+                  color: AppTheme.textHighEmphasis,
                   size: 18,
                 ),
               ),
@@ -485,7 +488,7 @@ class _AuthScreenState extends State<AuthScreen>
         Text(
           subtitleText,
           style: Theme.of(context).textTheme.headlineMedium?.copyWith(
-                color: Colors.white,
+                color: AppTheme.textHighEmphasis,
                 fontWeight: FontWeight.w900,
               ),
         ),
@@ -547,7 +550,7 @@ class _AuthScreenState extends State<AuthScreen>
           border: Border.all(
             color: isSelected
                 ? accent.withValues(alpha: 0.55)
-                : Colors.white.withValues(alpha: 0.05),
+                : AppTheme.textLowEmphasis.withValues(alpha: 0.2),
             width: 2,
           ),
         ),
@@ -565,8 +568,8 @@ class _AuthScreenState extends State<AuthScreen>
             const SizedBox(height: 20),
             Text(
               title,
-              style: const TextStyle(
-                color: Colors.white,
+              style: TextStyle(
+                color: AppTheme.textHighEmphasis,
                 fontSize: 20,
                 fontWeight: FontWeight.bold,
               ),
@@ -642,14 +645,14 @@ class _AuthScreenState extends State<AuthScreen>
       },
       style: ElevatedButton.styleFrom(
         backgroundColor: isSelected ? AppTheme.primary : AppTheme.card,
-        foregroundColor: Colors.white,
+        foregroundColor: isSelected ? Colors.white : AppTheme.textHighEmphasis,
         padding: const EdgeInsets.symmetric(vertical: 18),
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(16),
           side: BorderSide(
             color: isSelected
                 ? AppTheme.primary
-                : Colors.white.withValues(alpha: 0.05),
+                : AppTheme.textLowEmphasis.withValues(alpha: 0.2),
           ),
         ),
         elevation: 0,
@@ -737,7 +740,7 @@ class _AuthScreenState extends State<AuthScreen>
                     color: AppTheme.card,
                     borderRadius: BorderRadius.circular(36),
                     border: Border.all(
-                      color: Colors.white.withValues(alpha: 0.06),
+                      color: AppTheme.textLowEmphasis.withValues(alpha: 0.2),
                       width: 4,
                     ),
                   ),
@@ -777,8 +780,10 @@ class _AuthScreenState extends State<AuthScreen>
           icon: const Icon(Icons.photo_library_outlined),
           label: const Text('Scegli dalla galleria'),
           style: OutlinedButton.styleFrom(
-            foregroundColor: Colors.white,
-            side: BorderSide(color: Colors.white.withValues(alpha: 0.08)),
+            foregroundColor: AppTheme.textHighEmphasis,
+            side: BorderSide(
+              color: AppTheme.textLowEmphasis.withValues(alpha: 0.24),
+            ),
             padding: const EdgeInsets.symmetric(vertical: 16),
             shape:
                 RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
@@ -829,7 +834,7 @@ class _AuthScreenState extends State<AuthScreen>
           readOnly: readOnly,
           onTap: onTap,
           keyboardType: keyboardType,
-          style: const TextStyle(color: Colors.white),
+          style: TextStyle(color: AppTheme.textHighEmphasis),
           decoration: InputDecoration(
             hintText: hint,
             hintStyle: TextStyle(
@@ -849,8 +854,9 @@ class _AuthScreenState extends State<AuthScreen>
             ),
             enabledBorder: OutlineInputBorder(
               borderRadius: BorderRadius.circular(16),
-              borderSide:
-                  BorderSide(color: Colors.white.withValues(alpha: 0.05)),
+              borderSide: BorderSide(
+                color: AppTheme.textLowEmphasis.withValues(alpha: 0.2),
+              ),
             ),
             focusedBorder: OutlineInputBorder(
               borderRadius: BorderRadius.circular(16),

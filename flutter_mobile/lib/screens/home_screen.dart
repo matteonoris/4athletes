@@ -1578,10 +1578,10 @@ class _DashboardViewState extends State<_DashboardView> {
                   const Icon(Icons.info_outline,
                       color: AppTheme.primary, size: 36),
                   const SizedBox(height: 16),
-                  const Text(
+                  Text(
                     'I dati per oggi non sono presenti',
                     style: TextStyle(
-                        color: Colors.white,
+                        color: AppTheme.textHighEmphasis,
                         fontWeight: FontWeight.bold,
                         fontSize: 16),
                   ),
@@ -1825,9 +1825,9 @@ class _DashboardViewState extends State<_DashboardView> {
                     const Icon(Icons.warning_amber_rounded,
                         color: Colors.orange, size: 32),
                     const SizedBox(height: 16),
-                    const Text('Health Connect Mancante',
+                    Text('Health Connect Mancante',
                         style: TextStyle(
-                            color: Colors.white,
+                            color: AppTheme.textHighEmphasis,
                             fontWeight: FontWeight.bold,
                             fontSize: 16)),
                     const SizedBox(height: 8),

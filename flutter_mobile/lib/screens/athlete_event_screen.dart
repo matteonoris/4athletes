@@ -252,11 +252,11 @@ class _AthleteEventScreenState extends State<AthleteEventScreen> {
             children: [
               const Icon(Icons.downhill_skiing, color: AppTheme.secondary),
               const SizedBox(width: 10),
-              const Expanded(
+              Expanded(
                 child: Text(
                   'Allenamento coach',
                   style: TextStyle(
-                    color: Colors.white,
+                    color: AppTheme.textHighEmphasis,
                     fontSize: 20,
                     fontWeight: FontWeight.bold,
                   ),
@@ -304,10 +304,10 @@ class _AthleteEventScreenState extends State<AthleteEventScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text(
+          Text(
             'Conferma presenza',
             style: TextStyle(
-              color: Colors.white,
+              color: AppTheme.textHighEmphasis,
               fontSize: 18,
               fontWeight: FontWeight.bold,
             ),
@@ -349,10 +349,10 @@ class _AthleteEventScreenState extends State<AthleteEventScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text(
+          Text(
             'Riepilogo',
             style: TextStyle(
-              color: Colors.white,
+              color: AppTheme.textHighEmphasis,
               fontSize: 18,
               fontWeight: FontWeight.bold,
             ),
@@ -391,11 +391,11 @@ class _AthleteEventScreenState extends State<AthleteEventScreen> {
             children: [
               const Icon(Icons.fitness_center, color: AppTheme.secondary),
               const SizedBox(width: 10),
-              const Expanded(
+              Expanded(
                 child: Text(
                   'Scheda atletica',
                   style: TextStyle(
-                    color: Colors.white,
+                    color: AppTheme.textHighEmphasis,
                     fontSize: 18,
                     fontWeight: FontWeight.bold,
                   ),
@@ -467,10 +467,10 @@ class _AthleteEventScreenState extends State<AthleteEventScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text(
+          Text(
             'Dettagli tecnici',
             style: TextStyle(
-              color: Colors.white,
+              color: AppTheme.textHighEmphasis,
               fontSize: 18,
               fontWeight: FontWeight.bold,
             ),
@@ -527,10 +527,10 @@ class _AthleteEventScreenState extends State<AthleteEventScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text(
+          Text(
             'Condizioni',
             style: TextStyle(
-              color: Colors.white,
+              color: AppTheme.textHighEmphasis,
               fontSize: 18,
               fontWeight: FontWeight.bold,
             ),
@@ -561,10 +561,10 @@ class _AthleteEventScreenState extends State<AthleteEventScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text(
+          Text(
             'Volume svolto',
             style: TextStyle(
-              color: Colors.white,
+              color: AppTheme.textHighEmphasis,
               fontSize: 18,
               fontWeight: FontWeight.bold,
             ),
@@ -628,10 +628,10 @@ class _AthleteEventScreenState extends State<AthleteEventScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text(
+          Text(
             'Dati personali',
             style: TextStyle(
-              color: Colors.white,
+              color: AppTheme.textHighEmphasis,
               fontSize: 18,
               fontWeight: FontWeight.bold,
             ),
@@ -670,8 +670,8 @@ class _AthleteEventScreenState extends State<AthleteEventScreen> {
         children: [
           Text(
             title,
-            style: const TextStyle(
-              color: Colors.white,
+            style: TextStyle(
+              color: AppTheme.textHighEmphasis,
               fontWeight: FontWeight.bold,
             ),
           ),
@@ -702,8 +702,8 @@ class _AthleteEventScreenState extends State<AthleteEventScreen> {
             ),
             Text(
               '$_rpeValue/10',
-              style: const TextStyle(
-                color: Colors.white,
+              style: TextStyle(
+                color: AppTheme.textHighEmphasis,
                 fontWeight: FontWeight.bold,
               ),
             ),
@@ -794,8 +794,8 @@ class _AthleteEventScreenState extends State<AthleteEventScreen> {
               children: [
                 Text(
                   title,
-                  style: const TextStyle(
-                    color: Colors.white,
+                  style: TextStyle(
+                    color: AppTheme.textHighEmphasis,
                     fontWeight: FontWeight.bold,
                   ),
                 ),
@@ -839,8 +839,8 @@ class _AthleteEventScreenState extends State<AthleteEventScreen> {
                 const SizedBox(height: 2),
                 Text(
                   value,
-                  style: const TextStyle(
-                    color: Colors.white,
+                  style: TextStyle(
+                    color: AppTheme.textHighEmphasis,
                     fontWeight: FontWeight.bold,
                   ),
                 ),
@@ -869,8 +869,8 @@ class _AthleteEventScreenState extends State<AthleteEventScreen> {
           ),
           Text(
             value,
-            style: const TextStyle(
-              color: Colors.white,
+            style: TextStyle(
+              color: AppTheme.textHighEmphasis,
               fontWeight: FontWeight.bold,
             ),
           ),
@@ -898,8 +898,8 @@ class _AthleteEventScreenState extends State<AthleteEventScreen> {
         children: [
           Text(
             title,
-            style: const TextStyle(
-              color: Colors.white,
+            style: TextStyle(
+              color: AppTheme.textHighEmphasis,
               fontWeight: FontWeight.bold,
             ),
           ),
@@ -1009,8 +1009,8 @@ class _AthleteEventScreenState extends State<AthleteEventScreen> {
               inputFormatters: [FilteringTextInputFormatter.digitsOnly],
               textAlign: TextAlign.center,
               onChanged: (_) => setState(() {}),
-              style: const TextStyle(
-                color: Colors.white,
+              style: TextStyle(
+                color: AppTheme.textHighEmphasis,
                 fontWeight: FontWeight.bold,
               ),
               decoration: const InputDecoration(
@@ -1053,7 +1053,7 @@ class _AthleteEventScreenState extends State<AthleteEventScreen> {
               controller: controller,
               maxLines: maxLines,
               onChanged: (_) => setState(() {}),
-              style: const TextStyle(color: Colors.white),
+              style: TextStyle(color: AppTheme.textHighEmphasis),
               decoration: const InputDecoration(
                 border: InputBorder.none,
                 contentPadding: EdgeInsets.all(12),

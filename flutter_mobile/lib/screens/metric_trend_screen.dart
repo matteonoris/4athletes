@@ -137,8 +137,9 @@ class MetricTrendScreen extends StatelessWidget {
                       return touchedSpots.map((spot) {
                         return LineTooltipItem(
                           spot.y.toStringAsFixed(1),
-                          const TextStyle(
-                              color: Colors.white, fontWeight: FontWeight.bold),
+                          TextStyle(
+                              color: AppTheme.textHighEmphasis,
+                              fontWeight: FontWeight.bold),
                         );
                       }).toList();
                     },

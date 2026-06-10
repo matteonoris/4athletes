@@ -354,7 +354,7 @@ class _ActivitySelectScreenState extends State<ActivitySelectScreen> {
         ),
         title: Text(_showAllSports ? 'Sport' : 'Aggiungi attivita',
             style: TextStyle(
-                color: Colors.white,
+                color: AppTheme.textHighEmphasis,
                 fontSize: _showAllSports ? 16 : 17,
                 fontWeight: FontWeight.bold,
                 letterSpacing: 0)),
@@ -373,7 +373,8 @@ class _ActivitySelectScreenState extends State<ActivitySelectScreen> {
               ),
               child: TextField(
                 onChanged: (val) => setState(() => _searchQuery = val),
-                style: const TextStyle(color: Colors.white, fontSize: 14),
+                style:
+                    TextStyle(color: AppTheme.textHighEmphasis, fontSize: 14),
                 decoration: InputDecoration(
                   hintText: _showAllSports
                       ? 'Cerca sport...'
@@ -485,8 +486,8 @@ class _ActivitySelectScreenState extends State<ActivitySelectScreen> {
       padding: const EdgeInsets.only(bottom: 10),
       child: Text(
         title,
-        style: const TextStyle(
-          color: Colors.white,
+        style: TextStyle(
+          color: AppTheme.textHighEmphasis,
           fontSize: 16,
           fontWeight: FontWeight.bold,
         ),
@@ -532,7 +533,7 @@ class _ActivitySelectScreenState extends State<ActivitySelectScreen> {
                   Text(
                     'Importa da app esterne',
                     style: TextStyle(
-                      color: Colors.white,
+                      color: AppTheme.textHighEmphasis,
                       fontWeight: FontWeight.bold,
                       fontSize: 14,
                     ),
@@ -589,8 +590,8 @@ class _ActivitySelectScreenState extends State<ActivitySelectScreen> {
                     sport.name,
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(
-                      color: Colors.white,
+                    style: TextStyle(
+                      color: AppTheme.textHighEmphasis,
                       fontWeight: FontWeight.bold,
                       fontSize: 12,
                     ),
@@ -624,8 +625,8 @@ class _ActivitySelectScreenState extends State<ActivitySelectScreen> {
             const Spacer(),
             Text(
               option.title,
-              style: const TextStyle(
-                color: Colors.white,
+              style: TextStyle(
+                color: AppTheme.textHighEmphasis,
                 fontWeight: FontWeight.bold,
               ),
             ),
@@ -681,8 +682,8 @@ class _ActivitySelectScreenState extends State<ActivitySelectScreen> {
                     children: [
                       Text(
                         act.name,
-                        style: const TextStyle(
-                          color: Colors.white,
+                        style: TextStyle(
+                          color: AppTheme.textHighEmphasis,
                           fontWeight: FontWeight.bold,
                           fontSize: 13,
                         ),

@@ -261,8 +261,8 @@ class _HealthMetricsScreenState extends State<HealthMetricsScreen> {
                                   return touchedSpots.map((spot) {
                                     return LineTooltipItem(
                                       spot.y.toStringAsFixed(1),
-                                      const TextStyle(
-                                          color: Colors.white,
+                                      TextStyle(
+                                          color: AppTheme.textHighEmphasis,
                                           fontWeight: FontWeight.bold),
                                     );
                                   }).toList();

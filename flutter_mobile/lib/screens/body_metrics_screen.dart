@@ -63,7 +63,7 @@ class _BodyMetricsScreenState extends State<BodyMetricsScreen> {
                           : 'Altezza (cm)',
                     ),
                     onChanged: (v) => valStr = v,
-                    style: const TextStyle(color: Colors.white),
+                    style: TextStyle(color: AppTheme.textHighEmphasis),
                   ),
                   if (_selectedType == 'weight') ...[
                     const SizedBox(height: 16),
@@ -73,7 +73,7 @@ class _BodyMetricsScreenState extends State<BodyMetricsScreen> {
                       decoration: const InputDecoration(
                           hintText: 'Massa grassa % (opzionale)'),
                       onChanged: (v) => fatStr = v,
-                      style: const TextStyle(color: Colors.white),
+                      style: TextStyle(color: AppTheme.textHighEmphasis),
                     ),
                   ],
                   const SizedBox(height: 16),
@@ -115,8 +115,8 @@ class _BodyMetricsScreenState extends State<BodyMetricsScreen> {
                                   color: AppTheme.textMediumEmphasis)),
                           Text(
                             DateFormat('dd/MM/yyyy').format(selectedDate),
-                            style: const TextStyle(
-                                color: Colors.white,
+                            style: TextStyle(
+                                color: AppTheme.textHighEmphasis,
                                 fontWeight: FontWeight.bold),
                           ),
                         ],
