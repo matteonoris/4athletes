@@ -106,7 +106,7 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
             style: TextStyle(fontWeight: FontWeight.bold)),
         actions: [
           IconButton(
-            icon: const Icon(PhosphorIconsRegular.shareNetwork,
+            icon: Icon(PhosphorIconsRegular.shareNetwork,
                 color: AppTheme.textMediumEmphasis),
             onPressed: () {},
           ),
@@ -128,7 +128,7 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
                   value: _selectedTeamId,
                   isExpanded: true,
                   dropdownColor: AppTheme.card,
-                  icon: const Icon(Icons.arrow_drop_down,
+                  icon: Icon(Icons.arrow_drop_down,
                       color: AppTheme.textMediumEmphasis),
                   items: appState.teams.map((team) {
                     return DropdownMenuItem<String>(
@@ -257,14 +257,14 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
                                               fontWeight: FontWeight.bold)),
                                       TextSpan(
                                           text: ' $jumpUnit',
-                                          style: const TextStyle(
+                                          style: TextStyle(
                                               fontSize: 12,
                                               color:
                                                   AppTheme.textMediumEmphasis)),
                                     ],
                                   ),
                                 ),
-                                const Text('SX',
+                                Text('SX',
                                     style: TextStyle(
                                         fontSize: 9,
                                         fontWeight: FontWeight.bold,
@@ -298,14 +298,14 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
                                               fontWeight: FontWeight.bold)),
                                       TextSpan(
                                           text: ' $jumpUnit',
-                                          style: const TextStyle(
+                                          style: TextStyle(
                                               fontSize: 12,
                                               color:
                                                   AppTheme.textMediumEmphasis)),
                                     ],
                                   ),
                                 ),
-                                const Text('DX',
+                                Text('DX',
                                     style: TextStyle(
                                         fontSize: 9,
                                         fontWeight: FontWeight.bold,
@@ -352,7 +352,7 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
                                 ),
                               ),
                             const SizedBox(height: 2),
-                            const Text('SINGLE LEG',
+                            Text('SINGLE LEG',
                                 style: TextStyle(
                                     fontSize: 8,
                                     fontWeight: FontWeight.bold,
@@ -711,7 +711,7 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
                                     fontSize: 14, fontWeight: FontWeight.bold)),
                             RichText(
                               text: TextSpan(
-                                style: const TextStyle(
+                                style: TextStyle(
                                     fontSize: 12,
                                     color: AppTheme.textMediumEmphasis),
                                 children: [
@@ -792,7 +792,7 @@ class _JumpCard extends StatelessWidget {
                             fontSize: 18, fontWeight: FontWeight.bold)),
                     TextSpan(
                         text: unit.isNotEmpty ? ' $unit' : '',
-                        style: const TextStyle(
+                        style: TextStyle(
                             fontSize: 12, color: AppTheme.textMediumEmphasis)),
                   ],
                 ),
@@ -800,7 +800,7 @@ class _JumpCard extends StatelessWidget {
               const SizedBox(height: 4),
               Text(title,
                   textAlign: TextAlign.center,
-                  style: const TextStyle(
+                  style: TextStyle(
                       fontSize: 9,
                       fontWeight: FontWeight.bold,
                       color: AppTheme.textMediumEmphasis)),
@@ -858,13 +858,13 @@ class _MaxLoadCard extends StatelessWidget {
                               color: AppTheme.secondary)),
                     )
                   : const SizedBox(width: 4, height: 4),
-              const Icon(PhosphorIconsRegular.barbell,
+              Icon(PhosphorIconsRegular.barbell,
                   size: 16, color: AppTheme.textMediumEmphasis),
             ],
           ),
           const Spacer(),
           Text(title.toUpperCase(),
-              style: const TextStyle(
+              style: TextStyle(
                   fontSize: 10,
                   fontWeight: FontWeight.bold,
                   color: AppTheme.textMediumEmphasis)),
@@ -882,7 +882,7 @@ class _MaxLoadCard extends StatelessWidget {
                 if (hasPr)
                   TextSpan(
                       text: ' $unit',
-                      style: const TextStyle(
+                      style: TextStyle(
                           fontSize: 12, color: AppTheme.textMediumEmphasis)),
               ],
             ),
@@ -921,7 +921,7 @@ class _HistorySection extends StatelessWidget {
         children: [
           _buildHeader(),
           const SizedBox(height: 8),
-          const CustomCard(
+          CustomCard(
             child: Center(
               child: Padding(
                 padding: EdgeInsets.all(8.0),
@@ -992,7 +992,7 @@ class _HistorySection extends StatelessWidget {
                         lastDate: DateTime.now(),
                         builder: (context, child) => Theme(
                           data: ThemeData.dark().copyWith(
-                            colorScheme: const ColorScheme.dark(
+                            colorScheme: ColorScheme.dark(
                               primary: AppTheme.primary,
                               onPrimary: Colors.white,
                               surface: AppTheme.card,
@@ -1016,7 +1016,7 @@ class _HistorySection extends StatelessWidget {
                       child: Row(
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
-                          const Text('Data',
+                          Text('Data',
                               style: TextStyle(
                                   color: AppTheme.textMediumEmphasis)),
                           Text(
@@ -1033,7 +1033,7 @@ class _HistorySection extends StatelessWidget {
               actions: [
                 TextButton(
                     onPressed: () => Navigator.pop(context),
-                    child: const Text('Annulla',
+                    child: Text('Annulla',
                         style: TextStyle(color: AppTheme.textMediumEmphasis))),
                 ElevatedButton(
                     onPressed: () {
@@ -1155,7 +1155,7 @@ class _HistorySection extends StatelessWidget {
                                   fontSize: 16, fontWeight: FontWeight.bold)),
                           TextSpan(
                               text: ' $unit',
-                              style: const TextStyle(
+                              style: TextStyle(
                                   fontSize: 10,
                                   fontWeight: FontWeight.bold,
                                   color: AppTheme.textMediumEmphasis)),
@@ -1194,10 +1194,10 @@ class _HistorySection extends StatelessWidget {
                                         ? Colors.green
                                         : AppTheme.error)),
                           ] else ...[
-                            const Icon(PhosphorIconsRegular.minus,
+                            Icon(PhosphorIconsRegular.minus,
                                 size: 12, color: AppTheme.textMediumEmphasis),
                             const SizedBox(width: 2),
-                            const Text('Stabile',
+                            Text('Stabile',
                                 style: TextStyle(
                                     fontSize: 10,
                                     fontWeight: FontWeight.bold,
@@ -1212,7 +1212,7 @@ class _HistorySection extends StatelessWidget {
             Row(
               children: [
                 IconButton(
-                  icon: const Icon(PhosphorIconsRegular.pencilSimple,
+                  icon: Icon(PhosphorIconsRegular.pencilSimple,
                       size: 16, color: AppTheme.textMediumEmphasis),
                   onPressed: () => onEdit(context, log),
                   padding: EdgeInsets.zero,
@@ -1220,7 +1220,7 @@ class _HistorySection extends StatelessWidget {
                 ),
                 const SizedBox(width: 12),
                 IconButton(
-                  icon: const Icon(PhosphorIconsRegular.trash,
+                  icon: Icon(PhosphorIconsRegular.trash,
                       size: 16, color: AppTheme.textMediumEmphasis),
                   onPressed: () => onDelete(log.id),
                   padding: EdgeInsets.zero,
@@ -1315,7 +1315,7 @@ class _AllSessionsScreen extends StatelessWidget {
                                   fontSize: 14, fontWeight: FontWeight.bold)),
                           RichText(
                             text: TextSpan(
-                              style: const TextStyle(
+                              style: TextStyle(
                                   fontSize: 12,
                                   color: AppTheme.textMediumEmphasis),
                               children: [
@@ -1330,7 +1330,7 @@ class _AllSessionsScreen extends StatelessWidget {
                         ],
                       ),
                     ),
-                    const Icon(Icons.chevron_right,
+                    Icon(Icons.chevron_right,
                         color: AppTheme.textMediumEmphasis),
                   ],
                 ),

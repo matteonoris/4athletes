@@ -312,7 +312,7 @@ class _DashboardViewState extends State<_DashboardView> {
                       Stack(
                         children: [
                           IconButton(
-                            icon: const Icon(Icons.notifications_none,
+                            icon: Icon(Icons.notifications_none,
                                 color: AppTheme.textMediumEmphasis),
                             onPressed: () {
                               HapticFeedback.lightImpact();
@@ -354,7 +354,7 @@ class _DashboardViewState extends State<_DashboardView> {
                                 ? NetworkImage(user.avatarUrl)
                                 : null,
                             child: user.avatarUrl.isEmpty
-                                ? const Icon(Icons.person,
+                                ? Icon(Icons.person,
                                     color: AppTheme.textMediumEmphasis)
                                 : null,
                           ),
@@ -649,7 +649,7 @@ class _DashboardViewState extends State<_DashboardView> {
               ),
               const SizedBox(height: 16),
               if (recentSessions.isEmpty && dailyCoachEvents.isEmpty)
-                const Center(
+                Center(
                   child: Text('Nessuna attività',
                       style: TextStyle(color: AppTheme.textMediumEmphasis)),
                 )
@@ -814,7 +814,7 @@ class _DashboardViewState extends State<_DashboardView> {
                                               ?.copyWith(
                                                   color: AppTheme
                                                       .textMediumEmphasis)),
-                                      const Padding(
+                                      Padding(
                                           padding: EdgeInsets.symmetric(
                                               horizontal: 8),
                                           child: Text('•',
@@ -944,7 +944,7 @@ class _DashboardViewState extends State<_DashboardView> {
                                                 color: AppTheme
                                                     .textMediumEmphasis),
                                       ),
-                                      const Padding(
+                                      Padding(
                                         padding:
                                             EdgeInsets.symmetric(horizontal: 8),
                                         child: Text('•',
@@ -1065,7 +1065,7 @@ class _DashboardViewState extends State<_DashboardView> {
                         ),
                         const SizedBox(height: 24),
                         if (filteredWeight.isEmpty)
-                          const Center(
+                          Center(
                               child: Padding(
                                   padding: EdgeInsets.all(16.0),
                                   child: Text('Nessun dato',
@@ -1184,7 +1184,7 @@ class _DashboardViewState extends State<_DashboardView> {
                                               child: Text(
                                                 DateFormat('E d', 'it')
                                                     .format(d),
-                                                style: const TextStyle(
+                                                style: TextStyle(
                                                     color: AppTheme
                                                         .textMediumEmphasis,
                                                     fontSize: 10,
@@ -1435,7 +1435,7 @@ class _DashboardViewState extends State<_DashboardView> {
                                               const EdgeInsets.only(top: 10),
                                           child: Text(
                                             DateFormat('E d', 'it').format(d),
-                                            style: const TextStyle(
+                                            style: TextStyle(
                                                 color:
                                                     AppTheme.textMediumEmphasis,
                                                 fontSize: 10,
@@ -1453,7 +1453,7 @@ class _DashboardViewState extends State<_DashboardView> {
                                         padding:
                                             const EdgeInsets.only(right: 8),
                                         child: Text(value.toStringAsFixed(0),
-                                            style: const TextStyle(
+                                            style: TextStyle(
                                                 color:
                                                     AppTheme.textMediumEmphasis,
                                                 fontSize: 11)),
@@ -1512,7 +1512,7 @@ class _DashboardViewState extends State<_DashboardView> {
           );
         },
         backgroundColor: AppTheme.primary,
-        child: const Icon(Icons.add, color: AppTheme.background, size: 32),
+        child: Icon(Icons.add, color: AppTheme.background, size: 32),
       ),
     );
   }
@@ -1527,7 +1527,7 @@ class _DashboardViewState extends State<_DashboardView> {
                   fontWeight: FontWeight.bold,
                   color: AppTheme.textMediumEmphasis)),
           const SizedBox(height: 12),
-          const CustomCard(
+          CustomCard(
             padding: EdgeInsets.symmetric(vertical: 32, horizontal: 24),
             child: Center(
               child: Column(
@@ -1586,7 +1586,7 @@ class _DashboardViewState extends State<_DashboardView> {
                         fontSize: 16),
                   ),
                   const SizedBox(height: 8),
-                  const Text(
+                  Text(
                     '4Athletes non trova in Health Connect o Apple Health i dati del sonno necessari per calcolare sonno e recupero di oggi. Controlla che l\'app di terzi li abbia esportati e che i permessi siano attivi, poi riprova.',
                     textAlign: TextAlign.center,
                     style: TextStyle(
@@ -1787,7 +1787,7 @@ class _DashboardViewState extends State<_DashboardView> {
                           Text(
                             readiness,
                             textAlign: TextAlign.center,
-                            style: const TextStyle(
+                            style: TextStyle(
                               color: AppTheme.textMediumEmphasis,
                               fontSize: 12,
                               fontWeight: FontWeight.w600,
@@ -1831,7 +1831,7 @@ class _DashboardViewState extends State<_DashboardView> {
                             fontWeight: FontWeight.bold,
                             fontSize: 16)),
                     const SizedBox(height: 8),
-                    const Text(
+                    Text(
                         'Per sincronizzare i tuoi dati salute su Android, è necessario installare l\'app ufficiale di Google.',
                         textAlign: TextAlign.center,
                         style: TextStyle(color: AppTheme.textMediumEmphasis)),
@@ -1900,7 +1900,7 @@ class _DashboardViewState extends State<_DashboardView> {
                 fontWeight: FontWeight.bold,
                 color: AppTheme.textMediumEmphasis)),
         const SizedBox(height: 12),
-        const CustomCard(
+        CustomCard(
           padding: EdgeInsets.all(24),
           child: Center(
             child: Text('Nessun dato disponibile per questa data.',

@@ -704,8 +704,8 @@ class _CoachEventDetailsScreenState extends State<CoachEventDetailsScreen> {
             ],
           ),
           if (!_canComplete)
-            const Padding(
-              padding: EdgeInsets.only(top: 10),
+            Padding(
+              padding: const EdgeInsets.only(top: 10),
               child: Text(
                 'Gli allenamenti futuri partono come pianificati. Potrai completarli dopo l orario di fine.',
                 style:
@@ -731,7 +731,7 @@ class _CoachEventDetailsScreenState extends State<CoachEventDetailsScreen> {
           ),
           const SizedBox(height: 18),
           if (_isSki) ...[
-            const Text(
+            Text(
               'SPECIALITA',
               style: TextStyle(
                 color: AppTheme.textMediumEmphasis,
@@ -920,7 +920,7 @@ class _CoachEventDetailsScreenState extends State<CoachEventDetailsScreen> {
           else if (_isEndurance)
             _coachEnduranceEditor()
           else
-            const Text(
+            Text(
               'Usa le note coach per descrivere questa seduta.',
               style: TextStyle(color: AppTheme.textMediumEmphasis),
             ),
@@ -930,57 +930,58 @@ class _CoachEventDetailsScreenState extends State<CoachEventDetailsScreen> {
   }
 
   Widget _drylandTemplateRow() {
-    final templates = Provider.of<AppState>(context)
-        .workoutTemplates
-        .where((template) => template.category == _drylandCategory)
-        .toList();
-
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Row(
-          children: [
-            const Expanded(
-              child: Text(
-                'TEMPLATE',
-                style: TextStyle(
-                  color: AppTheme.textMediumEmphasis,
-                  fontSize: 11,
-                  fontWeight: FontWeight.bold,
-                  letterSpacing: 1,
+    return Selector<AppState, List<WorkoutTemplate>>(
+      selector: (_, state) => state.workoutTemplates
+          .where((template) => template.category == _drylandCategory)
+          .toList(growable: false),
+      builder: (context, templates, _) => Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Expanded(
+                child: Text(
+                  'TEMPLATE',
+                  style: TextStyle(
+                    color: AppTheme.textMediumEmphasis,
+                    fontSize: 11,
+                    fontWeight: FontWeight.bold,
+                    letterSpacing: 1,
+                  ),
                 ),
               ),
-            ),
-            TextButton.icon(
-              onPressed: _saveDrylandTemplate,
-              icon: const Icon(Icons.bookmark_add_outlined, size: 18),
-              label: const Text('Salva'),
-            ),
-          ],
-        ),
-        if (templates.isEmpty)
-          const Text(
-            'Nessun template per questa categoria.',
-            style: TextStyle(color: AppTheme.textMediumEmphasis, fontSize: 12),
-          )
-        else
-          SizedBox(
-            height: 42,
-            child: ListView.separated(
-              scrollDirection: Axis.horizontal,
-              itemBuilder: (context, index) {
-                final template = templates[index];
-                return ActionChip(
-                  avatar: const Icon(Icons.auto_awesome, size: 16),
-                  label: Text(template.name),
-                  onPressed: () => _applyDrylandTemplate(template),
-                );
-              },
-              separatorBuilder: (_, __) => const SizedBox(width: 8),
-              itemCount: templates.length,
-            ),
+              TextButton.icon(
+                onPressed: _saveDrylandTemplate,
+                icon: const Icon(Icons.bookmark_add_outlined, size: 18),
+                label: const Text('Salva'),
+              ),
+            ],
           ),
-      ],
+          if (templates.isEmpty)
+            Text(
+              'Nessun template per questa categoria.',
+              style:
+                  TextStyle(color: AppTheme.textMediumEmphasis, fontSize: 12),
+            )
+          else
+            SizedBox(
+              height: 42,
+              child: ListView.separated(
+                scrollDirection: Axis.horizontal,
+                itemBuilder: (context, index) {
+                  final template = templates[index];
+                  return ActionChip(
+                    avatar: const Icon(Icons.auto_awesome, size: 16),
+                    label: Text(template.name),
+                    onPressed: () => _applyDrylandTemplate(template),
+                  );
+                },
+                separatorBuilder: (_, __) => const SizedBox(width: 8),
+                itemCount: templates.length,
+              ),
+            ),
+        ],
+      ),
     );
   }
 
@@ -1059,7 +1060,7 @@ class _CoachEventDetailsScreenState extends State<CoachEventDetailsScreen> {
         ),
         const SizedBox(height: 12),
         if (_strengthExercises.isEmpty)
-          const Text(
+          Text(
             'Aggiungi esercizi o applica un template.',
             style: TextStyle(color: AppTheme.textMediumEmphasis),
           )
@@ -1093,7 +1094,7 @@ class _CoachEventDetailsScreenState extends State<CoachEventDetailsScreen> {
               style: const TextStyle(
                   color: Colors.white, fontWeight: FontWeight.bold)),
           subtitle: Text('${exercise.targetMuscle} - ${exercise.category}',
-              style: const TextStyle(color: AppTheme.textMediumEmphasis)),
+              style: TextStyle(color: AppTheme.textMediumEmphasis)),
           trailing: IconButton(
             icon: const Icon(Icons.add, color: AppTheme.primary),
             onPressed: () => _addStrengthExercise(
@@ -1205,7 +1206,7 @@ class _CoachEventDetailsScreenState extends State<CoachEventDetailsScreen> {
             width: 28,
             child: Text(
               '${setIndex + 1}',
-              style: const TextStyle(
+              style: TextStyle(
                 color: AppTheme.textMediumEmphasis,
                 fontWeight: FontWeight.bold,
               ),
@@ -1246,7 +1247,7 @@ class _CoachEventDetailsScreenState extends State<CoachEventDetailsScreen> {
     return Column(
       children: [
         if (_plyometricExercises.isEmpty)
-          const Text(
+          Text(
             'Aggiungi un esercizio pliometrico.',
             style: TextStyle(color: AppTheme.textMediumEmphasis),
           )
@@ -1332,7 +1333,7 @@ class _CoachEventDetailsScreenState extends State<CoachEventDetailsScreen> {
     return Column(
       children: [
         if (_speedDrills.isEmpty)
-          const Text(
+          Text(
             'Aggiungi un drill velocita/agilita.',
             style: TextStyle(color: AppTheme.textMediumEmphasis),
           )
@@ -1457,7 +1458,7 @@ class _CoachEventDetailsScreenState extends State<CoachEventDetailsScreen> {
         ),
         const SizedBox(height: 12),
         if (_circuits.isEmpty)
-          const Text(
+          Text(
             'Aggiungi un circuito o scegli un preset.',
             style: TextStyle(color: AppTheme.textMediumEmphasis),
           )
@@ -1882,7 +1883,7 @@ class _CoachEventDetailsScreenState extends State<CoachEventDetailsScreen> {
       title: 'Team',
       icon: Icons.groups_outlined,
       child: teams.isEmpty
-          ? const Text(
+          ? Text(
               'Nessun team disponibile.',
               style: TextStyle(color: AppTheme.textMediumEmphasis),
             )
@@ -1952,12 +1953,12 @@ class _CoachEventDetailsScreenState extends State<CoachEventDetailsScreen> {
               ),
             )
           else if (_selectedTeams.isEmpty)
-            const Text(
+            Text(
               'Seleziona almeno un team per caricare gli atleti.',
               style: TextStyle(color: AppTheme.textMediumEmphasis),
             )
           else if (filtered.isEmpty)
-            const Text(
+            Text(
               'Nessun atleta trovato nei team selezionati.',
               style: TextStyle(color: AppTheme.textMediumEmphasis),
             )
@@ -1968,7 +1969,7 @@ class _CoachEventDetailsScreenState extends State<CoachEventDetailsScreen> {
                   padding: const EdgeInsets.only(top: 8, bottom: 8),
                   child: Text(
                     entry.key.toUpperCase(),
-                    style: const TextStyle(
+                    style: TextStyle(
                       color: AppTheme.textMediumEmphasis,
                       fontSize: 11,
                       fontWeight: FontWeight.bold,
@@ -2156,7 +2157,7 @@ class _CoachEventDetailsScreenState extends State<CoachEventDetailsScreen> {
                 style:
                     TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
               ),
-              subtitle: const Text(
+              subtitle: Text(
                 'Abilita dati cronometrati personali.',
                 style: TextStyle(color: AppTheme.textMediumEmphasis),
               ),
@@ -2176,7 +2177,7 @@ class _CoachEventDetailsScreenState extends State<CoachEventDetailsScreen> {
       title: 'Dati per atleta',
       icon: Icons.person_search_outlined,
       child: _presentAthletes.isEmpty
-          ? const Text(
+          ? Text(
               'Nessun atleta presente. Imposta le presenze per copiare i dati tecnici.',
               style: TextStyle(color: AppTheme.textMediumEmphasis),
             )
@@ -2365,7 +2366,7 @@ class _CoachEventDetailsScreenState extends State<CoachEventDetailsScreen> {
       children: [
         Text(
           label.toUpperCase(),
-          style: const TextStyle(
+          style: TextStyle(
             color: AppTheme.textMediumEmphasis,
             fontSize: 11,
             fontWeight: FontWeight.bold,
@@ -2416,12 +2417,12 @@ class _CoachEventDetailsScreenState extends State<CoachEventDetailsScreen> {
       child: TextField(
         onChanged: (value) => setState(() => _searchQuery = value),
         style: const TextStyle(color: Colors.white),
-        decoration: const InputDecoration(
+        decoration: InputDecoration(
           border: InputBorder.none,
           prefixIcon: Icon(Icons.search, color: AppTheme.textMediumEmphasis),
           hintText: 'Cerca atleta...',
           hintStyle: TextStyle(color: AppTheme.textMediumEmphasis),
-          contentPadding: EdgeInsets.symmetric(vertical: 12),
+          contentPadding: const EdgeInsets.symmetric(vertical: 12),
         ),
       ),
     );
@@ -2524,7 +2525,7 @@ class _CoachEventDetailsScreenState extends State<CoachEventDetailsScreen> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const Text(
+        Text(
           'QUALITA ALLENAMENTO',
           style: TextStyle(
             color: AppTheme.textMediumEmphasis,
@@ -2610,7 +2611,7 @@ class _CoachEventDetailsScreenState extends State<CoachEventDetailsScreen> {
                     ),
                     Text(
                       subtitle,
-                      style: const TextStyle(
+                      style: TextStyle(
                         color: AppTheme.textMediumEmphasis,
                         fontSize: 11,
                       ),
@@ -2644,7 +2645,7 @@ class _CoachEventDetailsScreenState extends State<CoachEventDetailsScreen> {
       children: [
         Text(
           label.toUpperCase(),
-          style: const TextStyle(
+          style: TextStyle(
             color: AppTheme.textMediumEmphasis,
             fontSize: 10,
             fontWeight: FontWeight.bold,
@@ -2680,7 +2681,7 @@ class _CoachEventDetailsScreenState extends State<CoachEventDetailsScreen> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const Text(
+        Text(
           'NOTE COACH',
           style: TextStyle(
             color: AppTheme.textMediumEmphasis,
@@ -2700,9 +2701,9 @@ class _CoachEventDetailsScreenState extends State<CoachEventDetailsScreen> {
             controller: _notesCtrl,
             maxLines: 4,
             style: const TextStyle(color: Colors.white),
-            decoration: const InputDecoration(
+            decoration: InputDecoration(
               border: InputBorder.none,
-              contentPadding: EdgeInsets.all(14),
+              contentPadding: const EdgeInsets.all(14),
               hintText: 'Note tecniche, contesto, osservazioni...',
               hintStyle: TextStyle(color: AppTheme.textMediumEmphasis),
             ),
@@ -3181,7 +3182,7 @@ class _CoachEventDetailsScreenState extends State<CoachEventDetailsScreen> {
         children: [
           Text(
             label.toUpperCase(),
-            style: const TextStyle(
+            style: TextStyle(
               color: AppTheme.textMediumEmphasis,
               fontSize: 10,
               fontWeight: FontWeight.bold,
@@ -3294,7 +3295,7 @@ class _CoachEventDetailsScreenState extends State<CoachEventDetailsScreen> {
         ),
         content: Text(
           message,
-          style: const TextStyle(color: AppTheme.textMediumEmphasis),
+          style: TextStyle(color: AppTheme.textMediumEmphasis),
         ),
         actions: [
           TextButton(
@@ -3322,7 +3323,7 @@ class _CoachEventDetailsScreenState extends State<CoachEventDetailsScreen> {
           'Elimina evento',
           style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
         ),
-        content: const Text(
+        content: Text(
           'Vuoi eliminare questo allenamento?',
           style: TextStyle(color: AppTheme.textMediumEmphasis),
         ),

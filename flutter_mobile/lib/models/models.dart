@@ -54,6 +54,7 @@ class UserProfile {
   int maxHr;
   String unitSystem;
   String language;
+  String themeMode;
   String avatarUrl;
   bool notificationsEnabled;
   String? skiClub;
@@ -76,6 +77,7 @@ class UserProfile {
     required this.maxHr,
     required this.unitSystem,
     required this.language,
+    this.themeMode = 'light',
     required this.avatarUrl,
     required this.notificationsEnabled,
     this.skiClub,
@@ -99,6 +101,7 @@ class UserProfile {
     int? maxHr,
     String? unitSystem,
     String? language,
+    String? themeMode,
     String? avatarUrl,
     bool? notificationsEnabled,
     String? skiClub,
@@ -121,6 +124,7 @@ class UserProfile {
       maxHr: maxHr ?? this.maxHr,
       unitSystem: unitSystem ?? this.unitSystem,
       language: language ?? this.language,
+      themeMode: themeMode ?? this.themeMode,
       avatarUrl: avatarUrl ?? this.avatarUrl,
       notificationsEnabled: notificationsEnabled ?? this.notificationsEnabled,
       skiClub: skiClub ?? this.skiClub,
@@ -162,6 +166,7 @@ class UserProfile {
       maxHr: json['maxHr'],
       unitSystem: json['unitSystem'],
       language: json['language'],
+      themeMode: json['themeMode'] ?? 'light',
       avatarUrl: json['avatarUrl'],
       notificationsEnabled: json['notificationsEnabled'] ?? false,
       skiClub: json['skiClub'],
@@ -196,6 +201,7 @@ class UserProfile {
         'maxHr': maxHr,
         'unitSystem': unitSystem,
         'language': language,
+        'themeMode': themeMode,
         'avatarUrl': avatarUrl,
         'notificationsEnabled': notificationsEnabled,
         'skiClub': skiClub,

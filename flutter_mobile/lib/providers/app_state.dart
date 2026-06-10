@@ -11,6 +11,7 @@ import 'package:sign_in_with_apple/sign_in_with_apple.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:health/health.dart';
 import '../core/dev_flags.dart';
+import '../core/theme.dart';
 import '../models/models.dart';
 import '../models/training_activity_models.dart';
 import '../services/health_service.dart';
@@ -23,6 +24,7 @@ import '../utils/hrv_engine.dart';
 
 class AppState extends ChangeNotifier {
   static const String _healthScoreCachePrefix = 'health_sync_v8_health_90d_';
+  static const String _themeModeKey = 'themeMode';
 
   SharedPreferences? _prefs;
   final _supabase = Supabase.instance.client;
@@ -47,6 +49,10 @@ class AppState extends ChangeNotifier {
   UserProfile? _userProfile;
   UserProfile? get userProfile => _userProfile;
   UserProfile? get profile => _userProfile;
+
+  String _themeMode = AppTheme.lightMode;
+  String get themeMode => _themeMode;
+  bool get isDarkMode => _themeMode == AppTheme.darkMode;
 
   List<TrainingSession> _sessions = [];
   List<TrainingSession> get sessions => _sessions;
@@ -374,6 +380,7 @@ class AppState extends ChangeNotifier {
 
   Future<void> init() async {
     _prefs = await SharedPreferences.getInstance();
+    _applyThemeMode(_prefs!.getString(_themeModeKey));
 
     _isLoggedIn = kOnboardingPreviewMode
         ? false
@@ -400,6 +407,7 @@ class AppState extends ChangeNotifier {
   }
 
   void login(UserProfile profile) async {
+    profile.themeMode = _themeMode;
     _userProfile = profile;
     _isLoggedIn = true;
     _prefs!.setBool('isLoggedIn', true);
@@ -543,6 +551,7 @@ class AppState extends ChangeNotifier {
             avatarUrl: googleUser.photoUrl ?? '',
             unitSystem: 'metric',
             language: 'it',
+            themeMode: _themeMode,
             notificationsEnabled: false,
             connectedDevices: [],
             oneRepMax: {},
@@ -563,6 +572,7 @@ class AppState extends ChangeNotifier {
             avatarUrl: profileData['avatar_url'] ?? '',
             unitSystem: _prefs!.getString('unitSystem') ?? 'metric',
             language: _prefs!.getString('language') ?? 'it',
+            themeMode: _themeMode,
             notificationsEnabled:
                 _prefs!.getBool('notificationsEnabled') ?? false,
             connectedDevices: [],
@@ -663,6 +673,7 @@ class AppState extends ChangeNotifier {
             avatarUrl: '',
             unitSystem: 'metric',
             language: 'it',
+            themeMode: _themeMode,
             notificationsEnabled: false,
             connectedDevices: [],
             oneRepMax: {},
@@ -683,6 +694,7 @@ class AppState extends ChangeNotifier {
             avatarUrl: profileData['avatar_url'] ?? '',
             unitSystem: _prefs!.getString('unitSystem') ?? 'metric',
             language: _prefs!.getString('language') ?? 'it',
+            themeMode: _themeMode,
             notificationsEnabled:
                 _prefs!.getBool('notificationsEnabled') ?? false,
             connectedDevices: [],
@@ -723,9 +735,29 @@ class AppState extends ChangeNotifier {
   }
 
   void updateProfile(UserProfile updatedProfile) {
+    _applyThemeMode(updatedProfile.themeMode);
     _userProfile = updatedProfile;
     _saveUserProfile();
     TrainingReminderNotificationService.instance.syncForProfile(_userProfile);
+    notifyListeners();
+  }
+
+  void _applyThemeMode(String? mode) {
+    _themeMode = AppTheme.normalizeThemeMode(mode);
+    AppTheme.setThemeMode(_themeMode);
+    if (_userProfile != null) {
+      _userProfile!.themeMode = _themeMode;
+    }
+  }
+
+  Future<void> setThemeMode(String mode) async {
+    final normalized = AppTheme.normalizeThemeMode(mode);
+    if (_themeMode == normalized && _userProfile?.themeMode == normalized) {
+      return;
+    }
+
+    _applyThemeMode(normalized);
+    await _prefs?.setString(_themeModeKey, normalized);
     notifyListeners();
   }
 
@@ -768,6 +800,7 @@ class AppState extends ChangeNotifier {
               : [],
           unitSystem: _prefs!.getString('unitSystem') ?? 'metric',
           language: _prefs!.getString('language') ?? 'it',
+          themeMode: _themeMode,
           notificationsEnabled:
               _prefs!.getBool('notificationsEnabled') ?? false,
           teamId: data['team_id'],
@@ -1067,6 +1100,8 @@ class AppState extends ChangeNotifier {
         // Save local settings
         _prefs!.setString('unitSystem', _userProfile!.unitSystem);
         _prefs!.setString('language', _userProfile!.language);
+        _applyThemeMode(_userProfile!.themeMode);
+        _prefs!.setString(_themeModeKey, _themeMode);
         _prefs!.setBool(
             'notificationsEnabled', _userProfile!.notificationsEnabled);
       } catch (e) {

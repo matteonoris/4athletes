@@ -23,10 +23,11 @@ class NotificationsScreen extends StatelessWidget {
             Navigator.of(context).pop();
           },
         ),
-        title: const Text('Notifiche', style: TextStyle(fontWeight: FontWeight.bold)),
+        title: const Text('Notifiche',
+            style: TextStyle(fontWeight: FontWeight.bold)),
       ),
       body: notifications.isEmpty
-          ? const Center(
+          ? Center(
               child: Text(
                 'Nessuna notifica',
                 style: TextStyle(color: AppTheme.textMediumEmphasis),
@@ -37,13 +38,16 @@ class NotificationsScreen extends StatelessWidget {
               itemCount: notifications.length,
               itemBuilder: (context, index) {
                 final notif = notifications[index];
-                
+
                 return Card(
-                  color: notif.isRead ? AppTheme.card : AppTheme.card.withValues(alpha: 0.8),
+                  color: notif.isRead
+                      ? AppTheme.card
+                      : AppTheme.card.withValues(alpha: 0.8),
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(16),
                     side: BorderSide(
-                      color: notif.isRead ? Colors.transparent : AppTheme.primary,
+                      color:
+                          notif.isRead ? Colors.transparent : AppTheme.primary,
                       width: 1,
                     ),
                   ),
@@ -54,13 +58,16 @@ class NotificationsScreen extends StatelessWidget {
                       backgroundColor: AppTheme.background,
                       child: Icon(
                         Icons.event,
-                        color: notif.isRead ? AppTheme.textMediumEmphasis : AppTheme.primary,
+                        color: notif.isRead
+                            ? AppTheme.textMediumEmphasis
+                            : AppTheme.primary,
                       ),
                     ),
                     title: Text(
                       notif.title,
                       style: TextStyle(
-                        fontWeight: notif.isRead ? FontWeight.normal : FontWeight.bold,
+                        fontWeight:
+                            notif.isRead ? FontWeight.normal : FontWeight.bold,
                         color: Colors.white,
                       ),
                     ),
@@ -68,7 +75,7 @@ class NotificationsScreen extends StatelessWidget {
                       padding: const EdgeInsets.only(top: 8),
                       child: Text(
                         notif.message,
-                        style: const TextStyle(color: AppTheme.textMediumEmphasis),
+                        style: TextStyle(color: AppTheme.textMediumEmphasis),
                       ),
                     ),
                     onTap: () async {
@@ -77,10 +84,11 @@ class NotificationsScreen extends StatelessWidget {
                       final parts = notif.id.split('_');
                       if (parts.length > 1) {
                         final eventId = parts.sublist(1).join('_');
-                        final event = appState.coachEvents.cast<dynamic>().firstWhere(
-                          (e) => e.id == eventId,
-                          orElse: () => null,
-                        );
+                        final event =
+                            appState.coachEvents.cast<dynamic>().firstWhere(
+                                  (e) => e.id == eventId,
+                                  orElse: () => null,
+                                );
                         if (event != null) {
                           Navigator.push(
                             context,
@@ -90,7 +98,7 @@ class NotificationsScreen extends StatelessWidget {
                           );
                         }
                       }
-                      
+
                       // Also mark as read in DB if supported, for now we just rely on Supabase
                     },
                   ),

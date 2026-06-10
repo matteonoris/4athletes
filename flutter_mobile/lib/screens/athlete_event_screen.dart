@@ -570,7 +570,7 @@ class _AthleteEventScreenState extends State<AthleteEventScreen> {
             ),
           ),
           const SizedBox(height: 6),
-          const Text(
+          Text(
             'Puoi modificare solo i giri fatti. I valori per giro restano quelli del coach.',
             style: TextStyle(color: AppTheme.textMediumEmphasis, fontSize: 12),
           ),
@@ -690,7 +690,7 @@ class _AthleteEventScreenState extends State<AthleteEventScreen> {
       children: [
         Row(
           children: [
-            const Expanded(
+            Expanded(
               child: Text(
                 'RPE',
                 style: TextStyle(
@@ -729,7 +729,7 @@ class _AthleteEventScreenState extends State<AthleteEventScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text(
+          Text(
             'DOLORE',
             style: TextStyle(
               color: AppTheme.textMediumEmphasis,
@@ -802,7 +802,7 @@ class _AthleteEventScreenState extends State<AthleteEventScreen> {
                 const SizedBox(height: 4),
                 Text(
                   body,
-                  style: const TextStyle(
+                  style: TextStyle(
                     color: AppTheme.textMediumEmphasis,
                     fontSize: 12,
                   ),
@@ -830,7 +830,7 @@ class _AthleteEventScreenState extends State<AthleteEventScreen> {
               children: [
                 Text(
                   label,
-                  style: const TextStyle(
+                  style: TextStyle(
                     color: AppTheme.textMediumEmphasis,
                     fontSize: 11,
                     fontWeight: FontWeight.bold,
@@ -860,7 +860,7 @@ class _AthleteEventScreenState extends State<AthleteEventScreen> {
           Expanded(
             child: Text(
               label,
-              style: const TextStyle(
+              style: TextStyle(
                 color: AppTheme.textMediumEmphasis,
                 fontSize: 13,
                 fontWeight: FontWeight.bold,
@@ -909,7 +909,7 @@ class _AthleteEventScreenState extends State<AthleteEventScreen> {
               padding: const EdgeInsets.only(bottom: 4),
               child: Text(
                 row,
-                style: const TextStyle(
+                style: TextStyle(
                   color: AppTheme.textMediumEmphasis,
                   fontSize: 13,
                 ),
@@ -989,7 +989,7 @@ class _AthleteEventScreenState extends State<AthleteEventScreen> {
         children: [
           Text(
             label.toUpperCase(),
-            style: const TextStyle(
+            style: TextStyle(
               color: AppTheme.textMediumEmphasis,
               fontSize: 10,
               fontWeight: FontWeight.bold,
@@ -1036,7 +1036,7 @@ class _AthleteEventScreenState extends State<AthleteEventScreen> {
         children: [
           Text(
             label.toUpperCase(),
-            style: const TextStyle(
+            style: TextStyle(
               color: AppTheme.textMediumEmphasis,
               fontSize: 10,
               fontWeight: FontWeight.bold,

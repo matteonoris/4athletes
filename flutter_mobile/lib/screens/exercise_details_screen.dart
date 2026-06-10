@@ -103,7 +103,7 @@ class _ExerciseDetailsScreenState extends State<ExerciseDetailsScreen> {
                         Text(log.date,
                             style: Theme.of(context).textTheme.bodyMedium),
                         Text('${log.weight} kg',
-                            style: const TextStyle(
+                            style: TextStyle(
                                 fontWeight: FontWeight.bold,
                                 color: AppTheme.textHighEmphasis)),
                         IconButton(

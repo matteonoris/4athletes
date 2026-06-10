@@ -72,7 +72,7 @@ class _CoachDashboardScreenState extends State<CoachDashboardScreen> {
                 .map((t) => ListTile(
                     title: Text(t.name,
                         style: const TextStyle(color: Colors.white)),
-                    trailing: const Icon(Icons.arrow_forward_ios,
+                    trailing: Icon(Icons.arrow_forward_ios,
                         size: 16, color: AppTheme.textMediumEmphasis),
                     onTap: () {
                       HapticFeedback.lightImpact();
@@ -137,7 +137,7 @@ class _CoachDashboardScreenState extends State<CoachDashboardScreen> {
                 .map((t) => ListTile(
                     title: Text(t.name,
                         style: const TextStyle(color: Colors.white)),
-                    trailing: const Icon(Icons.arrow_forward_ios,
+                    trailing: Icon(Icons.arrow_forward_ios,
                         size: 16, color: AppTheme.textMediumEmphasis),
                     onTap: () {
                       HapticFeedback.lightImpact();
@@ -189,7 +189,7 @@ class _CoachDashboardScreenState extends State<CoachDashboardScreen> {
                       controller: controller,
                       padding: const EdgeInsets.symmetric(horizontal: 16),
                       children: [
-                        const Padding(
+                        Padding(
                           padding: EdgeInsets.symmetric(vertical: 8),
                           child: Text('SALTI',
                               style: TextStyle(
@@ -205,7 +205,7 @@ class _CoachDashboardScreenState extends State<CoachDashboardScreen> {
                             'single_leg_left', 'jump'),
                         _buildTestTile(ctx, 'Single Leg (Right)',
                             'single_leg_right', 'jump'),
-                        const Padding(
+                        Padding(
                           padding: EdgeInsets.symmetric(vertical: 8),
                           child: Text('MASSIMALI E FORZA',
                               style: TextStyle(
@@ -220,7 +220,7 @@ class _CoachDashboardScreenState extends State<CoachDashboardScreen> {
                         _buildTestTile(
                             ctx, 'Trazioni Massime', 'pullups_max', 'reps'),
                         const SizedBox(height: 16),
-                        const Padding(
+                        Padding(
                           padding: EdgeInsets.symmetric(vertical: 8),
                           child: Text('VELOCITÀ E AEROBICO',
                               style: TextStyle(
@@ -235,7 +235,7 @@ class _CoachDashboardScreenState extends State<CoachDashboardScreen> {
                         _buildTestTile(
                             ctx, 'Test di Léger', 'leger', 'leger_test'),
                         const SizedBox(height: 16),
-                        const Padding(
+                        Padding(
                           padding: EdgeInsets.symmetric(vertical: 8),
                           child: Text('EQUILIBRIO (Score)',
                               style: TextStyle(
@@ -250,7 +250,7 @@ class _CoachDashboardScreenState extends State<CoachDashboardScreen> {
                         _buildTestTile(
                             ctx, 'Monopodale DX', 'balance_single_r', 'score'),
                         const SizedBox(height: 16),
-                        const Padding(
+                        Padding(
                           padding: EdgeInsets.symmetric(vertical: 8),
                           child: Text('CORE E RESISTENZA (Tempo)',
                               style: TextStyle(
@@ -281,8 +281,7 @@ class _CoachDashboardScreenState extends State<CoachDashboardScreen> {
       BuildContext ctx, String title, String testId, String category) {
     return ListTile(
       title: Text(title, style: const TextStyle(color: Colors.white)),
-      trailing:
-          const Icon(Icons.chevron_right, color: AppTheme.textMediumEmphasis),
+      trailing: Icon(Icons.chevron_right, color: AppTheme.textMediumEmphasis),
       onTap: () {
         HapticFeedback.lightImpact();
         Navigator.pop(ctx);
@@ -381,7 +380,7 @@ class _CoachDashboardScreenState extends State<CoachDashboardScreen> {
                                 style: TextStyle(
                                     color: Colors.white,
                                     fontWeight: FontWeight.bold)),
-                            subtitle: const Text(
+                            subtitle: Text(
                                 'Crea evento in pista (Slalom, Gigante...)',
                                 style: TextStyle(
                                     color: AppTheme.textMediumEmphasis,
@@ -403,7 +402,7 @@ class _CoachDashboardScreenState extends State<CoachDashboardScreen> {
                                 style: TextStyle(
                                     color: Colors.white,
                                     fontWeight: FontWeight.bold)),
-                            subtitle: const Text(
+                            subtitle: Text(
                                 'Scegli dal database (Forza, Corsa, ecc.)',
                                 style: TextStyle(
                                     color: AppTheme.textMediumEmphasis,
@@ -424,7 +423,7 @@ class _CoachDashboardScreenState extends State<CoachDashboardScreen> {
                                 style: TextStyle(
                                     color: Colors.white,
                                     fontWeight: FontWeight.bold)),
-                            subtitle: const Text(
+                            subtitle: Text(
                                 'Registra salti e massimali per gli atleti',
                                 style: TextStyle(
                                     color: AppTheme.textMediumEmphasis,
@@ -521,7 +520,7 @@ class _CoachHomeViewState extends State<_CoachHomeView> {
             child: Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                const Text('WELCOME COACH',
+                Text('WELCOME COACH',
                     style: TextStyle(
                         color: AppTheme.textMediumEmphasis,
                         fontWeight: FontWeight.w900,
@@ -531,7 +530,7 @@ class _CoachHomeViewState extends State<_CoachHomeView> {
                   label: 'Apri profilo',
                   child: GestureDetector(
                     onTap: widget.onProfileTap,
-                    child: const CircleAvatar(
+                    child: CircleAvatar(
                       backgroundColor: AppTheme.card,
                       child: Icon(Icons.person_outline, color: Colors.white),
                     ),
@@ -623,7 +622,7 @@ class _CoachHomeViewState extends State<_CoachHomeView> {
                           IconButton(
                             padding: EdgeInsets.zero,
                             constraints: const BoxConstraints(),
-                            icon: const Icon(Icons.chevron_left,
+                            icon: Icon(Icons.chevron_left,
                                 color: AppTheme.textMediumEmphasis),
                             onPressed: () {
                               HapticFeedback.lightImpact();
@@ -647,7 +646,7 @@ class _CoachHomeViewState extends State<_CoachHomeView> {
                           IconButton(
                             padding: EdgeInsets.zero,
                             constraints: const BoxConstraints(),
-                            icon: const Icon(Icons.chevron_right,
+                            icon: Icon(Icons.chevron_right,
                                 color: AppTheme.textMediumEmphasis),
                             onPressed: () {
                               HapticFeedback.lightImpact();
@@ -694,7 +693,7 @@ class _CoachHomeViewState extends State<_CoachHomeView> {
                           color: AppTheme.card,
                           borderRadius: BorderRadius.circular(8)),
                       child: Text('${dailyEvents.length} Eventi',
-                          style: const TextStyle(
+                          style: TextStyle(
                               color: AppTheme.textMediumEmphasis,
                               fontWeight: FontWeight.bold,
                               fontSize: 13)),
@@ -730,7 +729,7 @@ class _CoachHomeViewState extends State<_CoachHomeView> {
               color: AppTheme.textMediumEmphasis.withValues(alpha: 0.5),
               size: 48),
           const SizedBox(height: 16),
-          const Text(
+          Text(
             'Nessun evento in programma',
             style: TextStyle(
                 color: AppTheme.textMediumEmphasis,
@@ -738,7 +737,7 @@ class _CoachHomeViewState extends State<_CoachHomeView> {
                 fontWeight: FontWeight.bold),
           ),
           const SizedBox(height: 4),
-          const Text(
+          Text(
             'Usa il tasto + per aggiungere un allenamento',
             textAlign: TextAlign.center,
             style: TextStyle(color: AppTheme.textMediumEmphasis, fontSize: 13),
@@ -786,7 +785,7 @@ class _CoachHomeViewState extends State<_CoachHomeView> {
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
                       Text('${event.startTime} - ${event.endTime}',
-                          style: const TextStyle(
+                          style: TextStyle(
                               color: AppTheme.textMediumEmphasis,
                               fontWeight: FontWeight.bold,
                               fontSize: 14)),
@@ -799,7 +798,7 @@ class _CoachHomeViewState extends State<_CoachHomeView> {
                               color: Colors.white.withValues(alpha: 0.05),
                               borderRadius: BorderRadius.circular(8)),
                           child: Text(teamName,
-                              style: const TextStyle(
+                              style: TextStyle(
                                   color: AppTheme.textMediumEmphasis,
                                   fontWeight: FontWeight.bold,
                                   fontSize: 12),
@@ -817,26 +816,26 @@ class _CoachHomeViewState extends State<_CoachHomeView> {
                               color: Colors.white,
                               fontSize: 18,
                               fontWeight: FontWeight.bold)),
-                      const Icon(Icons.chevron_right,
+                      Icon(Icons.chevron_right,
                           color: AppTheme.textMediumEmphasis, size: 20),
                     ],
                   ),
                   const SizedBox(height: 12),
                   Row(
                     children: [
-                      const Icon(Icons.location_on_outlined,
+                      Icon(Icons.location_on_outlined,
                           color: AppTheme.textMediumEmphasis, size: 16),
                       const SizedBox(width: 4),
                       Text(event.location ?? 'No location',
-                          style: const TextStyle(
+                          style: TextStyle(
                               color: AppTheme.textMediumEmphasis,
                               fontSize: 13)),
                       const SizedBox(width: 16),
-                      const Icon(Icons.people_outline,
+                      Icon(Icons.people_outline,
                           color: AppTheme.textMediumEmphasis, size: 16),
                       const SizedBox(width: 4),
                       Text('$presentCount Presenti',
-                          style: const TextStyle(
+                          style: TextStyle(
                               color: AppTheme.textMediumEmphasis,
                               fontSize: 13)),
                     ],
@@ -901,7 +900,7 @@ class _CoachHomeViewState extends State<_CoachHomeView> {
                   width: 32,
                   child: Text(d,
                       textAlign: TextAlign.center,
-                      style: const TextStyle(
+                      style: TextStyle(
                           color: AppTheme.textMediumEmphasis,
                           fontSize: 10,
                           fontWeight: FontWeight.bold))))
@@ -962,7 +961,7 @@ class _CoachHomeViewState extends State<_CoachHomeView> {
         children: [
           if (label.isNotEmpty) ...[
             Text(label,
-                style: const TextStyle(
+                style: TextStyle(
                     color: AppTheme.textMediumEmphasis,
                     fontSize: 12,
                     fontWeight: FontWeight.bold)),
@@ -1163,7 +1162,7 @@ class _CoachReportViewState extends State<_CoachReportView> {
                 Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    const Text('ATLETI TOTALI',
+                    Text('ATLETI TOTALI',
                         style: TextStyle(
                             color: AppTheme.textMediumEmphasis,
                             fontWeight: FontWeight.bold,
@@ -1199,7 +1198,7 @@ class _CoachReportViewState extends State<_CoachReportView> {
                   child: TextField(
                     onChanged: (val) => setState(() => _searchQuery = val),
                     style: const TextStyle(color: Colors.white),
-                    decoration: const InputDecoration(
+                    decoration: InputDecoration(
                       hintText: 'Cerca atleta...',
                       hintStyle: TextStyle(color: AppTheme.textMediumEmphasis),
                       prefixIcon: Icon(Icons.search,
@@ -1215,7 +1214,7 @@ class _CoachReportViewState extends State<_CoachReportView> {
           ),
           const SizedBox(height: 24),
           Row(
-            children: const [
+            children: [
               Icon(Icons.people_outline,
                   color: AppTheme.textMediumEmphasis, size: 16),
               SizedBox(width: 8),
@@ -1237,7 +1236,7 @@ class _CoachReportViewState extends State<_CoachReportView> {
               decoration: BoxDecoration(
                   color: AppTheme.card,
                   borderRadius: BorderRadius.circular(16)),
-              child: const Center(
+              child: Center(
                 child: Text('Nessun atleta trovato',
                     style: TextStyle(color: AppTheme.textMediumEmphasis)),
               ),
@@ -1320,11 +1319,11 @@ class _CoachReportViewState extends State<_CoachReportView> {
                   const SizedBox(height: 5),
                   Row(
                     children: [
-                      const Icon(Icons.fitness_center,
+                      Icon(Icons.fitness_center,
                           color: AppTheme.textMediumEmphasis, size: 12),
                       const SizedBox(width: 4),
                       Text('${prepHours}h Extra',
-                          style: const TextStyle(
+                          style: TextStyle(
                               color: AppTheme.textMediumEmphasis,
                               fontSize: 12,
                               fontWeight: FontWeight.w500)),
@@ -1342,7 +1341,7 @@ class _CoachReportViewState extends State<_CoachReportView> {
                       Expanded(
                         child: Text(
                             '$skiPresencePercent% Sci | $athleticPresencePercent% Atletica',
-                            style: const TextStyle(
+                            style: TextStyle(
                                 color: AppTheme.textMediumEmphasis,
                                 fontSize: 12,
                                 fontWeight: FontWeight.w500),
@@ -1361,7 +1360,7 @@ class _CoachReportViewState extends State<_CoachReportView> {
                     fontWeight: FontWeight.bold,
                     fontSize: 16)),
             const SizedBox(width: 8),
-            const Icon(Icons.chevron_right,
+            Icon(Icons.chevron_right,
                 color: AppTheme.textMediumEmphasis, size: 20),
           ],
         ),
@@ -1539,7 +1538,7 @@ class _CoachTrainingViewState extends State<_CoachTrainingView> {
                   child: TextField(
                     onChanged: (val) => setState(() => _searchQuery = val),
                     style: const TextStyle(color: Colors.white),
-                    decoration: const InputDecoration(
+                    decoration: InputDecoration(
                       hintText: 'Cerca per titolo, luogo...',
                       hintStyle: TextStyle(color: AppTheme.textMediumEmphasis),
                       prefixIcon: Icon(Icons.search,
@@ -1572,7 +1571,7 @@ class _CoachTrainingViewState extends State<_CoachTrainingView> {
           ),
           const SizedBox(height: 32),
           if (filteredEvents.isEmpty)
-            const Center(
+            Center(
               child: Padding(
                 padding: EdgeInsets.all(32.0),
                 child: Text('Nessun allenamento trovato',
@@ -1702,12 +1701,12 @@ class _CoachTrainingViewState extends State<_CoachTrainingView> {
                         children: [
                           Row(
                             children: [
-                              const Icon(Icons.people_outline,
+                              Icon(Icons.people_outline,
                                   color: AppTheme.textMediumEmphasis, size: 16),
                               const SizedBox(width: 4),
                               Expanded(
                                 child: Text(teamName,
-                                    style: const TextStyle(
+                                    style: TextStyle(
                                         color: AppTheme.textMediumEmphasis,
                                         fontSize: 13,
                                         fontWeight: FontWeight.bold),
@@ -1718,12 +1717,12 @@ class _CoachTrainingViewState extends State<_CoachTrainingView> {
                           const SizedBox(height: 4),
                           Row(
                             children: [
-                              const Icon(Icons.location_on_outlined,
+                              Icon(Icons.location_on_outlined,
                                   color: AppTheme.textMediumEmphasis, size: 16),
                               const SizedBox(width: 4),
                               Expanded(
                                 child: Text(event.location ?? 'N/A',
-                                    style: const TextStyle(
+                                    style: TextStyle(
                                         color: AppTheme.textMediumEmphasis,
                                         fontSize: 13),
                                     overflow: TextOverflow.ellipsis),

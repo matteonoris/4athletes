@@ -417,7 +417,7 @@ class _SkiActivityScreenState extends State<SkiActivityScreen> {
           const SizedBox(height: 12),
           Row(
             children: [
-              const Expanded(
+              Expanded(
                 child: Text('RPE',
                     style: TextStyle(
                         color: AppTheme.textMediumEmphasis,
@@ -474,7 +474,7 @@ class _SkiActivityScreenState extends State<SkiActivityScreen> {
           const SizedBox(height: 8),
           Text(
             'Totale: $total',
-            style: const TextStyle(
+            style: TextStyle(
               color: AppTheme.textMediumEmphasis,
               fontSize: 12,
               fontWeight: FontWeight.bold,
@@ -539,7 +539,7 @@ class _SkiActivityScreenState extends State<SkiActivityScreen> {
             Icon(icon, color: AppTheme.primary, size: 18),
             const SizedBox(height: 8),
             Text(label,
-                style: const TextStyle(
+                style: TextStyle(
                     color: AppTheme.textMediumEmphasis, fontSize: 11)),
             const SizedBox(height: 4),
             Text(value,
@@ -603,7 +603,7 @@ class _SkiActivityScreenState extends State<SkiActivityScreen> {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(label,
-            style: const TextStyle(
+            style: TextStyle(
                 color: AppTheme.textMediumEmphasis,
                 fontSize: 11,
                 fontWeight: FontWeight.bold)),

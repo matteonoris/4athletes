@@ -1,6 +1,6 @@
-Build TestFlight dedicata a allenamenti, sincronizzazione salute e flussi coach.
+Build TestFlight dedicata a personalizzazione profilo, sincronizzazione salute e flussi coach.
 
-- Aggiunge tracciamento piu' completo per attivita' sci e dryland con metriche migliorate.
-- Migliora import, normalizzazione e visualizzazione dei dati Apple Health e Health Connect.
-- Aggiorna dashboard coach, dettagli atleta, eventi e analytics.
-- Aggiunge supporto alle notifiche di promemoria per gli allenamenti.
+- Aggiunge la preferenza tema chiaro/scuro nell'area profilo.
+- Migliora layout e leggibilita' in schermate atleta e coach.
+- Aggiunge un'azione profilo per svuotare la cache salute locale e risincronizzare i dati.
+- Aggiorna schermate salute, analytics, dettagli attivita' e flussi coach.

@@ -26,7 +26,7 @@ class PrimaryButton extends StatelessWidget {
         : Theme.of(context).elevatedButtonTheme.style;
 
     Widget child = isLoading
-        ? const SizedBox(
+        ? SizedBox(
             height: 20,
             width: 20,
             child: CircularProgressIndicator(

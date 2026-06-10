@@ -2,66 +2,138 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 
 class AppTheme {
+  static const String lightMode = 'light';
+  static const String darkMode = 'dark';
+
   // Brand Colors
-  static const Color background = Color(0xFF0F1115);
-  static const Color surface = Color(0xFF181A1F);
-  static const Color card = Color(0xFF23262D);
+  static const Color _darkBackground = Color(0xFF0F1115);
+  static const Color _darkSurface = Color(0xFF181A1F);
+  static const Color _darkCard = Color(0xFF23262D);
+  static const Color _lightBackground = Color(0xFFF5F7FA);
+  static const Color _lightSurface = Color(0xFFFFFFFF);
+  static const Color _lightCard = Color(0xFFFFFFFF);
   static const Color primary = Color(0xFF13A4EC); // Blue main color
   static const Color secondary = Color(0xFF00E091); // Green accent
 
-  static const Color textHighEmphasis = Colors.white;
-  static const Color textMediumEmphasis =
+  static const Color _darkTextHighEmphasis = Colors.white;
+  static const Color _darkTextMediumEmphasis =
       Color(0xFF9E9E9E); // Grey-400 equivalent
-  static const Color textLowEmphasis = Color(0xFF757575);
+  static const Color _darkTextLowEmphasis = Color(0xFF757575);
+  static const Color _lightTextHighEmphasis = Color(0xFF111827);
+  static const Color _lightTextMediumEmphasis = Color(0xFF667085);
+  static const Color _lightTextLowEmphasis = Color(0xFF98A2B3);
 
   static const Color error = Color(0xFFFF5252);
   static const Color success = Color(0xFF4CAF50);
 
+  static bool _isDark = false;
+
+  static bool get isDark => _isDark;
+
+  static Color get background => _isDark ? _darkBackground : _lightBackground;
+  static Color get surface => _isDark ? _darkSurface : _lightSurface;
+  static Color get card => _isDark ? _darkCard : _lightCard;
+  static Color get textHighEmphasis =>
+      _isDark ? _darkTextHighEmphasis : _lightTextHighEmphasis;
+  static Color get textMediumEmphasis =>
+      _isDark ? _darkTextMediumEmphasis : _lightTextMediumEmphasis;
+  static Color get textLowEmphasis =>
+      _isDark ? _darkTextLowEmphasis : _lightTextLowEmphasis;
+
+  static String normalizeThemeMode(String? mode) {
+    return mode == darkMode ? darkMode : lightMode;
+  }
+
+  static void setThemeMode(String mode) {
+    _isDark = normalizeThemeMode(mode) == darkMode;
+  }
+
+  static ThemeData get lightTheme {
+    return _buildTheme(
+      brightness: Brightness.light,
+      background: _lightBackground,
+      surface: _lightSurface,
+      cardColor: _lightCard,
+      textHigh: _lightTextHighEmphasis,
+      textMedium: _lightTextMediumEmphasis,
+      textLow: _lightTextLowEmphasis,
+    );
+  }
+
   static ThemeData get darkTheme {
-    return ThemeData(
+    return _buildTheme(
       brightness: Brightness.dark,
+      background: _darkBackground,
+      surface: _darkSurface,
+      cardColor: _darkCard,
+      textHigh: _darkTextHighEmphasis,
+      textMedium: _darkTextMediumEmphasis,
+      textLow: _darkTextLowEmphasis,
+    );
+  }
+
+  static ThemeData _buildTheme({
+    required Brightness brightness,
+    required Color background,
+    required Color surface,
+    required Color cardColor,
+    required Color textHigh,
+    required Color textMedium,
+    required Color textLow,
+  }) {
+    final isDark = brightness == Brightness.dark;
+    return ThemeData(
+      brightness: brightness,
       scaffoldBackgroundColor: background,
       primaryColor: primary,
-      colorScheme: const ColorScheme.dark(
+      colorScheme: ColorScheme(
+        brightness: brightness,
         primary: primary,
+        onPrimary: Colors.white,
         secondary: secondary,
-        surface: surface,
+        onSecondary: _darkBackground,
+        tertiary: secondary,
+        onTertiary: _darkBackground,
         error: error,
+        onError: Colors.white,
+        surface: surface,
+        onSurface: textHigh,
       ),
-      textTheme:
-          GoogleFonts.lexendTextTheme(ThemeData.dark().textTheme).copyWith(
-        displayLarge: GoogleFonts.lexend(
-            color: textHighEmphasis, fontWeight: FontWeight.bold),
-        displayMedium: GoogleFonts.lexend(
-            color: textHighEmphasis, fontWeight: FontWeight.bold),
-        displaySmall: GoogleFonts.lexend(
-            color: textHighEmphasis, fontWeight: FontWeight.bold),
-        headlineLarge: GoogleFonts.lexend(
-            color: textHighEmphasis, fontWeight: FontWeight.bold),
-        headlineMedium: GoogleFonts.lexend(
-            color: textHighEmphasis, fontWeight: FontWeight.w600),
-        headlineSmall: GoogleFonts.lexend(
-            color: textHighEmphasis, fontWeight: FontWeight.w600),
-        titleLarge: GoogleFonts.lexend(
-            color: textHighEmphasis, fontWeight: FontWeight.w600),
-        titleMedium: GoogleFonts.lexend(
-            color: textHighEmphasis, fontWeight: FontWeight.w500),
-        titleSmall: GoogleFonts.lexend(
-            color: textHighEmphasis, fontWeight: FontWeight.w500),
-        bodyLarge: GoogleFonts.lexend(color: textHighEmphasis),
-        bodyMedium: GoogleFonts.lexend(color: textMediumEmphasis),
-        bodySmall: GoogleFonts.lexend(color: textLowEmphasis),
+      textTheme: GoogleFonts.lexendTextTheme(
+        isDark ? ThemeData.dark().textTheme : ThemeData.light().textTheme,
+      ).copyWith(
+        displayLarge:
+            GoogleFonts.lexend(color: textHigh, fontWeight: FontWeight.bold),
+        displayMedium:
+            GoogleFonts.lexend(color: textHigh, fontWeight: FontWeight.bold),
+        displaySmall:
+            GoogleFonts.lexend(color: textHigh, fontWeight: FontWeight.bold),
+        headlineLarge:
+            GoogleFonts.lexend(color: textHigh, fontWeight: FontWeight.bold),
+        headlineMedium:
+            GoogleFonts.lexend(color: textHigh, fontWeight: FontWeight.w600),
+        headlineSmall:
+            GoogleFonts.lexend(color: textHigh, fontWeight: FontWeight.w600),
+        titleLarge:
+            GoogleFonts.lexend(color: textHigh, fontWeight: FontWeight.w600),
+        titleMedium:
+            GoogleFonts.lexend(color: textHigh, fontWeight: FontWeight.w500),
+        titleSmall:
+            GoogleFonts.lexend(color: textHigh, fontWeight: FontWeight.w500),
+        bodyLarge: GoogleFonts.lexend(color: textHigh),
+        bodyMedium: GoogleFonts.lexend(color: textMedium),
+        bodySmall: GoogleFonts.lexend(color: textLow),
       ),
-      appBarTheme: const AppBarTheme(
+      appBarTheme: AppBarTheme(
         backgroundColor: background,
         elevation: 0,
         centerTitle: true,
-        iconTheme: IconThemeData(color: textHighEmphasis),
+        iconTheme: IconThemeData(color: textHigh),
         titleTextStyle: TextStyle(
-            color: textHighEmphasis, fontSize: 18, fontWeight: FontWeight.w600),
+            color: textHigh, fontSize: 18, fontWeight: FontWeight.w600),
       ),
       cardTheme: CardThemeData(
-        color: card,
+        color: cardColor,
         elevation: 0,
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(16),
@@ -70,7 +142,7 @@ class AppTheme {
       elevatedButtonTheme: ElevatedButtonThemeData(
         style: ElevatedButton.styleFrom(
           backgroundColor: primary,
-          foregroundColor: background,
+          foregroundColor: Colors.white,
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(12),
           ),
@@ -83,8 +155,8 @@ class AppTheme {
       ),
       outlinedButtonTheme: OutlinedButtonThemeData(
         style: OutlinedButton.styleFrom(
-          foregroundColor: textHighEmphasis,
-          side: const BorderSide(color: surface, width: 2),
+          foregroundColor: textHigh,
+          side: BorderSide(color: surface, width: 2),
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(12),
           ),
@@ -116,13 +188,13 @@ class AppTheme {
           borderRadius: BorderRadius.circular(12),
           borderSide: const BorderSide(color: error, width: 1),
         ),
-        labelStyle: const TextStyle(color: textMediumEmphasis),
-        hintStyle: const TextStyle(color: textMediumEmphasis),
+        labelStyle: TextStyle(color: textMedium),
+        hintStyle: TextStyle(color: textMedium),
       ),
-      bottomNavigationBarTheme: const BottomNavigationBarThemeData(
+      bottomNavigationBarTheme: BottomNavigationBarThemeData(
         backgroundColor: surface,
         selectedItemColor: primary,
-        unselectedItemColor: textLowEmphasis,
+        unselectedItemColor: textLow,
         showUnselectedLabels: true,
         type: BottomNavigationBarType.fixed,
         elevation: 8,

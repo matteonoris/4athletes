@@ -290,8 +290,7 @@ class _CoachAthleteDetailScreenState extends State<CoachAthleteDetailScreen> {
       child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
         const Icon(Icons.error_outline, color: AppTheme.error, size: 48),
         const SizedBox(height: 16),
-        Text(_error!,
-            style: const TextStyle(color: AppTheme.textMediumEmphasis)),
+        Text(_error!, style: TextStyle(color: AppTheme.textMediumEmphasis)),
         const SizedBox(height: 16),
         ElevatedButton(
             onPressed: () {
@@ -334,8 +333,8 @@ class _CoachAthleteDetailScreenState extends State<CoachAthleteDetailScreen> {
           leading: IconButton(
             icon: Container(
               padding: const EdgeInsets.all(8),
-              decoration: const BoxDecoration(
-                  color: AppTheme.card, shape: BoxShape.circle),
+              decoration:
+                  BoxDecoration(color: AppTheme.card, shape: BoxShape.circle),
               child:
                   const Icon(Icons.arrow_back, color: Colors.white, size: 20),
             ),
@@ -360,14 +359,13 @@ class _CoachAthleteDetailScreenState extends State<CoachAthleteDetailScreen> {
                       fontSize: 16)),
               if (_profile?.skiClub != null)
                 Text(_profile!.skiClub!,
-                    style: const TextStyle(
+                    style: TextStyle(
                         color: AppTheme.textMediumEmphasis, fontSize: 11)),
             ]),
           ]),
           actions: [
             IconButton(
-              icon:
-                  const Icon(Icons.refresh, color: AppTheme.textMediumEmphasis),
+              icon: Icon(Icons.refresh, color: AppTheme.textMediumEmphasis),
               onPressed: () {
                 setState(() => _isLoading = true);
                 _loadAll();
@@ -476,7 +474,7 @@ class _CoachAthleteDetailScreenState extends State<CoachAthleteDetailScreen> {
                     decoration: BoxDecoration(
                         color: AppTheme.card,
                         borderRadius: BorderRadius.circular(16)),
-                    child: const Center(
+                    child: Center(
                         child: Text('Nessuna sessione registrata',
                             style:
                                 TextStyle(color: AppTheme.textMediumEmphasis))),
@@ -599,7 +597,7 @@ class _CoachAthleteDetailScreenState extends State<CoachAthleteDetailScreen> {
             label.toUpperCase(),
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
-            style: const TextStyle(
+            style: TextStyle(
               color: AppTheme.textMediumEmphasis,
               fontSize: 9,
               fontWeight: FontWeight.bold,
@@ -628,7 +626,7 @@ class _CoachAthleteDetailScreenState extends State<CoachAthleteDetailScreen> {
         decoration: BoxDecoration(
             color: AppTheme.card, borderRadius: BorderRadius.circular(14)),
         child: Column(children: [
-          const Text('PRESENZE',
+          Text('PRESENZE',
               style: TextStyle(
                   color: AppTheme.textMediumEmphasis,
                   fontWeight: FontWeight.bold,
@@ -686,7 +684,7 @@ class _CoachAthleteDetailScreenState extends State<CoachAthleteDetailScreen> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const Text('CAMBI DI DIR. TOTALI',
+                  Text('CAMBI DI DIR. TOTALI',
                       style: TextStyle(
                           color: AppTheme.textMediumEmphasis,
                           fontWeight: FontWeight.bold,
@@ -714,7 +712,7 @@ class _CoachAthleteDetailScreenState extends State<CoachAthleteDetailScreen> {
                                     color: col, shape: BoxShape.circle)),
                             const SizedBox(width: 4),
                             Text('${e.key} ${e.value}',
-                                style: const TextStyle(
+                                style: TextStyle(
                                     color: AppTheme.textMediumEmphasis,
                                     fontSize: 11)),
                           ],
@@ -724,7 +722,7 @@ class _CoachAthleteDetailScreenState extends State<CoachAthleteDetailScreen> {
                 ],
               ),
             ),
-            const Icon(Icons.chevron_right, color: AppTheme.textMediumEmphasis),
+            Icon(Icons.chevron_right, color: AppTheme.textMediumEmphasis),
           ],
         ),
       ),
@@ -755,7 +753,7 @@ class _CoachAthleteDetailScreenState extends State<CoachAthleteDetailScreen> {
           color: AppTheme.card, borderRadius: BorderRadius.circular(14)),
       child: Column(children: [
         Text(label,
-            style: const TextStyle(
+            style: TextStyle(
                 color: AppTheme.textMediumEmphasis,
                 fontWeight: FontWeight.bold,
                 fontSize: 9,
@@ -804,7 +802,7 @@ class _CoachAthleteDetailScreenState extends State<CoachAthleteDetailScreen> {
                 style: TextStyle(
                     color: color, fontWeight: FontWeight.bold, fontSize: 12)),
             const Spacer(),
-            const Icon(Icons.chevron_right,
+            Icon(Icons.chevron_right,
                 color: AppTheme.textMediumEmphasis, size: 14),
           ]),
           const SizedBox(height: 4),
@@ -841,8 +839,8 @@ class _CoachAthleteDetailScreenState extends State<CoachAthleteDetailScreen> {
           ),
           const SizedBox(height: 4),
           Text(logs.last.date,
-              style: const TextStyle(
-                  color: AppTheme.textMediumEmphasis, fontSize: 9)),
+              style:
+                  TextStyle(color: AppTheme.textMediumEmphasis, fontSize: 9)),
         ]),
       ),
     );
@@ -902,7 +900,7 @@ class _CoachAthleteDetailScreenState extends State<CoachAthleteDetailScreen> {
                           fontWeight: FontWeight.bold,
                           color: Colors.white)),
                   if (val > 0)
-                    const TextSpan(
+                    TextSpan(
                         text: ' cm',
                         style: TextStyle(
                             fontSize: 11, color: AppTheme.textMediumEmphasis)),
@@ -920,7 +918,7 @@ class _CoachAthleteDetailScreenState extends State<CoachAthleteDetailScreen> {
               const SizedBox(height: 4),
               Text(label,
                   textAlign: TextAlign.center,
-                  style: const TextStyle(
+                  style: TextStyle(
                       fontSize: 9,
                       fontWeight: FontWeight.bold,
                       color: AppTheme.textMediumEmphasis)),
@@ -976,7 +974,7 @@ class _CoachAthleteDetailScreenState extends State<CoachAthleteDetailScreen> {
             child: Row(children: [
               Expanded(
                 child: Text(label,
-                    style: const TextStyle(
+                    style: TextStyle(
                         color: AppTheme.textMediumEmphasis,
                         fontSize: 12,
                         fontWeight: FontWeight.bold)),
@@ -990,7 +988,7 @@ class _CoachAthleteDetailScreenState extends State<CoachAthleteDetailScreen> {
                           fontSize: 18,
                           fontWeight: FontWeight.w900)),
                   if (val > 0)
-                    const TextSpan(
+                    TextSpan(
                         text: ' kg',
                         style: TextStyle(
                             color: AppTheme.textMediumEmphasis, fontSize: 11)),
@@ -1082,7 +1080,7 @@ class _CoachAthleteDetailScreenState extends State<CoachAthleteDetailScreen> {
             child: Row(children: [
               Expanded(
                 child: Text(label,
-                    style: const TextStyle(
+                    style: TextStyle(
                         color: AppTheme.textMediumEmphasis,
                         fontSize: 12,
                         fontWeight: FontWeight.bold)),
@@ -1098,7 +1096,7 @@ class _CoachAthleteDetailScreenState extends State<CoachAthleteDetailScreen> {
                   if (val > 0 && unit.isNotEmpty)
                     TextSpan(
                         text: ' $unit',
-                        style: const TextStyle(
+                        style: TextStyle(
                             color: AppTheme.textMediumEmphasis, fontSize: 11)),
                 ]),
               ),
@@ -1155,19 +1153,19 @@ class _CoachAthleteDetailScreenState extends State<CoachAthleteDetailScreen> {
               const SizedBox(height: 3),
               Row(children: [
                 Text(session.date,
-                    style: const TextStyle(
+                    style: TextStyle(
                         color: AppTheme.textMediumEmphasis, fontSize: 11)),
                 const SizedBox(width: 8),
-                const Icon(Icons.access_time,
+                Icon(Icons.access_time,
                     color: AppTheme.textMediumEmphasis, size: 11),
                 const SizedBox(width: 3),
                 Text(TimeUtils.formatDuration(session.duration),
-                    style: const TextStyle(
+                    style: TextStyle(
                         color: AppTheme.textMediumEmphasis, fontSize: 11)),
               ]),
             ]),
           ),
-          const Icon(Icons.chevron_right,
+          Icon(Icons.chevron_right,
               color: AppTheme.textMediumEmphasis, size: 18),
         ]),
       ),

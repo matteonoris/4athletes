@@ -114,7 +114,9 @@ class _TeamsScreenState extends State<TeamsScreen> {
                               child: InkWell(
                                 onTap: () {
                                   Navigator.of(context).push(
-                                    MaterialPageRoute(builder: (_) => TeamDetailScreen(team: team)),
+                                    MaterialPageRoute(
+                                        builder: (_) =>
+                                            TeamDetailScreen(team: team)),
                                   );
                                 },
                                 borderRadius: BorderRadius.circular(12),
@@ -124,7 +126,8 @@ class _TeamsScreenState extends State<TeamsScreen> {
                                     color: AppTheme.card,
                                     borderRadius: BorderRadius.circular(12),
                                     border: Border.all(
-                                        color: Colors.white.withValues(alpha: 0.05)),
+                                        color: Colors.white
+                                            .withValues(alpha: 0.05)),
                                   ),
                                   child: Row(
                                     children: [
@@ -133,13 +136,15 @@ class _TeamsScreenState extends State<TeamsScreen> {
                                         width: 56,
                                         height: 56,
                                         decoration: BoxDecoration(
-                                          color: Colors.white.withValues(alpha: 0.05),
+                                          color: Colors.white
+                                              .withValues(alpha: 0.05),
                                           borderRadius:
                                               BorderRadius.circular(8),
                                           border: Border.all(
                                               color: Colors.white
                                                   .withValues(alpha: 0.1)),
-                                          image: team.image.isNotEmpty && team.image.startsWith('http')
+                                          image: team.image.isNotEmpty &&
+                                                  team.image.startsWith('http')
                                               ? DecorationImage(
                                                   image:
                                                       NetworkImage(team.image),
@@ -147,8 +152,9 @@ class _TeamsScreenState extends State<TeamsScreen> {
                                                 )
                                               : null,
                                         ),
-                                        child: team.image.isEmpty || !team.image.startsWith('http')
-                                            ? const Center(
+                                        child: team.image.isEmpty ||
+                                                !team.image.startsWith('http')
+                                            ? Center(
                                                 child: Icon(Icons.group,
                                                     color: AppTheme
                                                         .textMediumEmphasis))
@@ -173,7 +179,7 @@ class _TeamsScreenState extends State<TeamsScreen> {
                                             const SizedBox(height: 4),
                                             Text(
                                               '${team.members} Membri • ${team.category}',
-                                              style: const TextStyle(
+                                              style: TextStyle(
                                                 fontSize: 12,
                                                 color:
                                                     AppTheme.textMediumEmphasis,
@@ -242,7 +248,8 @@ class _TeamsScreenState extends State<TeamsScreen> {
                                 width: 48,
                                 height: 48,
                                 decoration: BoxDecoration(
-                                  color: AppTheme.secondary.withValues(alpha: 0.1),
+                                  color:
+                                      AppTheme.secondary.withValues(alpha: 0.1),
                                   shape: BoxShape.circle,
                                 ),
                                 child: Icon(PhosphorIcons.qrCode(),
@@ -255,7 +262,7 @@ class _TeamsScreenState extends State<TeamsScreen> {
                                     fontWeight: FontWeight.bold, fontSize: 14),
                               ),
                               const SizedBox(height: 4),
-                              const Text(
+                              Text(
                                 'Unisciti immediatamente ad un team usando un codice o un link.',
                                 textAlign: TextAlign.center,
                                 style: TextStyle(
@@ -384,14 +391,12 @@ class _JoinTeamModalState extends State<_JoinTeamModal> {
       // 2. Update user profile team_id
       await supabase
           .from('profiles')
-          .update({'team_id': teamId})
-          .eq('id', appState.userId);
+          .update({'team_id': teamId}).eq('id', appState.userId);
 
       // 3. Increment team members count
       await supabase
           .from('teams')
-          .update({'members': currentMembers + 1})
-          .eq('id', teamId);
+          .update({'members': currentMembers + 1}).eq('id', teamId);
 
       // 4. Reload app state to sync
       await appState.init();
@@ -447,8 +452,7 @@ class _JoinTeamModalState extends State<_JoinTeamModal> {
             Align(
               alignment: Alignment.topRight,
               child: IconButton(
-                icon:
-                    const Icon(Icons.close, color: AppTheme.textMediumEmphasis),
+                icon: Icon(Icons.close, color: AppTheme.textMediumEmphasis),
                 onPressed: () => Navigator.of(context).pop(),
               ),
             ),

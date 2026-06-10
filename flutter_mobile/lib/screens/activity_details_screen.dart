@@ -54,8 +54,8 @@ class ActivityDetailsScreen extends StatelessWidget {
                   const TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
           const SizedBox(height: 4),
           Text(label,
-              style: const TextStyle(
-                  fontSize: 10, color: AppTheme.textMediumEmphasis)),
+              style:
+                  TextStyle(fontSize: 10, color: AppTheme.textMediumEmphasis)),
         ],
       ),
     );
@@ -91,7 +91,7 @@ class ActivityDetailsScreen extends StatelessWidget {
               SizedBox(
                 width: 70,
                 child: Text(labels[index],
-                    style: const TextStyle(
+                    style: TextStyle(
                         fontSize: 10,
                         color: AppTheme.textMediumEmphasis,
                         fontWeight: FontWeight.bold)),
@@ -180,7 +180,7 @@ class ActivityDetailsScreen extends StatelessWidget {
                     style: const TextStyle(
                         fontWeight: FontWeight.bold, fontSize: 34)),
                 const SizedBox(width: 10),
-                const Padding(
+                Padding(
                   padding: EdgeInsets.only(bottom: 6),
                   child: Text('FC media',
                       style: TextStyle(
@@ -272,8 +272,8 @@ class ActivityDetailsScreen extends StatelessWidget {
             interval: chartMax - chartMin,
             getTitlesWidget: (value, meta) => Text(
               value.round().toString(),
-              style: const TextStyle(
-                  color: AppTheme.textMediumEmphasis, fontSize: 11),
+              style:
+                  TextStyle(color: AppTheme.textMediumEmphasis, fontSize: 11),
             ),
           ),
         ),
@@ -287,7 +287,7 @@ class ActivityDetailsScreen extends StatelessWidget {
               final t = DateTime.fromMillisecondsSinceEpoch(
                   start + (value * 60000).round());
               return Text(_formatTimeLabel(t),
-                  style: const TextStyle(
+                  style: TextStyle(
                       color: AppTheme.textMediumEmphasis, fontSize: 11));
             },
           ),
@@ -345,7 +345,7 @@ class ActivityDetailsScreen extends StatelessWidget {
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: thresholds
               .map((value) => Text(value,
-                  style: const TextStyle(
+                  style: TextStyle(
                       color: AppTheme.textMediumEmphasis, fontSize: 12)))
               .toList(),
         ),
@@ -588,6 +588,58 @@ class ActivityDetailsScreen extends StatelessWidget {
     );
   }
 
+  List<PRLog> _effectivePrLogs(BuildContext context) {
+    return prLogs ?? Provider.of<AppState>(context, listen: false).prLogs;
+  }
+
+  double _oneRepMaxForExercise(
+    BuildContext context,
+    String exerciseId,
+    List<PRLog> logs,
+  ) {
+    var maxLoad = 0.0;
+    for (final log in logs.where((l) => l.exerciseId == exerciseId)) {
+      if (log.weight > maxLoad) maxLoad = log.weight;
+    }
+    var profileMax = 0.0;
+    if (prLogs == null) {
+      profileMax = Provider.of<AppState>(context, listen: false)
+              .userProfile
+              ?.oneRepMax?[exerciseId] ??
+          0.0;
+    }
+    return profileMax > maxLoad ? profileMax : maxLoad;
+  }
+
+  String _formatLoad(double value) {
+    if (value == value.roundToDouble()) return value.toStringAsFixed(0);
+    return value.toStringAsFixed(1);
+  }
+
+  String _strengthSetText(
+    int setIndex, {
+    double? kg,
+    int? reps,
+    int? durationSeconds,
+    double? percent1RM,
+    required double maxLoad,
+  }) {
+    final parts = <String>[];
+    final load = kg ?? 0;
+    if (load > 0) parts.add('${_formatLoad(load)} kg');
+    if ((reps ?? 0) > 0) parts.add('$reps reps');
+    if ((durationSeconds ?? 0) > 0) parts.add('${durationSeconds}s');
+    if (parts.isEmpty) parts.add('dati non compilati');
+
+    final pct = (percent1RM ?? 0) > 0
+        ? percent1RM!
+        : maxLoad > 0 && load > 0
+            ? (load / maxLoad) * 100
+            : null;
+    final pctStr = pct == null ? '' : ' (${pct.toStringAsFixed(0)}% 1RM)';
+    return 'Set ${setIndex + 1}: ${parts.join(' x ')}$pctStr';
+  }
+
   Widget _buildDetailsMap(
       BuildContext context, Map<String, dynamic> data, List<PRLog> prLogs) {
     return Column(
@@ -631,7 +683,7 @@ class ActivityDetailsScreen extends StatelessWidget {
                                   const TextStyle(fontWeight: FontWeight.bold)),
                         if ((lap['material']?.toString() ?? '').isNotEmpty)
                           Text('Materiale: ${lap['material']}',
-                              style: const TextStyle(
+                              style: TextStyle(
                                   fontSize: 12,
                                   color: AppTheme.textMediumEmphasis)),
                       ],
@@ -679,14 +731,11 @@ class ActivityDetailsScreen extends StatelessWidget {
                   if (mapItem.containsKey('name') &&
                       mapItem.containsKey('sets')) {
                     final sets = mapItem['sets'] as List;
-                    final exerciseId = mapItem['id'] ?? '';
-                    final exercisePrLogs = prLogs
-                        .where((l) => l.exerciseId == exerciseId)
-                        .toList()
-                      ..sort((a, b) => b.date.compareTo(a.date));
-                    final double maxLoad = exercisePrLogs.isNotEmpty
-                        ? exercisePrLogs.first.weight
-                        : 0.0;
+                    final exerciseId =
+                        (mapItem['exerciseId'] ?? mapItem['id'] ?? '')
+                            .toString();
+                    final maxLoad =
+                        _oneRepMaxForExercise(context, exerciseId, prLogs);
 
                     return Padding(
                       padding: const EdgeInsets.only(bottom: 12.0),
@@ -700,19 +749,24 @@ class ActivityDetailsScreen extends StatelessWidget {
                             final setIdx = setEntry.key;
                             final setVal =
                                 setEntry.value as Map<String, dynamic>;
-                            final load =
-                                (setVal['kg'] as num?)?.toDouble() ?? 0.0;
-                            String pctStr = '';
-                            if (maxLoad > 0 && load > 0) {
-                              pctStr =
-                                  ' (${((load / maxLoad) * 100).toStringAsFixed(0)}% 1RM)';
-                            }
                             return Padding(
                               padding:
                                   const EdgeInsets.only(left: 16.0, top: 4.0),
                               child: Text(
-                                  'Set ${setIdx + 1}: ${setVal['kg']} kg x ${setVal['reps']} reps$pctStr',
-                                  style: const TextStyle(
+                                  _strengthSetText(
+                                    setIdx,
+                                    kg: (setVal['kg'] as num?)?.toDouble(),
+                                    reps: (setVal['reps'] as num?)?.toInt(),
+                                    durationSeconds:
+                                        (setVal['durationSeconds'] as num?)
+                                            ?.toInt(),
+                                    percent1RM: (setVal['percent1RM'] as num?)
+                                            ?.toDouble() ??
+                                        (setVal['percent1rm'] as num?)
+                                            ?.toDouble(),
+                                    maxLoad: maxLoad,
+                                  ),
+                                  style: TextStyle(
                                       fontSize: 12,
                                       color: AppTheme.textMediumEmphasis)),
                             );
@@ -1022,7 +1076,7 @@ class ActivityDetailsScreen extends StatelessWidget {
             (row) => Padding(
               padding: const EdgeInsets.only(bottom: 4),
               child: Text(row,
-                  style: const TextStyle(
+                  style: TextStyle(
                       color: AppTheme.textMediumEmphasis, fontSize: 13)),
             ),
           ),
@@ -1150,14 +1204,14 @@ class ActivityDetailsScreen extends StatelessWidget {
                       fontWeight: FontWeight.bold,
                     ),
                   ),
-                  content: const Text(
+                  content: Text(
                     'Sei sicuro di voler eliminare questo allenamento?',
                     style: TextStyle(color: AppTheme.textMediumEmphasis),
                   ),
                   actions: [
                     TextButton(
                       onPressed: () => Navigator.pop(ctx),
-                      child: const Text(
+                      child: Text(
                         'Annulla',
                         style: TextStyle(color: AppTheme.textMediumEmphasis),
                       ),
@@ -1386,8 +1440,25 @@ class ActivityDetailsScreen extends StatelessWidget {
 
   Widget _drylandBlockSummary(BuildContext context, TrainingBlock block) {
     final rows = <String>[];
+    final logs = _effectivePrLogs(context);
     for (final exercise in block.exercises) {
       rows.add('${exercise.name} · ${exercise.sets.length} serie');
+    }
+    for (final exercise in block.exercises) {
+      final maxLoad = _oneRepMaxForExercise(context, exercise.exerciseId, logs);
+      for (final entry in exercise.sets.asMap().entries) {
+        final set = entry.value;
+        rows.add(
+          '${exercise.name} · ${_strengthSetText(
+            entry.key,
+            kg: set.kg,
+            reps: set.reps,
+            durationSeconds: set.durationSeconds,
+            percent1RM: set.percent1RM,
+            maxLoad: maxLoad,
+          )}',
+        );
+      }
     }
     for (final entry in block.plyometrics) {
       rows.add('${entry.exerciseName} · ${entry.totalContacts} contatti');
@@ -1444,7 +1515,7 @@ class ActivityDetailsScreen extends StatelessWidget {
               padding: const EdgeInsets.only(bottom: 4),
               child: Text(
                 row,
-                style: const TextStyle(
+                style: TextStyle(
                   color: AppTheme.textMediumEmphasis,
                   fontSize: 13,
                 ),
@@ -1550,13 +1621,13 @@ class ActivityDetailsScreen extends StatelessWidget {
                   title: const Text('Elimina Allenamento',
                       style: TextStyle(
                           color: Colors.white, fontWeight: FontWeight.bold)),
-                  content: const Text(
+                  content: Text(
                       'Sei sicuro di voler eliminare questo allenamento?',
                       style: TextStyle(color: AppTheme.textMediumEmphasis)),
                   actions: [
                     TextButton(
                       onPressed: () => Navigator.pop(ctx),
-                      child: const Text('Annulla',
+                      child: Text('Annulla',
                           style: TextStyle(color: AppTheme.textMediumEmphasis)),
                     ),
                     TextButton(

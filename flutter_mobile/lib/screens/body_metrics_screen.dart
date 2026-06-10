@@ -86,7 +86,7 @@ class _BodyMetricsScreenState extends State<BodyMetricsScreen> {
                         lastDate: DateTime.now(),
                         builder: (context, child) => Theme(
                           data: ThemeData.dark().copyWith(
-                            colorScheme: const ColorScheme.dark(
+                            colorScheme: ColorScheme.dark(
                               primary: AppTheme.primary,
                               onPrimary: Colors.white,
                               surface: AppTheme.card,
@@ -110,7 +110,7 @@ class _BodyMetricsScreenState extends State<BodyMetricsScreen> {
                       child: Row(
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
-                          const Text('Data',
+                          Text('Data',
                               style: TextStyle(
                                   color: AppTheme.textMediumEmphasis)),
                           Text(
@@ -128,7 +128,7 @@ class _BodyMetricsScreenState extends State<BodyMetricsScreen> {
               actions: [
                 TextButton(
                   onPressed: () => Navigator.pop(context),
-                  child: const Text('Annulla',
+                  child: Text('Annulla',
                       style: TextStyle(color: AppTheme.textMediumEmphasis)),
                 ),
                 ElevatedButton(
@@ -244,7 +244,7 @@ class _BodyMetricsScreenState extends State<BodyMetricsScreen> {
                           _selectedType == 'weight'
                               ? 'Andamento Peso'
                               : 'Andamento Altezza',
-                          style: const TextStyle(
+                          style: TextStyle(
                               color: AppTheme.textMediumEmphasis,
                               fontWeight: FontWeight.bold),
                         ),
@@ -265,7 +265,7 @@ class _BodyMetricsScreenState extends State<BodyMetricsScreen> {
                 ),
                 const SizedBox(height: 32),
                 if (filteredLogs.isEmpty)
-                  const SizedBox(
+                  SizedBox(
                     height: 220,
                     child: Center(
                         child: Text('Nessun dato per questo intervallo',
@@ -364,7 +364,7 @@ class _BodyMetricsScreenState extends State<BodyMetricsScreen> {
                                       padding: const EdgeInsets.only(top: 8),
                                       child: Text(
                                         DateFormat('E d', 'it').format(d),
-                                        style: const TextStyle(
+                                        style: TextStyle(
                                             color: AppTheme.textMediumEmphasis,
                                             fontSize: 10,
                                             fontWeight: FontWeight.bold),
@@ -478,7 +478,7 @@ class _BodyMetricsScreenState extends State<BodyMetricsScreen> {
           Text('Cronologia', style: Theme.of(context).textTheme.titleLarge),
           const SizedBox(height: 16),
           if (logs.isEmpty)
-            const CustomCard(
+            CustomCard(
               child: Padding(
                 padding: EdgeInsets.all(24),
                 child: Center(
@@ -577,14 +577,14 @@ class _BodyMetricsScreenState extends State<BodyMetricsScreen> {
               children: [
                 Text(
                   DateFormat('dd MMMM yyyy').format(date),
-                  style: const TextStyle(
+                  style: TextStyle(
                       fontWeight: FontWeight.bold,
                       color: AppTheme.textHighEmphasis),
                 ),
                 const SizedBox(height: 4),
                 Text(
                   _selectedType == 'weight' ? 'Peso Corporeo' : 'Altezza',
-                  style: const TextStyle(
+                  style: TextStyle(
                       color: AppTheme.textMediumEmphasis, fontSize: 12),
                 ),
               ],

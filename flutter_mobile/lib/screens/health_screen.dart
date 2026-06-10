@@ -16,7 +16,7 @@ import 'body_metrics_screen.dart';
 const _sleepDeepColor = Color(0xFF123B7A);
 const _sleepRemColor = Color(0xFFB48CFF);
 const _sleepLightColor = Color(0xFF7DDCFF);
-const _sleepAwakeColor = AppTheme.textMediumEmphasis;
+Color get _sleepAwakeColor => AppTheme.textMediumEmphasis;
 const _sleepBedtimeColor = AppTheme.primary;
 const _sleepWakeColor = Color(0xFFB48CFF);
 const _sleepDebtColor = AppTheme.error;
@@ -637,7 +637,7 @@ class _VitalMetricCard extends StatelessWidget {
           const SizedBox(height: 10),
           Text(
             _vitalDescription(title, todayOrLatest, baseline),
-            style: const TextStyle(
+            style: TextStyle(
               color: AppTheme.textMediumEmphasis,
               fontSize: 12,
             ),
@@ -824,7 +824,7 @@ class _BodyCompositionLineChart extends StatelessWidget {
                   padding: const EdgeInsets.only(top: 8),
                   child: Text(
                     DateFormat('d/M', 'it').format(date),
-                    style: const TextStyle(
+                    style: TextStyle(
                       color: AppTheme.textMediumEmphasis,
                       fontSize: 10,
                       fontWeight: FontWeight.w600,
@@ -997,7 +997,7 @@ class _SleepDebtChartCard extends StatelessWidget {
       title: title,
       days: days,
       onDaysChanged: onDaysChanged,
-      legend: const [
+      legend: [
         _LegendItem('Debito', _sleepDebtColor),
         _LegendItem('Surplus', _sleepSurplusColor),
       ],
@@ -1027,7 +1027,7 @@ class _SleepArchitectureChartCard extends StatelessWidget {
       title: title,
       days: days,
       onDaysChanged: onDaysChanged,
-      legend: const [
+      legend: [
         _LegendItem('Profondo', _sleepDeepColor),
         _LegendItem('REM', _sleepRemColor),
         _LegendItem('Leggero', _sleepLightColor),
@@ -1160,7 +1160,7 @@ class _ChartCardShell extends StatelessWidget {
             const SizedBox(height: 10),
             Text(
               footer!,
-              style: const TextStyle(
+              style: TextStyle(
                 color: AppTheme.textMediumEmphasis,
                 fontSize: 12,
               ),
@@ -1205,7 +1205,7 @@ class _ChartLegend extends StatelessWidget {
                 const SizedBox(width: 6),
                 Text(
                   item.label,
-                  style: const TextStyle(
+                  style: TextStyle(
                     color: AppTheme.textMediumEmphasis,
                     fontSize: 11,
                     fontWeight: FontWeight.w600,
@@ -1282,7 +1282,7 @@ class _InlineMetric extends StatelessWidget {
           label,
           maxLines: 2,
           overflow: TextOverflow.ellipsis,
-          style: const TextStyle(
+          style: TextStyle(
             color: AppTheme.textMediumEmphasis,
             fontSize: 11,
             fontWeight: FontWeight.w600,
@@ -1768,7 +1768,7 @@ class _NoDataChart extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return const Center(
+    return Center(
       child: Text(
         'Dato non disponibile',
         style: TextStyle(color: AppTheme.textMediumEmphasis),
@@ -1795,7 +1795,7 @@ FlTitlesData _chartTitles(
           child: Text(
             leftFormatter(value),
             textAlign: TextAlign.right,
-            style: const TextStyle(
+            style: TextStyle(
               color: AppTheme.textMediumEmphasis,
               fontSize: 9,
               fontWeight: FontWeight.w600,
@@ -1822,7 +1822,7 @@ FlTitlesData _chartTitles(
             space: 8,
             child: Text(
               DateFormat('d/M', 'it').format(points[index].date),
-              style: const TextStyle(
+              style: TextStyle(
                 color: AppTheme.textMediumEmphasis,
                 fontSize: 10,
                 fontWeight: FontWeight.w600,

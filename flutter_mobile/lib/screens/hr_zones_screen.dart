@@ -20,9 +20,10 @@ class _HrZonesScreenState extends State<HrZonesScreen> {
     super.initState();
     final p = Provider.of<AppState>(context, listen: false).userProfile!;
     _mode = p.hrZoneMode;
-    
+
     if (p.customHrZones != null && p.customHrZones!.length == 5) {
-      _customZones = List.from(p.customHrZones!.map((e) => Map<String, int>.from(e)));
+      _customZones =
+          List.from(p.customHrZones!.map((e) => Map<String, int>.from(e)));
     } else {
       // Default custom zones based on typical values (just as placeholders)
       _customZones = [
@@ -38,7 +39,7 @@ class _HrZonesScreenState extends State<HrZonesScreen> {
   void _save() {
     final state = Provider.of<AppState>(context, listen: false);
     final p = state.userProfile!;
-    
+
     // Ensure all values are valid
     for (int i = 0; i < _customZones.length; i++) {
       final zone = _customZones[i];
@@ -92,14 +93,17 @@ class _HrZonesScreenState extends State<HrZonesScreen> {
           const SizedBox(width: 16),
           Expanded(
             flex: 2,
-            child: Text(title, style: const TextStyle(fontWeight: FontWeight.bold)),
+            child: Text(title,
+                style: const TextStyle(fontWeight: FontWeight.bold)),
           ),
           Expanded(
             flex: 1,
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Text('Min', style: TextStyle(fontSize: 10, color: AppTheme.textMediumEmphasis)),
+                Text('Min',
+                    style: TextStyle(
+                        fontSize: 10, color: AppTheme.textMediumEmphasis)),
                 TextFormField(
                   initialValue: zone['min'].toString(),
                   keyboardType: TextInputType.number,
@@ -123,7 +127,9 @@ class _HrZonesScreenState extends State<HrZonesScreen> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Text('Max', style: TextStyle(fontSize: 10, color: AppTheme.textMediumEmphasis)),
+                Text('Max',
+                    style: TextStyle(
+                        fontSize: 10, color: AppTheme.textMediumEmphasis)),
                 if (index < 4)
                   TextFormField(
                     initialValue: zone['max'].toString(),
@@ -140,15 +146,21 @@ class _HrZonesScreenState extends State<HrZonesScreen> {
                     },
                   )
                 else
-                  const Padding(
+                  Padding(
                     padding: EdgeInsets.symmetric(vertical: 8),
-                    child: Text('∞', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18, color: AppTheme.textMediumEmphasis)),
+                    child: Text('∞',
+                        style: TextStyle(
+                            fontWeight: FontWeight.bold,
+                            fontSize: 18,
+                            color: AppTheme.textMediumEmphasis)),
                   ),
               ],
             ),
           ),
           const SizedBox(width: 8),
-          const Text('bpm', style: TextStyle(fontSize: 12, color: AppTheme.textMediumEmphasis)),
+          Text('bpm',
+              style:
+                  TextStyle(fontSize: 12, color: AppTheme.textMediumEmphasis)),
         ],
       ),
     );
@@ -162,19 +174,21 @@ class _HrZonesScreenState extends State<HrZonesScreen> {
         actions: [
           TextButton(
             onPressed: _save,
-            child: const Text('SALVA', style: TextStyle(color: AppTheme.primary, fontWeight: FontWeight.bold)),
+            child: const Text('SALVA',
+                style: TextStyle(
+                    color: AppTheme.primary, fontWeight: FontWeight.bold)),
           ),
         ],
       ),
       body: ListView(
         padding: const EdgeInsets.all(24),
         children: [
-          const Text(
+          Text(
             'Scegli come calcolare le tue zone cardiache. Queste zone verranno utilizzate per i grafici degli allenamenti.',
             style: TextStyle(color: AppTheme.textMediumEmphasis, height: 1.5),
           ),
           const SizedBox(height: 32),
-          
+
           // Radio Options
           Container(
             decoration: BoxDecoration(
@@ -189,8 +203,12 @@ class _HrZonesScreenState extends State<HrZonesScreen> {
                   groupValue: _mode,
                   onChanged: (val) => setState(() => _mode = val!),
                   activeColor: AppTheme.primary,
-                  title: const Text('Zone Standard (Karvonen)', style: TextStyle(fontWeight: FontWeight.bold)),
-                  subtitle: const Text('Calcolate in automatico in base alla tua Frequenza Cardiaca Massima e a Riposo.', style: TextStyle(fontSize: 12, color: AppTheme.textMediumEmphasis)),
+                  title: const Text('Zone Standard (Karvonen)',
+                      style: TextStyle(fontWeight: FontWeight.bold)),
+                  subtitle: Text(
+                      'Calcolate in automatico in base alla tua Frequenza Cardiaca Massima e a Riposo.',
+                      style: TextStyle(
+                          fontSize: 12, color: AppTheme.textMediumEmphasis)),
                 ),
                 Divider(color: Colors.white.withValues(alpha: 0.05), height: 1),
                 RadioListTile<String>(
@@ -198,8 +216,12 @@ class _HrZonesScreenState extends State<HrZonesScreen> {
                   groupValue: _mode,
                   onChanged: (val) => setState(() => _mode = val!),
                   activeColor: AppTheme.primary,
-                  title: const Text('Zone Personalizzate', style: TextStyle(fontWeight: FontWeight.bold)),
-                  subtitle: const Text('Inserisci manualmente i valori per ogni zona, per allinearli ad altre app (es. Garmin).', style: TextStyle(fontSize: 12, color: AppTheme.textMediumEmphasis)),
+                  title: const Text('Zone Personalizzate',
+                      style: TextStyle(fontWeight: FontWeight.bold)),
+                  subtitle: Text(
+                      'Inserisci manualmente i valori per ogni zona, per allinearli ad altre app (es. Garmin).',
+                      style: TextStyle(
+                          fontSize: 12, color: AppTheme.textMediumEmphasis)),
                 ),
               ],
             ),
@@ -207,7 +229,12 @@ class _HrZonesScreenState extends State<HrZonesScreen> {
 
           if (_mode == 'custom') ...[
             const SizedBox(height: 32),
-            const Text('CONFIGURA ZONE', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: AppTheme.textMediumEmphasis, letterSpacing: 1.5)),
+            Text('CONFIGURA ZONE',
+                style: TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.bold,
+                    color: AppTheme.textMediumEmphasis,
+                    letterSpacing: 1.5)),
             const SizedBox(height: 16),
             _buildZoneInput(0, 'Zona 1 (Recupero)', Colors.grey),
             _buildZoneInput(1, 'Zona 2 (Fondo)', Colors.blue),

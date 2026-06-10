@@ -79,7 +79,7 @@ class _NotificationPermissionScreenState
               Center(
                 child: Container(
                   padding: const EdgeInsets.all(24),
-                  decoration: const BoxDecoration(
+                  decoration: BoxDecoration(
                     color: AppTheme.card,
                     shape: BoxShape.circle,
                   ),
@@ -108,7 +108,7 @@ class _NotificationPermissionScreenState
                     ),
               ),
               const SizedBox(height: 24),
-              const Text(
+              Text(
                 'Ogni sera verso le 21:00 ti ricordiamo di registrare gli allenamenti svolti. Bastano pochi secondi per tenere aggiornati carico, recupero e progressi.',
                 textAlign: TextAlign.center,
                 style: TextStyle(
@@ -185,7 +185,7 @@ class _NotificationPermissionScreenState
                         HapticFeedback.lightImpact();
                         _skipReminder();
                       },
-                child: const Text(
+                child: Text(
                   'Non ora',
                   style: TextStyle(
                     color: AppTheme.textMediumEmphasis,
@@ -229,7 +229,7 @@ class _NotificationPermissionScreenState
                 const SizedBox(height: 2),
                 Text(
                   subtitle,
-                  style: const TextStyle(
+                  style: TextStyle(
                     color: AppTheme.textMediumEmphasis,
                     fontSize: 12,
                   ),

@@ -1,6 +1,6 @@
-TestFlight build focused on training tracking, health sync, and coach workflows.
+TestFlight build focused on profile personalization, health sync, and coach workflows.
 
-- Adds richer ski and dryland activity tracking with improved training metrics.
-- Improves Apple Health and Health Connect imports, normalization, and display.
-- Updates coach dashboards, athlete details, event views, and analytics.
-- Adds reminder notification support for training workflows.
+- Adds a light/dark theme preference in the profile area.
+- Improves app-wide layout and readability across athlete and coach screens.
+- Adds a profile action to clear local health score cache and resync health data.
+- Updates health, analytics, activity detail, and coach workflow screens.

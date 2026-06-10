@@ -35,7 +35,8 @@ class MetricTrendScreen extends StatelessWidget {
 
     return Scaffold(
       appBar: AppBar(
-        title: Text(metricLabel, style: const TextStyle(fontWeight: FontWeight.bold)),
+        title: Text(metricLabel,
+            style: const TextStyle(fontWeight: FontWeight.bold)),
         backgroundColor: Colors.transparent,
         elevation: 0,
       ),
@@ -45,28 +46,44 @@ class MetricTrendScreen extends StatelessWidget {
           // Statistiche
           Card(
             color: AppTheme.card,
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+            shape:
+                RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
             child: Padding(
               padding: const EdgeInsets.all(24.0),
               child: Column(
                 children: [
-                  Text('Media (30 giorni)', style: Theme.of(context).textTheme.bodyLarge?.copyWith(color: AppTheme.textMediumEmphasis)),
+                  Text('Media (30 giorni)',
+                      style: Theme.of(context)
+                          .textTheme
+                          .bodyLarge
+                          ?.copyWith(color: AppTheme.textMediumEmphasis)),
                   const SizedBox(height: 8),
-                  Text(avg.toStringAsFixed(1), style: Theme.of(context).textTheme.displaySmall?.copyWith(fontWeight: FontWeight.bold, color: AppTheme.primary)),
-                  const Divider(height: 32, color: AppTheme.surface),
+                  Text(avg.toStringAsFixed(1),
+                      style: Theme.of(context).textTheme.displaySmall?.copyWith(
+                          fontWeight: FontWeight.bold,
+                          color: AppTheme.primary)),
+                  Divider(height: 32, color: AppTheme.surface),
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceAround,
                     children: [
                       Column(
                         children: [
-                          const Text('Min', style: TextStyle(color: AppTheme.textMediumEmphasis)),
-                          Text(minVal.toStringAsFixed(1), style: const TextStyle(fontWeight: FontWeight.bold)),
+                          Text('Min',
+                              style: TextStyle(
+                                  color: AppTheme.textMediumEmphasis)),
+                          Text(minVal.toStringAsFixed(1),
+                              style:
+                                  const TextStyle(fontWeight: FontWeight.bold)),
                         ],
                       ),
                       Column(
                         children: [
-                          const Text('Max', style: TextStyle(color: AppTheme.textMediumEmphasis)),
-                          Text(maxVal.toStringAsFixed(1), style: const TextStyle(fontWeight: FontWeight.bold)),
+                          Text('Max',
+                              style: TextStyle(
+                                  color: AppTheme.textMediumEmphasis)),
+                          Text(maxVal.toStringAsFixed(1),
+                              style:
+                                  const TextStyle(fontWeight: FontWeight.bold)),
                         ],
                       ),
                     ],
@@ -76,9 +93,13 @@ class MetricTrendScreen extends StatelessWidget {
             ),
           ),
           const SizedBox(height: 32),
-          Text('Andamento Recente', style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold)),
+          Text('Andamento Recente',
+              style: Theme.of(context)
+                  .textTheme
+                  .titleLarge
+                  ?.copyWith(fontWeight: FontWeight.bold)),
           const SizedBox(height: 16),
-          
+
           // Grafico
           SizedBox(
             height: 250,
@@ -86,14 +107,22 @@ class MetricTrendScreen extends StatelessWidget {
               LineChartData(
                 gridData: FlGridData(show: false),
                 titlesData: FlTitlesData(
-                  topTitles: AxisTitles(sideTitles: SideTitles(showTitles: false)),
-                  rightTitles: AxisTitles(sideTitles: SideTitles(showTitles: false)),
-                  bottomTitles: AxisTitles(sideTitles: SideTitles(showTitles: false)), // Nascondi indici giorni
+                  topTitles:
+                      AxisTitles(sideTitles: SideTitles(showTitles: false)),
+                  rightTitles:
+                      AxisTitles(sideTitles: SideTitles(showTitles: false)),
+                  bottomTitles: AxisTitles(
+                      sideTitles: SideTitles(
+                          showTitles: false)), // Nascondi indici giorni
                   leftTitles: AxisTitles(
                     sideTitles: SideTitles(
                       showTitles: true,
                       reservedSize: 40,
-                      getTitlesWidget: (value, meta) => Text(value.toInt().toString(), style: const TextStyle(color: AppTheme.textMediumEmphasis, fontSize: 10)),
+                      getTitlesWidget: (value, meta) => Text(
+                          value.toInt().toString(),
+                          style: TextStyle(
+                              color: AppTheme.textMediumEmphasis,
+                              fontSize: 10)),
                     ),
                   ),
                 ),
@@ -108,7 +137,8 @@ class MetricTrendScreen extends StatelessWidget {
                       return touchedSpots.map((spot) {
                         return LineTooltipItem(
                           spot.y.toStringAsFixed(1),
-                          const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+                          const TextStyle(
+                              color: Colors.white, fontWeight: FontWeight.bold),
                         );
                       }).toList();
                     },

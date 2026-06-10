@@ -525,7 +525,7 @@ class _ActivitySelectScreenState extends State<ActivitySelectScreen> {
                   : const Icon(Icons.sync, color: AppTheme.primary),
             ),
             const SizedBox(width: 14),
-            const Expanded(
+            Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
@@ -634,7 +634,7 @@ class _ActivitySelectScreenState extends State<ActivitySelectScreen> {
               option.subtitle,
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
-              style: const TextStyle(
+              style: TextStyle(
                 color: AppTheme.textMediumEmphasis,
                 fontSize: 11,
               ),
@@ -690,7 +690,7 @@ class _ActivitySelectScreenState extends State<ActivitySelectScreen> {
                       const SizedBox(height: 4),
                       Text(
                         act.category,
-                        style: const TextStyle(
+                        style: TextStyle(
                           color: AppTheme.textMediumEmphasis,
                           fontSize: 10,
                           letterSpacing: 1,

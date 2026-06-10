@@ -182,7 +182,7 @@ class _AnalyticsDetailsScreenState extends State<AnalyticsDetailsScreen> {
                     lastDate: DateTime.now(),
                     builder: (context, child) => Theme(
                       data: ThemeData.dark().copyWith(
-                        colorScheme: const ColorScheme.dark(
+                        colorScheme: ColorScheme.dark(
                           primary: AppTheme.primary,
                           onPrimary: Colors.white,
                           surface: AppTheme.card,
@@ -203,7 +203,7 @@ class _AnalyticsDetailsScreenState extends State<AnalyticsDetailsScreen> {
                   child: Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      const Icon(PhosphorIconsRegular.calendar,
+                      Icon(PhosphorIconsRegular.calendar,
                           size: 20, color: AppTheme.textMediumEmphasis),
                       Text(
                           '${selectedDate.day}/${selectedDate.month}/${selectedDate.year}',
@@ -446,7 +446,7 @@ class _AnalyticsDetailsScreenState extends State<AnalyticsDetailsScreen> {
           ),
           const SizedBox(height: 16),
           if (logs.isEmpty)
-            const Center(
+            Center(
                 child: Padding(
                     padding: EdgeInsets.all(40),
                     child: Text('Nessun dato registrato nel periodo.',
@@ -600,7 +600,7 @@ class _AnalyticsDetailsScreenState extends State<AnalyticsDetailsScreen> {
                 if (unit.isNotEmpty) const SizedBox(width: 8),
                 if (unit.isNotEmpty)
                   Text(unit,
-                      style: const TextStyle(
+                      style: TextStyle(
                           fontSize: 20,
                           color: AppTheme.textMediumEmphasis,
                           fontWeight: FontWeight.w600)),
@@ -609,11 +609,11 @@ class _AnalyticsDetailsScreenState extends State<AnalyticsDetailsScreen> {
             const SizedBox(height: 12),
             Row(
               children: [
-                const Icon(PhosphorIconsRegular.calendarBlank,
+                Icon(PhosphorIconsRegular.calendarBlank,
                     size: 14, color: AppTheme.textMediumEmphasis),
                 const SizedBox(width: 6),
                 Text('Data: $dateStr',
-                    style: const TextStyle(
+                    style: TextStyle(
                         color: AppTheme.textMediumEmphasis, fontSize: 13)),
               ],
             ),
@@ -695,7 +695,7 @@ class _AnalyticsDetailsScreenState extends State<AnalyticsDetailsScreen> {
           height: 250,
           child: Center(
             child: Text(emptyMessage,
-                style: const TextStyle(
+                style: TextStyle(
                     color: AppTheme.textMediumEmphasis, fontSize: 13)),
           ),
         ),
@@ -756,7 +756,7 @@ class _AnalyticsDetailsScreenState extends State<AnalyticsDetailsScreen> {
                         padding: const EdgeInsets.only(top: 8),
                         child: Text(
                             '${date.day} ${_getMon(date.month).toLowerCase()}',
-                            style: const TextStyle(
+                            style: TextStyle(
                                 color: AppTheme.textMediumEmphasis,
                                 fontSize: 10)),
                       );
@@ -774,7 +774,7 @@ class _AnalyticsDetailsScreenState extends State<AnalyticsDetailsScreen> {
                         decimalPlaces == 0
                             ? val.toInt().toString()
                             : val.toStringAsFixed(decimalPlaces),
-                        style: const TextStyle(
+                        style: TextStyle(
                             color: AppTheme.textMediumEmphasis, fontSize: 10));
                   },
                 ),
@@ -871,7 +871,7 @@ class _AnalyticsDetailsScreenState extends State<AnalyticsDetailsScreen> {
                             color: Colors.white)),
                     const SizedBox(height: 6),
                     Text(desc,
-                        style: const TextStyle(
+                        style: TextStyle(
                             color: AppTheme.textMediumEmphasis, fontSize: 12)),
                     if (pairedRsiLog != null) ...[
                       const SizedBox(height: 4),
@@ -891,7 +891,7 @@ class _AnalyticsDetailsScreenState extends State<AnalyticsDetailsScreen> {
                       color: AppTheme.primary)),
               const SizedBox(width: 4),
               Text(unit,
-                  style: const TextStyle(
+                  style: TextStyle(
                       color: AppTheme.textMediumEmphasis,
                       fontSize: 12,
                       fontWeight: FontWeight.w600)),
@@ -933,7 +933,7 @@ class _AnalyticsDetailsScreenState extends State<AnalyticsDetailsScreen> {
                       }
                     }
                   },
-                  child: const Icon(PhosphorIconsRegular.trash,
+                  child: Icon(PhosphorIconsRegular.trash,
                       color: AppTheme.textMediumEmphasis, size: 20),
                 ),
               ],

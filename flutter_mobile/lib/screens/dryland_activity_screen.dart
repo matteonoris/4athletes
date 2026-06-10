@@ -241,6 +241,31 @@ class _DrylandActivityScreenState extends State<DrylandActivityScreen> {
     return ActivityCategory.strength;
   }
 
+  Map<String, dynamic> _newStrengthSet(
+    List<Map<String, dynamic>> sets,
+    Map<String, dynamic> exercise,
+  ) {
+    final side = exercise['unilateralMode'] == UnilateralMode.right
+        ? TrainingSide.right
+        : exercise['unilateralMode'] == UnilateralMode.left
+            ? TrainingSide.left
+            : TrainingSide.none;
+
+    if (sets.isEmpty) {
+      return {
+        'setNumber': 1,
+        'kg': null,
+        'reps': null,
+        'durationSeconds': _usesDurationSets ? 30 : null,
+        'side': side,
+      };
+    }
+
+    return Map<String, dynamic>.from(sets.last)
+      ..['setNumber'] = sets.length + 1
+      ..['side'] = side;
+  }
+
   TrainingActivity _buildActivity({String? id}) {
     final blocks = <TrainingBlock>[];
     if (_strengthExercises.isNotEmpty) {
@@ -523,49 +548,50 @@ class _DrylandActivityScreenState extends State<DrylandActivityScreen> {
   }
 
   Widget _templateSection() {
-    final templates = Provider.of<AppState>(context)
-        .workoutTemplates
-        .where((template) => template.category == _category)
-        .toList();
-    return _section(
-      title: 'Template',
-      icon: Icons.bookmark_outline,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          if (templates.isEmpty)
-            const Text(
-              'Nessun template per questa categoria.',
-              style: TextStyle(color: AppTheme.textMediumEmphasis),
-            )
-          else
-            SizedBox(
-              height: 70,
-              child: ListView.separated(
-                scrollDirection: Axis.horizontal,
-                itemBuilder: (context, index) {
-                  final template = templates[index];
-                  return ActionChip(
-                    avatar: const Icon(Icons.bookmark_outline, size: 16),
-                    label: Text(template.name),
-                    onPressed: () => _applyTemplate(template),
-                    backgroundColor: AppTheme.surface,
-                    labelStyle: const TextStyle(color: Colors.white),
-                    side:
-                        BorderSide(color: Colors.white.withValues(alpha: 0.08)),
-                  );
-                },
-                separatorBuilder: (_, __) => const SizedBox(width: 8),
-                itemCount: templates.length,
+    return Selector<AppState, List<WorkoutTemplate>>(
+      selector: (_, state) => state.workoutTemplates
+          .where((template) => template.category == _category)
+          .toList(growable: false),
+      builder: (context, templates, _) => _section(
+        title: 'Template',
+        icon: Icons.bookmark_outline,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            if (templates.isEmpty)
+              Text(
+                'Nessun template per questa categoria.',
+                style: TextStyle(color: AppTheme.textMediumEmphasis),
+              )
+            else
+              SizedBox(
+                height: 70,
+                child: ListView.separated(
+                  scrollDirection: Axis.horizontal,
+                  itemBuilder: (context, index) {
+                    final template = templates[index];
+                    return ActionChip(
+                      avatar: const Icon(Icons.bookmark_outline, size: 16),
+                      label: Text(template.name),
+                      onPressed: () => _applyTemplate(template),
+                      backgroundColor: AppTheme.surface,
+                      labelStyle: const TextStyle(color: Colors.white),
+                      side: BorderSide(
+                          color: Colors.white.withValues(alpha: 0.08)),
+                    );
+                  },
+                  separatorBuilder: (_, __) => const SizedBox(width: 8),
+                  itemCount: templates.length,
+                ),
               ),
+            const SizedBox(height: 8),
+            TextButton.icon(
+              onPressed: _saveTemplate,
+              icon: const Icon(Icons.add),
+              label: const Text('Salva questa scheda come template'),
             ),
-          const SizedBox(height: 8),
-          TextButton.icon(
-            onPressed: _saveTemplate,
-            icon: const Icon(Icons.add),
-            label: const Text('Salva questa scheda come template'),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
@@ -654,7 +680,7 @@ class _DrylandActivityScreenState extends State<DrylandActivityScreen> {
               style: const TextStyle(
                   color: Colors.white, fontWeight: FontWeight.bold)),
           subtitle: Text('${exercise.targetMuscle} - ${exercise.category}',
-              style: const TextStyle(color: AppTheme.textMediumEmphasis)),
+              style: TextStyle(color: AppTheme.textMediumEmphasis)),
           trailing: const Icon(Icons.add, color: AppTheme.primary),
           onTap: () => _addStrengthExercise(
             exercise.id,
@@ -785,17 +811,7 @@ class _DrylandActivityScreenState extends State<DrylandActivityScreen> {
           }),
           TextButton.icon(
             onPressed: () => setState(() {
-              sets.add({
-                'setNumber': sets.length + 1,
-                'kg': null,
-                'reps': null,
-                'durationSeconds': _usesDurationSets ? 30 : null,
-                'side': exercise['unilateralMode'] == UnilateralMode.right
-                    ? TrainingSide.right
-                    : exercise['unilateralMode'] == UnilateralMode.left
-                        ? TrainingSide.left
-                        : TrainingSide.none,
-              });
+              sets.add(_newStrengthSet(sets, exercise));
             }),
             icon: const Icon(Icons.add),
             label: const Text('Aggiungi set'),
@@ -917,12 +933,12 @@ class _DrylandActivityScreenState extends State<DrylandActivityScreen> {
             Row(
               children: [
                 Text('Set ${setIndex + 1}',
-                    style: const TextStyle(
+                    style: TextStyle(
                         color: AppTheme.textMediumEmphasis,
                         fontWeight: FontWeight.bold)),
                 const Spacer(),
                 IconButton(
-                  icon: const Icon(Icons.close,
+                  icon: Icon(Icons.close,
                       size: 18, color: AppTheme.textMediumEmphasis),
                   padding: EdgeInsets.zero,
                   constraints: const BoxConstraints(
@@ -1316,7 +1332,7 @@ class _DrylandActivityScreenState extends State<DrylandActivityScreen> {
     return _section(
       title: _categoryLabel(_category),
       icon: Icons.notes,
-      child: const Text(
+      child: Text(
         'Usa note, dolore e RPE per salvare questa seduta. I blocchi specifici potranno essere aggiunti in seguito.',
         style: TextStyle(color: AppTheme.textMediumEmphasis),
       ),
@@ -1595,7 +1611,7 @@ class _DrylandActivityScreenState extends State<DrylandActivityScreen> {
             Icon(icon, color: AppTheme.textMediumEmphasis, size: 16),
             const SizedBox(height: 8),
             Text(label,
-                style: const TextStyle(
+                style: TextStyle(
                     color: AppTheme.textMediumEmphasis, fontSize: 10)),
             const SizedBox(height: 4),
             Text(value,
@@ -1653,7 +1669,7 @@ class _DrylandActivityScreenState extends State<DrylandActivityScreen> {
       child: Text(
         text,
         textAlign: TextAlign.center,
-        style: const TextStyle(color: AppTheme.textMediumEmphasis),
+        style: TextStyle(color: AppTheme.textMediumEmphasis),
       ),
     );
   }

@@ -71,7 +71,8 @@ class _CoachBodyMetricDetailScreenState
   @override
   Widget build(BuildContext context) {
     final sorted = List<BodyMetricLog>.from(widget.logs)
-      ..sort((a, b) => DateTime.parse(a.date).compareTo(DateTime.parse(b.date)));
+      ..sort(
+          (a, b) => DateTime.parse(a.date).compareTo(DateTime.parse(b.date)));
     final logs = _filterByTimeframe(sorted);
 
     return Scaffold(
@@ -84,9 +85,10 @@ class _CoachBodyMetricDetailScreenState
         title: Column(
           children: [
             Text(widget.title,
-                style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+                style:
+                    const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
             Text(widget.athleteName,
-                style: const TextStyle(
+                style: TextStyle(
                     color: AppTheme.textMediumEmphasis, fontSize: 12)),
           ],
         ),
@@ -114,7 +116,7 @@ class _CoachBodyMetricDetailScreenState
                   decoration: BoxDecoration(
                       color: AppTheme.card,
                       borderRadius: BorderRadius.circular(6)),
-                  child: const Text('Sola lettura',
+                  child: Text('Sola lettura',
                       style: TextStyle(
                           color: AppTheme.textMediumEmphasis,
                           fontSize: 10,
@@ -129,7 +131,8 @@ class _CoachBodyMetricDetailScreenState
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 20),
             child: Text('Storico (${logs.length})',
-                style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+                style:
+                    const TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
           ),
           const SizedBox(height: 16),
           if (logs.isEmpty)
@@ -139,7 +142,7 @@ class _CoachBodyMetricDetailScreenState
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    const Text(
+                    Text(
                       'Nessun dato registrato nel periodo selezionato.',
                       textAlign: TextAlign.center,
                       style: TextStyle(color: AppTheme.textMediumEmphasis),
@@ -147,7 +150,8 @@ class _CoachBodyMetricDetailScreenState
                     if (_selectedTimeframe != 'ALL') ...[
                       const SizedBox(height: 12),
                       ElevatedButton(
-                        onPressed: () => setState(() => _selectedTimeframe = 'ALL'),
+                        onPressed: () =>
+                            setState(() => _selectedTimeframe = 'ALL'),
                         style: ElevatedButton.styleFrom(
                           backgroundColor: AppTheme.primary,
                           shape: RoundedRectangleBorder(
@@ -238,7 +242,7 @@ class _CoachBodyMetricDetailScreenState
                         height: 1)),
                 const SizedBox(width: 8),
                 Text(_unit(),
-                    style: const TextStyle(
+                    style: TextStyle(
                         fontSize: 20,
                         color: AppTheme.textMediumEmphasis,
                         fontWeight: FontWeight.w600)),
@@ -246,7 +250,7 @@ class _CoachBodyMetricDetailScreenState
             ),
             const SizedBox(height: 12),
             Text('Ultima misurazione: ${latest.date}',
-                style: const TextStyle(
+                style: TextStyle(
                     color: AppTheme.textMediumEmphasis, fontSize: 13)),
           ],
         ),
@@ -256,7 +260,7 @@ class _CoachBodyMetricDetailScreenState
 
   Widget _buildChartSection(List<BodyMetricLog> logs) {
     if (logs.isEmpty) {
-      return const Padding(
+      return Padding(
         padding: EdgeInsets.symmetric(horizontal: 20),
         child: CustomCard(
           color: Color(0xFF22282D),
@@ -300,13 +304,13 @@ class _CoachBodyMetricDetailScreenState
               drawHorizontalLine: true,
               drawVerticalLine: false,
               horizontalInterval: (maxY - minY) / 4,
-              getDrawingHorizontalLine: (_) => const FlLine(
-                  color: Color(0x1AFFFFFF), strokeWidth: 1),
+              getDrawingHorizontalLine: (_) =>
+                  const FlLine(color: Color(0x1AFFFFFF), strokeWidth: 1),
             ),
             titlesData: FlTitlesData(
               show: true,
-              rightTitles: const AxisTitles(
-                  sideTitles: SideTitles(showTitles: false)),
+              rightTitles:
+                  const AxisTitles(sideTitles: SideTitles(showTitles: false)),
               topTitles:
                   const AxisTitles(sideTitles: SideTitles(showTitles: false)),
               bottomTitles: AxisTitles(
@@ -326,9 +330,8 @@ class _CoachBodyMetricDetailScreenState
                       final date = DateTime.parse(logs[idx].date);
                       return Padding(
                         padding: const EdgeInsets.only(top: 8),
-                        child: Text(
-                            '${date.day}/${date.month}',
-                            style: const TextStyle(
+                        child: Text('${date.day}/${date.month}',
+                            style: TextStyle(
                                 color: AppTheme.textMediumEmphasis,
                                 fontSize: 9)),
                       );
@@ -341,9 +344,8 @@ class _CoachBodyMetricDetailScreenState
                 sideTitles: SideTitles(
                   showTitles: true,
                   reservedSize: 40,
-                  getTitlesWidget: (val, meta) => Text(
-                      val.toStringAsFixed(1),
-                      style: const TextStyle(
+                  getTitlesWidget: (val, meta) => Text(val.toStringAsFixed(1),
+                      style: TextStyle(
                           color: AppTheme.textMediumEmphasis, fontSize: 9)),
                 ),
               ),
@@ -383,8 +385,18 @@ class _CoachBodyMetricDetailScreenState
     final date = DateTime.parse(log.date);
     const giorni = ['lun', 'mar', 'mer', 'gio', 'ven', 'sab', 'dom'];
     const mesi = [
-      'gennaio', 'febbraio', 'marzo', 'aprile', 'maggio', 'giugno',
-      'luglio', 'agosto', 'settembre', 'ottobre', 'novembre', 'dicembre'
+      'gennaio',
+      'febbraio',
+      'marzo',
+      'aprile',
+      'maggio',
+      'giugno',
+      'luglio',
+      'agosto',
+      'settembre',
+      'ottobre',
+      'novembre',
+      'dicembre'
     ];
     final giornoStr = giorni[date.weekday - 1];
     final meseStr = mesi[date.month - 1];
@@ -410,7 +422,7 @@ class _CoachBodyMetricDetailScreenState
                     color: AppTheme.primary)),
             const SizedBox(width: 4),
             Text(_unit(),
-                style: const TextStyle(
+                style: TextStyle(
                     color: AppTheme.textMediumEmphasis,
                     fontSize: 12,
                     fontWeight: FontWeight.w600)),

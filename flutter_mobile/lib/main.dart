@@ -67,31 +67,44 @@ class FourAthletesApp extends StatefulWidget {
 class _FourAthletesAppState extends State<FourAthletesApp> {
   @override
   Widget build(BuildContext context) {
-    return Consumer<AppState>(
-      builder: (context, appState, child) {
-        if (!appState.isInitialized) {
-          return const MaterialApp(
-            home: Scaffold(
-              backgroundColor: AppTheme.background,
-              body: Center(
-                  child: CircularProgressIndicator(color: AppTheme.primary)),
-            ),
-          );
-        }
+    final isInitialized =
+        context.select<AppState, bool>((state) => state.isInitialized);
+    final isLoggedIn =
+        context.select<AppState, bool>((state) => state.isLoggedIn);
+    final isDarkMode =
+        context.select<AppState, bool>((state) => state.isDarkMode);
+    final userRole = context.select<AppState, String?>(
+      (state) => state.userProfile?.role,
+    );
+    final themeMode = context.select<AppState, String>(
+      (state) => state.themeMode,
+    );
 
-        return MaterialApp(
-          title: '4athletes',
-          debugShowCheckedModeBanner: false,
-          theme: AppTheme.darkTheme,
-          home: kOnboardingPreviewMode
-              ? const AuthScreen()
-              : appState.isLoggedIn
-                  ? (appState.userProfile?.role == 'coach'
-                      ? const CoachDashboardScreen()
-                      : const HomeScreen())
-                  : const AuthScreen(),
-        );
-      },
+    AppTheme.setThemeMode(themeMode);
+
+    if (!isInitialized) {
+      return MaterialApp(
+        home: Scaffold(
+          backgroundColor: AppTheme.background,
+          body: const Center(
+              child: CircularProgressIndicator(color: AppTheme.primary)),
+        ),
+      );
+    }
+
+    return MaterialApp(
+      title: '4athletes',
+      debugShowCheckedModeBanner: false,
+      theme: AppTheme.lightTheme,
+      darkTheme: AppTheme.darkTheme,
+      themeMode: isDarkMode ? ThemeMode.dark : ThemeMode.light,
+      home: kOnboardingPreviewMode
+          ? const AuthScreen()
+          : isLoggedIn
+              ? (userRole == 'coach'
+                  ? const CoachDashboardScreen()
+                  : const HomeScreen())
+              : const AuthScreen(),
     );
   }
 }

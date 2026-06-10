@@ -23,6 +23,7 @@ class ProfileScreen extends StatefulWidget {
 
 class _ProfileScreenState extends State<ProfileScreen> {
   // UI Expansion States
+  bool _showTheme = false;
   bool _showUnits = false;
   bool _showLang = false;
 
@@ -83,6 +84,57 @@ class _ProfileScreenState extends State<ProfileScreen> {
         backgroundColor: granted ? AppTheme.success : AppTheme.error,
       ),
     );
+  }
+
+  Future<void> _setThemeMode(UserProfile profile, String themeMode) async {
+    setState(() => profile.themeMode = themeMode);
+    await Provider.of<AppState>(context, listen: false).setThemeMode(themeMode);
+  }
+
+  Future<void> _clearHealthCacheAndResync(BuildContext context) async {
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: AppTheme.surface,
+        title: const Text('Attenzione', style: TextStyle(color: Colors.white)),
+        content: Text(
+          'Questa azione svuota la cache locale degli score salute e forza una nuova sincronizzazione da Apple Health / Health Connect. Non elimina allenamenti o metriche salvate, ma gli score potrebbero cambiare se i dati importati sono diversi. Vuoi continuare?',
+          style: TextStyle(color: AppTheme.textMediumEmphasis),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(false),
+            child: Text('Annulla',
+                style: TextStyle(color: AppTheme.textMediumEmphasis)),
+          ),
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(true),
+            child: const Text('Svuota e risincronizza',
+                style: TextStyle(
+                    color: AppTheme.error, fontWeight: FontWeight.bold)),
+          ),
+        ],
+      ),
+    );
+    if (confirm != true || !context.mounted) return;
+
+    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+        content: Text('Pulizia cache e sincronizzazione in corso...')));
+
+    try {
+      final removedCount = await Provider.of<AppState>(context, listen: false)
+          .clearHealthScoreCacheAndResync(DateTime.now());
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: Text(
+              'Cache salute svuotata ($removedCount elementi). Sincronizzazione completata.'),
+          backgroundColor: AppTheme.success));
+    } catch (e) {
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: Text('Errore durante la risincronizzazione: $e'),
+          backgroundColor: AppTheme.error));
+    }
   }
 
   void _showDeviceModal() {
@@ -211,11 +263,13 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final p = Provider.of<AppState>(context).userProfile;
+    final appState = Provider.of<AppState>(context);
+    final p = appState.userProfile;
     if (p == null) {
       return const Scaffold(body: Center(child: CircularProgressIndicator()));
     }
     final isCoach = p.role == 'coach';
+    final themeMode = appState.themeMode;
 
     return Scaffold(
       appBar: AppBar(
@@ -261,7 +315,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                               : null,
                         ),
                         child: p.avatarUrl.isEmpty
-                            ? const Icon(Icons.person,
+                            ? Icon(Icons.person,
                                 size: 50, color: AppTheme.textMediumEmphasis)
                             : null,
                       ),
@@ -302,7 +356,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       fontSize: 24, fontWeight: FontWeight.bold),
                 ),
                 const SizedBox(height: 4),
-                const Row(
+                Row(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
                     Icon(Icons.check_circle,
@@ -338,7 +392,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          const Text('NOME',
+                          Text('NOME',
                               style: TextStyle(
                                   fontSize: 10,
                                   fontWeight: FontWeight.bold,
@@ -368,7 +422,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          const Text('COGNOME',
+                          Text('COGNOME',
                               style: TextStyle(
                                   fontSize: 10,
                                   fontWeight: FontWeight.bold,
@@ -399,7 +453,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    const Text('EMAIL',
+                    Text('EMAIL',
                         style: TextStyle(
                             fontSize: 10,
                             fontWeight: FontWeight.bold,
@@ -414,7 +468,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       decoration: InputDecoration(
                         filled: true,
                         fillColor: AppTheme.card,
-                        prefixIcon: const Icon(Icons.mail,
+                        prefixIcon: Icon(Icons.mail,
                             color: AppTheme.textMediumEmphasis),
                         contentPadding: const EdgeInsets.symmetric(
                             horizontal: 16, vertical: 16),
@@ -429,7 +483,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    const Text('DATA DI NASCITA',
+                    Text('DATA DI NASCITA',
                         style: TextStyle(
                             fontSize: 10,
                             fontWeight: FontWeight.bold,
@@ -444,7 +498,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       decoration: InputDecoration(
                         filled: true,
                         fillColor: AppTheme.card,
-                        prefixIcon: const Icon(Icons.calendar_today,
+                        prefixIcon: Icon(Icons.calendar_today,
                             color: AppTheme.textMediumEmphasis),
                         contentPadding: const EdgeInsets.symmetric(
                             horizontal: 16, vertical: 16),
@@ -481,6 +535,70 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   clipBehavior: Clip.antiAlias,
                   child: Column(
                     children: [
+                      // Theme Selector
+                      ListTile(
+                        onTap: () => setState(() => _showTheme = !_showTheme),
+                        leading: Container(
+                          padding: const EdgeInsets.all(8),
+                          decoration: BoxDecoration(
+                              color: AppTheme.secondary.withValues(alpha: 0.1),
+                              shape: BoxShape.circle),
+                          child: Icon(
+                              themeMode == AppTheme.darkMode
+                                  ? Icons.dark_mode
+                                  : Icons.light_mode,
+                              color: AppTheme.secondary,
+                              size: 16),
+                        ),
+                        title: const Text('Tema',
+                            style: TextStyle(
+                                fontWeight: FontWeight.w500, fontSize: 14)),
+                        trailing: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Text(
+                                themeMode == AppTheme.darkMode
+                                    ? 'Scuro'
+                                    : 'Chiaro',
+                                style: TextStyle(
+                                    fontSize: 12,
+                                    color: AppTheme.textMediumEmphasis)),
+                            const SizedBox(width: 8),
+                            Icon(
+                                _showTheme
+                                    ? Icons.keyboard_arrow_up
+                                    : Icons.keyboard_arrow_down,
+                                size: 16,
+                                color: AppTheme.textMediumEmphasis),
+                          ],
+                        ),
+                      ),
+                      if (_showTheme)
+                        Container(
+                          color: AppTheme.surface,
+                          padding: const EdgeInsets.all(8),
+                          child: Column(
+                            children: [
+                              _buildRadioItem(
+                                  AppTheme.lightMode, 'Chiaro', themeMode,
+                                  (val) {
+                                if (val != null) {
+                                  _setThemeMode(p, val);
+                                }
+                              }),
+                              _buildRadioItem(
+                                  AppTheme.darkMode, 'Scuro', themeMode, (val) {
+                                if (val != null) {
+                                  _setThemeMode(p, val);
+                                }
+                              }),
+                            ],
+                          ),
+                        ),
+                      Divider(
+                          color: Colors.white.withValues(alpha: 0.05),
+                          height: 1),
+
                       // Notifications
                       ListTile(
                         onTap: () => _setNotificationsEnabled(
@@ -496,7 +614,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                         title: const Text('Notifiche',
                             style: TextStyle(
                                 fontWeight: FontWeight.w500, fontSize: 14)),
-                        subtitle: const Text(
+                        subtitle: Text(
                           'Reminder allenamenti alle 21:00',
                           style: TextStyle(
                               color: AppTheme.textMediumEmphasis, fontSize: 12),
@@ -532,7 +650,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                                 p.unitSystem == 'metric'
                                     ? 'Metric'
                                     : 'Imperial',
-                                style: const TextStyle(
+                                style: TextStyle(
                                     fontSize: 12,
                                     color: AppTheme.textMediumEmphasis)),
                             const SizedBox(width: 8),
@@ -587,7 +705,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                           mainAxisSize: MainAxisSize.min,
                           children: [
                             Text(p.language == 'en' ? 'English' : 'Italiano',
-                                style: const TextStyle(
+                                style: TextStyle(
                                     fontSize: 12,
                                     color: AppTheme.textMediumEmphasis)),
                             const SizedBox(width: 8),
@@ -645,7 +763,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                           title: const Text('Zone Cardiache',
                               style: TextStyle(
                                   fontWeight: FontWeight.w500, fontSize: 14)),
-                          trailing: const Icon(Icons.keyboard_arrow_right,
+                          trailing: Icon(Icons.keyboard_arrow_right,
                               size: 16, color: AppTheme.textMediumEmphasis),
                         ),
                         Divider(
@@ -676,10 +794,35 @@ class _ProfileScreenState extends State<ProfileScreen> {
                               Platform.isIOS
                                   ? 'Apple Health'
                                   : 'Health Connect',
-                              style: const TextStyle(
+                              style: TextStyle(
                                   fontSize: 10,
                                   color: AppTheme.textMediumEmphasis)),
-                          trailing: const Icon(Icons.open_in_new,
+                          trailing: Icon(Icons.open_in_new,
+                              size: 16, color: AppTheme.textMediumEmphasis),
+                        ),
+                        Divider(
+                            color: Colors.white.withValues(alpha: 0.05),
+                            height: 1),
+
+                        ListTile(
+                          onTap: () => _clearHealthCacheAndResync(context),
+                          leading: Container(
+                            padding: const EdgeInsets.all(8),
+                            decoration: BoxDecoration(
+                                color: AppTheme.error.withValues(alpha: 0.1),
+                                shape: BoxShape.circle),
+                            child: const Icon(Icons.delete_sweep_outlined,
+                                color: AppTheme.error, size: 16),
+                          ),
+                          title: const Text('Svuota cache salute',
+                              style: TextStyle(
+                                  fontWeight: FontWeight.w500, fontSize: 14)),
+                          subtitle: Text(
+                              'Risincronizza Apple Health / Health Connect',
+                              style: TextStyle(
+                                  fontSize: 10,
+                                  color: AppTheme.textMediumEmphasis)),
+                          trailing: Icon(Icons.keyboard_arrow_right,
                               size: 16, color: AppTheme.textMediumEmphasis),
                         ),
                         Divider(
@@ -714,11 +857,11 @@ class _ProfileScreenState extends State<ProfileScreen> {
                                 ),
                               const SizedBox(width: 8),
                               Text('${p.connectedDevices.length} attivi',
-                                  style: const TextStyle(
+                                  style: TextStyle(
                                       fontSize: 12,
                                       color: AppTheme.textMediumEmphasis)),
                               const SizedBox(width: 8),
-                              const Icon(Icons.keyboard_arrow_right,
+                              Icon(Icons.keyboard_arrow_right,
                                   size: 16, color: AppTheme.textMediumEmphasis),
                             ],
                           ),
@@ -832,13 +975,13 @@ class _DeviceManagementModal extends StatelessWidget {
             backgroundColor: AppTheme.surface,
             title: const Text('Sincronizza Dati',
                 style: TextStyle(color: Colors.white)),
-            content: const Text(
+            content: Text(
                 'Vuoi importare ora gli allenamenti degli ultimi 7 giorni?',
                 style: TextStyle(color: AppTheme.textMediumEmphasis)),
             actions: [
               TextButton(
                 onPressed: () => Navigator.of(ctx).pop(false),
-                child: const Text('Non ora',
+                child: Text('Non ora',
                     style: TextStyle(color: AppTheme.textMediumEmphasis)),
               ),
               TextButton(
@@ -883,52 +1026,6 @@ class _DeviceManagementModal extends StatelessWidget {
     state.updateProfile(p);
   }
 
-  Future<void> _clearHealthCacheAndResync(BuildContext context) async {
-    final confirm = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        backgroundColor: AppTheme.surface,
-        title: const Text('Attenzione', style: TextStyle(color: Colors.white)),
-        content: const Text(
-          'Questa azione svuota la cache locale degli score salute e forza una nuova sincronizzazione da Apple Health / Health Connect. Non elimina allenamenti o metriche salvate, ma gli score potrebbero cambiare se i dati importati sono diversi. Vuoi continuare?',
-          style: TextStyle(color: AppTheme.textMediumEmphasis),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(ctx).pop(false),
-            child: const Text('Annulla',
-                style: TextStyle(color: AppTheme.textMediumEmphasis)),
-          ),
-          TextButton(
-            onPressed: () => Navigator.of(ctx).pop(true),
-            child: const Text('Svuota e risincronizza',
-                style: TextStyle(
-                    color: AppTheme.error, fontWeight: FontWeight.bold)),
-          ),
-        ],
-      ),
-    );
-    if (confirm != true || !context.mounted) return;
-
-    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-        content: Text('Pulizia cache e sincronizzazione in corso...')));
-
-    try {
-      final removedCount = await Provider.of<AppState>(context, listen: false)
-          .clearHealthScoreCacheAndResync(DateTime.now());
-      if (!context.mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-          content: Text(
-              'Cache salute svuotata ($removedCount elementi). Sincronizzazione completata.'),
-          backgroundColor: AppTheme.success));
-    } catch (e) {
-      if (!context.mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-          content: Text('Errore durante la risincronizzazione: $e'),
-          backgroundColor: AppTheme.error));
-    }
-  }
-
   @override
   Widget build(BuildContext context) {
     final p = Provider.of<AppState>(context).userProfile!;
@@ -965,7 +1062,7 @@ class _DeviceManagementModal extends StatelessWidget {
         .toList();
 
     return Container(
-      decoration: const BoxDecoration(
+      decoration: BoxDecoration(
         color: AppTheme.background,
         borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
       ),
@@ -996,8 +1093,8 @@ class _DeviceManagementModal extends StatelessWidget {
                         style: TextStyle(
                             fontSize: 18, fontWeight: FontWeight.bold)),
                     IconButton(
-                      icon: const Icon(Icons.close,
-                          color: AppTheme.textMediumEmphasis),
+                      icon:
+                          Icon(Icons.close, color: AppTheme.textMediumEmphasis),
                       onPressed: () => Navigator.of(context).pop(),
                     ),
                   ],
@@ -1011,7 +1108,7 @@ class _DeviceManagementModal extends StatelessWidget {
               padding: const EdgeInsets.all(16),
               children: [
                 if (connected.isNotEmpty) ...[
-                  const Text('I TUOI DISPOSITIVI',
+                  Text('I TUOI DISPOSITIVI',
                       style: TextStyle(
                           fontSize: 10,
                           fontWeight: FontWeight.bold,
@@ -1061,12 +1158,12 @@ class _DeviceManagementModal extends StatelessWidget {
                                             color: AppTheme.success)),
                                     if (d.batteryLevel != null) ...[
                                       const SizedBox(width: 8),
-                                      const Icon(Icons.battery_full,
+                                      Icon(Icons.battery_full,
                                           size: 12,
                                           color: AppTheme.textMediumEmphasis),
                                       const SizedBox(width: 2),
                                       Text('${d.batteryLevel}%',
-                                          style: const TextStyle(
+                                          style: TextStyle(
                                               fontSize: 10,
                                               color:
                                                   AppTheme.textMediumEmphasis)),
@@ -1088,7 +1185,7 @@ class _DeviceManagementModal extends StatelessWidget {
                                     backgroundColor: AppTheme.surface,
                                     title: const Text('Sincronizza Dati',
                                         style: TextStyle(color: Colors.white)),
-                                    content: const Text(
+                                    content: Text(
                                         'Vuoi importare gli allenamenti degli ultimi 7 giorni?',
                                         style: TextStyle(
                                             color:
@@ -1097,7 +1194,7 @@ class _DeviceManagementModal extends StatelessWidget {
                                       TextButton(
                                         onPressed: () =>
                                             Navigator.of(ctx).pop(false),
-                                        child: const Text('Annulla',
+                                        child: Text('Annulla',
                                             style: TextStyle(
                                                 color: AppTheme
                                                     .textMediumEmphasis)),
@@ -1131,16 +1228,9 @@ class _DeviceManagementModal extends StatelessWidget {
                                 }
                               },
                             ),
-                            IconButton(
-                              icon: const Icon(Icons.delete_sweep_outlined,
-                                  color: AppTheme.error),
-                              tooltip: 'Svuota cache salute',
-                              onPressed: () =>
-                                  _clearHealthCacheAndResync(context),
-                            ),
                           ],
                           IconButton(
-                            icon: const Icon(Icons.power_off,
+                            icon: Icon(Icons.power_off,
                                 color: AppTheme.textMediumEmphasis),
                             onPressed: () => _disconnectDevice(context, d.id),
                             tooltip: 'Disconnetti',
@@ -1151,7 +1241,7 @@ class _DeviceManagementModal extends StatelessWidget {
                   }),
                   const SizedBox(height: 24),
                 ],
-                const Text('DISPONIBILI',
+                Text('DISPONIBILI',
                     style: TextStyle(
                         fontSize: 10,
                         fontWeight: FontWeight.bold,
@@ -1198,13 +1288,13 @@ class _DeviceManagementModal extends StatelessWidget {
                                     i['type'] == 'ble'
                                         ? 'Connessione Diretta Bluetooth'
                                         : 'Sincronizzazione Cloud API',
-                                    style: const TextStyle(
+                                    style: TextStyle(
                                         fontSize: 10,
                                         color: AppTheme.textMediumEmphasis)),
                               ],
                             ),
                           ),
-                          const Icon(Icons.link,
+                          Icon(Icons.link,
                               size: 16, color: AppTheme.textMediumEmphasis),
                         ],
                       ),

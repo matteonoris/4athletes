@@ -72,7 +72,7 @@ class CambiChartScreen extends StatelessWidget {
               ),
             ),
             const SizedBox(height: 8),
-            const Text(
+            Text(
               'Cambi totali divisi tra campo libero, pali e addestramento',
               style: TextStyle(
                 color: AppTheme.textMediumEmphasis,
@@ -84,7 +84,7 @@ class CambiChartScreen extends StatelessWidget {
             // Grafico
             Expanded(
               child: sortedMonths.isEmpty
-                  ? const Center(
+                  ? Center(
                       child: Text('Nessun dato disponibile',
                           style: TextStyle(color: AppTheme.textMediumEmphasis)))
                   : BarChart(
@@ -148,7 +148,7 @@ class CambiChartScreen extends StatelessWidget {
                                     padding: const EdgeInsets.only(top: 8.0),
                                     child: Text(
                                       _formatMonthShort(sortedMonths[index]),
-                                      style: const TextStyle(
+                                      style: TextStyle(
                                         color: AppTheme.textMediumEmphasis,
                                         fontSize: 12,
                                         fontWeight: FontWeight.bold,
@@ -170,7 +170,7 @@ class CambiChartScreen extends StatelessWidget {
                                 }
                                 return Text(
                                   value.toInt().toString(),
-                                  style: const TextStyle(
+                                  style: TextStyle(
                                     color: AppTheme.textMediumEmphasis,
                                     fontSize: 11,
                                   ),
@@ -261,7 +261,7 @@ class CambiChartScreen extends StatelessWidget {
                       const SizedBox(width: 6),
                       Text(
                         spec,
-                        style: const TextStyle(
+                        style: TextStyle(
                           color: AppTheme.textMediumEmphasis,
                           fontWeight: FontWeight.bold,
                         ),

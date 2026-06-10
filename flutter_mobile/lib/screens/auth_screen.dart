@@ -220,7 +220,7 @@ class _AuthScreenState extends State<AuthScreen>
       confirmText: 'Conferma',
       builder: (context, child) => Theme(
         data: Theme.of(context).copyWith(
-          colorScheme: const ColorScheme.dark(
+          colorScheme: ColorScheme.dark(
             primary: AppTheme.primary,
             surface: AppTheme.surface,
           ),
@@ -426,7 +426,7 @@ class _AuthScreenState extends State<AuthScreen>
               onTap: _goBack,
               child: Container(
                 padding: const EdgeInsets.all(10),
-                decoration: const BoxDecoration(
+                decoration: BoxDecoration(
                   color: AppTheme.card,
                   shape: BoxShape.circle,
                 ),
@@ -445,7 +445,7 @@ class _AuthScreenState extends State<AuthScreen>
               ),
               child: Text(
                 'Passo $_currentStepIndex di $_totalSteps',
-                style: const TextStyle(
+                style: TextStyle(
                   color: AppTheme.textMediumEmphasis,
                   fontWeight: FontWeight.bold,
                   fontSize: 12,
@@ -574,7 +574,7 @@ class _AuthScreenState extends State<AuthScreen>
             const SizedBox(height: 8),
             Text(
               description,
-              style: const TextStyle(
+              style: TextStyle(
                 color: AppTheme.textMediumEmphasis,
                 fontSize: 14,
               ),
@@ -609,7 +609,7 @@ class _AuthScreenState extends State<AuthScreen>
           onTap: _selectBirthDate,
         ),
         const SizedBox(height: 24),
-        const Text(
+        Text(
           'SESSO',
           style: TextStyle(
             color: AppTheme.textMediumEmphasis,
@@ -666,7 +666,7 @@ class _AuthScreenState extends State<AuthScreen>
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         _buildSignupHeader('Iscrizione', 'Fisico'),
-        const Text(
+        Text(
           'Questi dati ci aiutano a personalizzare la tua esperienza. Puoi saltarli e inserirli in un secondo momento dal tuo profilo.',
           style: TextStyle(color: AppTheme.textMediumEmphasis, fontSize: 14),
         ),
@@ -704,7 +704,7 @@ class _AuthScreenState extends State<AuthScreen>
             _heightCtrl.clear();
             _goNext();
           },
-          child: const Text(
+          child: Text(
             'Salta per ora',
             style: TextStyle(
               color: AppTheme.textMediumEmphasis,
@@ -744,7 +744,7 @@ class _AuthScreenState extends State<AuthScreen>
                   clipBehavior: Clip.antiAlias,
                   child: _pickedAvatarFile != null
                       ? Image.file(_pickedAvatarFile!, fit: BoxFit.cover)
-                      : const Icon(
+                      : Icon(
                           PhosphorIconsRegular.user,
                           size: 76,
                           color: AppTheme.textMediumEmphasis,
@@ -789,7 +789,7 @@ class _AuthScreenState extends State<AuthScreen>
         const SizedBox(height: 16),
         TextButton(
           onPressed: _goNext,
-          child: const Text(
+          child: Text(
             'Salta per ora',
             style: TextStyle(
               color: AppTheme.textMediumEmphasis,
@@ -816,7 +816,7 @@ class _AuthScreenState extends State<AuthScreen>
       children: [
         Text(
           label.toUpperCase(),
-          style: const TextStyle(
+          style: TextStyle(
             color: AppTheme.textMediumEmphasis,
             fontSize: 12,
             fontWeight: FontWeight.bold,

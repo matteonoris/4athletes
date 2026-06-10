@@ -65,7 +65,7 @@ class _HealthPermissionScreenState extends State<HealthPermissionScreen> {
               Center(
                 child: Container(
                   padding: const EdgeInsets.all(24),
-                  decoration: const BoxDecoration(
+                  decoration: BoxDecoration(
                     color: AppTheme.card,
                     shape: BoxShape.circle,
                   ),
@@ -99,8 +99,8 @@ class _HealthPermissionScreenState extends State<HealthPermissionScreen> {
                     ? 'Per offrirti analisi dettagliate su allenamento, recupero e sonno, 4ATHLETES richiede accesso ai dati Apple Health supportati.'
                     : 'Per offrirti analisi dettagliate su allenamento, recupero e sonno, 4ATHLETES richiede accesso a Health Connect. Se non e installato, ti porteremo al Play Store.',
                 textAlign: TextAlign.center,
-                style: const TextStyle(
-                    color: AppTheme.textMediumEmphasis, fontSize: 14),
+                style:
+                    TextStyle(color: AppTheme.textMediumEmphasis, fontSize: 14),
               ),
               const SizedBox(height: 24),
               Expanded(
@@ -186,7 +186,7 @@ class _HealthPermissionScreenState extends State<HealthPermissionScreen> {
                   HapticFeedback.lightImpact();
                   _navigateToHome();
                 },
-                child: const Text('Salta per ora',
+                child: Text('Salta per ora',
                     style: TextStyle(
                         color: AppTheme.textMediumEmphasis,
                         fontWeight: FontWeight.bold)),
@@ -223,7 +223,7 @@ class _HealthPermissionScreenState extends State<HealthPermissionScreen> {
                         fontSize: 14)),
                 const SizedBox(height: 2),
                 Text(subtitle,
-                    style: const TextStyle(
+                    style: TextStyle(
                         color: AppTheme.textMediumEmphasis, fontSize: 12)),
               ],
             ),

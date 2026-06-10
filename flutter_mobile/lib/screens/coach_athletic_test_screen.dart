@@ -22,7 +22,8 @@ class CoachAthleticTestScreen extends StatefulWidget {
   });
 
   @override
-  State<CoachAthleticTestScreen> createState() => _CoachAthleticTestScreenState();
+  State<CoachAthleticTestScreen> createState() =>
+      _CoachAthleticTestScreenState();
 }
 
 class _CoachAthleticTestScreenState extends State<CoachAthleticTestScreen> {
@@ -51,7 +52,8 @@ class _CoachAthleticTestScreenState extends State<CoachAthleticTestScreen> {
             final String firstName = row['first_name'] ?? '';
             final String lastName = row['last_name'] ?? '';
             final String fullName = '$firstName $lastName'.trim();
-            final String nameToShow = fullName.isNotEmpty ? fullName : (row['email'] ?? 'Atleta');
+            final String nameToShow =
+                fullName.isNotEmpty ? fullName : (row['email'] ?? 'Atleta');
 
             return {
               'id': row['id'],
@@ -93,9 +95,12 @@ class _CoachAthleticTestScreenState extends State<CoachAthleticTestScreen> {
 
     for (var a in _athletes) {
       if (a['isPresent']) {
-        final valText = (a['valueCtrl'] as TextEditingController).text.trim().replaceAll(',', '.');
+        final valText = (a['valueCtrl'] as TextEditingController)
+            .text
+            .trim()
+            .replaceAll(',', '.');
         final val = double.tryParse(valText);
-        
+
         if (val != null && val > 0) {
           if (widget.testCategory == 'jump') {
             await appState.addJumpLogForAthlete(
@@ -108,7 +113,10 @@ class _CoachAthleticTestScreenState extends State<CoachAthleticTestScreen> {
               a['id'],
             );
             if (widget.testId == 'drop_jump') {
-              final rsiText = (a['rsiCtrl'] as TextEditingController).text.trim().replaceAll(',', '.');
+              final rsiText = (a['rsiCtrl'] as TextEditingController)
+                  .text
+                  .trim()
+                  .replaceAll(',', '.');
               final rsiVal = double.tryParse(rsiText);
               if (rsiVal != null && rsiVal > 0) {
                 await appState.addJumpLogForAthlete(
@@ -133,7 +141,9 @@ class _CoachAthleticTestScreenState extends State<CoachAthleticTestScreen> {
               ),
               a['id'],
             );
-          } else if (widget.testCategory == 'time' || widget.testCategory == 'score' || widget.testCategory == 'reps') {
+          } else if (widget.testCategory == 'time' ||
+              widget.testCategory == 'score' ||
+              widget.testCategory == 'reps') {
             await appState.addBodyLogForAthlete(
               BodyMetricLog(
                 id: '',
@@ -145,22 +155,34 @@ class _CoachAthleticTestScreenState extends State<CoachAthleticTestScreen> {
             );
           } else if (widget.testCategory == 'leger_test') {
             await appState.addBodyLogForAthlete(
-              BodyMetricLog(id: '', date: dateStr, type: 'leger_vam', value: val),
+              BodyMetricLog(
+                  id: '', date: dateStr, type: 'leger_vam', value: val),
               a['id'],
             );
-            final vo2Text = (a['vo2maxCtrl'] as TextEditingController).text.trim().replaceAll(',', '.');
+            final vo2Text = (a['vo2maxCtrl'] as TextEditingController)
+                .text
+                .trim()
+                .replaceAll(',', '.');
             final vo2Val = double.tryParse(vo2Text);
             if (vo2Val != null && vo2Val > 0) {
               await appState.addBodyLogForAthlete(
-                BodyMetricLog(id: '', date: dateStr, type: 'leger_vo2max', value: vo2Val),
+                BodyMetricLog(
+                    id: '', date: dateStr, type: 'leger_vo2max', value: vo2Val),
                 a['id'],
               );
             }
-            final distText = (a['distCtrl'] as TextEditingController).text.trim().replaceAll(',', '.');
+            final distText = (a['distCtrl'] as TextEditingController)
+                .text
+                .trim()
+                .replaceAll(',', '.');
             final distVal = double.tryParse(distText);
             if (distVal != null && distVal > 0) {
               await appState.addBodyLogForAthlete(
-                BodyMetricLog(id: '', date: dateStr, type: 'leger_distance', value: distVal),
+                BodyMetricLog(
+                    id: '',
+                    date: dateStr,
+                    type: 'leger_distance',
+                    value: distVal),
                 a['id'],
               );
             }
@@ -186,11 +208,13 @@ class _CoachAthleticTestScreenState extends State<CoachAthleticTestScreen> {
       appBar: AppBar(
         backgroundColor: AppTheme.background,
         elevation: 0,
-        title: Text(widget.testTitle, style: const TextStyle(fontWeight: FontWeight.bold)),
+        title: Text(widget.testTitle,
+            style: const TextStyle(fontWeight: FontWeight.bold)),
         centerTitle: true,
       ),
       body: _isLoading
-          ? const Center(child: CircularProgressIndicator(color: AppTheme.primary))
+          ? const Center(
+              child: CircularProgressIndicator(color: AppTheme.primary))
           : Column(
               children: [
                 Padding(
@@ -199,7 +223,7 @@ class _CoachAthleticTestScreenState extends State<CoachAthleticTestScreen> {
                     _isSelectingPresent
                         ? 'Seleziona gli atleti presenti al test'
                         : 'Inserisci i risultati per gli atleti presenti',
-                    style: const TextStyle(
+                    style: TextStyle(
                       color: AppTheme.textMediumEmphasis,
                       fontSize: 16,
                     ),
@@ -207,7 +231,9 @@ class _CoachAthleticTestScreenState extends State<CoachAthleticTestScreen> {
                   ),
                 ),
                 Expanded(
-                  child: _isSelectingPresent ? _buildSelectionList() : _buildValueEntryList(),
+                  child: _isSelectingPresent
+                      ? _buildSelectionList()
+                      : _buildValueEntryList(),
                 ),
                 SafeArea(
                   child: Padding(
@@ -215,9 +241,11 @@ class _CoachAthleticTestScreenState extends State<CoachAthleticTestScreen> {
                     child: ElevatedButton(
                       onPressed: () {
                         if (_isSelectingPresent) {
-                          final selectedCount = _athletes.where((a) => a['isPresent']).length;
+                          final selectedCount =
+                              _athletes.where((a) => a['isPresent']).length;
                           if (selectedCount == 0) {
-                            ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+                            ScaffoldMessenger.of(context)
+                                .showSnackBar(const SnackBar(
                               content: Text('Seleziona almeno un atleta'),
                               backgroundColor: AppTheme.error,
                             ));
@@ -234,12 +262,14 @@ class _CoachAthleticTestScreenState extends State<CoachAthleticTestScreen> {
                         backgroundColor: AppTheme.primary,
                         foregroundColor: Colors.white,
                         padding: const EdgeInsets.symmetric(vertical: 18),
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                        shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(16)),
                         minimumSize: const Size(double.infinity, 56),
                       ),
                       child: Text(
                         _isSelectingPresent ? 'Avanti' : 'Salva Risultati',
-                        style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+                        style: const TextStyle(
+                            fontWeight: FontWeight.bold, fontSize: 16),
                       ),
                     ),
                   ),
@@ -251,8 +281,9 @@ class _CoachAthleticTestScreenState extends State<CoachAthleticTestScreen> {
 
   Widget _buildSelectionList() {
     if (_athletes.isEmpty) {
-      return const Center(
-        child: Text('Nessun atleta nel team.', style: TextStyle(color: AppTheme.textMediumEmphasis)),
+      return Center(
+        child: Text('Nessun atleta nel team.',
+            style: TextStyle(color: AppTheme.textMediumEmphasis)),
       );
     }
     return ListView.builder(
@@ -274,20 +305,27 @@ class _CoachAthleticTestScreenState extends State<CoachAthleticTestScreen> {
               color: AppTheme.card,
               borderRadius: BorderRadius.circular(12),
               border: Border.all(
-                color: a['isPresent'] ? AppTheme.primary : Colors.white.withOpacity(0.05),
+                color: a['isPresent']
+                    ? AppTheme.primary
+                    : Colors.white.withOpacity(0.05),
               ),
             ),
             child: Row(
               children: [
                 Icon(
                   a['isPresent'] ? Icons.check_circle : Icons.circle_outlined,
-                  color: a['isPresent'] ? AppTheme.primary : AppTheme.textMediumEmphasis,
+                  color: a['isPresent']
+                      ? AppTheme.primary
+                      : AppTheme.textMediumEmphasis,
                 ),
                 const SizedBox(width: 16),
                 Expanded(
                   child: Text(
                     a['name'],
-                    style: const TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold),
+                    style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 16,
+                        fontWeight: FontWeight.bold),
                   ),
                 ),
               ],
@@ -319,7 +357,10 @@ class _CoachAthleticTestScreenState extends State<CoachAthleticTestScreen> {
                 flex: 2,
                 child: Text(
                   a['name'],
-                  style: const TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold),
+                  style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 16,
+                      fontWeight: FontWeight.bold),
                 ),
               ),
               const SizedBox(width: 16),
@@ -327,15 +368,23 @@ class _CoachAthleticTestScreenState extends State<CoachAthleticTestScreen> {
                 flex: 1,
                 child: TextField(
                   controller: a['valueCtrl'],
-                  keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                  style: const TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold),
+                  keyboardType:
+                      const TextInputType.numberWithOptions(decimal: true),
+                  style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold),
                   textAlign: TextAlign.center,
                   decoration: InputDecoration(
-                    hintText: widget.testId == 'drop_jump' ? 'Alt.' : (widget.testId == 'leger' ? 'VAM' : '0.0'),
-                    hintStyle: TextStyle(color: AppTheme.textMediumEmphasis.withOpacity(0.5)),
+                    hintText: widget.testId == 'drop_jump'
+                        ? 'Alt.'
+                        : (widget.testId == 'leger' ? 'VAM' : '0.0'),
+                    hintStyle: TextStyle(
+                        color: AppTheme.textMediumEmphasis.withOpacity(0.5)),
                     filled: true,
                     fillColor: AppTheme.background,
-                    contentPadding: const EdgeInsets.symmetric(vertical: 12, horizontal: 8),
+                    contentPadding:
+                        const EdgeInsets.symmetric(vertical: 12, horizontal: 8),
                     border: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(8),
                       borderSide: BorderSide.none,
@@ -349,15 +398,21 @@ class _CoachAthleticTestScreenState extends State<CoachAthleticTestScreen> {
                   flex: 1,
                   child: TextField(
                     controller: a['rsiCtrl'],
-                    keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                    style: const TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold),
+                    keyboardType:
+                        const TextInputType.numberWithOptions(decimal: true),
+                    style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold),
                     textAlign: TextAlign.center,
                     decoration: InputDecoration(
                       hintText: 'RSI',
-                      hintStyle: TextStyle(color: AppTheme.textMediumEmphasis.withOpacity(0.5)),
+                      hintStyle: TextStyle(
+                          color: AppTheme.textMediumEmphasis.withOpacity(0.5)),
                       filled: true,
                       fillColor: AppTheme.background,
-                      contentPadding: const EdgeInsets.symmetric(vertical: 12, horizontal: 8),
+                      contentPadding: const EdgeInsets.symmetric(
+                          vertical: 12, horizontal: 8),
                       border: OutlineInputBorder(
                         borderRadius: BorderRadius.circular(8),
                         borderSide: BorderSide.none,
@@ -372,15 +427,21 @@ class _CoachAthleticTestScreenState extends State<CoachAthleticTestScreen> {
                   flex: 1,
                   child: TextField(
                     controller: a['vo2maxCtrl'],
-                    keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                    style: const TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold),
+                    keyboardType:
+                        const TextInputType.numberWithOptions(decimal: true),
+                    style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold),
                     textAlign: TextAlign.center,
                     decoration: InputDecoration(
                       hintText: 'VO2',
-                      hintStyle: TextStyle(color: AppTheme.textMediumEmphasis.withOpacity(0.5)),
+                      hintStyle: TextStyle(
+                          color: AppTheme.textMediumEmphasis.withOpacity(0.5)),
                       filled: true,
                       fillColor: AppTheme.background,
-                      contentPadding: const EdgeInsets.symmetric(vertical: 12, horizontal: 8),
+                      contentPadding: const EdgeInsets.symmetric(
+                          vertical: 12, horizontal: 8),
                       border: OutlineInputBorder(
                         borderRadius: BorderRadius.circular(8),
                         borderSide: BorderSide.none,
@@ -393,15 +454,21 @@ class _CoachAthleticTestScreenState extends State<CoachAthleticTestScreen> {
                   flex: 1,
                   child: TextField(
                     controller: a['distCtrl'],
-                    keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                    style: const TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold),
+                    keyboardType:
+                        const TextInputType.numberWithOptions(decimal: true),
+                    style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold),
                     textAlign: TextAlign.center,
                     decoration: InputDecoration(
                       hintText: 'Dist',
-                      hintStyle: TextStyle(color: AppTheme.textMediumEmphasis.withOpacity(0.5)),
+                      hintStyle: TextStyle(
+                          color: AppTheme.textMediumEmphasis.withOpacity(0.5)),
                       filled: true,
                       fillColor: AppTheme.background,
-                      contentPadding: const EdgeInsets.symmetric(vertical: 12, horizontal: 8),
+                      contentPadding: const EdgeInsets.symmetric(
+                          vertical: 12, horizontal: 8),
                       border: OutlineInputBorder(
                         borderRadius: BorderRadius.circular(8),
                         borderSide: BorderSide.none,

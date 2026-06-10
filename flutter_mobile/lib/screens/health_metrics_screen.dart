@@ -29,34 +29,52 @@ class _HealthMetricsScreenState extends State<HealthMetricsScreen> {
 
   String _getMetricTitle(String type) {
     switch (type) {
-      case 'hrv': return 'HRV';
-      case 'resting_hr': return 'Battiti a Riposo';
-      case 'spo2': return 'SpO2';
-      case 'resp': return 'Freq. Respiratoria';
-      case 'temp': return 'Temperatura';
-      default: return type;
+      case 'hrv':
+        return 'HRV';
+      case 'resting_hr':
+        return 'Battiti a Riposo';
+      case 'spo2':
+        return 'SpO2';
+      case 'resp':
+        return 'Freq. Respiratoria';
+      case 'temp':
+        return 'Temperatura';
+      default:
+        return type;
     }
   }
 
   String _getMetricUnit(String type) {
     switch (type) {
-      case 'hrv': return 'ms';
-      case 'resting_hr': return 'bpm';
-      case 'spo2': return '%';
-      case 'resp': return 'rpm';
-      case 'temp': return '°C';
-      default: return '';
+      case 'hrv':
+        return 'ms';
+      case 'resting_hr':
+        return 'bpm';
+      case 'spo2':
+        return '%';
+      case 'resp':
+        return 'rpm';
+      case 'temp':
+        return '°C';
+      default:
+        return '';
     }
   }
 
   Color _getMetricColor(String type) {
     switch (type) {
-      case 'hrv': return AppTheme.primary;
-      case 'resting_hr': return AppTheme.error;
-      case 'spo2': return Colors.blueAccent;
-      case 'resp': return Colors.tealAccent;
-      case 'temp': return Colors.orangeAccent;
-      default: return AppTheme.primary;
+      case 'hrv':
+        return AppTheme.primary;
+      case 'resting_hr':
+        return AppTheme.error;
+      case 'spo2':
+        return Colors.blueAccent;
+      case 'resp':
+        return Colors.tealAccent;
+      case 'temp':
+        return Colors.orangeAccent;
+      default:
+        return AppTheme.primary;
     }
   }
 
@@ -64,12 +82,16 @@ class _HealthMetricsScreenState extends State<HealthMetricsScreen> {
   Widget build(BuildContext context) {
     final appState = Provider.of<AppState>(context);
 
-    final logs = appState.bodyLogs.where((l) => l.type == _selectedType).toList()
-      ..sort((a, b) => DateTime.parse(a.date).compareTo(DateTime.parse(b.date)));
-    
+    final logs = appState.bodyLogs
+        .where((l) => l.type == _selectedType)
+        .toList()
+      ..sort(
+          (a, b) => DateTime.parse(a.date).compareTo(DateTime.parse(b.date)));
+
     final now = DateTime.now();
     final cutoff = now.subtract(Duration(days: _selectedDays));
-    final filteredLogs = logs.where((l) => DateTime.parse(l.date).isAfter(cutoff)).toList();
+    final filteredLogs =
+        logs.where((l) => DateTime.parse(l.date).isAfter(cutoff)).toList();
 
     final Color mainColor = _getMetricColor(_selectedType);
 
@@ -115,12 +137,19 @@ class _HealthMetricsScreenState extends State<HealthMetricsScreen> {
                         children: [
                           Text(
                             'Andamento ${_getMetricTitle(_selectedType)}',
-                            style: const TextStyle(color: AppTheme.textMediumEmphasis, fontWeight: FontWeight.bold),
+                            style: TextStyle(
+                                color: AppTheme.textMediumEmphasis,
+                                fontWeight: FontWeight.bold),
                           ),
                           const SizedBox(height: 4),
                           Text(
-                            logs.isNotEmpty ? '${logs.last.value.toStringAsFixed(1)} ${_getMetricUnit(_selectedType)}' : '--',
-                            style: Theme.of(context).textTheme.headlineMedium?.copyWith(fontWeight: FontWeight.bold),
+                            logs.isNotEmpty
+                                ? '${logs.last.value.toStringAsFixed(1)} ${_getMetricUnit(_selectedType)}'
+                                : '--',
+                            style: Theme.of(context)
+                                .textTheme
+                                .headlineMedium
+                                ?.copyWith(fontWeight: FontWeight.bold),
                           ),
                         ],
                       ),
@@ -131,15 +160,22 @@ class _HealthMetricsScreenState extends State<HealthMetricsScreen> {
                 ),
                 const SizedBox(height: 32),
                 if (filteredLogs.isEmpty)
-                  const SizedBox(
+                  SizedBox(
                     height: 220,
-                    child: Center(child: Text('Nessun dato per questo intervallo', style: TextStyle(color: AppTheme.textMediumEmphasis))),
+                    child: Center(
+                        child: Text('Nessun dato per questo intervallo',
+                            style:
+                                TextStyle(color: AppTheme.textMediumEmphasis))),
                   )
                 else
                   Builder(
                     builder: (context) {
-                      double minY = filteredLogs.map((e) => e.value).reduce((a, b) => a < b ? a : b);
-                      double maxY = filteredLogs.map((e) => e.value).reduce((a, b) => a > b ? a : b);
+                      double minY = filteredLogs
+                          .map((e) => e.value)
+                          .reduce((a, b) => a < b ? a : b);
+                      double maxY = filteredLogs
+                          .map((e) => e.value)
+                          .reduce((a, b) => a > b ? a : b);
 
                       // Add some padding to Y axis
                       if (minY == maxY) {
@@ -160,27 +196,43 @@ class _HealthMetricsScreenState extends State<HealthMetricsScreen> {
                             gridData: FlGridData(
                               show: true,
                               drawVerticalLine: true,
-                              getDrawingHorizontalLine: (value) => FlLine(color: Colors.white.withValues(alpha: 0.05), strokeWidth: 1),
-                              getDrawingVerticalLine: (value) => FlLine(color: Colors.white.withValues(alpha: 0.05), strokeWidth: 1, dashArray: [5, 5]),
+                              getDrawingHorizontalLine: (value) => FlLine(
+                                  color: Colors.white.withValues(alpha: 0.05),
+                                  strokeWidth: 1),
+                              getDrawingVerticalLine: (value) => FlLine(
+                                  color: Colors.white.withValues(alpha: 0.05),
+                                  strokeWidth: 1,
+                                  dashArray: [5, 5]),
                             ),
                             titlesData: FlTitlesData(
-                              topTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
-                              rightTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+                              topTitles: const AxisTitles(
+                                  sideTitles: SideTitles(showTitles: false)),
+                              rightTitles: const AxisTitles(
+                                  sideTitles: SideTitles(showTitles: false)),
                               bottomTitles: AxisTitles(
                                 sideTitles: SideTitles(
                                   showTitles: true,
                                   reservedSize: 30,
-                                  interval: (filteredLogs.length > 2) ? (filteredLogs.length - 1) / 2 : 1.0,
+                                  interval: (filteredLogs.length > 2)
+                                      ? (filteredLogs.length - 1) / 2
+                                      : 1.0,
                                   getTitlesWidget: (value, meta) {
                                     final idx = value.round();
-                                    if (value != idx.toDouble() || idx < 0 || idx >= filteredLogs.length) return const SizedBox.shrink();
-                                    
-                                    final d = DateTime.parse(filteredLogs[idx].date);
+                                    if (value != idx.toDouble() ||
+                                        idx < 0 ||
+                                        idx >= filteredLogs.length)
+                                      return const SizedBox.shrink();
+
+                                    final d =
+                                        DateTime.parse(filteredLogs[idx].date);
                                     return Padding(
                                       padding: const EdgeInsets.only(top: 8),
                                       child: Text(
                                         DateFormat('E d', 'it').format(d),
-                                        style: const TextStyle(color: AppTheme.textMediumEmphasis, fontSize: 10, fontWeight: FontWeight.bold),
+                                        style: TextStyle(
+                                            color: AppTheme.textMediumEmphasis,
+                                            fontSize: 10,
+                                            fontWeight: FontWeight.bold),
                                       ),
                                     );
                                   },
@@ -193,7 +245,10 @@ class _HealthMetricsScreenState extends State<HealthMetricsScreen> {
                                   getTitlesWidget: (value, meta) {
                                     return Text(
                                       value.toStringAsFixed(0),
-                                      style: TextStyle(color: mainColor, fontSize: 10, fontWeight: FontWeight.bold),
+                                      style: TextStyle(
+                                          color: mainColor,
+                                          fontSize: 10,
+                                          fontWeight: FontWeight.bold),
                                     );
                                   },
                                 ),
@@ -206,7 +261,9 @@ class _HealthMetricsScreenState extends State<HealthMetricsScreen> {
                                   return touchedSpots.map((spot) {
                                     return LineTooltipItem(
                                       spot.y.toStringAsFixed(1),
-                                      const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+                                      const TextStyle(
+                                          color: Colors.white,
+                                          fontWeight: FontWeight.bold),
                                     );
                                   }).toList();
                                 },
@@ -214,19 +271,33 @@ class _HealthMetricsScreenState extends State<HealthMetricsScreen> {
                             ),
                             lineBarsData: [
                               LineChartBarData(
-                                spots: filteredLogs.asMap().entries.map((e) => FlSpot(e.key.toDouble(), e.value.value)).toList(),
+                                spots: filteredLogs
+                                    .asMap()
+                                    .entries
+                                    .map((e) =>
+                                        FlSpot(e.key.toDouble(), e.value.value))
+                                    .toList(),
                                 isCurved: true,
                                 color: mainColor,
                                 barWidth: 4,
                                 isStrokeCapRound: true,
                                 dotData: FlDotData(
                                   show: true,
-                                  getDotPainter: (spot, percent, barData, index) => FlDotCirclePainter(radius: 4, color: mainColor, strokeWidth: 2, strokeColor: AppTheme.card),
+                                  getDotPainter:
+                                      (spot, percent, barData, index) =>
+                                          FlDotCirclePainter(
+                                              radius: 4,
+                                              color: mainColor,
+                                              strokeWidth: 2,
+                                              strokeColor: AppTheme.card),
                                 ),
                                 belowBarData: BarAreaData(
                                   show: true,
                                   gradient: LinearGradient(
-                                    colors: [mainColor.withValues(alpha: 0.3), Colors.transparent],
+                                    colors: [
+                                      mainColor.withValues(alpha: 0.3),
+                                      Colors.transparent
+                                    ],
                                     begin: Alignment.topCenter,
                                     end: Alignment.bottomCenter,
                                   ),
@@ -247,15 +318,17 @@ class _HealthMetricsScreenState extends State<HealthMetricsScreen> {
           Text('Cronologia', style: Theme.of(context).textTheme.titleLarge),
           const SizedBox(height: 16),
           if (logs.isEmpty)
-            const CustomCard(
+            CustomCard(
               child: Padding(
                 padding: EdgeInsets.all(24),
-                child: Center(child: Text('Nessuna misura registrata', style: TextStyle(color: AppTheme.textMediumEmphasis))),
+                child: Center(
+                    child: Text('Nessuna misura registrata',
+                        style: TextStyle(color: AppTheme.textMediumEmphasis))),
               ),
             )
           else
             ...logs.reversed.map((log) => _buildHistoryItem(log)).toList(),
-          
+
           const SizedBox(height: 40),
         ],
       ),
@@ -269,9 +342,13 @@ class _HealthMetricsScreenState extends State<HealthMetricsScreen> {
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
         decoration: BoxDecoration(
-          color: isSelected ? AppTheme.primary.withValues(alpha: 0.2) : AppTheme.card,
+          color: isSelected
+              ? AppTheme.primary.withValues(alpha: 0.2)
+              : AppTheme.card,
           borderRadius: BorderRadius.circular(20),
-          border: Border.all(color: isSelected ? AppTheme.primary : Colors.transparent, width: 1),
+          border: Border.all(
+              color: isSelected ? AppTheme.primary : Colors.transparent,
+              width: 1),
         ),
         child: Text(
           label,
@@ -317,7 +394,9 @@ class _HealthMetricsScreenState extends State<HealthMetricsScreen> {
           label,
           style: TextStyle(
             fontSize: 12,
-            color: isSelected ? AppTheme.textHighEmphasis : AppTheme.textMediumEmphasis,
+            color: isSelected
+                ? AppTheme.textHighEmphasis
+                : AppTheme.textMediumEmphasis,
             fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
           ),
         ),
@@ -339,12 +418,15 @@ class _HealthMetricsScreenState extends State<HealthMetricsScreen> {
               children: [
                 Text(
                   DateFormat('dd MMMM yyyy').format(date),
-                  style: const TextStyle(fontWeight: FontWeight.bold, color: AppTheme.textHighEmphasis),
+                  style: TextStyle(
+                      fontWeight: FontWeight.bold,
+                      color: AppTheme.textHighEmphasis),
                 ),
                 const SizedBox(height: 4),
                 Text(
                   _getMetricTitle(_selectedType),
-                  style: const TextStyle(color: AppTheme.textMediumEmphasis, fontSize: 12),
+                  style: TextStyle(
+                      color: AppTheme.textMediumEmphasis, fontSize: 12),
                 ),
               ],
             ),
@@ -352,7 +434,10 @@ class _HealthMetricsScreenState extends State<HealthMetricsScreen> {
               children: [
                 Text(
                   '${log.value.toStringAsFixed(1)} ${_getMetricUnit(_selectedType)}',
-                  style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18, color: _getMetricColor(_selectedType)),
+                  style: TextStyle(
+                      fontWeight: FontWeight.bold,
+                      fontSize: 18,
+                      color: _getMetricColor(_selectedType)),
                 ),
               ],
             ),

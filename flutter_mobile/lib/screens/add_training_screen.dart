@@ -219,6 +219,25 @@ class _AddTrainingScreenState extends State<AddTrainingScreen> {
     return '${time.hour.toString().padLeft(2, '0')}:${time.minute.toString().padLeft(2, '0')}';
   }
 
+  double _oneRepMaxForExercise(AppState appState, String exerciseId) {
+    var maxLoad = appState.userProfile?.oneRepMax?[exerciseId] ?? 0.0;
+    for (final log
+        in appState.prLogs.where((l) => l.exerciseId == exerciseId)) {
+      if (log.weight > maxLoad) maxLoad = log.weight;
+    }
+    return maxLoad;
+  }
+
+  Map<String, dynamic> _newWeightliftingSet(List<dynamic> sets) {
+    if (sets.isEmpty) return {'kg': 0.0, 'reps': 0};
+
+    final previous = Map<String, dynamic>.from(sets.last as Map);
+    return {
+      'kg': (previous['kg'] as num?)?.toDouble() ?? 0.0,
+      'reps': (previous['reps'] as num?)?.toInt() ?? 0,
+    };
+  }
+
   void _loadSkiBlocks(Map<String, dynamic> details) {
     final tracks = details['tracks'];
     if (tracks is List) {
@@ -545,7 +564,7 @@ class _AddTrainingScreenState extends State<AddTrainingScreen> {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(label,
-            style: const TextStyle(
+            style: TextStyle(
                 fontSize: 10,
                 fontWeight: FontWeight.bold,
                 color: AppTheme.textMediumEmphasis)),
@@ -580,7 +599,7 @@ class _AddTrainingScreenState extends State<AddTrainingScreen> {
                 Padding(
                   padding: const EdgeInsets.only(right: 16),
                   child: Text(suffix,
-                      style: const TextStyle(
+                      style: TextStyle(
                           color: AppTheme.textMediumEmphasis, fontSize: 12)),
                 )
             ],
@@ -596,7 +615,7 @@ class _AddTrainingScreenState extends State<AddTrainingScreen> {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(label,
-            style: const TextStyle(
+            style: TextStyle(
                 fontSize: 10,
                 fontWeight: FontWeight.bold,
                 color: AppTheme.textMediumEmphasis)),
@@ -686,7 +705,7 @@ class _AddTrainingScreenState extends State<AddTrainingScreen> {
                     ),
                     Text(
                       '$totalLabel: ${_skiBlockTotal(block)}',
-                      style: const TextStyle(
+                      style: TextStyle(
                         color: AppTheme.textMediumEmphasis,
                         fontSize: 11,
                       ),
@@ -753,18 +772,12 @@ class _AddTrainingScreenState extends State<AddTrainingScreen> {
     final isEndurance = enduranceSports.contains(widget.sportId) ||
         widget.sportId.contains('running') ||
         widget.sportId.contains('cycling');
-    final isCycling =
-        widget.sportId.contains('cycling') || widget.sportId == 'spinning';
     final isWeightlifting = [
       'weightlifting',
       'powerlifting',
       'crossfit',
       'bodybuilding'
     ].contains(widget.sportId);
-    final isFootball =
-        ['soccer', 'am_football', 'rugby'].contains(widget.sportId);
-    final isTennis =
-        ['tennis', 'padel', 'pickleball', 'squash'].contains(widget.sportId);
     final isStretching =
         ['stretching', 'yoga', 'pilates'].contains(widget.sportId);
     final isAthletic = [
@@ -1150,7 +1163,7 @@ class _AddTrainingScreenState extends State<AddTrainingScreen> {
                     decoration: BoxDecoration(
                         color: AppTheme.card,
                         borderRadius: BorderRadius.circular(16)),
-                    child: const Center(
+                    child: Center(
                         child: Text(
                             'Nessun esercizio aggiunto. Clicca Aggiungi per iniziare.',
                             style:
@@ -1162,15 +1175,9 @@ class _AddTrainingScreenState extends State<AddTrainingScreen> {
                     int exIdx = entry.key;
                     var ex = entry.value;
                     List<dynamic> sets = ex['sets'] ?? [];
-                    // Use the most recent PR by date (not the highest value)
                     final appState = Provider.of<AppState>(context);
-                    final exercisePrLogs = appState.prLogs
-                        .where((l) => l.exerciseId == ex['id'])
-                        .toList()
-                      ..sort((a, b) => b.date.compareTo(a.date));
-                    final double maxLoad = exercisePrLogs.isNotEmpty
-                        ? exercisePrLogs.first.weight
-                        : 0.0;
+                    final double maxLoad =
+                        _oneRepMaxForExercise(appState, ex['id'].toString());
 
                     return CustomCard(
                       margin: const EdgeInsets.only(bottom: 16),
@@ -1196,8 +1203,7 @@ class _AddTrainingScreenState extends State<AddTrainingScreen> {
                                   children: [
                                     if (exIdx > 0)
                                       IconButton(
-                                        icon: const Icon(
-                                            Icons.keyboard_arrow_up,
+                                        icon: Icon(Icons.keyboard_arrow_up,
                                             size: 20,
                                             color: AppTheme.textMediumEmphasis),
                                         padding: EdgeInsets.zero,
@@ -1213,8 +1219,7 @@ class _AddTrainingScreenState extends State<AddTrainingScreen> {
                                       ),
                                     if (exIdx < _wlExercises.length - 1)
                                       IconButton(
-                                        icon: const Icon(
-                                            Icons.keyboard_arrow_down,
+                                        icon: Icon(Icons.keyboard_arrow_down,
                                             size: 20,
                                             color: AppTheme.textMediumEmphasis),
                                         padding: EdgeInsets.zero,
@@ -1230,7 +1235,7 @@ class _AddTrainingScreenState extends State<AddTrainingScreen> {
                                       ),
                                     const SizedBox(width: 8),
                                     IconButton(
-                                      icon: const Icon(Icons.delete_outline,
+                                      icon: Icon(Icons.delete_outline,
                                           size: 20,
                                           color: AppTheme.textMediumEmphasis),
                                       padding: EdgeInsets.zero,
@@ -1249,7 +1254,7 @@ class _AddTrainingScreenState extends State<AddTrainingScreen> {
                               children: [
                                 Row(
                                   children: [
-                                    const SizedBox(
+                                    SizedBox(
                                         width: 32,
                                         child: Text('SET',
                                             textAlign: TextAlign.center,
@@ -1258,7 +1263,7 @@ class _AddTrainingScreenState extends State<AddTrainingScreen> {
                                                 color: AppTheme
                                                     .textMediumEmphasis))),
                                     const SizedBox(width: 8),
-                                    const Expanded(
+                                    Expanded(
                                         child: Text('KG (LOAD)',
                                             textAlign: TextAlign.center,
                                             style: TextStyle(
@@ -1266,7 +1271,7 @@ class _AddTrainingScreenState extends State<AddTrainingScreen> {
                                                 color: AppTheme
                                                     .textMediumEmphasis))),
                                     const SizedBox(width: 8),
-                                    const Expanded(
+                                    Expanded(
                                         child: Text('REPS',
                                             textAlign: TextAlign.center,
                                             style: TextStyle(
@@ -1274,7 +1279,7 @@ class _AddTrainingScreenState extends State<AddTrainingScreen> {
                                                 color: AppTheme
                                                     .textMediumEmphasis))),
                                     const SizedBox(width: 8),
-                                    const SizedBox(
+                                    SizedBox(
                                         width: 40,
                                         child: Text('% 1RM',
                                             textAlign: TextAlign.center,
@@ -1398,7 +1403,7 @@ class _AddTrainingScreenState extends State<AddTrainingScreen> {
                                           width: 40,
                                           child: Text(pctStr,
                                               textAlign: TextAlign.center,
-                                              style: const TextStyle(
+                                              style: TextStyle(
                                                   fontSize: 12,
                                                   fontWeight: FontWeight.bold,
                                                   color: AppTheme
@@ -1407,7 +1412,7 @@ class _AddTrainingScreenState extends State<AddTrainingScreen> {
                                         SizedBox(
                                           width: 32,
                                           child: IconButton(
-                                            icon: const Icon(Icons.close,
+                                            icon: Icon(Icons.close,
                                                 size: 16,
                                                 color: AppTheme
                                                     .textMediumEmphasis),
@@ -1428,10 +1433,10 @@ class _AddTrainingScreenState extends State<AddTrainingScreen> {
                                   onPressed: () {
                                     setState(() {
                                       _wlExercises[exIdx]['sets']
-                                          .add({'kg': 0.0, 'reps': 0});
+                                          .add(_newWeightliftingSet(sets));
                                     });
                                   },
-                                  child: const Text('+ Add Set',
+                                  child: Text('+ Add Set',
                                       style: TextStyle(
                                           fontSize: 12,
                                           color: AppTheme.textMediumEmphasis)),
@@ -1450,7 +1455,7 @@ class _AddTrainingScreenState extends State<AddTrainingScreen> {
               if (widget.sportId == 'alpine_skiing') ...[
                 Row(
                   children: [
-                    const Text('CRONOMETRO & MATERIALI',
+                    Text('CRONOMETRO & MATERIALI',
                         style: TextStyle(
                             color: AppTheme.textMediumEmphasis,
                             fontWeight: FontWeight.bold,
@@ -1489,7 +1494,7 @@ class _AddTrainingScreenState extends State<AddTrainingScreen> {
                               onTap: () {
                                 setState(() => _chronoLaps.removeAt(idx));
                               },
-                              child: const Icon(Icons.delete_outline,
+                              child: Icon(Icons.delete_outline,
                                   size: 18, color: AppTheme.textMediumEmphasis),
                             ),
                           ],
@@ -1502,7 +1507,7 @@ class _AddTrainingScreenState extends State<AddTrainingScreen> {
                               child: Column(
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
-                                  const Text('TEMPO',
+                                  Text('TEMPO',
                                       style: TextStyle(
                                           color: AppTheme.textMediumEmphasis,
                                           fontSize: 10,
@@ -1522,7 +1527,7 @@ class _AddTrainingScreenState extends State<AddTrainingScreen> {
                                           color: Colors.white,
                                           fontWeight: FontWeight.bold,
                                           fontSize: 14),
-                                      decoration: const InputDecoration(
+                                      decoration: InputDecoration(
                                         hintText: 'es. 45.2',
                                         hintStyle: TextStyle(
                                             color: AppTheme.textMediumEmphasis),
@@ -1544,7 +1549,7 @@ class _AddTrainingScreenState extends State<AddTrainingScreen> {
                               child: Column(
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
-                                  const Text('MATERIALE USATO',
+                                  Text('MATERIALE USATO',
                                       style: TextStyle(
                                           color: AppTheme.textMediumEmphasis,
                                           fontSize: 10,
@@ -1563,7 +1568,7 @@ class _AddTrainingScreenState extends State<AddTrainingScreen> {
                                           fontSize: 14),
                                       decoration: InputDecoration(
                                         hintText: 'es. Sci Gara 1',
-                                        hintStyle: const TextStyle(
+                                        hintStyle: TextStyle(
                                             color: AppTheme.textMediumEmphasis),
                                         prefixIcon: Icon(
                                             PhosphorIconsRegular.package,
@@ -1728,7 +1733,7 @@ class _AddTrainingScreenState extends State<AddTrainingScreen> {
                   onChanged: (v) => setState(() => _effort = v),
                 ),
               ),
-              const Row(
+              Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
                   Text('0 - Nessuno Sforzo',
@@ -1907,7 +1912,7 @@ class _AddTrainingScreenState extends State<AddTrainingScreen> {
                                     horizontal: 16, vertical: 4),
                                 child: Text(
                                   '${filtered.length} esercizi',
-                                  style: const TextStyle(
+                                  style: TextStyle(
                                       fontSize: 11,
                                       color: AppTheme.textMediumEmphasis),
                                 ),
@@ -1926,7 +1931,7 @@ class _AddTrainingScreenState extends State<AddTrainingScreen> {
                                               fontWeight: FontWeight.w600)),
                                       subtitle: Text(
                                           '${ex.targetMuscle}  •  ${_categoryLabel(ex.category)}',
-                                          style: const TextStyle(
+                                          style: TextStyle(
                                               fontSize: 11,
                                               color:
                                                   AppTheme.textMediumEmphasis)),

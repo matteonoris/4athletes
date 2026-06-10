@@ -165,7 +165,7 @@ class _CreateTeamScreenState extends State<CreateTeamScreen> {
           textAlign: TextAlign.center,
         ),
         const SizedBox(height: 16),
-        const Text(
+        Text(
           'Condividi questo codice di invito con le persone che vuoi far unire al tuo team:',
           style: TextStyle(fontSize: 14, color: AppTheme.textMediumEmphasis),
           textAlign: TextAlign.center,

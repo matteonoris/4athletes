@@ -105,7 +105,7 @@ class _JumpDetailsScreenState extends State<JumpDetailsScreen> {
                         Text(log.date,
                             style: Theme.of(context).textTheme.bodyMedium),
                         Text('${log.value} cm',
-                            style: const TextStyle(
+                            style: TextStyle(
                                 fontWeight: FontWeight.bold,
                                 color: AppTheme.textHighEmphasis)),
                         IconButton(
