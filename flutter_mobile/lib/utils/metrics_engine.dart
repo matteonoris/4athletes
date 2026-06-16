@@ -7,6 +7,8 @@ export 'scoring/scoring_engine.dart';
 export 'scoring/scoring_types.dart';
 export 'scoring/sleep_need_calculator.dart';
 export 'scoring/sleep_score_calculator.dart';
+export 'scoring/strain_score_calculator.dart';
+export 'scoring/strain_sport_mapping.dart';
 export 'scoring/time_helpers.dart';
 
 import 'scoring/algorithm_config.dart';

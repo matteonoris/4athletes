@@ -47,8 +47,9 @@ class _BodyMetricsScreenState extends State<BodyMetricsScreen> {
                 _selectedType == 'weight'
                     ? 'Aggiungi Peso'
                     : 'Aggiungi Altezza',
-                style: const TextStyle(
-                    fontWeight: FontWeight.bold, color: Colors.white),
+                style: TextStyle(
+                    fontWeight: FontWeight.bold,
+                    color: AppTheme.textHighEmphasis),
               ),
               content: Column(
                 mainAxisSize: MainAxisSize.min,
@@ -85,13 +86,13 @@ class _BodyMetricsScreenState extends State<BodyMetricsScreen> {
                         firstDate: DateTime(2020),
                         lastDate: DateTime.now(),
                         builder: (context, child) => Theme(
-                          data: ThemeData.dark().copyWith(
-                            colorScheme: ColorScheme.dark(
-                              primary: AppTheme.primary,
-                              onPrimary: Colors.white,
-                              surface: AppTheme.card,
-                              onSurface: Colors.white,
-                            ),
+                          data: Theme.of(context).copyWith(
+                            colorScheme: Theme.of(context).colorScheme.copyWith(
+                                  primary: AppTheme.primary,
+                                  onPrimary: Colors.white,
+                                  surface: AppTheme.card,
+                                  onSurface: AppTheme.textHighEmphasis,
+                                ),
                           ),
                           child: child!,
                         ),
@@ -334,10 +335,9 @@ class _BodyMetricsScreenState extends State<BodyMetricsScreen> {
                               show: true,
                               drawVerticalLine: true,
                               getDrawingHorizontalLine: (value) => FlLine(
-                                  color: Colors.white.withValues(alpha: 0.05),
-                                  strokeWidth: 1),
+                                  color: AppTheme.chartGrid, strokeWidth: 1),
                               getDrawingVerticalLine: (value) => FlLine(
-                                  color: Colors.white.withValues(alpha: 0.05),
+                                  color: AppTheme.chartGrid,
                                   strokeWidth: 1,
                                   dashArray: [5, 5]),
                             ),

@@ -4,28 +4,64 @@ class HealthImportNormalizer {
   static const int minReliableHrSamples = 5;
   static const double minReliableHrCoverageRatio = 0.50;
   static const int maxContinuousHrGapSeconds = 300;
+  static const int maxWorkoutEdgeHrGapSeconds = 60;
 
   static HeartRateMetrics calculateHeartRateMetrics({
     required List<HeartRateSample> samples,
     required List<Map<String, int>> zones,
+    DateTime? workoutStart,
+    DateTime? workoutEnd,
   }) {
     if (samples.isEmpty) return HeartRateMetrics.empty();
 
+    final ordered = [...samples]..sort((a, b) => a.time.compareTo(b.time));
     final zoneSeconds = List<double>.filled(6, 0);
     double weightedTotal = 0;
     int coveredSeconds = 0;
 
-    for (var i = 0; i < samples.length - 1; i++) {
-      final gap = samples[i + 1].time.difference(samples[i].time).inSeconds;
-      if (gap <= 0 || gap > maxContinuousHrGapSeconds) continue;
-
-      final intervalHr = (samples[i].bpm + samples[i + 1].bpm) / 2;
-      weightedTotal += intervalHr * gap;
-      coveredSeconds += gap;
-      zoneSeconds[zoneIndexForBpm(intervalHr, zones)] += gap;
+    void addInterval({
+      required double zoneBpm,
+      required double averageBpm,
+      required int seconds,
+      int maxGapSeconds = maxContinuousHrGapSeconds,
+    }) {
+      if (seconds <= 0 || seconds > maxGapSeconds) return;
+      weightedTotal += averageBpm * seconds;
+      coveredSeconds += seconds;
+      zoneSeconds[zoneIndexForBpm(zoneBpm, zones)] += seconds;
     }
 
-    final values = samples.map((sample) => sample.bpm).toList();
+    if (workoutStart != null && ordered.first.time.isAfter(workoutStart)) {
+      addInterval(
+        zoneBpm: ordered.first.bpm,
+        averageBpm: ordered.first.bpm,
+        seconds: ordered.first.time.difference(workoutStart).inSeconds,
+        maxGapSeconds: maxWorkoutEdgeHrGapSeconds,
+      );
+    }
+
+    for (var i = 0; i < ordered.length - 1; i++) {
+      final current = ordered[i];
+      final next = ordered[i + 1];
+      final gap = next.time.difference(current.time).inSeconds;
+      if (gap <= 0 || gap > maxContinuousHrGapSeconds) continue;
+
+      final intervalHr = (current.bpm + next.bpm) / 2;
+      weightedTotal += intervalHr * gap;
+      coveredSeconds += gap;
+      zoneSeconds[zoneIndexForBpm(current.bpm, zones)] += gap;
+    }
+
+    if (workoutEnd != null && workoutEnd.isAfter(ordered.last.time)) {
+      addInterval(
+        zoneBpm: ordered.last.bpm,
+        averageBpm: ordered.last.bpm,
+        seconds: workoutEnd.difference(ordered.last.time).inSeconds,
+        maxGapSeconds: maxWorkoutEdgeHrGapSeconds,
+      );
+    }
+
+    final values = ordered.map((sample) => sample.bpm).toList();
     final average = coveredSeconds > 0
         ? (weightedTotal / coveredSeconds).round()
         : (values.reduce((a, b) => a + b) / values.length).round();
@@ -35,8 +71,8 @@ class HealthImportNormalizer {
       maxHeartRate: values.reduce(math.max).round(),
       zoneSeconds: zoneSeconds,
       coverageSeconds: coveredSeconds,
-      sampleCount: samples.length,
-      samples: samples,
+      sampleCount: ordered.length,
+      samples: ordered,
     );
   }
 

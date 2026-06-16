@@ -119,31 +119,81 @@ class HealthConnectWorkoutReader(
         if (records.isEmpty()) return emptyList()
 
         val sessionPackage = session.metadata.dataOrigin.packageName
-        val sessionSourceRecords = records
-            .filter { it.metadata.dataOrigin.packageName == sessionPackage }
-        val selectedRecords = if (sampleCount(sessionSourceRecords) >= 5) {
-            sessionSourceRecords
-        } else {
-            records
-                .groupBy { it.metadata.dataOrigin.packageName }
-                .maxByOrNull { sampleCount(it.value) }
-                ?.value ?: records
-        }
-
-        return selectedRecords
+        val samplesByPackage = records
             .flatMap { record ->
-                record.samples.map { sample ->
-                    mapOf(
-                        "time" to sample.time.toEpochMilli(),
-                        "bpm" to sample.beatsPerMinute
-                    )
-                }
+                record.samples
+                    .filter { sample ->
+                        !sample.time.isBefore(session.startTime) &&
+                            !sample.time.isAfter(session.endTime)
+                    }
+                    .map { sample ->
+                        HeartRateSamplePoint(
+                            time = sample.time,
+                            bpm = sample.beatsPerMinute,
+                            sourcePackage = record.metadata.dataOrigin.packageName
+                        )
+                    }
+            }
+            .groupBy { it.sourcePackage }
+
+        if (samplesByPackage.isEmpty()) return emptyList()
+
+        val selectedSamples = selectHeartRateSourceSamples(
+            samplesByPackage,
+            sessionPackage
+        )
+
+        return selectedSamples
+            .map { sample ->
+                mapOf(
+                    "time" to sample.time.toEpochMilli(),
+                    "bpm" to sample.bpm
+                )
             }
             .sortedBy { it["time"] as Long }
     }
 
-    private fun sampleCount(records: List<HeartRateRecord>): Int {
-        return records.sumOf { it.samples.size }
+    private fun selectHeartRateSourceSamples(
+        samplesByPackage: Map<String, List<HeartRateSamplePoint>>,
+        sessionPackage: String
+    ): List<HeartRateSamplePoint> {
+        val stats = samplesByPackage.map { (packageName, samples) ->
+            heartRateSourceStats(packageName, samples)
+        }
+        val best = stats.maxWithOrNull(
+            compareBy<HeartRateSourceStats> { it.coverageSeconds }
+                .thenBy { it.samples.size }
+        ) ?: return emptyList()
+        val sessionStats = stats.firstOrNull { it.packageName == sessionPackage }
+
+        if (sessionStats != null) {
+            if (sessionStats.samples.size >= best.samples.size * 0.80) {
+                return sessionStats.samples
+            }
+            if (
+                sessionStats.coverageSeconds >= best.coverageSeconds * 0.95 &&
+                sessionStats.samples.size >= best.samples.size * 0.50
+            ) {
+                return sessionStats.samples
+            }
+        }
+
+        return best.samples
+    }
+
+    private fun heartRateSourceStats(
+        packageName: String,
+        samples: List<HeartRateSamplePoint>
+    ): HeartRateSourceStats {
+        val sortedSamples = samples.sortedBy { it.time }
+        var coverageSeconds = 0L
+        for (i in 0 until sortedSamples.size - 1) {
+            val gap = Duration.between(sortedSamples[i].time, sortedSamples[i + 1].time).seconds
+            if (gap > 0 && gap <= 300) {
+                coverageSeconds += gap
+            }
+        }
+        return HeartRateSourceStats(packageName, sortedSamples, coverageSeconds)
     }
 
     private fun activeDurationSeconds(session: ExerciseSessionRecord): Long {
@@ -187,6 +237,18 @@ class HealthConnectWorkoutReader(
         }
     }
 }
+
+data class HeartRateSamplePoint(
+    val time: Instant,
+    val bpm: Long,
+    val sourcePackage: String
+)
+
+data class HeartRateSourceStats(
+    val packageName: String,
+    val samples: List<HeartRateSamplePoint>,
+    val coverageSeconds: Long
+)
 
 // MARK: - Pipeline Code
 

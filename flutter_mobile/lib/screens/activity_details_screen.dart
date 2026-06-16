@@ -42,7 +42,7 @@ class ActivityDetailsScreen extends StatelessWidget {
       decoration: BoxDecoration(
         color: AppTheme.card,
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: Colors.white.withValues(alpha: 0.05)),
+        border: Border.all(color: AppTheme.subtleBorder),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -103,7 +103,7 @@ class ActivityDetailsScreen extends StatelessWidget {
                     Container(
                       height: 12,
                       decoration: BoxDecoration(
-                        color: Colors.white.withValues(alpha: 0.05),
+                        color: AppTheme.subtleFill,
                         borderRadius: BorderRadius.circular(6),
                       ),
                     ),
@@ -181,7 +181,7 @@ class ActivityDetailsScreen extends StatelessWidget {
                         fontWeight: FontWeight.bold, fontSize: 34)),
                 const SizedBox(width: 10),
                 Padding(
-                  padding: EdgeInsets.only(bottom: 6),
+                  padding: const EdgeInsets.only(bottom: 6),
                   child: Text('FC media',
                       style: TextStyle(
                           color: AppTheme.textMediumEmphasis,
@@ -232,7 +232,7 @@ class ActivityDetailsScreen extends StatelessWidget {
         continue;
       }
 
-      final zone = _zoneIndexForHr((current.bpm + next.bpm) / 2, zones);
+      final zone = _zoneIndexForHr(current.bpm, zones);
       bars.add(LineChartBarData(
         spots: [
           FlSpot((current.time - start) / 60000.0, current.bpm),
@@ -260,7 +260,7 @@ class ActivityDetailsScreen extends StatelessWidget {
         drawVerticalLine: false,
         horizontalInterval: ((chartMax - chartMin) / 2).clamp(10, 50),
         getDrawingHorizontalLine: (_) =>
-            FlLine(color: Colors.white.withValues(alpha: 0.08), strokeWidth: 1),
+            FlLine(color: AppTheme.chartGrid, strokeWidth: 1),
       ),
       borderData: FlBorderData(show: false),
       titlesData: FlTitlesData(
@@ -373,7 +373,7 @@ class ActivityDetailsScreen extends StatelessWidget {
           padding: const EdgeInsets.symmetric(vertical: 12),
           decoration: BoxDecoration(
             border: Border(
-              top: BorderSide(color: Colors.white.withValues(alpha: 0.08)),
+              top: BorderSide(color: AppTheme.divider),
             ),
           ),
           child: Row(
@@ -1063,7 +1063,7 @@ class ActivityDetailsScreen extends StatelessWidget {
       decoration: BoxDecoration(
         color: AppTheme.background,
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: Colors.white.withValues(alpha: 0.06)),
+        border: Border.all(color: AppTheme.subtleBorder),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -1282,7 +1282,7 @@ class ActivityDetailsScreen extends StatelessWidget {
                   ],
                 ),
                 const SizedBox(height: 16),
-                const Divider(color: Colors.white10),
+                Divider(color: AppTheme.divider),
                 const SizedBox(height: 16),
                 _buildDetailRow(context, 'Categoria',
                     _drylandCategoryLabel(activity.category)),
@@ -1498,7 +1498,7 @@ class ActivityDetailsScreen extends StatelessWidget {
       decoration: BoxDecoration(
         color: AppTheme.background,
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: Colors.white.withValues(alpha: 0.06)),
+        border: Border.all(color: AppTheme.subtleBorder),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -1712,7 +1712,7 @@ class ActivityDetailsScreen extends StatelessWidget {
                   ],
                 ),
                 const SizedBox(height: 16),
-                const Divider(color: Colors.white10),
+                Divider(color: AppTheme.divider),
                 const SizedBox(height: 16),
                 _buildDetailRow(context, 'Data', session.date),
                 _buildDetailRow(context, 'Orario',

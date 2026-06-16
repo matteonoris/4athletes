@@ -57,8 +57,7 @@ class _TeamsScreenState extends State<TeamsScreen> {
                 elevation: 0,
                 bottom: PreferredSize(
                   preferredSize: const Size.fromHeight(1),
-                  child: Container(
-                      color: Colors.white.withValues(alpha: 0.05), height: 1),
+                  child: Container(color: AppTheme.divider, height: 1),
                 ),
                 title: const Text(
                   'I tuoi Team',
@@ -68,7 +67,7 @@ class _TeamsScreenState extends State<TeamsScreen> {
                   Container(
                     margin: const EdgeInsets.only(right: 16),
                     decoration: BoxDecoration(
-                      color: Colors.white.withValues(alpha: 0.05),
+                      color: AppTheme.subtleFill,
                       shape: BoxShape.circle,
                     ),
                     child: IconButton(
@@ -236,7 +235,7 @@ class _TeamsScreenState extends State<TeamsScreen> {
                             color: Colors.transparent,
                             borderRadius: BorderRadius.circular(12),
                             border: Border.all(
-                              color: Colors.white.withValues(alpha: 0.1),
+                              color: AppTheme.subtleBorder,
                               style: BorderStyle.solid,
                               width: 2,
                             ),
@@ -304,9 +303,9 @@ class _TeamsScreenState extends State<TeamsScreen> {
             right: 16,
             child: Material(
               elevation: 8,
-              shadowColor: Colors.white.withValues(alpha: 0.1),
+              shadowColor: AppTheme.shadow,
               borderRadius: BorderRadius.circular(30),
-              color: Colors.white,
+              color: AppTheme.primary,
               child: InkWell(
                 onTap: () {
                   Navigator.of(context).push(
@@ -320,12 +319,12 @@ class _TeamsScreenState extends State<TeamsScreen> {
                   child: Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      Icon(PhosphorIcons.plus(), size: 20, color: Colors.black),
+                      Icon(PhosphorIcons.plus(), size: 20, color: Colors.white),
                       const SizedBox(width: 8),
                       const Text(
                         'CREA TEAM',
                         style: TextStyle(
-                          color: Colors.black,
+                          color: Colors.white,
                           fontWeight: FontWeight.bold,
                           fontSize: 14,
                         ),
@@ -435,7 +434,7 @@ class _JoinTeamModalState extends State<_JoinTeamModal> {
         decoration: BoxDecoration(
           color: AppTheme.card,
           borderRadius: BorderRadius.circular(24),
-          border: Border.all(color: Colors.white.withValues(alpha: 0.1)),
+          border: Border.all(color: AppTheme.subtleBorder),
           boxShadow: [
             BoxShadow(
               color: Colors.black.withValues(alpha: 0.5),
@@ -502,7 +501,7 @@ class _JoinTeamModalState extends State<_JoinTeamModal> {
                       ? AppTheme.error
                       : (_codeCtrl.text.isNotEmpty
                           ? AppTheme.secondary
-                          : Colors.white.withValues(alpha: 0.1)),
+                          : AppTheme.subtleBorder),
                   width: 2,
                 ),
               ),
@@ -593,9 +592,9 @@ class _JoinTeamModalState extends State<_JoinTeamModal> {
                 style: ElevatedButton.styleFrom(
                   backgroundColor: _joinStatus == 'success'
                       ? AppTheme.success
-                      : Colors.white,
-                  foregroundColor: Colors.black,
-                  disabledBackgroundColor: Colors.white.withValues(alpha: 0.5),
+                      : AppTheme.primary,
+                  foregroundColor: Colors.white,
+                  disabledBackgroundColor: AppTheme.subtleFill,
                   shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(12)),
                   elevation: 0,
@@ -605,7 +604,7 @@ class _JoinTeamModalState extends State<_JoinTeamModal> {
                         width: 20,
                         height: 20,
                         child: CircularProgressIndicator(
-                            strokeWidth: 2, color: Colors.black))
+                            strokeWidth: 2, color: Colors.white))
                     : _joinStatus == 'success'
                         ? Row(
                             mainAxisAlignment: MainAxisAlignment.center,

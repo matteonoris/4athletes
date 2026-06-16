@@ -197,10 +197,9 @@ class _HealthMetricsScreenState extends State<HealthMetricsScreen> {
                               show: true,
                               drawVerticalLine: true,
                               getDrawingHorizontalLine: (value) => FlLine(
-                                  color: Colors.white.withValues(alpha: 0.05),
-                                  strokeWidth: 1),
+                                  color: AppTheme.chartGrid, strokeWidth: 1),
                               getDrawingVerticalLine: (value) => FlLine(
-                                  color: Colors.white.withValues(alpha: 0.05),
+                                  color: AppTheme.chartGrid,
                                   strokeWidth: 1,
                                   dashArray: [5, 5]),
                             ),

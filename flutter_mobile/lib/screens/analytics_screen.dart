@@ -121,7 +121,9 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
               decoration: BoxDecoration(
                 color: AppTheme.card,
                 borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: Colors.white.withValues(alpha: 0.1)),
+                border: Border.all(
+                  color: AppTheme.textLowEmphasis.withValues(alpha: 0.2),
+                ),
               ),
               child: DropdownButtonHideUnderline(
                 child: DropdownButton<String>(
@@ -247,22 +249,27 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
                             child: Column(
                               mainAxisAlignment: MainAxisAlignment.center,
                               children: [
-                                RichText(
-                                  text: TextSpan(
-                                    children: [
-                                      TextSpan(
-                                          text: _formatVal(
-                                              slLeftVal, 'jump', unitSystem),
-                                          style: const TextStyle(
-                                              fontSize: 18,
-                                              fontWeight: FontWeight.bold)),
-                                      TextSpan(
-                                          text: ' $jumpUnit',
-                                          style: TextStyle(
-                                              fontSize: 12,
-                                              color:
-                                                  AppTheme.textMediumEmphasis)),
-                                    ],
+                                FittedBox(
+                                  fit: BoxFit.scaleDown,
+                                  child: RichText(
+                                    text: TextSpan(
+                                      style: TextStyle(
+                                          color: AppTheme.textHighEmphasis),
+                                      children: [
+                                        TextSpan(
+                                            text: _formatVal(
+                                                slLeftVal, 'jump', unitSystem),
+                                            style: const TextStyle(
+                                                fontSize: 16,
+                                                fontWeight: FontWeight.bold)),
+                                        TextSpan(
+                                            text: ' $jumpUnit',
+                                            style: TextStyle(
+                                                fontSize: 11,
+                                                color: AppTheme
+                                                    .textMediumEmphasis)),
+                                      ],
+                                    ),
                                   ),
                                 ),
                                 Text('SX',
@@ -274,7 +281,12 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
                             ),
                           ),
                         ),
-                        Container(width: 1, height: 40, color: Colors.white10),
+                        Container(
+                          width: 1,
+                          height: 40,
+                          color:
+                              AppTheme.textLowEmphasis.withValues(alpha: 0.2),
+                        ),
                         Expanded(
                           child: InkWell(
                             onTap: () => Navigator.push(
@@ -288,22 +300,27 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
                             child: Column(
                               mainAxisAlignment: MainAxisAlignment.center,
                               children: [
-                                RichText(
-                                  text: TextSpan(
-                                    children: [
-                                      TextSpan(
-                                          text: _formatVal(
-                                              slRightVal, 'jump', unitSystem),
-                                          style: const TextStyle(
-                                              fontSize: 18,
-                                              fontWeight: FontWeight.bold)),
-                                      TextSpan(
-                                          text: ' $jumpUnit',
-                                          style: TextStyle(
-                                              fontSize: 12,
-                                              color:
-                                                  AppTheme.textMediumEmphasis)),
-                                    ],
+                                FittedBox(
+                                  fit: BoxFit.scaleDown,
+                                  child: RichText(
+                                    text: TextSpan(
+                                      style: TextStyle(
+                                          color: AppTheme.textHighEmphasis),
+                                      children: [
+                                        TextSpan(
+                                            text: _formatVal(
+                                                slRightVal, 'jump', unitSystem),
+                                            style: const TextStyle(
+                                                fontSize: 16,
+                                                fontWeight: FontWeight.bold)),
+                                        TextSpan(
+                                            text: ' $jumpUnit',
+                                            style: TextStyle(
+                                                fontSize: 11,
+                                                color: AppTheme
+                                                    .textMediumEmphasis)),
+                                      ],
+                                    ),
                                   ),
                                 ),
                                 Text('DX',
@@ -336,7 +353,8 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
                                 width: 96,
                                 height: 4,
                                 decoration: BoxDecoration(
-                                    color: Colors.white10,
+                                    color: AppTheme.textLowEmphasis
+                                        .withValues(alpha: 0.18),
                                     borderRadius: BorderRadius.circular(4)),
                                 child: Row(
                                   children: [
@@ -782,6 +800,7 @@ class _JumpCard extends StatelessWidget {
               RichText(
                 textAlign: TextAlign.center,
                 text: TextSpan(
+                  style: TextStyle(color: AppTheme.textHighEmphasis),
                   children: [
                     TextSpan(
                         text: val > 0
@@ -871,6 +890,7 @@ class _MaxLoadCard extends StatelessWidget {
                   color: AppTheme.textMediumEmphasis)),
           RichText(
             text: TextSpan(
+              style: TextStyle(color: AppTheme.textHighEmphasis),
               children: [
                 TextSpan(
                     text: hasPr ? val.toStringAsFixed(decimals) : '--',
@@ -878,7 +898,7 @@ class _MaxLoadCard extends StatelessWidget {
                         fontSize: 24,
                         fontWeight: FontWeight.w900,
                         color: hasPr
-                            ? Colors.white
+                            ? AppTheme.textHighEmphasis
                             : AppTheme.textMediumEmphasis)),
                 if (hasPr)
                   TextSpan(
@@ -992,13 +1012,13 @@ class _HistorySection extends StatelessWidget {
                         firstDate: DateTime(2020),
                         lastDate: DateTime.now(),
                         builder: (context, child) => Theme(
-                          data: ThemeData.dark().copyWith(
-                            colorScheme: ColorScheme.dark(
-                              primary: AppTheme.primary,
-                              onPrimary: Colors.white,
-                              surface: AppTheme.card,
-                              onSurface: Colors.white,
-                            ),
+                          data: Theme.of(context).copyWith(
+                            colorScheme: Theme.of(context).colorScheme.copyWith(
+                                  primary: AppTheme.primary,
+                                  onPrimary: Colors.white,
+                                  surface: AppTheme.card,
+                                  onSurface: AppTheme.textHighEmphasis,
+                                ),
                           ),
                           child: child!,
                         ),

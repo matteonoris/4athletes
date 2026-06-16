@@ -1,5 +1,6 @@
-Build TestFlight dedicata alla leggibilita' in light mode.
+Build TestFlight dedicata a strain di allenamento e import da Health.
 
-- Corregge contrasto di testi e campi durante l'onboarding in light mode.
-- Migliora la leggibilita' dei testi nel cambio tema chiaro/scuro.
-- Mantiene la selezione tema nell'area profilo condivisa da atleta e coach.
+- Aggiunge il calcolo dello strain giornaliero da sessioni e dati salute.
+- Migliora selezione e copertura dei campioni cardio negli allenamenti Health.
+- Conserva piu' dettagli coach come giri, porte e blocchi dryland.
+- Mantiene miglioramenti di contrasto per light e dark mode.

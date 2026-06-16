@@ -78,7 +78,7 @@ class _HrZonesScreenState extends State<HrZonesScreen> {
       decoration: BoxDecoration(
         color: AppTheme.card,
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: Colors.white.withValues(alpha: 0.05)),
+        border: Border.all(color: AppTheme.subtleBorder),
       ),
       child: Row(
         children: [
@@ -210,7 +210,7 @@ class _HrZonesScreenState extends State<HrZonesScreen> {
                       style: TextStyle(
                           fontSize: 12, color: AppTheme.textMediumEmphasis)),
                 ),
-                Divider(color: Colors.white.withValues(alpha: 0.05), height: 1),
+                Divider(color: AppTheme.divider, height: 1),
                 RadioListTile<String>(
                   value: 'custom',
                   groupValue: _mode,

@@ -39,6 +39,23 @@ class AppTheme {
       _isDark ? _darkTextMediumEmphasis : _lightTextMediumEmphasis;
   static Color get textLowEmphasis =>
       _isDark ? _darkTextLowEmphasis : _lightTextLowEmphasis;
+  static Color get divider =>
+      _isDark ? Colors.white.withValues(alpha: 0.06) : const Color(0xFFE4E7EC);
+  static Color get subtleBorder =>
+      _isDark ? Colors.white.withValues(alpha: 0.06) : const Color(0xFFE4E7EC);
+  static Color get subtleFill =>
+      _isDark ? Colors.white.withValues(alpha: 0.05) : const Color(0xFFF2F4F7);
+  static Color get selectedSoftFill => _isDark
+      ? primary.withValues(alpha: 0.16)
+      : primary.withValues(alpha: 0.10);
+  static Color get chartGrid =>
+      _isDark ? Colors.white.withValues(alpha: 0.08) : const Color(0xFFE4E7EC);
+  static Color get modalHandle => _isDark
+      ? Colors.white.withValues(alpha: 0.20)
+      : _lightTextLowEmphasis.withValues(alpha: 0.55);
+  static Color get shadow => _isDark
+      ? Colors.black.withValues(alpha: 0.35)
+      : Colors.black.withValues(alpha: 0.08);
 
   static String normalizeThemeMode(String? mode) {
     return mode == darkMode ? darkMode : lightMode;

@@ -307,7 +307,7 @@ class _CoachAthleticTestScreenState extends State<CoachAthleticTestScreen> {
               border: Border.all(
                 color: a['isPresent']
                     ? AppTheme.primary
-                    : Colors.white.withOpacity(0.05),
+                    : AppTheme.textLowEmphasis.withValues(alpha: 0.2),
               ),
             ),
             child: Row(
@@ -380,15 +380,15 @@ class _CoachAthleticTestScreenState extends State<CoachAthleticTestScreen> {
                         ? 'Alt.'
                         : (widget.testId == 'leger' ? 'VAM' : '0.0'),
                     hintStyle: TextStyle(
-                        color: AppTheme.textMediumEmphasis.withOpacity(0.5)),
+                        color: AppTheme.textMediumEmphasis
+                            .withValues(alpha: 0.55)),
                     filled: true,
-                    fillColor: AppTheme.background,
+                    fillColor: AppTheme.surface,
                     contentPadding:
                         const EdgeInsets.symmetric(vertical: 12, horizontal: 8),
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(8),
-                      borderSide: BorderSide.none,
-                    ),
+                    border: _inputBorder(),
+                    enabledBorder: _inputBorder(),
+                    focusedBorder: _inputBorder(AppTheme.primary, 2),
                   ),
                 ),
               ),
@@ -408,15 +408,15 @@ class _CoachAthleticTestScreenState extends State<CoachAthleticTestScreen> {
                     decoration: InputDecoration(
                       hintText: 'RSI',
                       hintStyle: TextStyle(
-                          color: AppTheme.textMediumEmphasis.withOpacity(0.5)),
+                          color: AppTheme.textMediumEmphasis
+                              .withValues(alpha: 0.55)),
                       filled: true,
-                      fillColor: AppTheme.background,
+                      fillColor: AppTheme.surface,
                       contentPadding: const EdgeInsets.symmetric(
                           vertical: 12, horizontal: 8),
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(8),
-                        borderSide: BorderSide.none,
-                      ),
+                      border: _inputBorder(),
+                      enabledBorder: _inputBorder(),
+                      focusedBorder: _inputBorder(AppTheme.primary, 2),
                     ),
                   ),
                 ),
@@ -437,15 +437,15 @@ class _CoachAthleticTestScreenState extends State<CoachAthleticTestScreen> {
                     decoration: InputDecoration(
                       hintText: 'VO2',
                       hintStyle: TextStyle(
-                          color: AppTheme.textMediumEmphasis.withOpacity(0.5)),
+                          color: AppTheme.textMediumEmphasis
+                              .withValues(alpha: 0.55)),
                       filled: true,
-                      fillColor: AppTheme.background,
+                      fillColor: AppTheme.surface,
                       contentPadding: const EdgeInsets.symmetric(
                           vertical: 12, horizontal: 8),
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(8),
-                        borderSide: BorderSide.none,
-                      ),
+                      border: _inputBorder(),
+                      enabledBorder: _inputBorder(),
+                      focusedBorder: _inputBorder(AppTheme.primary, 2),
                     ),
                   ),
                 ),
@@ -464,15 +464,15 @@ class _CoachAthleticTestScreenState extends State<CoachAthleticTestScreen> {
                     decoration: InputDecoration(
                       hintText: 'Dist',
                       hintStyle: TextStyle(
-                          color: AppTheme.textMediumEmphasis.withOpacity(0.5)),
+                          color: AppTheme.textMediumEmphasis
+                              .withValues(alpha: 0.55)),
                       filled: true,
-                      fillColor: AppTheme.background,
+                      fillColor: AppTheme.surface,
                       contentPadding: const EdgeInsets.symmetric(
                           vertical: 12, horizontal: 8),
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(8),
-                        borderSide: BorderSide.none,
-                      ),
+                      border: _inputBorder(),
+                      enabledBorder: _inputBorder(),
+                      focusedBorder: _inputBorder(AppTheme.primary, 2),
                     ),
                   ),
                 ),
@@ -481,6 +481,16 @@ class _CoachAthleticTestScreenState extends State<CoachAthleticTestScreen> {
           ),
         );
       },
+    );
+  }
+
+  OutlineInputBorder _inputBorder([Color? color, double width = 1]) {
+    return OutlineInputBorder(
+      borderRadius: BorderRadius.circular(8),
+      borderSide: BorderSide(
+        color: color ?? AppTheme.textLowEmphasis.withValues(alpha: 0.18),
+        width: width,
+      ),
     );
   }
 }

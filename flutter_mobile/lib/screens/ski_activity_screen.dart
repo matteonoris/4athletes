@@ -455,7 +455,7 @@ class _SkiActivityScreenState extends State<SkiActivityScreen> {
       decoration: BoxDecoration(
         color: AppTheme.background,
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: Colors.white.withValues(alpha: 0.06)),
+        border: Border.all(color: AppTheme.subtleBorder),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -532,7 +532,7 @@ class _SkiActivityScreenState extends State<SkiActivityScreen> {
         decoration: BoxDecoration(
           color: AppTheme.background,
           borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: Colors.white.withValues(alpha: 0.06)),
+          border: Border.all(color: AppTheme.subtleBorder),
         ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,

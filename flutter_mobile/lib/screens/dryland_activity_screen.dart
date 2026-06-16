@@ -165,6 +165,58 @@ class _DrylandActivityScreenState extends State<DrylandActivityScreen> {
     return '${time.hour.toString().padLeft(2, '0')}:${time.minute.toString().padLeft(2, '0')}';
   }
 
+  double _asDouble(dynamic value) {
+    if (value is num) return value.toDouble();
+    if (value == null) return 0.0;
+    return double.tryParse(value.toString().replaceAll(',', '.')) ?? 0.0;
+  }
+
+  double _oneRepMaxForExercise(AppState appState, String exerciseId) {
+    var maxLoad = appState.userProfile?.oneRepMax?[exerciseId] ?? 0.0;
+    for (final log
+        in appState.prLogs.where((log) => log.exerciseId == exerciseId)) {
+      if (log.weight > maxLoad) maxLoad = log.weight;
+    }
+    return maxLoad;
+  }
+
+  double? _percent1RMForSet(
+    AppState appState,
+    String exerciseId,
+    Map<String, dynamic> set,
+  ) {
+    final load = _asDouble(set['kg']);
+    final maxLoad = _oneRepMaxForExercise(appState, exerciseId);
+    if (load <= 0 || maxLoad <= 0) return null;
+    return (load / maxLoad) * 100;
+  }
+
+  void _syncSetPercent1RM(
+    AppState appState,
+    String exerciseId,
+    Map<String, dynamic> set,
+  ) {
+    set['percent1RM'] = _percent1RMForSet(appState, exerciseId, set);
+  }
+
+  void _syncAllPercent1RM(AppState appState) {
+    for (final exercise in _strengthExercises) {
+      final exerciseId = exercise['exerciseId']?.toString() ?? '';
+      final sets = exercise['sets'];
+      if (exerciseId.isEmpty || sets is! List) continue;
+      for (var i = 0; i < sets.length; i++) {
+        final set = sets[i];
+        if (set is Map<String, dynamic>) {
+          _syncSetPercent1RM(appState, exerciseId, set);
+        } else if (set is Map) {
+          final normalized = Map<String, dynamic>.from(set);
+          _syncSetPercent1RM(appState, exerciseId, normalized);
+          sets[i] = normalized;
+        }
+      }
+    }
+  }
+
   int _calculateDuration() {
     final start = _startTime.hour * 60 + _startTime.minute;
     final end = _endTime.hour * 60 + _endTime.minute;
@@ -267,6 +319,9 @@ class _DrylandActivityScreenState extends State<DrylandActivityScreen> {
   }
 
   TrainingActivity _buildActivity({String? id}) {
+    final appState = Provider.of<AppState>(context, listen: false);
+    _syncAllPercent1RM(appState);
+
     final blocks = <TrainingBlock>[];
     if (_strengthExercises.isNotEmpty) {
       blocks.add(TrainingBlock(
@@ -328,7 +383,7 @@ class _DrylandActivityScreenState extends State<DrylandActivityScreen> {
       id: id ??
           widget.initialSession?.id ??
           DateTime.now().millisecondsSinceEpoch.toString(),
-      athleteId: Provider.of<AppState>(context, listen: false).userId,
+      athleteId: appState.userId,
       source: ActivitySource.athlete,
       status: ActivityStatus.completed,
       category: _category,
@@ -577,8 +632,7 @@ class _DrylandActivityScreenState extends State<DrylandActivityScreen> {
                       onPressed: () => _applyTemplate(template),
                       backgroundColor: AppTheme.surface,
                       labelStyle: TextStyle(color: AppTheme.textHighEmphasis),
-                      side: BorderSide(
-                          color: Colors.white.withValues(alpha: 0.08)),
+                      side: BorderSide(color: AppTheme.subtleBorder),
                     );
                   },
                   separatorBuilder: (_, __) => const SizedBox(width: 8),
@@ -827,6 +881,13 @@ class _DrylandActivityScreenState extends State<DrylandActivityScreen> {
 
   Widget _strengthSetRow(
       int exerciseIndex, int setIndex, Map<String, dynamic> set) {
+    final appState = Provider.of<AppState>(context);
+    final exercise = _strengthExercises[exerciseIndex];
+    final exerciseId = exercise['exerciseId']?.toString() ?? '';
+    final percent1RM = exerciseId.isEmpty
+        ? null
+        : _percent1RMForSet(appState, exerciseId, set);
+
     String fieldValue(String key) {
       final value = set[key];
       if (value == null || value == 0) return '';
@@ -868,7 +929,7 @@ class _DrylandActivityScreenState extends State<DrylandActivityScreen> {
           ),
           enabledBorder: OutlineInputBorder(
             borderRadius: BorderRadius.circular(10),
-            borderSide: BorderSide(color: Colors.white.withValues(alpha: 0.08)),
+            borderSide: BorderSide(color: AppTheme.subtleBorder),
           ),
           focusedBorder: OutlineInputBorder(
             borderRadius: BorderRadius.circular(10),
@@ -877,13 +938,55 @@ class _DrylandActivityScreenState extends State<DrylandActivityScreen> {
         ),
         onChanged: (value) {
           final normalized = value.replaceAll(',', '.');
-          if (normalized.isEmpty) {
-            set[key] = null;
-            return;
-          }
-          set[key] =
-              decimal ? double.tryParse(normalized) : int.tryParse(normalized);
+          setState(() {
+            if (normalized.isEmpty) {
+              set[key] = null;
+            } else {
+              set[key] = decimal
+                  ? double.tryParse(normalized)
+                  : int.tryParse(normalized);
+            }
+            if (key == 'kg' && exerciseId.isNotEmpty) {
+              _syncSetPercent1RM(appState, exerciseId, set);
+            }
+          });
         },
+      );
+    }
+
+    Widget calculatedPercentField() {
+      final value = percent1RM == null ? '' : percent1RM.toStringAsFixed(0);
+      return TextFormField(
+        key: ValueKey('percent1rm_${exerciseIndex}_${setIndex}_$value'),
+        initialValue: value,
+        readOnly: true,
+        enableInteractiveSelection: false,
+        textAlign: TextAlign.center,
+        cursorColor: AppTheme.primary,
+        style: TextStyle(
+          color: percent1RM == null
+              ? AppTheme.textMediumEmphasis
+              : AppTheme.textHighEmphasis,
+          fontSize: 14,
+          fontWeight: FontWeight.w700,
+        ),
+        decoration: InputDecoration(
+          labelText: '% 1RM',
+          suffixText: percent1RM == null ? null : '%',
+          isDense: true,
+          filled: true,
+          fillColor: AppTheme.surface,
+          contentPadding:
+              const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
+          border: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(10),
+            borderSide: BorderSide.none,
+          ),
+          enabledBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(10),
+            borderSide: BorderSide(color: AppTheme.subtleBorder),
+          ),
+        ),
       );
     }
 
@@ -911,7 +1014,7 @@ class _DrylandActivityScreenState extends State<DrylandActivityScreen> {
           ),
           enabledBorder: OutlineInputBorder(
             borderRadius: BorderRadius.circular(10),
-            borderSide: BorderSide(color: Colors.white.withValues(alpha: 0.08)),
+            borderSide: BorderSide(color: AppTheme.subtleBorder),
           ),
           focusedBorder: OutlineInputBorder(
             borderRadius: BorderRadius.circular(10),
@@ -928,9 +1031,9 @@ class _DrylandActivityScreenState extends State<DrylandActivityScreen> {
       child: Container(
         padding: const EdgeInsets.all(10),
         decoration: BoxDecoration(
-          color: Colors.white.withValues(alpha: 0.03),
+          color: AppTheme.subtleFill,
           borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: Colors.white.withValues(alpha: 0.06)),
+          border: Border.all(color: AppTheme.subtleBorder),
         ),
         child: Column(
           children: [
@@ -981,7 +1084,7 @@ class _DrylandActivityScreenState extends State<DrylandActivityScreen> {
                       ),
                     SizedBox(
                       width: fieldWidth,
-                      child: numberField('% 1RM', 'percent1RM'),
+                      child: calculatedPercentField(),
                     ),
                     SizedBox(
                       width: fieldWidth,
@@ -1701,7 +1804,7 @@ class _DrylandActivityScreenState extends State<DrylandActivityScreen> {
     return BoxDecoration(
       color: AppTheme.background,
       borderRadius: BorderRadius.circular(12),
-      border: Border.all(color: Colors.white.withValues(alpha: 0.06)),
+      border: Border.all(color: AppTheme.subtleBorder),
     );
   }
 
@@ -1709,7 +1812,7 @@ class _DrylandActivityScreenState extends State<DrylandActivityScreen> {
     return BoxDecoration(
       color: AppTheme.surface,
       borderRadius: BorderRadius.circular(12),
-      border: Border.all(color: Colors.white.withValues(alpha: 0.06)),
+      border: Border.all(color: AppTheme.subtleBorder),
     );
   }
 }

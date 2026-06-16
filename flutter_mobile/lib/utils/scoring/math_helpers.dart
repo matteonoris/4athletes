@@ -83,6 +83,25 @@ double? safeStandardDeviation(List<num?> values, double minStdDev) {
   return math.max(math.sqrt(variance), minStdDev);
 }
 
+double? percentile(List<num?> values, double percentile) {
+  final finite = values
+      .where(isFiniteNumber)
+      .map((value) => value!.toDouble())
+      .toList(growable: false)
+    ..sort();
+  if (finite.isEmpty || !percentile.isFinite) return null;
+  final clamped = clampDouble(percentile, 0, 1);
+  if (finite.length == 1) return finite.first;
+
+  final rank = clamped * (finite.length - 1);
+  final lower = rank.floor();
+  final upper = rank.ceil();
+  if (lower == upper) return finite[lower];
+
+  final fraction = rank - lower;
+  return finite[lower] + (finite[upper] - finite[lower]) * fraction;
+}
+
 double? zScore({
   required double value,
   required double mean,

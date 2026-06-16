@@ -542,9 +542,12 @@ class _CoachEventDetailsScreenState extends State<CoachEventDetailsScreen> {
       'respondedAt': source?['respondedAt'],
       'laps': source?['laps'],
       'freeLaps': source?['freeLaps'],
+      'freeChanges': source?['freeChanges'],
       'trainingLaps': source?['trainingLaps'],
       'trackLaps': source?['trackLaps'],
+      'trackGates': source?['trackGates'],
       'trainingBlockLaps': source?['trainingBlockLaps'],
+      'trainingBlockReferences': source?['trainingBlockReferences'],
       'rpe': source?['rpe'],
       'pain': source?['pain'],
       'chronoNotes': source?['chronoNotes'],
@@ -770,9 +773,7 @@ class _CoachEventDetailsScreenState extends State<CoachEventDetailsScreen> {
                     fontWeight: FontWeight.bold,
                   ),
                   side: BorderSide(
-                    color: selected
-                        ? AppTheme.primary
-                        : Colors.white.withValues(alpha: 0.08),
+                    color: selected ? AppTheme.primary : AppTheme.subtleFill,
                   ),
                 );
               }).toList(),
@@ -861,9 +862,7 @@ class _CoachEventDetailsScreenState extends State<CoachEventDetailsScreen> {
                   fontWeight: FontWeight.bold,
                 ),
                 side: BorderSide(
-                  color: selected
-                      ? AppTheme.primary
-                      : Colors.white.withValues(alpha: 0.08),
+                  color: selected ? AppTheme.primary : AppTheme.subtleFill,
                 ),
                 onSelected: (_) => setState(() {
                   _drylandCategory = category;
@@ -991,7 +990,7 @@ class _CoachEventDetailsScreenState extends State<CoachEventDetailsScreen> {
       decoration: BoxDecoration(
         color: AppTheme.background,
         borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: Colors.white.withValues(alpha: 0.06)),
+        border: Border.all(color: AppTheme.subtleBorder),
       ),
       child: Text(
         '$label: $value',
@@ -1673,7 +1672,7 @@ class _CoachEventDetailsScreenState extends State<CoachEventDetailsScreen> {
     return BoxDecoration(
       color: AppTheme.background,
       borderRadius: BorderRadius.circular(12),
-      border: Border.all(color: Colors.white.withValues(alpha: 0.06)),
+      border: Border.all(color: AppTheme.subtleBorder),
     );
   }
 
@@ -1917,9 +1916,7 @@ class _CoachEventDetailsScreenState extends State<CoachEventDetailsScreen> {
                     fontWeight: FontWeight.bold,
                   ),
                   side: BorderSide(
-                    color: selected
-                        ? AppTheme.primary
-                        : Colors.white.withValues(alpha: 0.08),
+                    color: selected ? AppTheme.primary : AppTheme.subtleFill,
                   ),
                 );
               }).toList(),
@@ -2002,7 +1999,7 @@ class _CoachEventDetailsScreenState extends State<CoachEventDetailsScreen> {
             decoration: BoxDecoration(
               color: AppTheme.background,
               borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: Colors.white.withValues(alpha: 0.06)),
+              border: Border.all(color: AppTheme.subtleBorder),
             ),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -2195,8 +2192,7 @@ class _CoachEventDetailsScreenState extends State<CoachEventDetailsScreen> {
                   decoration: BoxDecoration(
                     color: AppTheme.background,
                     borderRadius: BorderRadius.circular(12),
-                    border:
-                        Border.all(color: Colors.white.withValues(alpha: 0.06)),
+                    border: Border.all(color: AppTheme.subtleBorder),
                   ),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
@@ -2297,9 +2293,7 @@ class _CoachEventDetailsScreenState extends State<CoachEventDetailsScreen> {
             color: selected ? AppTheme.primary : AppTheme.background,
             borderRadius: BorderRadius.circular(12),
             border: Border.all(
-              color: selected
-                  ? AppTheme.primary
-                  : Colors.white.withValues(alpha: 0.08),
+              color: selected ? AppTheme.primary : AppTheme.subtleFill,
             ),
           ),
           child: Center(
@@ -2383,7 +2377,7 @@ class _CoachEventDetailsScreenState extends State<CoachEventDetailsScreen> {
           decoration: BoxDecoration(
             color: AppTheme.background,
             borderRadius: BorderRadius.circular(12),
-            border: Border.all(color: Colors.white.withValues(alpha: 0.06)),
+            border: Border.all(color: AppTheme.subtleBorder),
           ),
           child: TextField(
             controller: controller,
@@ -2416,7 +2410,7 @@ class _CoachEventDetailsScreenState extends State<CoachEventDetailsScreen> {
       decoration: BoxDecoration(
         color: AppTheme.background,
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: Colors.white.withValues(alpha: 0.06)),
+        border: Border.all(color: AppTheme.subtleBorder),
       ),
       child: TextField(
         onChanged: (value) => setState(() => _searchQuery = value),
@@ -2450,7 +2444,7 @@ class _CoachEventDetailsScreenState extends State<CoachEventDetailsScreen> {
           border: Border.all(
             color: invited
                 ? AppTheme.primary.withValues(alpha: 0.45)
-                : Colors.white.withValues(alpha: 0.06),
+                : AppTheme.subtleFill,
           ),
         ),
         child: Row(
@@ -2505,9 +2499,7 @@ class _CoachEventDetailsScreenState extends State<CoachEventDetailsScreen> {
             color: selected ? _statusColor(status) : AppTheme.card,
             borderRadius: BorderRadius.circular(10),
             border: Border.all(
-              color: selected
-                  ? _statusColor(status)
-                  : Colors.white.withValues(alpha: 0.06),
+              color: selected ? _statusColor(status) : AppTheme.subtleFill,
             ),
           ),
           child: Center(
@@ -2553,9 +2545,7 @@ class _CoachEventDetailsScreenState extends State<CoachEventDetailsScreen> {
                     color: selected ? AppTheme.primary : AppTheme.background,
                     borderRadius: BorderRadius.circular(12),
                     border: Border.all(
-                      color: selected
-                          ? AppTheme.primary
-                          : Colors.white.withValues(alpha: 0.06),
+                      color: selected ? AppTheme.primary : AppTheme.subtleFill,
                     ),
                   ),
                   child: Center(
@@ -2593,7 +2583,7 @@ class _CoachEventDetailsScreenState extends State<CoachEventDetailsScreen> {
       decoration: BoxDecoration(
         color: AppTheme.background,
         borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: Colors.white.withValues(alpha: 0.06)),
+        border: Border.all(color: AppTheme.subtleBorder),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -2699,7 +2689,7 @@ class _CoachEventDetailsScreenState extends State<CoachEventDetailsScreen> {
           decoration: BoxDecoration(
             color: AppTheme.background,
             borderRadius: BorderRadius.circular(12),
-            border: Border.all(color: Colors.white.withValues(alpha: 0.06)),
+            border: Border.all(color: AppTheme.subtleBorder),
           ),
           child: TextField(
             controller: _notesCtrl,
@@ -2991,9 +2981,12 @@ class _CoachEventDetailsScreenState extends State<CoachEventDetailsScreen> {
         'respondedAt': athlete['respondedAt'],
         'laps': athlete['laps'],
         'freeLaps': athlete['freeLaps'],
+        'freeChanges': athlete['freeChanges'],
         'trainingLaps': athlete['trainingLaps'],
         'trackLaps': athlete['trackLaps'],
+        'trackGates': athlete['trackGates'],
         'trainingBlockLaps': athlete['trainingBlockLaps'],
+        'trainingBlockReferences': athlete['trainingBlockReferences'],
         'rpe': athlete['rpe'],
         'pain': athlete['pain'],
         'chronoNotes': athlete['chronoNotes'],

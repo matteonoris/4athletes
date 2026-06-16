@@ -204,8 +204,8 @@ class _CreateTeamScreenState extends State<CreateTeamScreen> {
                 icon: Icon(PhosphorIcons.copy(), size: 18),
                 label: const Text('Copia Codice'),
                 style: OutlinedButton.styleFrom(
-                  foregroundColor: Colors.white,
-                  side: const BorderSide(color: Colors.white24),
+                  foregroundColor: AppTheme.textHighEmphasis,
+                  side: BorderSide(color: AppTheme.subtleBorder),
                   shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(8)),
                 ),

@@ -20,6 +20,7 @@ import '../utils/time_utils.dart';
 import '../widgets/bottom_nav.dart';
 import '../widgets/custom_card.dart';
 
+import 'analytics_details_screen.dart';
 import 'analytics_screen.dart';
 import 'health_screen.dart';
 import 'activity_select.dart';
@@ -732,7 +733,8 @@ class _DashboardViewState extends State<_DashboardView> {
                               width: 52,
                               height: 52,
                               decoration: BoxDecoration(
-                                  color: const Color(0xFF1C2530),
+                                  color: AppTheme.secondary
+                                      .withValues(alpha: 0.12),
                                   borderRadius: BorderRadius.circular(12)),
                               child: Icon(
                                   event.sportCategory == 'ski'
@@ -877,7 +879,7 @@ class _DashboardViewState extends State<_DashboardView> {
                               width: 52,
                               height: 52,
                               decoration: BoxDecoration(
-                                color: const Color(0xFF1C2530),
+                                color: AppTheme.primary.withValues(alpha: 0.12),
                                 borderRadius: BorderRadius.circular(12),
                               ),
                               child: Icon(sIcon,
@@ -1148,12 +1150,10 @@ class _DashboardViewState extends State<_DashboardView> {
                                           filteredWeight.length > 7 ? 7 : 1,
                                       getDrawingHorizontalLine: (value) =>
                                           FlLine(
-                                              color: Colors.white
-                                                  .withValues(alpha: 0.05),
+                                              color: AppTheme.chartGrid,
                                               strokeWidth: 1),
                                       getDrawingVerticalLine: (value) => FlLine(
-                                          color: Colors.white
-                                              .withValues(alpha: 0.05),
+                                          color: AppTheme.chartGrid,
                                           strokeWidth: 1,
                                           dashArray: [5, 5]),
                                     ),
@@ -1401,8 +1401,7 @@ class _DashboardViewState extends State<_DashboardView> {
                                   show: true,
                                   drawVerticalLine: false,
                                   getDrawingHorizontalLine: (value) => FlLine(
-                                      color:
-                                          Colors.white.withValues(alpha: 0.05),
+                                      color: AppTheme.chartGrid,
                                       strokeWidth: 1),
                                 ),
                                 titlesData: FlTitlesData(
@@ -1631,13 +1630,20 @@ class _DashboardViewState extends State<_DashboardView> {
     bool isCalibration = appState.healthSyncError == "CALIBRATION_PHASE";
     if (appState.healthSyncCompleted &&
         (appState.currentRecoveryScore != null || isCalibration)) {
-      const sleepScoreColor = Color(0xFF2438A6);
+      final sleepScore = appState.currentSleepScore;
+      final sleepScoreColor =
+          sleepScore == null ? Colors.grey[700]! : const Color(0xFF4656E8);
+      final strainScore = appState.strainScoreForDate(_currentDate);
+      final strainScoreColor = strainScore == null
+          ? Colors.grey[700]!
+          : _strainScoreColor(strainScore);
+      final recoveryScore = appState.currentRecoveryScore;
       final recoveryScoreColor = isCalibration
           ? Colors.grey[700]!
-          : _recoveryScoreColor(appState.currentRecoveryScore);
+          : _recoveryScoreColor(recoveryScore);
       final readiness = isCalibration
           ? 'Readiness: ${readinessStatus(null)}'
-          : 'Readiness: ${readinessStatus(appState.currentRecoveryScore)}';
+          : 'Readiness: ${readinessStatus(recoveryScore)}';
 
       return Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -1671,135 +1677,101 @@ class _DashboardViewState extends State<_DashboardView> {
             ],
           ),
           const SizedBox(height: 12),
-          IntrinsicHeight(
-            child: Row(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                Expanded(
-                  child: GestureDetector(
-                    onTap: () {
-                      HapticFeedback.lightImpact();
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (_) => DailyReadinessDetailsScreen(
-                            title: 'Sleep Score',
-                            score: appState.currentSleepScore!,
-                            dailyMetrics: appState.currentDailyMetrics ?? {},
-                            historicalMetrics:
-                                appState.currentHistoricalMetrics ?? {},
-                          ),
-                        ),
-                      );
-                    },
-                    child: CustomCard(
-                      padding: const EdgeInsets.all(16),
-                      height: 194,
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.center,
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          Row(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            children: [
-                              const Icon(Icons.nightlight_round,
-                                  color: Colors.indigoAccent, size: 16),
-                              const SizedBox(width: 8),
-                              Text('Sleep',
-                                  style: Theme.of(context)
-                                      .textTheme
-                                      .bodyMedium
-                                      ?.copyWith(
-                                          fontWeight: FontWeight.bold,
-                                          color: AppTheme.textMediumEmphasis)),
-                            ],
-                          ),
-                          const SizedBox(height: 16),
-                          _ScoreRing(
-                            value: appState.currentSleepScore! / 100.0,
-                            label:
-                                appState.currentSleepScore!.toStringAsFixed(0),
-                            color: sleepScoreColor,
-                            secondaryColor: const Color(0xFF6C7BFF),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: GestureDetector(
-                    onTap: () {
-                      HapticFeedback.lightImpact();
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (_) => DailyReadinessDetailsScreen(
-                            title: 'Recovery',
-                            score: appState.currentRecoveryScore,
-                            dailyMetrics: appState.currentDailyMetrics ?? {},
-                            historicalMetrics:
-                                appState.currentHistoricalMetrics ?? {},
-                          ),
-                        ),
-                      );
-                    },
-                    child: CustomCard(
-                      padding: const EdgeInsets.all(16),
-                      height: 194,
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.center,
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          Row(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            children: [
-                              Icon(Icons.battery_charging_full,
-                                  color: recoveryScoreColor, size: 16),
-                              const SizedBox(width: 8),
-                              Text('Recovery',
-                                  style: Theme.of(context)
-                                      .textTheme
-                                      .bodyMedium
-                                      ?.copyWith(
-                                          fontWeight: FontWeight.bold,
-                                          color: AppTheme.textMediumEmphasis)),
-                            ],
-                          ),
-                          const SizedBox(height: 16),
-                          _ScoreRing(
-                            value: isCalibration
-                                ? 1.0
-                                : appState.currentRecoveryScore! / 100.0,
-                            label: isCalibration
-                                ? '--'
-                                : appState.currentRecoveryScore!
-                                    .toStringAsFixed(0),
-                            color: recoveryScoreColor,
-                            secondaryColor: isCalibration
-                                ? Colors.grey[500]!
-                                : _recoveryScoreHighlight(
-                                    appState.currentRecoveryScore,
-                                  ),
-                          ),
-                          const SizedBox(height: 12),
-                          Text(
-                            readiness,
-                            textAlign: TextAlign.center,
-                            style: TextStyle(
-                              color: AppTheme.textMediumEmphasis,
-                              fontSize: 12,
-                              fontWeight: FontWeight.w600,
+          _ReadinessOverviewCard(
+            readinessLabel: readiness,
+            insight: _readinessInsight(
+              isCalibration: isCalibration,
+              sleepScore: sleepScore,
+              strainScore: strainScore,
+              recoveryScore: recoveryScore,
+            ),
+            metrics: [
+              _ReadinessMetricData(
+                icon: Icons.nightlight_round,
+                title: 'Sleep',
+                label:
+                    sleepScore == null ? '--' : sleepScore.toStringAsFixed(0),
+                caption: _sleepScoreStatus(sleepScore),
+                value: sleepScore == null ? 1.0 : sleepScore / 100.0,
+                color: sleepScoreColor,
+                secondaryColor: sleepScore == null
+                    ? Colors.grey[500]!
+                    : const Color(0xFF7D8BFF),
+                onTap: sleepScore == null
+                    ? null
+                    : () {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (_) => DailyReadinessDetailsScreen(
+                              title: 'Sleep Score',
+                              score: sleepScore,
+                              dailyMetrics: appState.currentDailyMetrics ?? {},
+                              historicalMetrics:
+                                  appState.currentHistoricalMetrics ?? {},
                             ),
                           ),
-                        ],
+                        );
+                      },
+              ),
+              _ReadinessMetricData(
+                icon: Icons.local_fire_department,
+                title: 'Strain',
+                value: strainScore == null ? 1.0 : strainScore / 100.0,
+                label:
+                    strainScore == null ? '--' : strainScore.toStringAsFixed(0),
+                caption: _strainScoreStatus(strainScore),
+                color: strainScoreColor,
+                secondaryColor: strainScore == null
+                    ? Colors.grey[500]!
+                    : _strainScoreHighlight(strainScore),
+                onTap: strainScore == null
+                    ? null
+                    : () {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (_) => const AnalyticsDetailsScreen(
+                              title: 'Strain Score',
+                              type: 'body',
+                              exerciseId: 'strain_score',
+                            ),
+                          ),
+                        );
+                      },
+              ),
+              _ReadinessMetricData(
+                icon: Icons.battery_charging_full,
+                title: 'Recovery',
+                value: isCalibration || recoveryScore == null
+                    ? 1.0
+                    : recoveryScore / 100.0,
+                label: isCalibration || recoveryScore == null
+                    ? '--'
+                    : recoveryScore.toStringAsFixed(0),
+                caption: isCalibration
+                    ? 'In calibrazione'
+                    : _recoveryScoreStatus(recoveryScore),
+                color: recoveryScoreColor,
+                secondaryColor: isCalibration
+                    ? Colors.grey[500]!
+                    : _recoveryScoreHighlight(recoveryScore),
+                onTap: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) => DailyReadinessDetailsScreen(
+                        title: 'Recovery',
+                        score: recoveryScore,
+                        dailyMetrics: appState.currentDailyMetrics ?? {},
+                        historicalMetrics:
+                            appState.currentHistoricalMetrics ?? {},
                       ),
                     ),
-                  ),
-                ),
-              ],
-            ),
+                  );
+                },
+              ),
+            ],
           ),
           const SizedBox(height: 24),
         ],
@@ -1925,6 +1897,257 @@ class _DashboardViewState extends State<_DashboardView> {
     if (score <= 66) return const Color(0xFFFFE082);
     return const Color(0xFF86EFAC);
   }
+
+  Color _strainScoreColor(double score) {
+    if (score <= 33) return const Color(0xFF22C55E);
+    if (score <= 66) return const Color(0xFFFF8C42);
+    return const Color(0xFFE11D48);
+  }
+
+  Color _strainScoreHighlight(double score) {
+    if (score <= 33) return const Color(0xFF86EFAC);
+    if (score <= 66) return const Color(0xFFFFB067);
+    return const Color(0xFFFF6B8A);
+  }
+
+  String _sleepScoreStatus(double? score) {
+    if (score == null) return 'Non rilevato';
+    if (score >= 85) return 'Sonno ottimo';
+    if (score >= 70) return 'Sonno buono';
+    if (score >= 55) return 'Sonno medio';
+    return 'Sonno basso';
+  }
+
+  String _strainScoreStatus(double? score) {
+    if (score == null) return 'Non calcolato';
+    if (score <= 33) return 'Carico leggero';
+    if (score <= 66) return 'Carico medio';
+    return 'Carico alto';
+  }
+
+  String _recoveryScoreStatus(double? score) {
+    if (score == null) return 'Non disponibile';
+    if (score >= 70) return 'Recupero buono';
+    if (score >= 55) return 'Recupero medio';
+    if (score >= 40) return 'Recupero basso';
+    return 'Recupero critico';
+  }
+
+  String _readinessInsight({
+    required bool isCalibration,
+    required double? sleepScore,
+    required double? strainScore,
+    required double? recoveryScore,
+  }) {
+    if (isCalibration) {
+      return 'Stiamo costruendo il tuo riferimento personale. Continua a sincronizzare sonno e allenamenti.';
+    }
+
+    if (recoveryScore == null) {
+      return 'Sincronizza i dati salute per completare il quadro giornaliero.';
+    }
+
+    final sleep = _sleepScoreStatus(sleepScore).toLowerCase();
+    final strain = _strainScoreStatus(strainScore).toLowerCase();
+    final recovery = _recoveryScoreStatus(recoveryScore).toLowerCase();
+
+    if (recoveryScore < 40) {
+      return '$sleep, $strain, $recovery: meglio tenere la seduta molto controllata.';
+    }
+    if (recoveryScore < 55) {
+      return '$sleep, $strain, $recovery: oggi conviene gestire intensità e volume.';
+    }
+    if (recoveryScore < 70) {
+      return '$sleep, $strain, $recovery: puoi lavorare, restando attento ai segnali.';
+    }
+    return '$sleep, $strain, $recovery: buona finestra per una seduta di qualità.';
+  }
+}
+
+class _ReadinessMetricData {
+  final IconData icon;
+  final String title;
+  final String label;
+  final String caption;
+  final double value;
+  final Color color;
+  final Color secondaryColor;
+  final VoidCallback? onTap;
+
+  const _ReadinessMetricData({
+    required this.icon,
+    required this.title,
+    required this.label,
+    required this.caption,
+    required this.value,
+    required this.color,
+    required this.secondaryColor,
+    this.onTap,
+  });
+}
+
+class _ReadinessOverviewCard extends StatelessWidget {
+  final List<_ReadinessMetricData> metrics;
+  final String readinessLabel;
+  final String insight;
+
+  const _ReadinessOverviewCard({
+    required this.metrics,
+    required this.readinessLabel,
+    required this.insight,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return CustomCard(
+      padding: EdgeInsets.zero,
+      borderColor: AppTheme.subtleBorder,
+      child: Column(
+        children: [
+          Padding(
+            padding: const EdgeInsets.fromLTRB(12, 14, 12, 12),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                for (var i = 0; i < metrics.length; i++) ...[
+                  Expanded(child: _ReadinessMetricTile(data: metrics[i])),
+                  if (i != metrics.length - 1) const _ReadinessDivider(),
+                ],
+              ],
+            ),
+          ),
+          Container(height: 1, color: AppTheme.subtleBorder),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 12, 16, 14),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Container(
+                  width: 28,
+                  height: 28,
+                  decoration: BoxDecoration(
+                    color: AppTheme.selectedSoftFill,
+                    shape: BoxShape.circle,
+                  ),
+                  child: const Icon(
+                    Icons.insights_rounded,
+                    color: AppTheme.primary,
+                    size: 15,
+                  ),
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        readinessLabel,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                              color: AppTheme.textHighEmphasis,
+                              fontWeight: FontWeight.w800,
+                            ),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        insight,
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                              color: AppTheme.textMediumEmphasis,
+                              height: 1.35,
+                              fontWeight: FontWeight.w500,
+                            ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _ReadinessMetricTile extends StatelessWidget {
+  final _ReadinessMetricData data;
+
+  const _ReadinessMetricTile({required this.data});
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: data.onTap,
+        borderRadius: BorderRadius.circular(14),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 4),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              FittedBox(
+                fit: BoxFit.scaleDown,
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Icon(data.icon, color: data.color, size: 16),
+                    const SizedBox(width: 6),
+                    Text(
+                      data.title,
+                      maxLines: 1,
+                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                            fontWeight: FontWeight.w800,
+                            color: AppTheme.textMediumEmphasis,
+                          ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 12),
+              _ScoreRing(
+                value: data.value,
+                label: data.label,
+                color: data.color,
+                secondaryColor: data.secondaryColor,
+                size: 76,
+                labelFontSize: 21,
+              ),
+              const SizedBox(height: 10),
+              Text(
+                data.caption,
+                textAlign: TextAlign.center,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                      color: AppTheme.textMediumEmphasis,
+                      fontWeight: FontWeight.w700,
+                      fontSize: 11,
+                    ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _ReadinessDivider extends StatelessWidget {
+  const _ReadinessDivider();
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: 1,
+      height: 124,
+      margin: const EdgeInsets.symmetric(horizontal: 4),
+      color: AppTheme.subtleBorder,
+    );
+  }
 }
 
 class _ScoreRing extends StatelessWidget {
@@ -1932,19 +2155,23 @@ class _ScoreRing extends StatelessWidget {
   final String label;
   final Color color;
   final Color secondaryColor;
+  final double size;
+  final double? labelFontSize;
 
   const _ScoreRing({
     required this.value,
     required this.label,
     required this.color,
     required this.secondaryColor,
+    this.size = 88,
+    this.labelFontSize,
   });
 
   @override
   Widget build(BuildContext context) {
     return SizedBox(
-      width: 88,
-      height: 88,
+      width: size,
+      height: size,
       child: CustomPaint(
         painter: _ScoreRingPainter(
           value: value.clamp(0.0, 1.0).toDouble(),
@@ -1957,6 +2184,7 @@ class _ScoreRing extends StatelessWidget {
             style: Theme.of(context).textTheme.titleLarge?.copyWith(
                   fontWeight: FontWeight.w800,
                   color: secondaryColor,
+                  fontSize: labelFontSize,
                 ),
           ),
         ),

@@ -14,13 +14,17 @@ import '../core/dev_flags.dart';
 import '../core/theme.dart';
 import '../models/models.dart';
 import '../models/training_activity_models.dart';
+import '../services/daily_strain_persistence_service.dart';
 import '../services/health_service.dart';
 import '../services/native_health_service.dart';
 import '../services/health_sync_service.dart';
 import '../services/training_activity_service.dart';
 import '../services/training_reminder_notification_service.dart';
 import '../utils/coach_training_utils.dart';
+import '../utils/health_workout_merge_utils.dart';
 import '../utils/hrv_engine.dart';
+import '../utils/metrics_engine.dart';
+import '../utils/strain_session_mapper.dart';
 
 class AppState extends ChangeNotifier {
   static const String _healthScoreCachePrefix = 'health_sync_v8_health_90d_';
@@ -87,6 +91,23 @@ class AppState extends ChangeNotifier {
 
   double? _currentRecoveryScore;
   double? get currentRecoveryScore => _currentRecoveryScore;
+
+  double? get currentStrainScore => strainScoreForDate(DateTime.now());
+
+  double? strainScoreForDate(DateTime date) {
+    final dateKey = localDateKey(date);
+    if (dateKey == localDateKey(DateTime.now())) {
+      final currentMetric = _currentDailyMetrics?['strainScore'];
+      if (currentMetric != null) return currentMetric;
+    }
+
+    for (final log in _bodyLogs.reversed) {
+      if (log.type == 'strain_score' && log.date == dateKey) {
+        return log.value;
+      }
+    }
+    return null;
+  }
 
   Map<String, double>? _currentDailyMetrics;
   Map<String, double>? get currentDailyMetrics => _currentDailyMetrics;
@@ -294,6 +315,10 @@ class AppState extends ChangeNotifier {
     try {
       // Assicuriamoci che i log corporei locali (Temp, SpO2, Resp) siano aggiornati prima di calcolare
       await syncDailyHealthMetrics();
+      await syncDailyStrainScore(
+        targetDate.subtract(const Duration(days: 1)),
+        notify: false,
+      );
 
       bool isLutealPhase = false; // TODO: Ottenere dal profilo utente
       final result = await _healthSyncService.fetchAndCalculateScores(
@@ -1252,6 +1277,14 @@ class AppState extends ChangeNotifier {
       await _syncCoachEventAttendeeLapsFromSession(session);
       await _syncCoachEventDrylandFromSession(session);
       _sessions.sort((a, b) => b.date.compareTo(a.date));
+      final sessionDate = DateTime.tryParse(session.date);
+      if (sessionDate != null) {
+        await calculateAndPersistDailyStrainScore(
+          userId,
+          sessionDate,
+          notify: false,
+        );
+      }
       notifyListeners();
     } catch (e) {
       debugPrint('Error adding/updating session: $e');
@@ -1274,8 +1307,51 @@ class AppState extends ChangeNotifier {
     final freeLaps = details['freeSkiing'] is Map
         ? int.tryParse(details['freeSkiing']['laps']?.toString() ?? '')
         : null;
+    final freeChanges = details['freeSkiing'] is Map
+        ? int.tryParse(details['freeSkiing']['changes']?.toString() ?? '')
+        : null;
+    final trackLaps = <String, int>{};
+    final trackGates = <String, int>{};
+    final tracks = details['tracks'];
+    if (tracks is List) {
+      for (var i = 0; i < tracks.length; i++) {
+        final track = tracks[i];
+        if (track is! Map) continue;
+        final id = track['id']?.toString() ?? 'track_${i + 1}';
+        final laps = int.tryParse(track['laps']?.toString() ?? '');
+        final gates = int.tryParse(
+          (track['gates'] ?? track['changes'])?.toString() ?? '',
+        );
+        if (laps != null) trackLaps[id] = laps;
+        if (gates != null) trackGates[id] = gates;
+      }
+    }
+    final trainingBlockLaps = <String, int>{};
+    final trainingBlockReferences = <String, int>{};
+    final trainingBlocks = details['trainingBlocks'];
+    if (trainingBlocks is List) {
+      for (var i = 0; i < trainingBlocks.length; i++) {
+        final block = trainingBlocks[i];
+        if (block is! Map) continue;
+        final id = block['id']?.toString() ?? 'training_${i + 1}';
+        final laps = int.tryParse(block['laps']?.toString() ?? '');
+        final references = int.tryParse(
+          (block['references'] ?? block['changes'])?.toString() ?? '',
+        );
+        if (laps != null) trainingBlockLaps[id] = laps;
+        if (references != null) trainingBlockReferences[id] = references;
+      }
+    }
 
-    if (gatedLaps == null && freeLaps == null) return;
+    if (gatedLaps == null &&
+        freeLaps == null &&
+        freeChanges == null &&
+        trackLaps.isEmpty &&
+        trackGates.isEmpty &&
+        trainingBlockLaps.isEmpty &&
+        trainingBlockReferences.isEmpty) {
+      return;
+    }
 
     try {
       CalendarEvent? event;
@@ -1333,6 +1409,16 @@ class AppState extends ChangeNotifier {
       } else {
         if (gatedLaps != null) attendee['laps'] = gatedLaps;
         if (freeLaps != null) attendee['freeLaps'] = freeLaps;
+      }
+      if (freeChanges != null) attendee['freeChanges'] = freeChanges;
+      if (trackLaps.isNotEmpty) attendee['trackLaps'] = trackLaps;
+      if (trackGates.isNotEmpty) attendee['trackGates'] = trackGates;
+      if (trainingBlockLaps.isNotEmpty) {
+        attendee['trainingBlockLaps'] = trainingBlockLaps;
+        attendee['trainingLaps'] = trainingBlockLaps.values.first;
+      }
+      if (trainingBlockReferences.isNotEmpty) {
+        attendee['trainingBlockReferences'] = trainingBlockReferences;
       }
       attendee['attendanceStatus'] = CoachTrainingUtils.attendancePresent;
       attendee['isPresent'] = true;
@@ -1443,8 +1529,20 @@ class AppState extends ChangeNotifier {
 
   void deleteSession(String id) async {
     try {
+      DateTime? deletedSessionDate;
+      final deletedIndex = _sessions.indexWhere((s) => s.id == id);
+      if (deletedIndex >= 0) {
+        deletedSessionDate = DateTime.tryParse(_sessions[deletedIndex].date);
+      }
       await _supabase.from('training_sessions').delete().eq('id', id);
       _sessions.removeWhere((s) => s.id == id);
+      if (deletedSessionDate != null) {
+        await calculateAndPersistDailyStrainScore(
+          userId,
+          deletedSessionDate,
+          notify: false,
+        );
+      }
       notifyListeners();
     } catch (e) {
       debugPrint('Error deleting session: $e');
@@ -1609,7 +1707,10 @@ class AppState extends ChangeNotifier {
             processedExternalIds.add(extId);
           }
           await addSession(
-            _mergeHealthImportedSession(existingByExternalId, session),
+            HealthWorkoutMergeUtils.mergeImportedSession(
+              existingByExternalId,
+              session,
+            ),
           );
           continue;
         }
@@ -1632,19 +1733,27 @@ class AppState extends ChangeNotifier {
                 .eq('id', duplicateId);
           }
           _sessions.removeWhere((s) => duplicateIds.contains(s.id));
-          await addSession(_mergeHealthImportedSession(baseSession, session));
+          await addSession(
+            HealthWorkoutMergeUtils.mergeImportedSession(baseSession, session),
+          );
           continue;
         }
 
-        final overlapCandidate = _bestHealthOverlapMergeCandidate(session);
+        final overlapCandidate =
+            HealthWorkoutMergeUtils.bestOverlapMergeCandidate(
+          _sessions,
+          session,
+        );
         if (overlapCandidate != null) {
           if (extId != null) {
             processedExternalIds.add(extId);
           }
-          await addSession(_mergeHealthImportedSession(
-            overlapCandidate,
-            session,
-          ));
+          await addSession(
+            HealthWorkoutMergeUtils.mergeImportedSession(
+              overlapCandidate,
+              session,
+            ),
+          );
           continue;
         }
 
@@ -1656,120 +1765,136 @@ class AppState extends ChangeNotifier {
 
       // Sync Health Metrics (HRV, RHR)
       await syncDailyHealthMetrics();
+      await syncDailyStrainScore(DateTime.now(), notify: false);
     } catch (e) {
       debugPrint('Error syncing health workouts: $e');
     }
   }
 
-  TrainingSession? _bestHealthOverlapMergeCandidate(TrainingSession imported) {
-    final importedRange = _sessionDateTimeRange(imported);
-    if (importedRange == null) return null;
-
-    TrainingSession? best;
-    var bestOverlapSeconds = 0;
-
-    for (final existing in _sessions) {
-      if (existing.id == imported.id) continue;
-      if (!_canMergeHealthImportIntoExisting(existing, imported)) continue;
-
-      final existingRange = _sessionDateTimeRange(existing);
-      if (existingRange == null) continue;
-
-      final overlapSeconds = _overlapSeconds(importedRange, existingRange);
-      if (overlapSeconds <= 0) continue;
-
-      final importedSeconds =
-          importedRange.end.difference(importedRange.start).inSeconds;
-      final existingSeconds =
-          existingRange.end.difference(existingRange.start).inSeconds;
-      final shorterSeconds = min(importedSeconds, existingSeconds);
-      final minimumOverlapSeconds =
-          min(20 * 60, (shorterSeconds * 0.60).round());
-
-      if (overlapSeconds >= minimumOverlapSeconds &&
-          overlapSeconds > bestOverlapSeconds) {
-        best = existing;
-        bestOverlapSeconds = overlapSeconds;
-      }
-    }
-
-    return best;
+  Future<void> syncDailyStrainScore(
+    DateTime targetDate, {
+    bool notify = true,
+  }) async {
+    await calculateAndPersistDailyStrainScore(
+      userId,
+      targetDate,
+      notify: notify,
+    );
   }
 
-  bool _canMergeHealthImportIntoExisting(
-    TrainingSession existing,
-    TrainingSession imported,
-  ) {
-    final details = existing.details ?? const <String, dynamic>{};
-    if (details['source'] == 'health_sync') return true;
-    if (_hasStructuredDrylandDetails(details)) return false;
-    return _sameSportFamily(existing.sportId, imported.sportId);
-  }
+  Future<DailyStrainResult?> calculateAndPersistDailyStrainScore(
+    String athleteId,
+    DateTime targetDate, {
+    bool notify = true,
+  }) async {
+    if (_userProfile == null || athleteId != userId) return null;
 
-  bool _hasStructuredDrylandDetails(Map<String, dynamic> details) {
-    if (details['activityDomain'] == 'dryland') return true;
-    if (details['blocks'] is List) return true;
-    if (details['exercises'] is List) return true;
-    return false;
-  }
+    final dateKey = localDateKey(targetDate);
+    final inputs = workoutInputsFromTrainingSessions(
+      _sessions,
+      athleteId: athleteId,
+    );
+    final result = calculateDailyStrain(
+      dateKey,
+      inputs,
+      AthleteStrainProfile(
+        athleteId: athleteId,
+        maxHeartRateBpm: _userProfile!.maxHr.toDouble(),
+        restingHeartRateEstimateBpm: defaultAlgorithmConfig
+            .strainScore.defaultRestingHeartRateEstimateBpm,
+        bodyMassKg: _userProfile!.weight,
+      ),
+      _historicalStrainLoadsForDate(targetDate, inputs),
+      config: defaultAlgorithmConfig,
+    );
 
-  bool _sameSportFamily(String a, String b) {
-    String family(String sportId) {
-      if (sportId.contains('running') ||
-          sportId == 'marathon' ||
-          sportId == 'track_field') {
-        return 'running';
-      }
-      if (sportId.contains('cycling') || sportId == 'spinning') {
-        return 'cycling';
-      }
-      if (sportId == 'walking' || sportId == 'hiking') return 'walking';
-      if (sportId == 'swimming') return 'swimming';
-      if (sportId == 'rowing') return 'rowing';
-      if (sportId == 'cross_country_skiing') return 'nordic_ski';
-      if (sportId == 'alpine_skiing' || sportId == 'snowboarding') {
-        return 'snow';
-      }
-      return sportId;
-    }
-
-    return family(a) == family(b);
-  }
-
-  _SessionDateTimeRange? _sessionDateTimeRange(TrainingSession session) {
+    final payload = buildDailyStrainScorePayload(
+      athleteId: athleteId,
+      date: dateKey,
+      result: result,
+      algorithmVersion: defaultAlgorithmConfig.version,
+    );
     try {
-      final start = DateTime.parse(
-          '${session.date}T${_normalizeSessionClock(session.startTime)}');
-      var end = DateTime.parse(
-          '${session.date}T${_normalizeSessionClock(session.endTime)}');
-      if (!end.isAfter(start)) {
-        end = end.add(const Duration(days: 1));
-      }
-      return _SessionDateTimeRange(start, end);
+      await upsertDailyStrainScore(
+        supabase: _supabase,
+        payload: payload,
+      );
     } catch (e) {
-      debugPrint('Error parsing session range for health import: $e');
-      return null;
+      debugPrint('Error upserting daily strain score: $e');
+    }
+
+    if (result.score == null) {
+      await _removeBodyMetricLogForDate('strain_score', dateKey);
+      if (notify) notifyListeners();
+      return result;
+    }
+
+    addBodyLog(BodyMetricLog(
+      id: 'strain_score_$dateKey',
+      date: dateKey,
+      type: 'strain_score',
+      value: result.score!,
+    ));
+
+    final todayKey = DateTime.now().toIso8601String().split('T')[0];
+    if (_currentDailyMetrics != null && todayKey == dateKey) {
+      _currentDailyMetrics = {
+        ..._currentDailyMetrics!,
+        'strainScore': result.score!,
+      };
+    }
+    if (notify) notifyListeners();
+    return result;
+  }
+
+  Future<void> _removeBodyMetricLogForDate(String type, String dateKey) async {
+    _bodyLogs.removeWhere((l) => l.type == type && l.date == dateKey);
+
+    if (type == 'strain_score' &&
+        _currentDailyMetrics != null &&
+        localDateKey(DateTime.now()) == dateKey) {
+      final updatedMetrics = Map<String, double>.from(_currentDailyMetrics!);
+      updatedMetrics.remove('strainScore');
+      _currentDailyMetrics = updatedMetrics;
+    }
+
+    try {
+      await _supabase
+          .from('body_metric_logs')
+          .delete()
+          .eq('user_id', userId)
+          .eq('date', dateKey)
+          .eq('type', type);
+    } catch (e) {
+      debugPrint('Error removing $type log for $dateKey: $e');
     }
   }
 
-  String _normalizeSessionClock(String time) {
-    final parts = time.trim().split(':');
-    if (parts.isEmpty || parts[0].isEmpty) return '00:00:00';
-    if (parts.length == 1) return '${parts[0].padLeft(2, '0')}:00:00';
-    if (parts.length == 2) {
-      return '${parts[0].padLeft(2, '0')}:${parts[1].padLeft(2, '0')}:00';
-    }
-    return '${parts[0].padLeft(2, '0')}:${parts[1].padLeft(2, '0')}:${parts[2].padLeft(2, '0')}';
-  }
-
-  int _overlapSeconds(
-    _SessionDateTimeRange a,
-    _SessionDateTimeRange b,
+  List<HistoricalDailyStrainLoad> _historicalStrainLoadsForDate(
+    DateTime targetDate,
+    List<WorkoutSessionInput> inputs,
   ) {
-    final start = a.start.isAfter(b.start) ? a.start : b.start;
-    final end = a.end.isBefore(b.end) ? a.end : b.end;
-    if (!end.isAfter(start)) return 0;
-    return end.difference(start).inSeconds;
+    final profile = AthleteStrainProfile(
+      athleteId: userId,
+      maxHeartRateBpm: _userProfile?.maxHr.toDouble(),
+      restingHeartRateEstimateBpm:
+          defaultAlgorithmConfig.strainScore.defaultRestingHeartRateEstimateBpm,
+      bodyMassKg: _userProfile?.weight,
+    );
+    final loads = <HistoricalDailyStrainLoad>[];
+    for (var i = defaultAlgorithmConfig.strainScore.historyWindowDays;
+        i >= 1;
+        i--) {
+      final date = targetDate.subtract(Duration(days: i));
+      final dateKey = localDateKey(date);
+      loads.add(calculateHistoricalDailyStrainLoad(
+        dateKey,
+        inputs,
+        profile,
+        config: defaultAlgorithmConfig,
+      ));
+    }
+    return loads;
   }
 
   List<TrainingSession> _matchingHealthSourcePartSessions(
@@ -1785,68 +1910,6 @@ class AppState extends ChangeNotifier {
       final externalId = details['external_id']?.toString();
       return externalId != null && ids.contains(externalId);
     }).toList();
-  }
-
-  TrainingSession _mergeHealthImportedSession(
-    TrainingSession existing,
-    TrainingSession imported,
-  ) {
-    final preservedDetails = Map<String, dynamic>.from(existing.details ?? {});
-    const healthManagedKeys = {
-      'source',
-      'health_import_version',
-      'source_name',
-      'source_id',
-      'external_id',
-      'total_duration',
-      'total_duration_minutes',
-      'total_duration_seconds',
-      'active_duration',
-      'active_duration_minutes',
-      'active_duration_seconds',
-      'moving_duration_seconds',
-      'duration_source',
-      'distance',
-      'distance_meters',
-      'pace',
-      'avg_pace_sec_per_km',
-      'speed',
-      'avg_speed_kmh',
-      'calories',
-      'energy_total_kcal',
-      'elevation',
-      'elevation_meters',
-      'elevation_source',
-      'avg_hr',
-      'avgHeartRate',
-      'max_hr',
-      'maxHeartRate',
-      'hr_reliable',
-      'hr_samples',
-      'hr_sample_count',
-      'hr_coverage_seconds',
-      'hr_coverage_minutes',
-      'hr_zones',
-      'hr_zones_seconds',
-      'hr_zone_boundaries',
-      'dominant_hr_zone',
-      'merged_source_workout_ids',
-      'source_part_count',
-    };
-    preservedDetails.removeWhere((key, _) => healthManagedKeys.contains(key));
-    preservedDetails.addAll(imported.details ?? {});
-
-    return TrainingSession(
-      id: existing.id,
-      sportId: imported.sportId,
-      date: imported.date,
-      startTime: imported.startTime,
-      endTime: imported.endTime,
-      duration: imported.duration,
-      effort: existing.effort,
-      eventId: existing.eventId,
-      details: preservedDetails,
-    );
   }
 
   Future<void> refreshAllHealthData(DateTime targetDate) async {
@@ -2619,9 +2682,12 @@ class AppState extends ChangeNotifier {
     CalendarEvent event, {
     int? laps,
     int? freeLaps,
+    int? freeChanges,
     int? trainingLaps,
     Map<String, int>? trackLaps,
+    Map<String, int>? trackGates,
     Map<String, int>? trainingBlockLaps,
+    Map<String, int>? trainingBlockReferences,
     int? rpe,
     String? pain,
     String? chronoNotes,
@@ -2640,10 +2706,15 @@ class AppState extends ChangeNotifier {
           a['name'] == athleteName) {
         if (laps != null) a['laps'] = laps;
         if (freeLaps != null) a['freeLaps'] = freeLaps;
+        if (freeChanges != null) a['freeChanges'] = freeChanges;
         if (trainingLaps != null) a['trainingLaps'] = trainingLaps;
         if (trackLaps != null) a['trackLaps'] = trackLaps;
+        if (trackGates != null) a['trackGates'] = trackGates;
         if (trainingBlockLaps != null) {
           a['trainingBlockLaps'] = trainingBlockLaps;
+        }
+        if (trainingBlockReferences != null) {
+          a['trainingBlockReferences'] = trainingBlockReferences;
         }
         if (rpe != null) a['rpe'] = rpe;
         if (pain != null) a['pain'] = pain;
@@ -2668,9 +2739,13 @@ class AppState extends ChangeNotifier {
         'isPresent': true,
         if (laps != null) 'laps': laps,
         if (freeLaps != null) 'freeLaps': freeLaps,
+        if (freeChanges != null) 'freeChanges': freeChanges,
         if (trainingLaps != null) 'trainingLaps': trainingLaps,
         if (trackLaps != null) 'trackLaps': trackLaps,
+        if (trackGates != null) 'trackGates': trackGates,
         if (trainingBlockLaps != null) 'trainingBlockLaps': trainingBlockLaps,
+        if (trainingBlockReferences != null)
+          'trainingBlockReferences': trainingBlockReferences,
         if (rpe != null) 'rpe': rpe,
         if (pain != null) 'pain': pain,
         if (chronoNotes != null) 'chronoNotes': chronoNotes,
@@ -2683,11 +2758,4 @@ class AppState extends ChangeNotifier {
     }
     await saveCoachEvent(event);
   }
-}
-
-class _SessionDateTimeRange {
-  final DateTime start;
-  final DateTime end;
-
-  const _SessionDateTimeRange(this.start, this.end);
 }

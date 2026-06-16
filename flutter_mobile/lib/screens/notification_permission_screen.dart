@@ -124,8 +124,7 @@ class _NotificationPermissionScreenState
                   decoration: BoxDecoration(
                     color: AppTheme.card,
                     borderRadius: BorderRadius.circular(16),
-                    border:
-                        Border.all(color: Colors.white.withValues(alpha: 0.05)),
+                    border: Border.all(color: AppTheme.subtleBorder),
                   ),
                   child: ListView(
                     children: [

@@ -1,5 +1,6 @@
-TestFlight build focused on light mode readability.
+TestFlight build focused on training strain and Health imports.
 
-- Fixes onboarding text and form contrast when light mode is active.
-- Improves app-wide text contrast for light/dark theme switching.
-- Keeps theme selection available from the shared athlete and coach profile area.
+- Adds daily strain scoring from training sessions and health data.
+- Improves Health workout heart-rate sample selection and coverage handling.
+- Preserves richer coach training details such as laps, gates, and dryland blocks.
+- Keeps UI contrast improvements for light and dark mode.

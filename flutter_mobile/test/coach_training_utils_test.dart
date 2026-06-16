@@ -50,6 +50,50 @@ void main() {
     expect(summary.totalSkiDirectionChanges, 353);
   });
 
+  test('uses athlete direction change overrides for ski volumes', () {
+    final event = CalendarEvent(
+      id: 'event_1',
+      teamId: 'team_a',
+      type: 'training',
+      title: 'GS training',
+      date: '2026-06-01',
+      startTime: '09:00',
+      endTime: '12:00',
+      sportCategory: 'ski',
+      status: CoachTrainingUtils.statusCompleted,
+      technicalDetails: {
+        'specialties': ['GS'],
+        'freeSkiing': {'laps': 3, 'changes': 10},
+        'tracks': [
+          {'id': 'track_1', 'name': 'Tracciato 1', 'laps': 4, 'gates': 35},
+        ],
+        'trainingBlocks': [
+          {'id': 'training_1', 'laps': 5, 'references': 8},
+        ],
+      },
+      attendees: const [],
+    );
+
+    final details = CoachTrainingUtils.buildSessionDetailsForAttendee(event, {
+      'id': 'athlete_1',
+      'attendanceStatus': CoachTrainingUtils.attendancePresent,
+      'freeLaps': 4,
+      'freeChanges': 12,
+      'trackLaps': {'track_1': 6},
+      'trackGates': {'track_1': 31},
+      'trainingBlockLaps': {'training_1': 7},
+      'trainingBlockReferences': {'training_1': 9},
+      'modifiedByAthlete': true,
+    });
+
+    final summary = CoachTrainingUtils.volumeFromDetails(details);
+
+    expect(summary.freeDirectionChanges, 48);
+    expect(summary.polePasses, 186);
+    expect(summary.trainingDirectionChanges, 63);
+    expect(summary.totalSkiDirectionChanges, 297);
+  });
+
   test('normalizes legacy attendance state', () {
     expect(
       CoachTrainingUtils.attendeeStatus({'isPresent': true}),

@@ -33,12 +33,15 @@ class _AthleteEventScreenState extends State<AthleteEventScreen> {
   Map<String, dynamic>? _attendee;
 
   late TextEditingController _freeLapsCtrl;
+  late TextEditingController _freeChangesCtrl;
   late TextEditingController _painCtrl;
   late TextEditingController _chronoCtrl;
   late TextEditingController _notesCtrl;
 
   final Map<String, TextEditingController> _trackLapsCtrls = {};
+  final Map<String, TextEditingController> _trackGatesCtrls = {};
   final Map<String, TextEditingController> _trainingLapsCtrls = {};
+  final Map<String, TextEditingController> _trainingRefsCtrls = {};
 
   int _rpeValue = 0;
   String _painSelection = 'Nessuno';
@@ -65,6 +68,9 @@ class _AthleteEventScreenState extends State<AthleteEventScreen> {
 
     _freeLapsCtrl = TextEditingController(
       text: (_attendee?['freeLaps'] ?? free['laps'] ?? '').toString(),
+    );
+    _freeChangesCtrl = TextEditingController(
+      text: (_attendee?['freeChanges'] ?? free['changes'] ?? '').toString(),
     );
     _rpeValue = CoachTrainingUtils.asNonNegativeInt(_attendee?['rpe'])
         .clamp(0, 10)
@@ -107,6 +113,9 @@ class _AthleteEventScreenState extends State<AthleteEventScreen> {
     final trackLaps = _attendee?['trackLaps'] is Map
         ? Map<String, dynamic>.from(_attendee!['trackLaps'])
         : <String, dynamic>{};
+    final trackGates = _attendee?['trackGates'] is Map
+        ? Map<String, dynamic>.from(_attendee!['trackGates'])
+        : <String, dynamic>{};
     final tracks = _eventTracks();
     for (var i = 0; i < tracks.length; i++) {
       final track = tracks[i];
@@ -115,12 +124,19 @@ class _AthleteEventScreenState extends State<AthleteEventScreen> {
         text: (trackLaps[id] ?? _attendee?['laps'] ?? track['laps'] ?? '')
             .toString(),
       );
+      _trackGatesCtrls[id] = TextEditingController(
+        text: (trackGates[id] ?? track['gates'] ?? track['changes'] ?? '')
+            .toString(),
+      );
     }
   }
 
   void _initTrainingControllers(Map<String, dynamic> tech) {
     final trainingLaps = _attendee?['trainingBlockLaps'] is Map
         ? Map<String, dynamic>.from(_attendee!['trainingBlockLaps'])
+        : <String, dynamic>{};
+    final trainingReferences = _attendee?['trainingBlockReferences'] is Map
+        ? Map<String, dynamic>.from(_attendee!['trainingBlockReferences'])
         : <String, dynamic>{};
     final blocks = _eventTrainingBlocks();
     for (var i = 0; i < blocks.length; i++) {
@@ -133,19 +149,33 @@ class _AthleteEventScreenState extends State<AthleteEventScreen> {
                 '')
             .toString(),
       );
+      _trainingRefsCtrls[id] = TextEditingController(
+        text: (trainingReferences[id] ??
+                block['references'] ??
+                block['changes'] ??
+                '')
+            .toString(),
+      );
     }
   }
 
   @override
   void dispose() {
     _freeLapsCtrl.dispose();
+    _freeChangesCtrl.dispose();
     _painCtrl.dispose();
     _chronoCtrl.dispose();
     _notesCtrl.dispose();
     for (final controller in _trackLapsCtrls.values) {
       controller.dispose();
     }
+    for (final controller in _trackGatesCtrls.values) {
+      controller.dispose();
+    }
     for (final controller in _trainingLapsCtrls.values) {
+      controller.dispose();
+    }
+    for (final controller in _trainingRefsCtrls.values) {
       controller.dispose();
     }
     super.dispose();
@@ -571,7 +601,7 @@ class _AthleteEventScreenState extends State<AthleteEventScreen> {
           ),
           const SizedBox(height: 6),
           Text(
-            'Puoi modificare solo i giri fatti. I valori per giro restano quelli del coach.',
+            'Puoi modificare giri e cambi di direzione svolti.',
             style: TextStyle(color: AppTheme.textMediumEmphasis, fontSize: 12),
           ),
           const SizedBox(height: 18),
@@ -579,43 +609,52 @@ class _AthleteEventScreenState extends State<AthleteEventScreen> {
             _volumeBlock(
               title: 'Campo libero',
               controller: _freeLapsCtrl,
-              readOnlyLabel: 'Cambi/giro',
-              readOnlyValue:
-                  CoachTrainingUtils.asNonNegativeInt(free['changes']),
+              metricLabel: 'Cambi/giro',
+              metricController: _freeChangesCtrl,
               totalLabel: 'Cambi totali',
-              totalValue:
-                  CoachTrainingUtils.asNonNegativeInt(_freeLapsCtrl.text) *
-                      CoachTrainingUtils.asNonNegativeInt(free['changes']),
+              totalValue: CoachTrainingUtils.asNonNegativeInt(
+                      _freeLapsCtrl.text) *
+                  CoachTrainingUtils.asNonNegativeInt(_freeChangesCtrl.text),
             ),
           for (var i = 0; i < tracks.length; i++)
             _volumeBlock(
               title: 'Pali / Tracciato ${i + 1}',
               controller: _trackLapsCtrls[
                   tracks[i]['id']?.toString() ?? 'track_${i + 1}']!,
-              readOnlyLabel: 'Porte/giro',
-              readOnlyValue: _trackGates(tracks[i]),
+              metricLabel: 'Porte/giro',
+              metricController: _trackGatesCtrls[
+                  tracks[i]['id']?.toString() ?? 'track_${i + 1}']!,
               totalLabel: 'Passaggi',
               totalValue: CoachTrainingUtils.asNonNegativeInt(
                     _trackLapsCtrls[
                             tracks[i]['id']?.toString() ?? 'track_${i + 1}']!
                         .text,
                   ) *
-                  _trackGates(tracks[i]),
+                  CoachTrainingUtils.asNonNegativeInt(
+                    _trackGatesCtrls[
+                            tracks[i]['id']?.toString() ?? 'track_${i + 1}']!
+                        .text,
+                  ),
             ),
           for (var i = 0; i < trainingBlocks.length; i++)
             _volumeBlock(
               title: 'Addestramento',
               controller: _trainingLapsCtrls[
                   trainingBlocks[i]['id']?.toString() ?? 'training_${i + 1}']!,
-              readOnlyLabel: 'Riferimenti/giro',
-              readOnlyValue: _blockReferences(trainingBlocks[i]),
+              metricLabel: 'Riferimenti/giro',
+              metricController: _trainingRefsCtrls[
+                  trainingBlocks[i]['id']?.toString() ?? 'training_${i + 1}']!,
               totalLabel: 'Cambi addestramento',
               totalValue: CoachTrainingUtils.asNonNegativeInt(
                     _trainingLapsCtrls[trainingBlocks[i]['id']?.toString() ??
                             'training_${i + 1}']!
                         .text,
                   ) *
-                  _blockReferences(trainingBlocks[i]),
+                  CoachTrainingUtils.asNonNegativeInt(
+                    _trainingRefsCtrls[trainingBlocks[i]['id']?.toString() ??
+                            'training_${i + 1}']!
+                        .text,
+                  ),
             ),
         ],
       ),
@@ -651,8 +690,8 @@ class _AthleteEventScreenState extends State<AthleteEventScreen> {
   Widget _volumeBlock({
     required String title,
     required TextEditingController controller,
-    required String readOnlyLabel,
-    required int readOnlyValue,
+    required String metricLabel,
+    required TextEditingController metricController,
     required String totalLabel,
     required int totalValue,
   }) {
@@ -663,7 +702,7 @@ class _AthleteEventScreenState extends State<AthleteEventScreen> {
       decoration: BoxDecoration(
         color: AppTheme.background,
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: Colors.white.withValues(alpha: 0.06)),
+        border: Border.all(color: AppTheme.subtleBorder),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -677,7 +716,7 @@ class _AthleteEventScreenState extends State<AthleteEventScreen> {
           ),
           const SizedBox(height: 12),
           _numberInput('Giri fatti', controller),
-          _plainRow(readOnlyLabel, readOnlyValue.toString()),
+          _numberInput(metricLabel, metricController),
           _plainRow(totalLabel, totalValue.toString()),
         ],
       ),
@@ -715,7 +754,7 @@ class _AthleteEventScreenState extends State<AthleteEventScreen> {
           divisions: 10,
           value: _rpeValue.toDouble(),
           activeColor: AppTheme.primary,
-          inactiveColor: Colors.white.withValues(alpha: 0.12),
+          inactiveColor: AppTheme.subtleFill,
           label: _rpeValue.toString(),
           onChanged: (value) => setState(() => _rpeValue = value.round()),
         ),
@@ -753,9 +792,7 @@ class _AthleteEventScreenState extends State<AthleteEventScreen> {
                   fontWeight: FontWeight.bold,
                 ),
                 side: BorderSide(
-                  color: selected
-                      ? AppTheme.primary
-                      : Colors.white.withValues(alpha: 0.08),
+                  color: selected ? AppTheme.primary : AppTheme.subtleFill,
                 ),
                 onSelected: (_) {
                   setState(() {
@@ -891,7 +928,7 @@ class _AthleteEventScreenState extends State<AthleteEventScreen> {
       decoration: BoxDecoration(
         color: AppTheme.background,
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: Colors.white.withValues(alpha: 0.06)),
+        border: Border.all(color: AppTheme.subtleBorder),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -1001,7 +1038,7 @@ class _AthleteEventScreenState extends State<AthleteEventScreen> {
             decoration: BoxDecoration(
               color: AppTheme.card,
               borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: Colors.white.withValues(alpha: 0.06)),
+              border: Border.all(color: AppTheme.subtleBorder),
             ),
             child: TextField(
               controller: controller,
@@ -1047,7 +1084,7 @@ class _AthleteEventScreenState extends State<AthleteEventScreen> {
             decoration: BoxDecoration(
               color: AppTheme.background,
               borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: Colors.white.withValues(alpha: 0.06)),
+              border: Border.all(color: AppTheme.subtleBorder),
             ),
             child: TextField(
               controller: controller,
@@ -1207,8 +1244,16 @@ class _AthleteEventScreenState extends State<AthleteEventScreen> {
       for (final entry in _trackLapsCtrls.entries)
         entry.key: CoachTrainingUtils.asNonNegativeInt(entry.value.text),
     };
+    final trackGates = {
+      for (final entry in _trackGatesCtrls.entries)
+        entry.key: CoachTrainingUtils.asNonNegativeInt(entry.value.text),
+    };
     final trainingBlockLaps = {
       for (final entry in _trainingLapsCtrls.entries)
+        entry.key: CoachTrainingUtils.asNonNegativeInt(entry.value.text),
+    };
+    final trainingBlockReferences = {
+      for (final entry in _trainingRefsCtrls.entries)
         entry.key: CoachTrainingUtils.asNonNegativeInt(entry.value.text),
     };
     return {
@@ -1216,9 +1261,13 @@ class _AthleteEventScreenState extends State<AthleteEventScreen> {
       'attendanceStatus': CoachTrainingUtils.attendancePresent,
       'isPresent': true,
       'freeLaps': CoachTrainingUtils.asNonNegativeInt(_freeLapsCtrl.text),
+      'freeChanges': CoachTrainingUtils.asNonNegativeInt(_freeChangesCtrl.text),
       if (trackLaps.isNotEmpty) 'trackLaps': trackLaps,
+      if (trackGates.isNotEmpty) 'trackGates': trackGates,
       if (trackLaps.isNotEmpty) 'laps': trackLaps.values.first,
       if (trainingBlockLaps.isNotEmpty) 'trainingBlockLaps': trainingBlockLaps,
+      if (trainingBlockReferences.isNotEmpty)
+        'trainingBlockReferences': trainingBlockReferences,
       if (trainingBlockLaps.isNotEmpty)
         'trainingLaps': trainingBlockLaps.values.first,
       'rpe': _rpeValue,
@@ -1272,18 +1321,30 @@ class _AthleteEventScreenState extends State<AthleteEventScreen> {
       for (final entry in _trackLapsCtrls.entries)
         entry.key: CoachTrainingUtils.asNonNegativeInt(entry.value.text),
     };
+    final trackGates = {
+      for (final entry in _trackGatesCtrls.entries)
+        entry.key: CoachTrainingUtils.asNonNegativeInt(entry.value.text),
+    };
     final trainingBlockLaps = {
       for (final entry in _trainingLapsCtrls.entries)
+        entry.key: CoachTrainingUtils.asNonNegativeInt(entry.value.text),
+    };
+    final trainingBlockReferences = {
+      for (final entry in _trainingRefsCtrls.entries)
         entry.key: CoachTrainingUtils.asNonNegativeInt(entry.value.text),
     };
     await appState.updateAthleteEventDetails(
       widget.event,
       freeLaps: CoachTrainingUtils.asNonNegativeInt(_freeLapsCtrl.text),
+      freeChanges: CoachTrainingUtils.asNonNegativeInt(_freeChangesCtrl.text),
       laps: trackLaps.isEmpty ? null : trackLaps.values.first,
       trackLaps: trackLaps.isEmpty ? null : trackLaps,
+      trackGates: trackGates.isEmpty ? null : trackGates,
       trainingLaps:
           trainingBlockLaps.isEmpty ? null : trainingBlockLaps.values.first,
       trainingBlockLaps: trainingBlockLaps.isEmpty ? null : trainingBlockLaps,
+      trainingBlockReferences:
+          trainingBlockReferences.isEmpty ? null : trainingBlockReferences,
       rpe: _rpeValue,
       pain: _painValueForSave(),
       chronoNotes: _chronoCtrl.text.trim(),

@@ -187,7 +187,7 @@ class CambiChartScreen extends StatelessWidget {
                           show: true,
                           drawVerticalLine: false,
                           getDrawingHorizontalLine: (value) => FlLine(
-                            color: Colors.white.withValues(alpha: 0.05),
+                            color: AppTheme.chartGrid,
                             strokeWidth: 1,
                             dashArray: [5, 5],
                           ),

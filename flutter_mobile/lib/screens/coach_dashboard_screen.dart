@@ -177,7 +177,7 @@ class _CoachDashboardScreenState extends State<CoachDashboardScreen> {
                       width: 40,
                       height: 4,
                       decoration: BoxDecoration(
-                          color: Colors.white.withOpacity(0.2),
+                          color: AppTheme.modalHandle,
                           borderRadius: BorderRadius.circular(2))),
                   const SizedBox(height: 24),
                   Text('Seleziona Test',
@@ -303,9 +303,7 @@ class _CoachDashboardScreenState extends State<CoachDashboardScreen> {
       bottomNavigationBar: Container(
         decoration: BoxDecoration(
           color: AppTheme.background,
-          border: Border(
-              top: BorderSide(
-                  color: Colors.white.withValues(alpha: 0.05), width: 1)),
+          border: Border(top: BorderSide(color: AppTheme.divider, width: 1)),
         ),
         child: BottomNavigationBar(
           backgroundColor: AppTheme.background,
@@ -364,7 +362,7 @@ class _CoachDashboardScreenState extends State<CoachDashboardScreen> {
                               width: 40,
                               height: 4,
                               decoration: BoxDecoration(
-                                  color: Colors.white.withValues(alpha: 0.2),
+                                  color: AppTheme.modalHandle,
                                   borderRadius: BorderRadius.circular(2))),
                           const SizedBox(height: 24),
                           Text('Aggiungi al Calendario',
@@ -442,8 +440,8 @@ class _CoachDashboardScreenState extends State<CoachDashboardScreen> {
                   ),
                 );
               },
-              backgroundColor: Colors.white,
-              foregroundColor: Colors.black,
+              backgroundColor: AppTheme.primary,
+              foregroundColor: Colors.white,
               child: const Icon(Icons.add),
             )
           : null,
@@ -534,14 +532,15 @@ class _CoachHomeViewState extends State<_CoachHomeView> {
                     onTap: widget.onProfileTap,
                     child: CircleAvatar(
                       backgroundColor: AppTheme.card,
-                      child: Icon(Icons.person_outline, color: Colors.white),
+                      child: Icon(Icons.person_outline,
+                          color: AppTheme.textMediumEmphasis),
                     ),
                   ),
                 ),
               ],
             ),
           ),
-          Divider(color: Colors.white.withValues(alpha: 0.05), height: 1),
+          Divider(color: AppTheme.divider, height: 1),
 
           Expanded(
             child: ListView(
@@ -558,7 +557,8 @@ class _CoachHomeViewState extends State<_CoachHomeView> {
                     Container(
                       decoration: BoxDecoration(
                           color: AppTheme.card,
-                          borderRadius: BorderRadius.circular(12)),
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(color: AppTheme.subtleBorder)),
                       child: Row(
                         children: [
                           GestureDetector(
@@ -615,7 +615,8 @@ class _CoachHomeViewState extends State<_CoachHomeView> {
                   padding: const EdgeInsets.all(20),
                   decoration: BoxDecoration(
                       color: AppTheme.card,
-                      borderRadius: BorderRadius.circular(20)),
+                      borderRadius: BorderRadius.circular(20),
+                      border: Border.all(color: AppTheme.subtleBorder)),
                   child: Column(
                     children: [
                       Row(
@@ -679,7 +680,7 @@ class _CoachHomeViewState extends State<_CoachHomeView> {
                     Row(
                       children: [
                         Icon(Icons.calendar_today_outlined,
-                            color: Colors.white, size: 20),
+                            color: AppTheme.primary, size: 20),
                         SizedBox(width: 8),
                         Text('Programma di Oggi',
                             style: TextStyle(
@@ -723,7 +724,7 @@ class _CoachHomeViewState extends State<_CoachHomeView> {
       decoration: BoxDecoration(
         color: AppTheme.card.withValues(alpha: 0.5),
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: Colors.white.withValues(alpha: 0.05)),
+        border: Border.all(color: AppTheme.subtleBorder),
       ),
       child: Column(
         children: [
@@ -797,7 +798,7 @@ class _CoachHomeViewState extends State<_CoachHomeView> {
                           padding: const EdgeInsets.symmetric(
                               horizontal: 12, vertical: 4),
                           decoration: BoxDecoration(
-                              color: Colors.white.withValues(alpha: 0.05),
+                              color: AppTheme.subtleFill,
                               borderRadius: BorderRadius.circular(8)),
                           child: Text(teamName,
                               style: TextStyle(
@@ -980,7 +981,7 @@ class _CoachHomeViewState extends State<_CoachHomeView> {
                     ? AppTheme.primary
                     : (isToday
                         ? AppTheme.primary.withValues(alpha: 0.5)
-                        : Colors.white.withValues(alpha: 0.05)),
+                        : AppTheme.subtleBorder),
               ),
             ),
             child: Column(
@@ -990,7 +991,9 @@ class _CoachHomeViewState extends State<_CoachHomeView> {
                     style: TextStyle(
                         color: isSelected
                             ? Colors.white
-                            : (isToday ? AppTheme.primary : Colors.white),
+                            : (isToday
+                                ? AppTheme.primary
+                                : AppTheme.textHighEmphasis),
                         fontWeight: FontWeight.bold,
                         fontSize: compact ? 14 : 16)),
                 if (hasEvents) ...[
@@ -1412,7 +1415,7 @@ class _CoachTrainingViewState extends State<_CoachTrainingView> {
                   width: 40,
                   height: 4,
                   decoration: BoxDecoration(
-                      color: Colors.white.withValues(alpha: 0.2),
+                      color: AppTheme.modalHandle,
                       borderRadius: BorderRadius.circular(2))),
               const SizedBox(height: 24),
               Text('Filtra Allenamenti',
@@ -1436,14 +1439,13 @@ class _CoachTrainingViewState extends State<_CoachTrainingView> {
                       padding: const EdgeInsets.symmetric(
                           horizontal: 16, vertical: 8),
                       decoration: BoxDecoration(
-                        color: isSelected
-                            ? AppTheme.primary
-                            : Colors.white.withValues(alpha: 0.05),
+                        color:
+                            isSelected ? AppTheme.primary : AppTheme.subtleFill,
                         borderRadius: BorderRadius.circular(20),
                         border: Border.all(
                             color: isSelected
                                 ? AppTheme.primary
-                                : Colors.white.withValues(alpha: 0.1)),
+                                : AppTheme.subtleBorder),
                       ),
                       child: Text(
                         f,
@@ -1644,7 +1646,7 @@ class _CoachTrainingViewState extends State<_CoachTrainingView> {
                           padding: const EdgeInsets.symmetric(
                               horizontal: 8, vertical: 4),
                           decoration: BoxDecoration(
-                              color: Colors.white.withValues(alpha: 0.05),
+                              color: AppTheme.subtleFill,
                               borderRadius: BorderRadius.circular(6)),
                           child: Text(event.date,
                               style: TextStyle(
@@ -1760,7 +1762,7 @@ class _CoachTrainingViewState extends State<_CoachTrainingView> {
             child: Container(
               decoration: BoxDecoration(
                 color: isPast
-                    ? Colors.white.withValues(alpha: 0.2)
+                    ? AppTheme.textLowEmphasis.withValues(alpha: 0.6)
                     : AppTheme.primary,
                 borderRadius: const BorderRadius.only(
                     topRight: Radius.circular(4),

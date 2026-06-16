@@ -109,8 +109,7 @@ class _HealthPermissionScreenState extends State<HealthPermissionScreen> {
                   decoration: BoxDecoration(
                     color: AppTheme.card,
                     borderRadius: BorderRadius.circular(16),
-                    border:
-                        Border.all(color: Colors.white.withValues(alpha: 0.05)),
+                    border: Border.all(color: AppTheme.subtleBorder),
                   ),
                   child: ListView(
                     children: [
@@ -171,8 +170,8 @@ class _HealthPermissionScreenState extends State<HealthPermissionScreen> {
                   openAppSettings();
                 },
                 style: OutlinedButton.styleFrom(
-                  foregroundColor: Colors.white,
-                  side: BorderSide(color: Colors.white.withValues(alpha: 0.2)),
+                  foregroundColor: AppTheme.textHighEmphasis,
+                  side: BorderSide(color: AppTheme.subtleBorder),
                   padding: const EdgeInsets.symmetric(vertical: 16),
                   shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(16)),

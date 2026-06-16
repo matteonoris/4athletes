@@ -90,6 +90,70 @@ void main() {
     );
   });
 
+  test('assegna la zona al campione misurato, non alla media del segmento', () {
+    final metrics = HealthImportNormalizer.calculateHeartRateMetrics(
+      samples: [
+        sample(0, 130),
+        sample(10, 190),
+      ],
+      zones: zones,
+    );
+
+    expect(metrics.averageHeartRate, 160);
+    expect(metrics.zoneSeconds.map((seconds) => seconds.round()).toList(), [
+      0,
+      0,
+      10,
+      0,
+      0,
+      0,
+    ]);
+  });
+
+  test('include piccoli bordi start/end dell allenamento', () {
+    final metrics = HealthImportNormalizer.calculateHeartRateMetrics(
+      samples: [
+        sample(10, 130),
+        sample(20, 150),
+      ],
+      zones: zones,
+      workoutStart: base,
+      workoutEnd: base.add(const Duration(seconds: 30)),
+    );
+
+    expect(metrics.coverageSeconds, 30);
+    expect(metrics.zoneSeconds.map((seconds) => seconds.round()).toList(), [
+      0,
+      0,
+      20,
+      10,
+      0,
+      0,
+    ]);
+  });
+
+  test('non riempie bordi grandi senza campioni cardiaci', () {
+    final metrics = HealthImportNormalizer.calculateHeartRateMetrics(
+      samples: [
+        sample(120, 130),
+        sample(180, 150),
+      ],
+      zones: zones,
+      workoutStart: base,
+      workoutEnd: base.add(const Duration(seconds: 360)),
+    );
+
+    expect(metrics.coverageSeconds, 60);
+    expect(metrics.zoneSeconds.map((seconds) => seconds.round()).toList(), [
+      0,
+      0,
+      60,
+      0,
+      0,
+      0,
+    ]);
+  });
+
   test('richiede copertura minima per mostrare i battiti', () {
     final metrics = HealthImportNormalizer.calculateHeartRateMetrics(
       samples: [

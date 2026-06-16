@@ -802,7 +802,7 @@ class _BodyCompositionLineChart extends StatelessWidget {
           show: true,
           drawVerticalLine: false,
           getDrawingHorizontalLine: (value) => FlLine(
-            color: Colors.white.withValues(alpha: 0.05),
+            color: AppTheme.chartGrid,
             strokeWidth: 1,
           ),
         ),
@@ -1354,7 +1354,7 @@ class _LineSeriesChart extends StatelessWidget {
           show: true,
           drawVerticalLine: false,
           getDrawingHorizontalLine: (value) => FlLine(
-            color: Colors.white.withValues(alpha: 0.05),
+            color: AppTheme.chartGrid,
             strokeWidth: 1,
           ),
         ),
@@ -1421,7 +1421,7 @@ class _SleepNeedChart extends StatelessWidget {
               show: true,
               drawVerticalLine: false,
               getDrawingHorizontalLine: (value) => FlLine(
-                color: Colors.white.withValues(alpha: 0.05),
+                color: AppTheme.chartGrid,
                 strokeWidth: 1,
               ),
             ),
@@ -1529,7 +1529,7 @@ class _SleepDebtChart extends StatelessWidget {
           getDrawingHorizontalLine: (value) => FlLine(
             color: value == 0
                 ? AppTheme.textMediumEmphasis.withValues(alpha: 0.32)
-                : Colors.white.withValues(alpha: 0.05),
+                : AppTheme.chartGrid,
             strokeWidth: value == 0 ? 1.4 : 1,
           ),
         ),
@@ -1595,7 +1595,7 @@ class _SleepArchitectureChart extends StatelessWidget {
           show: true,
           drawVerticalLine: false,
           getDrawingHorizontalLine: (value) => FlLine(
-            color: Colors.white.withValues(alpha: 0.05),
+            color: AppTheme.chartGrid,
             strokeWidth: 1,
           ),
         ),
@@ -1699,7 +1699,7 @@ class _SleepRegularityChart extends StatelessWidget {
           show: true,
           drawVerticalLine: false,
           getDrawingHorizontalLine: (value) => FlLine(
-            color: Colors.white.withValues(alpha: 0.05),
+            color: AppTheme.chartGrid,
             strokeWidth: 1,
           ),
         ),

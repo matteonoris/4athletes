@@ -138,7 +138,9 @@ class _AnalyticsDetailsScreenState extends State<AnalyticsDetailsScreen> {
               RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
           title: Text(
               isEditing ? 'Modifica Record' : 'Nuovo Record: ${widget.title}',
-              style: const TextStyle(fontWeight: FontWeight.bold)),
+              style: TextStyle(
+                  color: AppTheme.textHighEmphasis,
+                  fontWeight: FontWeight.bold)),
           content: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
@@ -147,13 +149,20 @@ class _AnalyticsDetailsScreenState extends State<AnalyticsDetailsScreen> {
                 keyboardType:
                     const TextInputType.numberWithOptions(decimal: true),
                 autofocus: true,
-                style:
-                    const TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
+                style: TextStyle(
+                    color: AppTheme.textHighEmphasis,
+                    fontSize: 24,
+                    fontWeight: FontWeight.bold),
                 textAlign: TextAlign.center,
                 decoration: InputDecoration(
                   hintText: '0.0',
                   suffixText: ' ${_getUnit()}',
-                  border: InputBorder.none,
+                  suffixStyle: TextStyle(color: AppTheme.textMediumEmphasis),
+                  filled: true,
+                  fillColor: AppTheme.surface,
+                  border: _dialogInputBorder(),
+                  enabledBorder: _dialogInputBorder(),
+                  focusedBorder: _dialogInputBorder(AppTheme.primary, 2),
                 ),
               ),
               if (_isDropJumpDetail) ...[
@@ -162,13 +171,20 @@ class _AnalyticsDetailsScreenState extends State<AnalyticsDetailsScreen> {
                   controller: rsiCtrl,
                   keyboardType:
                       const TextInputType.numberWithOptions(decimal: true),
-                  style: const TextStyle(
-                      fontSize: 24, fontWeight: FontWeight.bold),
+                  style: TextStyle(
+                      color: AppTheme.textHighEmphasis,
+                      fontSize: 24,
+                      fontWeight: FontWeight.bold),
                   textAlign: TextAlign.center,
-                  decoration: const InputDecoration(
+                  decoration: InputDecoration(
                     hintText: 'RSI',
                     suffixText: ' RSI',
-                    border: InputBorder.none,
+                    suffixStyle: TextStyle(color: AppTheme.textMediumEmphasis),
+                    filled: true,
+                    fillColor: AppTheme.surface,
+                    border: _dialogInputBorder(),
+                    enabledBorder: _dialogInputBorder(),
+                    focusedBorder: _dialogInputBorder(AppTheme.primary, 2),
                   ),
                 ),
               ],
@@ -181,13 +197,13 @@ class _AnalyticsDetailsScreenState extends State<AnalyticsDetailsScreen> {
                     firstDate: DateTime(2020),
                     lastDate: DateTime.now(),
                     builder: (context, child) => Theme(
-                      data: ThemeData.dark().copyWith(
-                        colorScheme: ColorScheme.dark(
-                          primary: AppTheme.primary,
-                          onPrimary: Colors.white,
-                          surface: AppTheme.card,
-                          onSurface: Colors.white,
-                        ),
+                      data: Theme.of(context).copyWith(
+                        colorScheme: Theme.of(context).colorScheme.copyWith(
+                              primary: AppTheme.primary,
+                              onPrimary: Colors.white,
+                              surface: AppTheme.card,
+                              onSurface: AppTheme.textHighEmphasis,
+                            ),
                       ),
                       child: child!,
                     ),
@@ -199,7 +215,10 @@ class _AnalyticsDetailsScreenState extends State<AnalyticsDetailsScreen> {
                       const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
                   decoration: BoxDecoration(
                       color: AppTheme.background,
-                      borderRadius: BorderRadius.circular(12)),
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(
+                        color: AppTheme.textLowEmphasis.withValues(alpha: 0.18),
+                      )),
                   child: Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
@@ -207,7 +226,9 @@ class _AnalyticsDetailsScreenState extends State<AnalyticsDetailsScreen> {
                           size: 20, color: AppTheme.textMediumEmphasis),
                       Text(
                           '${selectedDate.day}/${selectedDate.month}/${selectedDate.year}',
-                          style: const TextStyle(fontWeight: FontWeight.bold)),
+                          style: TextStyle(
+                              color: AppTheme.textHighEmphasis,
+                              fontWeight: FontWeight.bold)),
                     ],
                   ),
                 ),
@@ -217,7 +238,8 @@ class _AnalyticsDetailsScreenState extends State<AnalyticsDetailsScreen> {
           actions: [
             TextButton(
                 onPressed: () => Navigator.pop(context),
-                child: const Text('Annulla')),
+                child: Text('Annulla',
+                    style: TextStyle(color: AppTheme.textMediumEmphasis))),
             ElevatedButton(
               onPressed: () async {
                 final navigator = Navigator.of(context);
@@ -349,6 +371,16 @@ class _AnalyticsDetailsScreenState extends State<AnalyticsDetailsScreen> {
             ),
           ],
         ),
+      ),
+    );
+  }
+
+  OutlineInputBorder _dialogInputBorder([Color? color, double width = 1]) {
+    return OutlineInputBorder(
+      borderRadius: BorderRadius.circular(12),
+      borderSide: BorderSide(
+        color: color ?? AppTheme.textLowEmphasis.withValues(alpha: 0.18),
+        width: width,
       ),
     );
   }
@@ -857,7 +889,8 @@ class _AnalyticsDetailsScreenState extends State<AnalyticsDetailsScreen> {
             ? null
             : () => _showAddOrEditLogDialog(existingLog: log),
         child: CustomCard(
-          color: const Color(0xFF22282D),
+          color: AppTheme.card,
+          borderColor: AppTheme.textLowEmphasis.withValues(alpha: 0.14),
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 20),
           child: Row(
             children: [
@@ -866,10 +899,10 @@ class _AnalyticsDetailsScreenState extends State<AnalyticsDetailsScreen> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text('$giornoStr ${date.day} $meseStr',
-                        style: const TextStyle(
+                        style: TextStyle(
                             fontWeight: FontWeight.bold,
                             fontSize: 14,
-                            color: Colors.white)),
+                            color: AppTheme.textHighEmphasis)),
                     const SizedBox(height: 6),
                     Text(desc,
                         style: TextStyle(

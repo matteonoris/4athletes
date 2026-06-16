@@ -341,7 +341,7 @@ class _ActivitySelectScreenState extends State<ActivitySelectScreen> {
             _showAllSports
                 ? Icons.close
                 : PhosphorIcons.caretLeft(PhosphorIconsStyle.bold),
-            color: Colors.white,
+            color: AppTheme.textHighEmphasis,
             size: 20,
           ),
           onPressed: () {
@@ -367,9 +367,9 @@ class _ActivitySelectScreenState extends State<ActivitySelectScreen> {
             child: Container(
               height: 48,
               decoration: BoxDecoration(
-                color: const Color(0xFF161A20),
+                color: AppTheme.card,
                 borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: const Color(0xFF222831), width: 1.5),
+                border: Border.all(color: AppTheme.subtleBorder, width: 1.5),
               ),
               child: TextField(
                 onChanged: (val) => setState(() => _searchQuery = val),
@@ -379,9 +379,10 @@ class _ActivitySelectScreenState extends State<ActivitySelectScreen> {
                   hintText: _showAllSports
                       ? 'Cerca sport...'
                       : 'Cerca categorie, sport, template...',
-                  hintStyle: const TextStyle(color: Colors.grey, fontSize: 14),
+                  hintStyle: TextStyle(
+                      color: AppTheme.textMediumEmphasis, fontSize: 14),
                   prefixIcon: Icon(PhosphorIcons.magnifyingGlass(),
-                      color: Colors.grey, size: 20),
+                      color: AppTheme.textMediumEmphasis, size: 20),
                   border: InputBorder.none,
                   contentPadding: const EdgeInsets.symmetric(vertical: 14),
                 ),
@@ -442,8 +443,8 @@ class _ActivitySelectScreenState extends State<ActivitySelectScreen> {
   Widget _sportCategoryTabs() {
     return Container(
       height: 48,
-      decoration: const BoxDecoration(
-        border: Border(bottom: BorderSide(color: Color(0xFF1A1E24), width: 1)),
+      decoration: BoxDecoration(
+        border: Border(bottom: BorderSide(color: AppTheme.divider, width: 1)),
       ),
       child: ListView.builder(
         scrollDirection: Axis.horizontal,
@@ -468,7 +469,9 @@ class _ActivitySelectScreenState extends State<ActivitySelectScreen> {
                 child: Text(
                   cat,
                   style: TextStyle(
-                    color: isSelected ? Colors.white : Colors.grey,
+                    color: isSelected
+                        ? AppTheme.primary
+                        : AppTheme.textMediumEmphasis,
                     fontWeight: FontWeight.bold,
                     fontSize: 11,
                   ),
@@ -579,7 +582,7 @@ class _ActivitySelectScreenState extends State<ActivitySelectScreen> {
               decoration: BoxDecoration(
                 color: AppTheme.card,
                 borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: Colors.white.withValues(alpha: 0.06)),
+                border: Border.all(color: AppTheme.subtleBorder),
               ),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,

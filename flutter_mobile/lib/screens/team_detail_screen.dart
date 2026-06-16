@@ -4,6 +4,7 @@ import 'package:phosphor_flutter/phosphor_flutter.dart';
 import 'package:share_plus/share_plus.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+import '../core/theme.dart';
 import '../models/models.dart';
 import '../models/training_activity_models.dart';
 import 'coach_athlete_detail_screen.dart';
@@ -257,15 +258,16 @@ class _TeamDetailScreenState extends State<TeamDetailScreen> {
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
-        backgroundColor: const Color(0xFF1E2126),
-        title:
-            const Text('Abbandona Team', style: TextStyle(color: Colors.white)),
-        content: const Text('Sei sicuro di voler abbandonare questo team?',
-            style: TextStyle(color: Colors.white70)),
+        backgroundColor: AppTheme.card,
+        title: Text('Abbandona Team',
+            style: TextStyle(color: AppTheme.textHighEmphasis)),
+        content: Text('Sei sicuro di voler abbandonare questo team?',
+            style: TextStyle(color: AppTheme.textMediumEmphasis)),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(ctx).pop(),
-            child: const Text('No', style: TextStyle(color: Colors.grey)),
+            child: Text('No',
+                style: TextStyle(color: AppTheme.textMediumEmphasis)),
           ),
           ElevatedButton(
             onPressed: () async {
@@ -296,16 +298,17 @@ class _TeamDetailScreenState extends State<TeamDetailScreen> {
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
-        backgroundColor: const Color(0xFF1E2126),
-        title:
-            const Text('Rimuovi Atleta', style: TextStyle(color: Colors.white)),
+        backgroundColor: AppTheme.card,
+        title: Text('Rimuovi Atleta',
+            style: TextStyle(color: AppTheme.textHighEmphasis)),
         content: Text(
             'Sei sicuro di voler rimuovere $athleteName da questo team?',
-            style: const TextStyle(color: Colors.white70)),
+            style: TextStyle(color: AppTheme.textMediumEmphasis)),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(ctx).pop(),
-            child: const Text('No', style: TextStyle(color: Colors.grey)),
+            child: Text('No',
+                style: TextStyle(color: AppTheme.textMediumEmphasis)),
           ),
           ElevatedButton(
             onPressed: () async {
@@ -350,27 +353,27 @@ class _TeamDetailScreenState extends State<TeamDetailScreen> {
     if (maxValue <= 0) maxValue = 1;
 
     return Scaffold(
-      backgroundColor: const Color(0xFF0D1217), // Deep dark background
+      backgroundColor: AppTheme.background,
       appBar: AppBar(
         backgroundColor: Colors.transparent,
         elevation: 0,
         leading: IconButton(
           icon: Icon(PhosphorIcons.arrowLeft(PhosphorIconsStyle.bold),
-              color: Colors.white, size: 20),
+              color: AppTheme.textHighEmphasis, size: 20),
           onPressed: () => Navigator.of(context).pop(),
         ),
         title: Column(
           children: [
             Text(widget.team.name,
-                style: const TextStyle(
+                style: TextStyle(
                     fontWeight: FontWeight.w900,
-                    color: Colors.white,
+                    color: AppTheme.textHighEmphasis,
                     fontSize: 18)),
             const SizedBox(height: 2),
             Text(
                 '${_isLoading ? widget.team.members : sortedAthletes.length} MEMBERS',
-                style: const TextStyle(
-                    color: Color(0xFF1A9DF0),
+                style: TextStyle(
+                    color: AppTheme.primary,
                     fontWeight: FontWeight.bold,
                     fontSize: 10,
                     letterSpacing: 1.2)),
@@ -393,9 +396,11 @@ class _TeamDetailScreenState extends State<TeamDetailScreen> {
               margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
               padding: const EdgeInsets.all(16),
               decoration: BoxDecoration(
-                color: const Color(0xFF0F1E1E), // Dark Green Base
+                color: AppTheme.secondary.withValues(alpha: 0.10),
                 borderRadius: BorderRadius.circular(16),
-                border: Border.all(color: const Color(0xFF16322C), width: 1.5),
+                border: Border.all(
+                    color: AppTheme.secondary.withValues(alpha: 0.24),
+                    width: 1.5),
               ),
               child: Row(
                 children: [
@@ -403,9 +408,9 @@ class _TeamDetailScreenState extends State<TeamDetailScreen> {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        const Text('INVITA MEMBRI',
+                        Text('INVITA MEMBRI',
                             style: TextStyle(
-                                color: Color(0xFF6B8B88),
+                                color: AppTheme.secondary,
                                 fontSize: 10,
                                 fontWeight: FontWeight.bold,
                                 letterSpacing: 1.5)),
@@ -415,14 +420,14 @@ class _TeamDetailScreenState extends State<TeamDetailScreen> {
                           child: Row(
                             children: [
                               Text(widget.team.inviteCode,
-                                  style: const TextStyle(
+                                  style: TextStyle(
                                       fontSize: 22,
                                       fontWeight: FontWeight.bold,
                                       letterSpacing: 2,
-                                      color: Colors.white)),
+                                      color: AppTheme.textHighEmphasis)),
                               const SizedBox(width: 8),
                               Icon(PhosphorIcons.copy(),
-                                  size: 18, color: Colors.white70),
+                                  size: 18, color: AppTheme.textMediumEmphasis),
                             ],
                           ),
                         ),
@@ -433,8 +438,8 @@ class _TeamDetailScreenState extends State<TeamDetailScreen> {
                     key: _shareButtonKey,
                     onPressed: _shareCode,
                     style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.white,
-                      foregroundColor: Colors.black,
+                      backgroundColor: AppTheme.primary,
+                      foregroundColor: Colors.white,
                       shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(10)),
                       padding: const EdgeInsets.symmetric(
@@ -467,17 +472,17 @@ class _TeamDetailScreenState extends State<TeamDetailScreen> {
                             ? Icons.keyboard_arrow_up
                             : Icons.keyboard_arrow_down,
                         size: 16,
-                        color: Colors.white),
-                    label: const Text('FILTRI',
+                        color: _showFilters ? Colors.white : AppTheme.primary),
+                    label: Text('FILTRI',
                         style: TextStyle(
-                            color: Colors.white,
+                            color:
+                                _showFilters ? Colors.white : AppTheme.primary,
                             fontWeight: FontWeight.bold,
                             fontSize: 12)),
                     style: OutlinedButton.styleFrom(
-                      backgroundColor: _showFilters
-                          ? const Color(0xFF1A9DF0)
-                          : Colors.transparent,
-                      side: BorderSide(color: const Color(0xFF1A9DF0)),
+                      backgroundColor:
+                          _showFilters ? AppTheme.primary : Colors.transparent,
+                      side: BorderSide(color: AppTheme.primary),
                       shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(10)),
                       padding: const EdgeInsets.symmetric(
@@ -491,7 +496,7 @@ class _TeamDetailScreenState extends State<TeamDetailScreen> {
                         _timeFilter = value;
                       });
                     },
-                    color: const Color(0xFF1E2126),
+                    color: AppTheme.card,
                     itemBuilder: (BuildContext context) {
                       return ['Last 7 Days', 'This Month', 'This Season']
                           .map((String choice) {
@@ -501,8 +506,8 @@ class _TeamDetailScreenState extends State<TeamDetailScreen> {
                             choice,
                             style: TextStyle(
                               color: _timeFilter == choice
-                                  ? const Color(0xFF1A9DF0)
-                                  : Colors.white,
+                                  ? AppTheme.primary
+                                  : AppTheme.textHighEmphasis,
                               fontWeight: _timeFilter == choice
                                   ? FontWeight.bold
                                   : FontWeight.normal,
@@ -515,22 +520,23 @@ class _TeamDetailScreenState extends State<TeamDetailScreen> {
                       height: 36,
                       padding: const EdgeInsets.symmetric(horizontal: 12),
                       decoration: BoxDecoration(
-                        color: const Color(0xFF1A1F25),
+                        color: AppTheme.card,
                         borderRadius: BorderRadius.circular(10),
+                        border: Border.all(color: AppTheme.subtleBorder),
                       ),
                       child: Row(
                         children: [
                           Icon(PhosphorIcons.clock(),
-                              size: 16, color: const Color(0xFF1A9DF0)),
+                              size: 16, color: AppTheme.primary),
                           const SizedBox(width: 8),
                           Text(_timeFilter,
-                              style: const TextStyle(
+                              style: TextStyle(
                                   fontWeight: FontWeight.bold,
                                   fontSize: 12,
-                                  color: Colors.white)),
+                                  color: AppTheme.textHighEmphasis)),
                           const SizedBox(width: 4),
-                          const Icon(Icons.keyboard_arrow_down,
-                              size: 16, color: Colors.grey),
+                          Icon(Icons.keyboard_arrow_down,
+                              size: 16, color: AppTheme.textMediumEmphasis),
                         ],
                       ),
                     ),
@@ -538,9 +544,9 @@ class _TeamDetailScreenState extends State<TeamDetailScreen> {
                   Column(
                     crossAxisAlignment: CrossAxisAlignment.end,
                     children: [
-                      const Text('TOTAL',
+                      Text('TOTAL',
                           style: TextStyle(
-                              color: Colors.grey,
+                              color: AppTheme.textMediumEmphasis,
                               fontSize: 9,
                               fontWeight: FontWeight.bold,
                               letterSpacing: 1.0)),
@@ -549,14 +555,15 @@ class _TeamDetailScreenState extends State<TeamDetailScreen> {
                         textBaseline: TextBaseline.alphabetic,
                         children: [
                           Text(_getTotalValue().toStringAsFixed(1),
-                              style: const TextStyle(
+                              style: TextStyle(
                                   fontSize: 16,
                                   fontWeight: FontWeight.bold,
-                                  color: Color(0xFF1A9DF0))),
+                                  color: AppTheme.primary)),
                           const SizedBox(width: 2),
                           Text(_getCategoryUnit(_categoryFilter),
-                              style: const TextStyle(
-                                  fontSize: 12, color: Colors.grey)),
+                              style: TextStyle(
+                                  fontSize: 12,
+                                  color: AppTheme.textMediumEmphasis)),
                         ],
                       ),
                     ],
@@ -600,25 +607,27 @@ class _TeamDetailScreenState extends State<TeamDetailScreen> {
                               horizontal: 16, vertical: 8),
                           decoration: BoxDecoration(
                             color: isSelected
-                                ? const Color(0xFF1A9DF0)
+                                ? AppTheme.primary
                                 : Colors.transparent,
                             border: Border.all(
                                 color: isSelected
-                                    ? const Color(0xFF1A9DF0)
-                                    : Colors.grey.withValues(alpha: 0.2)),
+                                    ? AppTheme.primary
+                                    : AppTheme.subtleBorder),
                             borderRadius: BorderRadius.circular(20),
                           ),
                           child: Row(
                             children: [
                               Icon(_getCategoryIcon(cat),
                                   size: 14,
-                                  color:
-                                      isSelected ? Colors.white : Colors.grey),
+                                  color: isSelected
+                                      ? Colors.white
+                                      : AppTheme.textMediumEmphasis),
                               const SizedBox(width: 6),
                               Text(cat,
                                   style: TextStyle(
-                                    color:
-                                        isSelected ? Colors.white : Colors.grey,
+                                    color: isSelected
+                                        ? Colors.white
+                                        : AppTheme.textMediumEmphasis,
                                     fontWeight: FontWeight.bold,
                                     fontSize: 12,
                                   )),
@@ -640,16 +649,16 @@ class _TeamDetailScreenState extends State<TeamDetailScreen> {
                   left: 16, right: 16, top: 24, bottom: 12),
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: const [
+                children: [
                   Text('RANK & ATHLETE',
                       style: TextStyle(
-                          color: Colors.grey,
+                          color: AppTheme.textMediumEmphasis,
                           fontSize: 10,
                           fontWeight: FontWeight.bold,
                           letterSpacing: 1.5)),
                   Text('VOLUME',
                       style: TextStyle(
-                          color: Colors.grey,
+                          color: AppTheme.textMediumEmphasis,
                           fontSize: 10,
                           fontWeight: FontWeight.bold,
                           letterSpacing: 1.5)),
@@ -664,22 +673,20 @@ class _TeamDetailScreenState extends State<TeamDetailScreen> {
                   child: Padding(
                     padding: EdgeInsets.symmetric(vertical: 60),
                     child: Center(
-                      child: CircularProgressIndicator(
-                        color: Color(0xFF1A9DF0),
-                      ),
+                      child: CircularProgressIndicator(color: AppTheme.primary),
                     ),
                   ),
                 )
               : sortedAthletes.isEmpty
-                  ? const SliverToBoxAdapter(
+                  ? SliverToBoxAdapter(
                       child: Padding(
-                        padding:
-                            EdgeInsets.symmetric(vertical: 60, horizontal: 16),
+                        padding: const EdgeInsets.symmetric(
+                            vertical: 60, horizontal: 16),
                         child: Center(
                           child: Text(
                             'Nessun atleta in questo team.',
                             style: TextStyle(
-                              color: Colors.grey,
+                              color: AppTheme.textMediumEmphasis,
                               fontSize: 14,
                             ),
                           ),
@@ -718,8 +725,10 @@ class _TeamDetailScreenState extends State<TeamDetailScreen> {
                                 margin: const EdgeInsets.only(
                                     bottom: 12, left: 16, right: 16),
                                 decoration: BoxDecoration(
-                                  color: const Color(0xFF1C2229),
+                                  color: AppTheme.card,
                                   borderRadius: BorderRadius.circular(16),
+                                  border:
+                                      Border.all(color: AppTheme.subtleBorder),
                                 ),
                                 child: Stack(
                                   children: [
@@ -731,12 +740,14 @@ class _TeamDetailScreenState extends State<TeamDetailScreen> {
                                         bottom: 0,
                                         child: Container(
                                             width: 3,
-                                            decoration: const BoxDecoration(
-                                              color: Color(0xFF1A9DF0),
-                                              borderRadius: BorderRadius.only(
-                                                  topLeft: Radius.circular(16),
-                                                  bottomLeft:
-                                                      Radius.circular(16)),
+                                            decoration: BoxDecoration(
+                                              color: AppTheme.primary,
+                                              borderRadius:
+                                                  const BorderRadius.only(
+                                                      topLeft:
+                                                          Radius.circular(16),
+                                                      bottomLeft:
+                                                          Radius.circular(16)),
                                             )),
                                       ),
                                     ],
@@ -762,13 +773,14 @@ class _TeamDetailScreenState extends State<TeamDetailScreen> {
                                                               .w900,
                                                           color: index ==
                                                                   1
-                                                              ? Colors.white
+                                                              ? AppTheme
+                                                                  .textHighEmphasis
                                                               : (index ==
                                                                       2
                                                                   ? const Color(
                                                                       0xFFCD7F32)
-                                                                  : const Color(
-                                                                      0xFF424750)))),
+                                                                  : AppTheme
+                                                                      .textLowEmphasis))),
                                             ),
                                           ),
                                           const SizedBox(width: 12),
@@ -777,7 +789,7 @@ class _TeamDetailScreenState extends State<TeamDetailScreen> {
                                             width: 44,
                                             height: 44,
                                             decoration: BoxDecoration(
-                                              color: const Color(0xFF2A313C),
+                                              color: AppTheme.surface,
                                               borderRadius:
                                                   BorderRadius.circular(12),
                                               image: athlete['avatar']
@@ -805,11 +817,11 @@ class _TeamDetailScreenState extends State<TeamDetailScreen> {
                                                                     .isNotEmpty
                                                             ? athlete['name'][0]
                                                             : 'A',
-                                                        style: const TextStyle(
+                                                        style: TextStyle(
                                                             fontWeight:
                                                                 FontWeight.bold,
-                                                            color:
-                                                                Colors.white)))
+                                                            color: AppTheme
+                                                                .textHighEmphasis)))
                                                 : null,
                                           ),
                                           const SizedBox(width: 16),
@@ -820,17 +832,19 @@ class _TeamDetailScreenState extends State<TeamDetailScreen> {
                                                   CrossAxisAlignment.start,
                                               children: [
                                                 Text(athlete['name'],
-                                                    style: const TextStyle(
+                                                    style: TextStyle(
                                                         fontWeight:
                                                             FontWeight.bold,
-                                                        color: Colors.white,
+                                                        color: AppTheme
+                                                            .textHighEmphasis,
                                                         fontSize: 14)),
                                                 const SizedBox(height: 2),
                                                 Text(
                                                     athlete['subtitle'] ??
                                                         'Athlete',
-                                                    style: const TextStyle(
-                                                        color: Colors.grey,
+                                                    style: TextStyle(
+                                                        color: AppTheme
+                                                            .textMediumEmphasis,
                                                         fontSize: 11)),
                                                 const SizedBox(height: 8),
                                                 LayoutBuilder(builder:
@@ -846,8 +860,8 @@ class _TeamDetailScreenState extends State<TeamDetailScreen> {
                                                         width: constraints
                                                             .maxWidth,
                                                         decoration: BoxDecoration(
-                                                            color: const Color(
-                                                                0xFF2A313C),
+                                                            color: AppTheme
+                                                                .subtleFill,
                                                             borderRadius:
                                                                 BorderRadius
                                                                     .circular(
@@ -860,10 +874,10 @@ class _TeamDetailScreenState extends State<TeamDetailScreen> {
                                                             percentage,
                                                         decoration: BoxDecoration(
                                                             color: isFirst
-                                                                ? const Color(
-                                                                    0xFF1A9DF0)
-                                                                : const Color(
-                                                                    0xFF4A5565),
+                                                                ? AppTheme
+                                                                    .primary
+                                                                : AppTheme
+                                                                    .textLowEmphasis,
                                                             borderRadius:
                                                                 BorderRadius
                                                                     .circular(
@@ -889,16 +903,17 @@ class _TeamDetailScreenState extends State<TeamDetailScreen> {
                                                       fontWeight:
                                                           FontWeight.w900,
                                                       color: isFirst
-                                                          ? const Color(
-                                                              0xFF1A9DF0)
-                                                          : Colors.white)),
+                                                          ? AppTheme.primary
+                                                          : AppTheme
+                                                              .textHighEmphasis)),
                                               const SizedBox(width: 2),
                                               Text(
                                                   _getCategoryUnit(
                                                       _categoryFilter),
-                                                  style: const TextStyle(
+                                                  style: TextStyle(
                                                       fontSize: 12,
-                                                      color: Colors.grey)),
+                                                      color: AppTheme
+                                                          .textMediumEmphasis)),
                                             ],
                                           ),
                                           if (isCoach) ...[

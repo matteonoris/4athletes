@@ -573,7 +573,7 @@ class _AddTrainingScreenState extends State<AddTrainingScreen> {
           decoration: BoxDecoration(
             color: AppTheme.surface,
             borderRadius: BorderRadius.circular(12),
-            border: Border.all(color: Colors.white.withValues(alpha: 0.05)),
+            border: Border.all(color: AppTheme.subtleBorder),
           ),
           child: Row(
             children: [
@@ -640,9 +640,7 @@ class _AddTrainingScreenState extends State<AddTrainingScreen> {
                       : AppTheme.surface,
                   borderRadius: BorderRadius.circular(16),
                   border: Border.all(
-                      color: isSel
-                          ? AppTheme.secondary
-                          : Colors.white.withValues(alpha: 0.05)),
+                      color: isSel ? AppTheme.secondary : AppTheme.subtleFill),
                 ),
                 child: Text(
                   opt,
@@ -675,7 +673,7 @@ class _AddTrainingScreenState extends State<AddTrainingScreen> {
       decoration: BoxDecoration(
         color: AppTheme.card,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: Colors.white.withValues(alpha: 0.05)),
+        border: Border.all(color: AppTheme.subtleBorder),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -849,8 +847,7 @@ class _AddTrainingScreenState extends State<AddTrainingScreen> {
                         if (d != null) setState(() => _date = d);
                       },
                     ),
-                    Divider(
-                        color: Colors.white.withValues(alpha: 0.05), height: 1),
+                    Divider(color: AppTheme.divider, height: 1),
                     Row(
                       children: [
                         Expanded(
@@ -874,9 +871,7 @@ class _AddTrainingScreenState extends State<AddTrainingScreen> {
                           ),
                         ),
                         Container(
-                            width: 1,
-                            height: 40,
-                            color: Colors.white.withValues(alpha: 0.05)),
+                            width: 1, height: 40, color: AppTheme.divider),
                         Expanded(
                           child: ListTile(
                             leading: const Icon(Icons.access_time_filled,
@@ -1047,8 +1042,7 @@ class _AddTrainingScreenState extends State<AddTrainingScreen> {
                         decoration: BoxDecoration(
                           color: Colors.transparent,
                           borderRadius: BorderRadius.circular(16),
-                          border: Border.all(
-                              color: Colors.white.withValues(alpha: 0.1)),
+                          border: Border.all(color: AppTheme.subtleBorder),
                         ),
                         child: const Center(
                           child: Text('+ AGGIUNGI TRACCIATO',
@@ -1095,8 +1089,7 @@ class _AddTrainingScreenState extends State<AddTrainingScreen> {
                         decoration: BoxDecoration(
                           color: Colors.transparent,
                           borderRadius: BorderRadius.circular(16),
-                          border: Border.all(
-                              color: Colors.white.withValues(alpha: 0.1)),
+                          border: Border.all(color: AppTheme.subtleBorder),
                         ),
                         child: const Center(
                           child: Text('+ AGGIUNGI ADDESTRAMENTO',
@@ -1188,7 +1181,7 @@ class _AddTrainingScreenState extends State<AddTrainingScreen> {
                           Container(
                             padding: const EdgeInsets.all(12),
                             decoration: BoxDecoration(
-                              color: Colors.white.withValues(alpha: 0.05),
+                              color: AppTheme.subtleFill,
                               borderRadius: const BorderRadius.vertical(
                                   top: Radius.circular(16)),
                             ),
@@ -1477,8 +1470,7 @@ class _AddTrainingScreenState extends State<AddTrainingScreen> {
                     decoration: BoxDecoration(
                       color: AppTheme.card,
                       borderRadius: BorderRadius.circular(16),
-                      border: Border.all(
-                          color: Colors.white.withValues(alpha: 0.05)),
+                      border: Border.all(color: AppTheme.subtleBorder),
                     ),
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
@@ -1607,8 +1599,7 @@ class _AddTrainingScreenState extends State<AddTrainingScreen> {
                     decoration: BoxDecoration(
                       color: Colors.transparent,
                       borderRadius: BorderRadius.circular(16),
-                      border: Border.all(
-                          color: Colors.white.withValues(alpha: 0.1)),
+                      border: Border.all(color: AppTheme.subtleBorder),
                     ),
                     child: const Center(
                       child: Text('+ AGGIUNGI GIRO CRONO',
@@ -1659,9 +1650,8 @@ class _AddTrainingScreenState extends State<AddTrainingScreen> {
                             : AppTheme.surface,
                         borderRadius: BorderRadius.circular(16),
                         border: Border.all(
-                            color: isSel
-                                ? AppTheme.error
-                                : Colors.white.withValues(alpha: 0.05)),
+                            color:
+                                isSel ? AppTheme.error : AppTheme.subtleFill),
                       ),
                       child: Row(
                         mainAxisSize: MainAxisSize.min,
@@ -1723,7 +1713,7 @@ class _AddTrainingScreenState extends State<AddTrainingScreen> {
                 data: SliderTheme.of(context).copyWith(
                   activeTrackColor: effortColor,
                   thumbColor: effortColor,
-                  inactiveTrackColor: Colors.white.withValues(alpha: 0.1),
+                  inactiveTrackColor: AppTheme.subtleFill,
                   trackHeight: 8,
                 ),
                 child: Slider(
@@ -1769,7 +1759,7 @@ class _AddTrainingScreenState extends State<AddTrainingScreen> {
                           padding: const EdgeInsets.symmetric(
                               horizontal: 16, vertical: 14),
                           decoration: BoxDecoration(
-                            color: Colors.white.withValues(alpha: 0.04),
+                            color: AppTheme.subtleFill,
                             borderRadius: const BorderRadius.vertical(
                                 top: Radius.circular(16)),
                           ),

@@ -30,7 +30,7 @@ class HealthService {
   HealthService._internal();
 
   final Health _health = Health();
-  static const int _healthImportVersion = 2;
+  static const int _healthImportVersion = 3;
 
   final List<HealthDataType> _dataTypes = Platform.isIOS
       ? [
@@ -226,8 +226,14 @@ class HealthService {
           workout: point,
           types: [HealthDataType.HEART_RATE],
           debugLabel: 'heart rate',
+          preferDenseSamples: true,
         );
-        final hrMetrics = _calculateHrMetrics(hrPoints, profile);
+        final hrMetrics = _calculateHrMetrics(
+          hrPoints,
+          profile,
+          workoutStart: point.dateFrom,
+          workoutEnd: point.dateTo,
+        );
 
         final distanceCoverageSeconds = _durationCoveredByPositiveSamples(
             distancePoints, point.dateFrom, point.dateTo);
@@ -496,7 +502,12 @@ class HealthService {
     final movingDurationSeconds =
         _asInt(raw['movingDurationSeconds']) ?? activeDurationSeconds;
     final hrSamples = _parseNativeHrSamples(raw['hrSamples']);
-    final hrMetrics = _calculateHrMetricsFromSamples(hrSamples, profile);
+    final hrMetrics = _calculateHrMetricsFromSamples(
+      hrSamples,
+      profile,
+      workoutStart: start,
+      workoutEnd: end,
+    );
     final reliableHr = _isReliableHrMetrics(hrMetrics, activeDurationSeconds);
 
     final distanceKm = distanceMeters / 1000;
@@ -616,6 +627,7 @@ class HealthService {
     required HealthDataPoint workout,
     required List<HealthDataType> types,
     required String debugLabel,
+    bool preferDenseSamples = false,
   }) async {
     try {
       final points = await _health.getHealthDataFromTypes(
@@ -623,7 +635,9 @@ class HealthService {
         endTime: workout.dateTo,
         types: types,
       );
-      return _preferWorkoutSource(points, workout);
+      return preferDenseSamples
+          ? _preferDenseSampleSource(points, workout)
+          : _preferWorkoutSource(points, workout);
     } catch (e) {
       debugPrint('Failed to fetch $debugLabel for workout: $e');
       return [];
@@ -648,6 +662,76 @@ class HealthService {
 
     final trusted = points.where(_isTrustedWorkoutSource).toList();
     return trusted.isNotEmpty ? trusted : points;
+  }
+
+  List<HealthDataPoint> _preferDenseSampleSource(
+    List<HealthDataPoint> points,
+    HealthDataPoint workout,
+  ) {
+    if (points.isEmpty) return points;
+
+    final exact = _exactWorkoutSourcePoints(points, workout);
+    final trusted = points.where(_isTrustedWorkoutSource).toList();
+    final pool = trusted.isNotEmpty ? trusted : points;
+    final best = _densestHealthPointGroup(pool);
+    if (exact.isEmpty) return best.points;
+
+    final exactStats = _sampleSourceStats(exact);
+    final bestStats = best;
+    if (exactStats.count >= bestStats.count * 0.80) return exact;
+    if (exactStats.coverageSeconds >= bestStats.coverageSeconds * 0.95 &&
+        exactStats.count >= bestStats.count * 0.50) {
+      return exact;
+    }
+
+    return bestStats.count > exactStats.count ? bestStats.points : exact;
+  }
+
+  List<HealthDataPoint> _exactWorkoutSourcePoints(
+    List<HealthDataPoint> points,
+    HealthDataPoint workout,
+  ) {
+    final workoutSourceId = workout.sourceId.trim().toLowerCase();
+    final workoutSourceName = workout.sourceName.trim().toLowerCase();
+    return points.where((point) {
+      final sourceId = point.sourceId.trim().toLowerCase();
+      final sourceName = point.sourceName.trim().toLowerCase();
+      return (workoutSourceId.isNotEmpty && sourceId == workoutSourceId) ||
+          (workoutSourceName.isNotEmpty && sourceName == workoutSourceName);
+    }).toList();
+  }
+
+  _SampleSourceStats _densestHealthPointGroup(List<HealthDataPoint> points) {
+    final grouped = <String, List<HealthDataPoint>>{};
+    for (final point in points) {
+      final key = '${point.sourceId.trim()}|${point.sourceName.trim()}';
+      grouped.putIfAbsent(key, () => <HealthDataPoint>[]).add(point);
+    }
+
+    return grouped.values.map(_sampleSourceStats).reduce((best, current) {
+      if (current.coverageSeconds != best.coverageSeconds) {
+        return current.coverageSeconds > best.coverageSeconds ? current : best;
+      }
+      return current.count > best.count ? current : best;
+    });
+  }
+
+  _SampleSourceStats _sampleSourceStats(List<HealthDataPoint> points) {
+    final sorted = [...points]
+      ..sort((a, b) => a.dateFrom.compareTo(b.dateFrom));
+    var coverageSeconds = 0;
+    for (var i = 0; i < sorted.length - 1; i++) {
+      final gap = _durationSeconds(sorted[i].dateFrom, sorted[i + 1].dateFrom);
+      if (gap > 0 && gap <= HealthImportNormalizer.maxContinuousHrGapSeconds) {
+        coverageSeconds += gap;
+      }
+    }
+
+    return _SampleSourceStats(
+      points: sorted,
+      count: sorted.length,
+      coverageSeconds: coverageSeconds,
+    );
   }
 
   List<HealthDataType> _distanceTypesForSport(String sportId) {
@@ -887,19 +971,30 @@ class HealthService {
 
   HeartRateMetrics _calculateHrMetrics(
     List<HealthDataPoint> points,
-    UserProfile profile,
-  ) {
+    UserProfile profile, {
+    DateTime? workoutStart,
+    DateTime? workoutEnd,
+  }) {
     final samples = _cleanHeartRateSamples(points);
-    return _calculateHrMetricsFromSamples(samples, profile);
+    return _calculateHrMetricsFromSamples(
+      samples,
+      profile,
+      workoutStart: workoutStart,
+      workoutEnd: workoutEnd,
+    );
   }
 
   HeartRateMetrics _calculateHrMetricsFromSamples(
     List<HeartRateSample> samples,
-    UserProfile profile,
-  ) {
+    UserProfile profile, {
+    DateTime? workoutStart,
+    DateTime? workoutEnd,
+  }) {
     return HealthImportNormalizer.calculateHeartRateMetrics(
       samples: samples,
       zones: _heartRateZones(profile),
+      workoutStart: workoutStart,
+      workoutEnd: workoutEnd,
     );
   }
 
@@ -1232,4 +1327,16 @@ class _TimeInterval {
   final DateTime end;
 
   const _TimeInterval(this.start, this.end);
+}
+
+class _SampleSourceStats {
+  final List<HealthDataPoint> points;
+  final int count;
+  final int coverageSeconds;
+
+  const _SampleSourceStats({
+    required this.points,
+    required this.count,
+    required this.coverageSeconds,
+  });
 }

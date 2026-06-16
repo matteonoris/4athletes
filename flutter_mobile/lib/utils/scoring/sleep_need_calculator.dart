@@ -229,6 +229,15 @@ double calculateDailyStrainAdjustment(
   final strainScore = day.previousDayStrainScore;
   if (!isFiniteNumber(strainScore)) {
     warnings?.add('missing_previous_day_strain_score');
+    if ((day.previousDayWorkoutCount ?? 0) > 0) {
+      warnings?.add('previous_day_workout_without_strain_score');
+      return config.sleepNeed.maxStrainSleepNeedMinutes *
+          math.pow(
+            config.strainScore.missingStrainWorkoutFallbackScore /
+                config.physiology.previousDayStrainScore.max,
+            1.2,
+          );
+    }
     return config.confidence.min;
   }
 
@@ -242,7 +251,10 @@ double calculateDailyStrainAdjustment(
   }
 
   return config.sleepNeed.maxStrainSleepNeedMinutes *
-      (clampedStrain / config.physiology.previousDayStrainScore.max);
+      math.pow(
+        clampedStrain / config.physiology.previousDayStrainScore.max,
+        1.2,
+      );
 }
 
 List<DailyWearableData> _excludeToday(

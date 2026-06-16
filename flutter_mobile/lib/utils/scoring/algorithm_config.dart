@@ -7,6 +7,7 @@ class AlgorithmConfig {
   final SleepNeedConfig sleepNeed;
   final SleepScoreConfig sleepScore;
   final RecoveryScoreConfig recoveryScore;
+  final StrainScoreConfig strainScore;
   final PhysiologyConfig physiology;
   final TimeConfig time;
 
@@ -19,6 +20,7 @@ class AlgorithmConfig {
     required this.sleepNeed,
     required this.sleepScore,
     required this.recoveryScore,
+    required this.strainScore,
     required this.physiology,
     required this.time,
   });
@@ -204,6 +206,92 @@ class LutealPhaseAdjustment {
   });
 }
 
+class StrainScoreConfig {
+  final int historyWindowDays;
+  final int minPersonalBaselineDays;
+  final int fullPersonalBaselineDays;
+  final double cardioExponent;
+  final double minHrCoverageForFullConfidence;
+  final double minHrCoverageToUseSamples;
+  final double defaultMaxHeartRateBpm;
+  final double defaultRestingHeartRateEstimateBpm;
+  final double minPercentileGapAbsolute;
+  final double minPercentileGapRatio;
+  final double missingComponentConfidenceMultiplier;
+  final double partialHrConfidenceMultiplier;
+  final double lowHrQualityScore;
+  final double partialBaselineConfidence;
+  final double coldStartBaselineConfidence;
+  final double noTrainingConfidence;
+  final double missingStrainWorkoutFallbackScore;
+  final Map<String, double> cardioZoneMultipliers;
+  final Map<String, double> sportCardioFallbackMultipliers;
+  final Map<String, double> sportImpactMultipliers;
+  final Map<String, StrainComponentWeights> componentWeights;
+  final StrainAbsoluteAnchors absoluteAnchors;
+
+  const StrainScoreConfig({
+    required this.historyWindowDays,
+    required this.minPersonalBaselineDays,
+    required this.fullPersonalBaselineDays,
+    required this.cardioExponent,
+    required this.minHrCoverageForFullConfidence,
+    required this.minHrCoverageToUseSamples,
+    required this.defaultMaxHeartRateBpm,
+    required this.defaultRestingHeartRateEstimateBpm,
+    required this.minPercentileGapAbsolute,
+    required this.minPercentileGapRatio,
+    required this.missingComponentConfidenceMultiplier,
+    required this.partialHrConfidenceMultiplier,
+    required this.lowHrQualityScore,
+    required this.partialBaselineConfidence,
+    required this.coldStartBaselineConfidence,
+    required this.noTrainingConfidence,
+    required this.missingStrainWorkoutFallbackScore,
+    required this.cardioZoneMultipliers,
+    required this.sportCardioFallbackMultipliers,
+    required this.sportImpactMultipliers,
+    required this.componentWeights,
+    required this.absoluteAnchors,
+  });
+}
+
+class StrainComponentWeights {
+  final double cardio;
+  final double rpe;
+  final double externalMechanical;
+
+  const StrainComponentWeights({
+    required this.cardio,
+    required this.rpe,
+    required this.externalMechanical,
+  });
+}
+
+class StrainAbsoluteAnchors {
+  final StrainComponentAnchors cardio;
+  final StrainComponentAnchors rpe;
+  final StrainComponentAnchors externalMechanical;
+
+  const StrainAbsoluteAnchors({
+    required this.cardio,
+    required this.rpe,
+    required this.externalMechanical,
+  });
+}
+
+class StrainComponentAnchors {
+  final double p50;
+  final double p90;
+  final double p95;
+
+  const StrainComponentAnchors({
+    required this.p50,
+    required this.p90,
+    required this.p95,
+  });
+}
+
 class PhysiologyConfig {
   final MetricRange totalSleepTimeMinutes;
   final MetricRange sleepStageMinutes;
@@ -333,6 +421,109 @@ const defaultAlgorithmConfig = AlgorithmConfig(
       restingHeartRateSubtractBpm: 2,
       skinTemperatureSubtractCelsius: 0.4,
       hrvMultiplier: 1.10,
+    ),
+  ),
+  strainScore: StrainScoreConfig(
+    historyWindowDays: 42,
+    minPersonalBaselineDays: 7,
+    fullPersonalBaselineDays: 21,
+    cardioExponent: 1.92,
+    minHrCoverageForFullConfidence: 0.70,
+    minHrCoverageToUseSamples: 0.30,
+    defaultMaxHeartRateBpm: 190,
+    defaultRestingHeartRateEstimateBpm: 50,
+    minPercentileGapAbsolute: 10,
+    minPercentileGapRatio: 0.15,
+    missingComponentConfidenceMultiplier: 0.85,
+    partialHrConfidenceMultiplier: 0.80,
+    lowHrQualityScore: 0.35,
+    partialBaselineConfidence: 0.75,
+    coldStartBaselineConfidence: 0.50,
+    noTrainingConfidence: 1,
+    missingStrainWorkoutFallbackScore: 30,
+    cardioZoneMultipliers: {
+      'z1': 1,
+      'z2': 2,
+      'z3': 3,
+      'z4': 5,
+      'z5': 8,
+    },
+    sportCardioFallbackMultipliers: {
+      'mobility': 0.8,
+      'cycling': 2.5,
+      'swimming': 2.8,
+      'endurance_generic': 2.4,
+      'running': 3.0,
+      'football': 3.0,
+      'strength': 1.5,
+      'sprint': 2.6,
+      'plyometrics': 2.2,
+      'alpine_skiing_training': 2.4,
+      'alpine_skiing_race': 2.8,
+      'team_sport': 2.8,
+      'unknown': 2.0,
+    },
+    sportImpactMultipliers: {
+      'mobility': 0.3,
+      'cycling': 0.5,
+      'swimming': 0.5,
+      'endurance_generic': 0.7,
+      'running': 0.9,
+      'football': 1.0,
+      'strength': 0.9,
+      'sprint': 1.2,
+      'plyometrics': 1.2,
+      'alpine_skiing_training': 1.15,
+      'alpine_skiing_race': 1.3,
+      'team_sport': 1.0,
+      'unknown': 0.7,
+    },
+    componentWeights: {
+      'default': StrainComponentWeights(
+        cardio: 0.40,
+        rpe: 0.35,
+        externalMechanical: 0.25,
+      ),
+      'endurance': StrainComponentWeights(
+        cardio: 0.55,
+        rpe: 0.30,
+        externalMechanical: 0.15,
+      ),
+      'team_sport': StrainComponentWeights(
+        cardio: 0.40,
+        rpe: 0.35,
+        externalMechanical: 0.25,
+      ),
+      'strength': StrainComponentWeights(
+        cardio: 0.15,
+        rpe: 0.45,
+        externalMechanical: 0.40,
+      ),
+      'sprint_plyometrics': StrainComponentWeights(
+        cardio: 0.15,
+        rpe: 0.40,
+        externalMechanical: 0.45,
+      ),
+      'alpine_skiing_training': StrainComponentWeights(
+        cardio: 0.30,
+        rpe: 0.40,
+        externalMechanical: 0.30,
+      ),
+      'alpine_skiing_race': StrainComponentWeights(
+        cardio: 0.25,
+        rpe: 0.40,
+        externalMechanical: 0.35,
+      ),
+      'mobility': StrainComponentWeights(
+        cardio: 0.10,
+        rpe: 0.50,
+        externalMechanical: 0.40,
+      ),
+    },
+    absoluteAnchors: StrainAbsoluteAnchors(
+      cardio: StrainComponentAnchors(p50: 90, p90: 260, p95: 360),
+      rpe: StrainComponentAnchors(p50: 300, p90: 700, p95: 900),
+      externalMechanical: StrainComponentAnchors(p50: 35, p90: 110, p95: 160),
     ),
   ),
   physiology: PhysiologyConfig(

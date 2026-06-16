@@ -278,8 +278,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
             const Text('Impostazioni Profilo', style: TextStyle(fontSize: 16)),
         bottom: PreferredSize(
           preferredSize: const Size.fromHeight(1),
-          child:
-              Container(color: Colors.white.withValues(alpha: 0.05), height: 1),
+          child: Container(color: AppTheme.divider, height: 1),
         ),
       ),
       body: ListView(
@@ -530,8 +529,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   decoration: BoxDecoration(
                     color: AppTheme.card,
                     borderRadius: BorderRadius.circular(16),
-                    border:
-                        Border.all(color: Colors.white.withValues(alpha: 0.05)),
+                    border: Border.all(color: AppTheme.subtleBorder),
                   ),
                   clipBehavior: Clip.antiAlias,
                   child: Column(
@@ -596,9 +594,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                             ],
                           ),
                         ),
-                      Divider(
-                          color: Colors.white.withValues(alpha: 0.05),
-                          height: 1),
+                      Divider(color: AppTheme.divider, height: 1),
 
                       // Notifications
                       ListTile(
@@ -626,9 +622,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                           activeThumbColor: AppTheme.secondary,
                         ),
                       ),
-                      Divider(
-                          color: Colors.white.withValues(alpha: 0.05),
-                          height: 1),
+                      Divider(color: AppTheme.divider, height: 1),
 
                       // Units Selector
                       ListTile(
@@ -684,9 +678,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                             ],
                           ),
                         ),
-                      Divider(
-                          color: Colors.white.withValues(alpha: 0.05),
-                          height: 1),
+                      Divider(color: AppTheme.divider, height: 1),
 
                       // Language Selector
                       ListTile(
@@ -738,9 +730,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                             ],
                           ),
                         ),
-                      Divider(
-                          color: Colors.white.withValues(alpha: 0.05),
-                          height: 1),
+                      Divider(color: AppTheme.divider, height: 1),
 
                       if (!isCoach) ...[
                         // Heart Rate Zones
@@ -767,9 +757,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                           trailing: Icon(Icons.keyboard_arrow_right,
                               size: 16, color: AppTheme.textMediumEmphasis),
                         ),
-                        Divider(
-                            color: Colors.white.withValues(alpha: 0.05),
-                            height: 1),
+                        Divider(color: AppTheme.divider, height: 1),
 
                         // Health Permissions (Apple Health / Google Health Connect)
                         ListTile(
@@ -801,9 +789,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                           trailing: Icon(Icons.open_in_new,
                               size: 16, color: AppTheme.textMediumEmphasis),
                         ),
-                        Divider(
-                            color: Colors.white.withValues(alpha: 0.05),
-                            height: 1),
+                        Divider(color: AppTheme.divider, height: 1),
 
                         ListTile(
                           onTap: () => _clearHealthCacheAndResync(context),
@@ -826,9 +812,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                           trailing: Icon(Icons.keyboard_arrow_right,
                               size: 16, color: AppTheme.textMediumEmphasis),
                         ),
-                        Divider(
-                            color: Colors.white.withValues(alpha: 0.05),
-                            height: 1),
+                        Divider(color: AppTheme.divider, height: 1),
 
                         // Connected Devices
                         ListTile(
@@ -908,9 +892,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
         decoration: BoxDecoration(
-          color: isSelected
-              ? Colors.white.withValues(alpha: 0.05)
-              : Colors.transparent,
+          color: isSelected ? AppTheme.selectedSoftFill : Colors.transparent,
           borderRadius: BorderRadius.circular(8),
         ),
         child: Row(
@@ -920,7 +902,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 style: TextStyle(
                     fontSize: 14,
                     color: isSelected
-                        ? Colors.white
+                        ? AppTheme.primary
                         : AppTheme.textMediumEmphasis)),
             if (isSelected)
               const Icon(Icons.check, color: AppTheme.secondary, size: 16),
@@ -1075,16 +1057,14 @@ class _DeviceManagementModal extends StatelessWidget {
           Container(
             padding: const EdgeInsets.all(16),
             decoration: BoxDecoration(
-                border: Border(
-                    bottom: BorderSide(
-                        color: Colors.white.withValues(alpha: 0.05)))),
+                border: Border(bottom: BorderSide(color: AppTheme.divider))),
             child: Column(
               children: [
                 Container(
                     width: 40,
                     height: 4,
                     decoration: BoxDecoration(
-                        color: Colors.white.withValues(alpha: 0.2),
+                        color: AppTheme.modalHandle,
                         borderRadius: BorderRadius.circular(2))),
                 const SizedBox(height: 16),
                 Row(
@@ -1259,8 +1239,7 @@ class _DeviceManagementModal extends StatelessWidget {
                       margin: const EdgeInsets.only(bottom: 8),
                       padding: const EdgeInsets.all(16),
                       decoration: BoxDecoration(
-                        border: Border.all(
-                            color: Colors.white.withValues(alpha: 0.05)),
+                        border: Border.all(color: AppTheme.subtleBorder),
                         borderRadius: BorderRadius.circular(16),
                         color: AppTheme.card,
                       ),

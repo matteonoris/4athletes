@@ -234,12 +234,17 @@ class CoachTrainingUtils {
         attendee['freeLaps'],
         fallback: asInt(free['laps']),
       );
+      final freeChanges = asInt(
+        attendee['freeChanges'],
+        fallback: asInt(free['changes']),
+      );
       details['freeSkiing'] = {
         ...free,
         'laps': asNonNegativeInt(freeLaps),
-        'changes': asNonNegativeInt(free['changes']),
+        'changes': asNonNegativeInt(freeChanges),
       };
       details['freeLaps'] = asNonNegativeInt(freeLaps);
+      details['freeChanges'] = asNonNegativeInt(freeChanges);
     }
 
     final tracks = _buildTracks(tech, attendee);
@@ -371,9 +376,20 @@ class CoachTrainingUtils {
   ) {
     final baseTracks = _tracksFromDetails(tech);
     final trackLaps = _mapValue(attendee['trackLaps']);
+    final trackGates = _mapValue(attendee['trackGates']);
     if (baseTracks.isEmpty) {
       final gated = _mapValue(tech['gatedSkiing']);
       if (gated.isEmpty) return [];
+      final gates = asNonNegativeInt(
+        trackGates['track_1'],
+        fallback: asNonNegativeInt(
+          attendee['gates'],
+          fallback: asNonNegativeInt(
+            gated['gates'],
+            fallback: asNonNegativeInt(gated['changes']),
+          ),
+        ),
+      );
       return [
         {
           'id': 'track_1',
@@ -382,34 +398,29 @@ class CoachTrainingUtils {
             attendee['laps'],
             fallback: asNonNegativeInt(gated['laps']),
           ),
-          'gates': asNonNegativeInt(
-            gated['gates'],
-            fallback: asNonNegativeInt(gated['changes']),
-          ),
-          'changes': asNonNegativeInt(
-            gated['gates'],
-            fallback: asNonNegativeInt(gated['changes']),
-          ),
+          'gates': gates,
+          'changes': gates,
         }
       ];
     }
 
     return baseTracks.map((track) {
       final id = track['id']?.toString() ?? 'track_1';
+      final gates = asNonNegativeInt(
+        trackGates[id],
+        fallback: asNonNegativeInt(
+          track['gates'],
+          fallback: asNonNegativeInt(track['changes']),
+        ),
+      );
       return {
         ...track,
         'laps': asNonNegativeInt(
           trackLaps[id],
           fallback: asNonNegativeInt(track['laps']),
         ),
-        'gates': asNonNegativeInt(
-          track['gates'],
-          fallback: asNonNegativeInt(track['changes']),
-        ),
-        'changes': asNonNegativeInt(
-          track['gates'],
-          fallback: asNonNegativeInt(track['changes']),
-        ),
+        'gates': gates,
+        'changes': gates,
       };
     }).toList();
   }
@@ -420,18 +431,24 @@ class CoachTrainingUtils {
   ) {
     final blocks = _trainingBlocksFromDetails(tech);
     final blockLaps = _mapValue(attendee['trainingBlockLaps']);
+    final blockReferences = _mapValue(attendee['trainingBlockReferences']);
     return blocks.map((block) {
       final id = block['id']?.toString() ?? 'training_1';
+      final references = asNonNegativeInt(
+        blockReferences[id],
+        fallback: asNonNegativeInt(
+          block['references'],
+          fallback: asNonNegativeInt(block['changes']),
+        ),
+      );
       return {
         ...block,
         'laps': asNonNegativeInt(
           blockLaps[id],
           fallback: asNonNegativeInt(block['laps']),
         ),
-        'references': asNonNegativeInt(
-          block['references'],
-          fallback: asNonNegativeInt(block['changes']),
-        ),
+        'references': references,
+        'changes': references,
       };
     }).toList();
   }
