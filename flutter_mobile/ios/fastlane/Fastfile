@@ -168,6 +168,8 @@ end
 # ──────────────────────────────────────────────
 def build_ios_ipa(version_name, build_number)
   export_options_plist = ENV["EXPORT_OPTIONS_PLIST"] || "ios/ExportOptions.plist"
+  provisioning_profile_name = ENV["APPLE_PROVISIONING_PROFILE_NAME"] || "4athletes App Store"
+  development_team = ENV["APPLE_TEAM_ID"] || "S67545FDFH"
 
   Bundler.with_unbundled_env do
     Dir.chdir(PROJECT_ROOT) do
@@ -183,10 +185,10 @@ def build_ios_ipa(version_name, build_number)
         "-configuration", "Release",
         "-archivePath", "build/ios/archive/Runner.xcarchive",
         "-destination", "generic/platform=iOS",
-        "-allowProvisioningUpdates",
-        "-authenticationKeyPath", asc_key_filepath,
-        "-authenticationKeyID", ENV["ASC_KEY_ID"],
-        "-authenticationKeyIssuerID", ENV["ASC_ISSUER_ID"],
+        "CODE_SIGN_STYLE=Manual",
+        "CODE_SIGN_IDENTITY=Apple Distribution",
+        "DEVELOPMENT_TEAM=#{development_team}",
+        "PROVISIONING_PROFILE_SPECIFIER=#{provisioning_profile_name}",
         "archive"
       )
 
