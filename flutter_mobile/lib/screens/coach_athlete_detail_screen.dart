@@ -134,7 +134,7 @@ class _CoachAthleteDetailScreenState extends State<CoachAthleteDetailScreen> {
     void addSkiVolume(String dateStr, int volume, String rawSpecialty) {
       if (volume <= 0) return;
 
-      final specialty = CoachTrainingUtils.normalizeSpecialty(rawSpecialty);
+      final specialty = _volumeBucket(rawSpecialty);
 
       bySpecialty[specialty] = (bySpecialty[specialty] ?? 0) + volume;
 
@@ -154,7 +154,14 @@ class _CoachAthleteDetailScreenState extends State<CoachAthleteDetailScreen> {
       for (final entry in summary.polePassesBySpecialty.entries) {
         addSkiVolume(dateStr, entry.value, entry.key);
       }
-      addSkiVolume(dateStr, summary.trainingDirectionChanges, 'ADD');
+      if (summary.trainingDirectionChangesBySpecialty.isEmpty) {
+        addSkiVolume(dateStr, summary.trainingDirectionChanges, 'ADD');
+      } else {
+        for (final entry
+            in summary.trainingDirectionChangesBySpecialty.entries) {
+          addSkiVolume(dateStr, entry.value, 'ADD ${entry.key}');
+        }
+      }
     }
 
     for (final s in sessions) {
@@ -731,8 +738,23 @@ class _CoachAthleteDetailScreenState extends State<CoachAthleteDetailScreen> {
 
   int _skiVolumeSortIndex(String key) {
     const order = ['CL', 'SL', 'GS', 'SG', 'DH', 'SX', 'ADD'];
+    if (key.startsWith('ADD ')) {
+      final specialty = key.substring(4);
+      final specialtyIndex = order.indexOf(specialty);
+      return order.length +
+          (specialtyIndex == -1 ? order.length : specialtyIndex);
+    }
     final index = order.indexOf(key);
     return index == -1 ? order.length : index;
+  }
+
+  String _volumeBucket(String rawSpecialty) {
+    final raw = rawSpecialty.trim().toUpperCase();
+    if (raw == 'ADD') return 'ADD';
+    if (raw.startsWith('ADD ')) {
+      return 'ADD ${CoachTrainingUtils.normalizeSpecialty(raw.substring(4))}';
+    }
+    return CoachTrainingUtils.normalizeSpecialty(raw);
   }
 
   Color _colorForSkiVolumeKey(String key) {
@@ -742,6 +764,7 @@ class _CoachAthleteDetailScreenState extends State<CoachAthleteDetailScreen> {
     if (key == 'SG') return Colors.greenAccent;
     if (key == 'DH') return Colors.purpleAccent;
     if (key == 'SX') return Colors.redAccent;
+    if (key.startsWith('ADD ')) return Colors.amberAccent;
     if (key == 'ADD') return Colors.amberAccent;
     return Colors.grey;
   }

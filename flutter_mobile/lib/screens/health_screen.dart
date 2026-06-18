@@ -190,7 +190,7 @@ class _HealthScreenState extends State<HealthScreen> {
           ),
           _MetricData('Addormentamento', _formatTime(bedTime)),
           _MetricData('Risveglio', _formatTime(wakeTime)),
-          _MetricData('Regolarita del sonno', formatPercent(regularity)),
+          _MetricData('Regolarità del sonno', formatPercent(regularity)),
         ]),
         const SizedBox(height: 16),
         _SleepNeedChartCard(
@@ -218,7 +218,7 @@ class _HealthScreenState extends State<HealthScreen> {
         ),
         const SizedBox(height: 12),
         _SleepRegularityChartCard(
-          title: 'Regolarita del sonno',
+          title: 'Regolarità del sonno',
           days: _ranges['sleep_regularity']!,
           onDaysChanged: (days) => _setRange('sleep_regularity', days),
           history: appState.currentLocalSleepHistory ?? const [],
@@ -469,6 +469,8 @@ class _ScoreTrendCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final stats = _ScoreTrendStats.fromSeries(series, currentValue: value);
+
     return CustomCard(
       padding: const EdgeInsets.all(18),
       child: Column(
@@ -495,7 +497,7 @@ class _ScoreTrendCard extends StatelessWidget {
                       style:
                           Theme.of(context).textTheme.headlineMedium?.copyWith(
                                 fontWeight: FontWeight.bold,
-                                color: AppTheme.textHighEmphasis,
+                                color: color,
                               ),
                     ),
                   ],
@@ -504,23 +506,244 @@ class _ScoreTrendCard extends StatelessWidget {
               _RangeSelector(days: days, onChanged: onDaysChanged),
             ],
           ),
-          const SizedBox(height: 18),
+          const SizedBox(height: 14),
+          _ScoreStatsRow(stats: stats, color: color),
+          const SizedBox(height: 16),
           GestureDetector(
             behavior: HitTestBehavior.opaque,
             onTap: onTap,
             child: SizedBox(
               height: 240,
-              child: _LineSeriesChart(
+              child: _ScoreTrendChart(
                 series: series,
-                valueColor: color,
-                unit: '/100',
-                decimals: 0,
-                minYOverride: 0,
-                maxYOverride: 100,
+                stats: stats,
+                color: color,
               ),
             ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+class _ScoreStatsRow extends StatelessWidget {
+  final _ScoreTrendStats stats;
+  final Color color;
+
+  const _ScoreStatsRow({required this.stats, required this.color});
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: [
+        Expanded(
+          child: _ScoreMiniStat(
+            label: 'Media',
+            value: _formatScoreStat(stats.average),
+          ),
+        ),
+        const SizedBox(width: 10),
+        Expanded(
+          child: _ScoreMiniStat(
+            label: 'Dev. std',
+            value: _formatScoreStat(stats.standardDeviation),
+          ),
+        ),
+        const SizedBox(width: 10),
+        _ScoreTrendChip(stats: stats, color: color),
+      ],
+    );
+  }
+}
+
+class _ScoreMiniStat extends StatelessWidget {
+  final String label;
+  final String value;
+
+  const _ScoreMiniStat({required this.label, required this.value});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      decoration: BoxDecoration(
+        color: AppTheme.surface,
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: AppTheme.subtleBorder),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            label,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: TextStyle(
+              color: AppTheme.textMediumEmphasis,
+              fontSize: 10,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            value,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: TextStyle(
+              color: AppTheme.textHighEmphasis,
+              fontSize: 15,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _ScoreTrendChip extends StatelessWidget {
+  final _ScoreTrendStats stats;
+  final Color color;
+
+  const _ScoreTrendChip({required this.stats, required this.color});
+
+  @override
+  Widget build(BuildContext context) {
+    final delta = stats.deltaFromAverage;
+    final hasTrend = delta != null;
+    final icon = !hasTrend
+        ? Icons.trending_flat
+        : delta > 0
+            ? Icons.trending_up
+            : delta < 0
+                ? Icons.trending_down
+                : Icons.trending_flat;
+    final trendColor = !hasTrend
+        ? AppTheme.textMediumEmphasis
+        : delta >= 0
+            ? color
+            : AppTheme.error;
+
+    return Container(
+      width: 104,
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      decoration: BoxDecoration(
+        color: trendColor.withValues(alpha: AppTheme.isDark ? 0.16 : 0.10),
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: trendColor.withValues(alpha: 0.22)),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 16, color: trendColor),
+          const SizedBox(width: 6),
+          Flexible(
+            child: Text(
+              hasTrend ? '${_formatSignedScore(delta)} vs media' : 'Trend n/d',
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(
+                color: trendColor,
+                fontSize: 11,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _ScoreTrendChart extends StatelessWidget {
+  final List<DailyChartPoint> series;
+  final _ScoreTrendStats stats;
+  final Color color;
+
+  const _ScoreTrendChart({
+    required this.series,
+    required this.stats,
+    required this.color,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final values = series.map((point) => point.value).whereType<double>();
+    if (values.isEmpty) return const _NoDataChart();
+
+    final lineBars = <LineChartBarData>[];
+    final hasBand = stats.hasDeviationBand && series.length > 1;
+    final lowerBand = stats.lowerBand?.clamp(0.0, 100.0).toDouble();
+    final upperBand = stats.upperBand?.clamp(0.0, 100.0).toDouble();
+    final average = stats.average?.clamp(0.0, 100.0).toDouble();
+    final lastValueIndex = _lastValueIndex(series);
+
+    if (hasBand && lowerBand != null && upperBand != null) {
+      lineBars.add(_constantScoreLine(series.length, lowerBand));
+      lineBars.add(_constantScoreLine(series.length, upperBand));
+    }
+
+    if (average != null && series.length > 1) {
+      lineBars.add(
+        LineChartBarData(
+          spots: _constantScoreSpots(series.length, average),
+          isCurved: false,
+          color: AppTheme.textMediumEmphasis.withValues(alpha: 0.62),
+          barWidth: 1.5,
+          dashArray: [7, 5],
+          dotData: const FlDotData(show: false),
+        ),
+      );
+    }
+
+    lineBars.addAll(
+      _scoreValueBars(
+        series.map((point) => point.value).toList(),
+        color,
+        lastValueIndex: lastValueIndex,
+      ),
+    );
+
+    return LineChart(
+      LineChartData(
+        minX: 0,
+        maxX: math.max(0, series.length - 1).toDouble(),
+        minY: 0,
+        maxY: 100,
+        gridData: FlGridData(
+          show: true,
+          drawVerticalLine: false,
+          horizontalInterval: 25,
+          getDrawingHorizontalLine: (value) => FlLine(
+            color: AppTheme.chartGrid,
+            strokeWidth: 1,
+          ),
+        ),
+        titlesData: _chartTitles(
+          series,
+          leftFormatter: (value) => value.toStringAsFixed(0),
+        ),
+        borderData: FlBorderData(show: false),
+        lineTouchData: const LineTouchData(enabled: false),
+        betweenBarsData: hasBand
+            ? [
+                BetweenBarsData(
+                  fromIndex: 0,
+                  toIndex: 1,
+                  gradient: LinearGradient(
+                    begin: Alignment.topCenter,
+                    end: Alignment.bottomCenter,
+                    colors: [
+                      color.withValues(alpha: 0.05),
+                      color.withValues(alpha: AppTheme.isDark ? 0.20 : 0.14),
+                      color.withValues(alpha: 0.05),
+                    ],
+                  ),
+                ),
+              ]
+            : const [],
+        lineBarsData: lineBars,
       ),
     );
   }
@@ -997,7 +1220,7 @@ class _SleepDebtChartCard extends StatelessWidget {
       title: title,
       days: days,
       onDaysChanged: onDaysChanged,
-      legend: [
+      legend: const [
         _LegendItem('Debito', _sleepDebtColor),
         _LegendItem('Surplus', _sleepSurplusColor),
       ],
@@ -1028,9 +1251,9 @@ class _SleepArchitectureChartCard extends StatelessWidget {
       days: days,
       onDaysChanged: onDaysChanged,
       legend: [
-        _LegendItem('Profondo', _sleepDeepColor),
-        _LegendItem('REM', _sleepRemColor),
-        _LegendItem('Leggero', _sleepLightColor),
+        const _LegendItem('Profondo', _sleepDeepColor),
+        const _LegendItem('REM', _sleepRemColor),
+        const _LegendItem('Leggero', _sleepLightColor),
         _LegendItem('Sveglio', _sleepAwakeColor),
       ],
       footer: 'Le fasi del sonno sono stime del dispositivo.',
@@ -1911,6 +2134,169 @@ double? _averageNullable(Iterable<double?> values) {
   return count == 0 ? null : total / count;
 }
 
+class _ScoreTrendStats {
+  final double? average;
+  final double? standardDeviation;
+  final double? currentValue;
+
+  const _ScoreTrendStats({
+    required this.average,
+    required this.standardDeviation,
+    required this.currentValue,
+  });
+
+  factory _ScoreTrendStats.fromSeries(
+    List<DailyChartPoint> series, {
+    double? currentValue,
+  }) {
+    final values = series.map((point) => point.value).whereType<double>().where(
+          (value) => value.isFinite,
+        );
+    final list = values.toList(growable: false);
+    if (list.isEmpty) {
+      return _ScoreTrendStats(
+        average: null,
+        standardDeviation: null,
+        currentValue: currentValue,
+      );
+    }
+
+    final average = list.reduce((a, b) => a + b) / list.length;
+    final variance = list
+            .map((value) => math.pow(value - average, 2).toDouble())
+            .reduce((a, b) => a + b) /
+        list.length;
+    final latestValue = currentValue ??
+        series.reversed.map((point) => point.value).firstWhere(
+            (value) => value != null && value.isFinite,
+            orElse: () => null);
+
+    return _ScoreTrendStats(
+      average: average,
+      standardDeviation: math.sqrt(variance),
+      currentValue: latestValue,
+    );
+  }
+
+  bool get hasDeviationBand =>
+      average != null && standardDeviation != null && standardDeviation! > 0.01;
+
+  double? get lowerBand =>
+      hasDeviationBand ? average! - standardDeviation! : null;
+
+  double? get upperBand =>
+      hasDeviationBand ? average! + standardDeviation! : null;
+
+  double? get deltaFromAverage =>
+      average != null && currentValue != null ? currentValue! - average! : null;
+}
+
+String _formatScoreStat(double? value) {
+  if (value == null || !value.isFinite) return missingValue;
+  return value.toStringAsFixed(0);
+}
+
+String _formatSignedScore(double value) {
+  if (!value.isFinite) return missingValue;
+  final rounded = value.round();
+  if (rounded == 0) return '0';
+  return '${rounded > 0 ? '+' : ''}$rounded';
+}
+
+int? _lastValueIndex(List<DailyChartPoint> series) {
+  for (var index = series.length - 1; index >= 0; index--) {
+    final value = series[index].value;
+    if (value != null && value.isFinite) return index;
+  }
+  return null;
+}
+
+List<FlSpot> _constantScoreSpots(int count, double value) {
+  return List<FlSpot>.generate(
+    count,
+    (index) => FlSpot(index.toDouble(), value),
+  );
+}
+
+LineChartBarData _constantScoreLine(int count, double value) {
+  return LineChartBarData(
+    spots: _constantScoreSpots(count, value),
+    isCurved: false,
+    color: Colors.transparent,
+    barWidth: 0,
+    dotData: const FlDotData(show: false),
+  );
+}
+
+List<LineChartBarData> _scoreValueBars(
+  List<double?> values,
+  Color color, {
+  required int? lastValueIndex,
+}) {
+  final bars = <LineChartBarData>[];
+  var current = <FlSpot>[];
+  for (var index = 0; index < values.length; index++) {
+    final value = values[index];
+    if (value == null || !value.isFinite) {
+      if (current.isNotEmpty) {
+        bars.add(_scoreValueBar(current, color, lastValueIndex));
+        current = <FlSpot>[];
+      }
+    } else {
+      current.add(FlSpot(index.toDouble(), value));
+    }
+  }
+  if (current.isNotEmpty) {
+    bars.add(_scoreValueBar(current, color, lastValueIndex));
+  }
+  return bars;
+}
+
+LineChartBarData _scoreValueBar(
+  List<FlSpot> spots,
+  Color color,
+  int? lastValueIndex,
+) {
+  return LineChartBarData(
+    spots: spots,
+    isCurved: spots.length > 2,
+    curveSmoothness: 0.24,
+    preventCurveOverShooting: true,
+    color: color,
+    barWidth: 3.4,
+    isStrokeCapRound: true,
+    isStrokeJoinRound: true,
+    belowBarData: BarAreaData(
+      show: true,
+      gradient: LinearGradient(
+        begin: Alignment.topCenter,
+        end: Alignment.bottomCenter,
+        colors: [
+          color.withValues(alpha: AppTheme.isDark ? 0.18 : 0.16),
+          color.withValues(alpha: 0.02),
+        ],
+      ),
+    ),
+    dotData: FlDotData(
+      show: true,
+      checkToShowDot: (spot, barData) {
+        if (lastValueIndex == null) return spots.length <= 14;
+        return spot.x.round() == lastValueIndex || spots.length <= 14;
+      },
+      getDotPainter: (spot, percent, barData, index) {
+        final isLatest =
+            lastValueIndex != null && spot.x.round() == lastValueIndex;
+        return FlDotCirclePainter(
+          radius: isLatest ? 5 : 2.7,
+          color: color,
+          strokeWidth: isLatest ? 2.5 : 1.5,
+          strokeColor: AppTheme.card,
+        );
+      },
+    ),
+  );
+}
+
 class _SleepArchitecturePoint {
   final DateTime date;
   final double? totalSleep;
@@ -2079,12 +2465,12 @@ double? _latestLogValue(List<BodyMetricLog> logs, String type) {
 String _vitalDescription(String title, double? today, double? baseline) {
   if (today == null || baseline == null) return 'Dato non disponibile.';
   if (today > baseline) {
-    return '$title oggi e superiore rispetto alla baseline a 30 giorni.';
+    return '$title oggi è superiore rispetto alla baseline a 30 giorni.';
   }
   if (today < baseline) {
-    return '$title oggi e inferiore rispetto alla baseline a 30 giorni.';
+    return '$title oggi è inferiore rispetto alla baseline a 30 giorni.';
   }
-  return '$title oggi e in linea con la baseline a 30 giorni.';
+  return '$title oggi è in linea con la baseline a 30 giorni.';
 }
 
 String? _sleepNeedDescription(
@@ -2097,7 +2483,7 @@ String? _sleepNeedDescription(
   if (available.isEmpty) return null;
   final below = available.where((value) => value < dailyNeed).length;
   if (below > available.length / 2) {
-    return 'Il sonno effettivo degli ultimi $days giorni e spesso inferiore al fabbisogno stimato.';
+    return 'Il sonno effettivo degli ultimi $days giorni è spesso inferiore al fabbisogno stimato.';
   }
-  return 'Il sonno effettivo degli ultimi $days giorni e spesso in linea con il fabbisogno stimato.';
+  return 'Il sonno effettivo degli ultimi $days giorni è spesso in linea con il fabbisogno stimato.';
 }

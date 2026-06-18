@@ -32,12 +32,12 @@ class _AthleteEventScreenState extends State<AthleteEventScreen> {
   bool _isLoading = false;
   Map<String, dynamic>? _attendee;
 
-  late TextEditingController _freeLapsCtrl;
-  late TextEditingController _freeChangesCtrl;
   late TextEditingController _painCtrl;
   late TextEditingController _chronoCtrl;
   late TextEditingController _notesCtrl;
 
+  final Map<String, TextEditingController> _freeLapsCtrls = {};
+  final Map<String, TextEditingController> _freeChangesCtrls = {};
   final Map<String, TextEditingController> _trackLapsCtrls = {};
   final Map<String, TextEditingController> _trackGatesCtrls = {};
   final Map<String, TextEditingController> _trainingLapsCtrls = {};
@@ -63,15 +63,9 @@ class _AthleteEventScreenState extends State<AthleteEventScreen> {
     super.initState();
     _attendee = _findCurrentAttendee();
     final tech = widget.event.technicalDetails ?? {};
-    final free = CoachTrainingUtils.freeSkiingFromDetails(tech);
     final rawPain = (_attendee?['pain'] ?? '').toString().trim();
 
-    _freeLapsCtrl = TextEditingController(
-      text: (_attendee?['freeLaps'] ?? free['laps'] ?? '').toString(),
-    );
-    _freeChangesCtrl = TextEditingController(
-      text: (_attendee?['freeChanges'] ?? free['changes'] ?? '').toString(),
-    );
+    _initFreeControllers(tech);
     _rpeValue = CoachTrainingUtils.asNonNegativeInt(_attendee?['rpe'])
         .clamp(0, 10)
         .toInt();
@@ -107,6 +101,38 @@ class _AthleteEventScreenState extends State<AthleteEventScreen> {
           orElse: () => null,
         );
     return attendee == null ? null : Map<String, dynamic>.from(attendee);
+  }
+
+  void _initFreeControllers(Map<String, dynamic> tech) {
+    final freeBySpecialty =
+        CoachTrainingUtils.freeSkiingBySpecialtyFromDetails(tech);
+    final freeLapsBySpecialty = _attendee?['freeLapsBySpecialty'] is Map
+        ? Map<String, dynamic>.from(_attendee!['freeLapsBySpecialty'])
+        : <String, dynamic>{};
+    final freeChangesBySpecialty = _attendee?['freeChangesBySpecialty'] is Map
+        ? Map<String, dynamic>.from(_attendee!['freeChangesBySpecialty'])
+        : <String, dynamic>{};
+    final useLegacyFallback = freeBySpecialty.length == 1;
+    final legacyFreeLaps = _attendee == null ? null : _attendee!['freeLaps'];
+    final legacyFreeChanges =
+        _attendee == null ? null : _attendee!['freeChanges'];
+
+    for (final entry in freeBySpecialty.entries) {
+      _freeLapsCtrls[entry.key] = TextEditingController(
+        text: (freeLapsBySpecialty[entry.key] ??
+                (useLegacyFallback ? legacyFreeLaps : null) ??
+                entry.value['laps'] ??
+                '')
+            .toString(),
+      );
+      _freeChangesCtrls[entry.key] = TextEditingController(
+        text: (freeChangesBySpecialty[entry.key] ??
+                (useLegacyFallback ? legacyFreeChanges : null) ??
+                entry.value['changes'] ??
+                '')
+            .toString(),
+      );
+    }
   }
 
   void _initTrackControllers(Map<String, dynamic> tech) {
@@ -161,8 +187,12 @@ class _AthleteEventScreenState extends State<AthleteEventScreen> {
 
   @override
   void dispose() {
-    _freeLapsCtrl.dispose();
-    _freeChangesCtrl.dispose();
+    for (final controller in _freeLapsCtrls.values) {
+      controller.dispose();
+    }
+    for (final controller in _freeChangesCtrls.values) {
+      controller.dispose();
+    }
     _painCtrl.dispose();
     _chronoCtrl.dispose();
     _notesCtrl.dispose();
@@ -271,7 +301,10 @@ class _AthleteEventScreenState extends State<AthleteEventScreen> {
   }
 
   Widget _eventInfoCard() {
-    final specialty = CoachTrainingUtils.eventSpecialty(widget.event);
+    final specialty =
+        CoachTrainingUtils.specialtiesFromDetails(widget.event.technicalDetails)
+            .map(CoachTrainingUtils.specialtyLabel)
+            .join(' + ');
     final modified = _attendee?['modifiedByAthlete'] == true;
     return CustomCard(
       padding: const EdgeInsets.all(20),
@@ -449,7 +482,7 @@ class _AthleteEventScreenState extends State<AthleteEventScreen> {
             ),
           if (speed.drillCount > 0)
             _plainRow(
-              'Velocita/agilita',
+              'Velocità/agilità',
               '${speed.drillCount} drill · ${speed.totalSets} serie',
             ),
           if (endurance.durationSeconds > 0 || endurance.distanceKm > 0)
@@ -486,7 +519,8 @@ class _AthleteEventScreenState extends State<AthleteEventScreen> {
       widget.event,
       _currentAttendeeDraft(),
     );
-    final free = CoachTrainingUtils.freeSkiingFromDetails(details);
+    final freeBySpecialty =
+        CoachTrainingUtils.freeSkiingBySpecialtyFromDetails(details);
     final tracks = CoachTrainingUtils.tracksFromDetails(details);
     final trainingBlocks =
         CoachTrainingUtils.trainingBlocksFromDetails(details);
@@ -506,18 +540,18 @@ class _AthleteEventScreenState extends State<AthleteEventScreen> {
             ),
           ),
           const SizedBox(height: 16),
-          if (free.isNotEmpty)
+          for (final entry in freeBySpecialty.entries)
             _technicalBlock(
-              'Campo libero',
+              'Campo libero ${entry.key}',
               [
-                '${CoachTrainingUtils.asNonNegativeInt(free['laps'])} giri',
-                '${CoachTrainingUtils.asNonNegativeInt(free['changes'])} cambi/giro',
-                '${CoachTrainingUtils.asNonNegativeInt(free['laps']) * CoachTrainingUtils.asNonNegativeInt(free['changes'])} cambi totali',
+                '${CoachTrainingUtils.asNonNegativeInt(entry.value['laps'])} giri',
+                '${CoachTrainingUtils.asNonNegativeInt(entry.value['changes'])} cambi/giro',
+                '${CoachTrainingUtils.asNonNegativeInt(entry.value['laps']) * CoachTrainingUtils.asNonNegativeInt(entry.value['changes'])} cambi totali',
               ],
             ),
           for (var i = 0; i < tracks.length; i++)
             _technicalBlock(
-              'Pali / Tracciato ${i + 1}',
+              '${_blockSpecialtyLabel(tracks[i])} / Tracciato ${i + 1}',
               [
                 '${CoachTrainingUtils.asNonNegativeInt(tracks[i]['laps'])} giri',
                 '${_trackGates(tracks[i])} porte/giro',
@@ -526,7 +560,7 @@ class _AthleteEventScreenState extends State<AthleteEventScreen> {
             ),
           for (final block in trainingBlocks)
             _technicalBlock(
-              'Addestramento',
+              'Addestramento ${_blockSpecialtyLabel(block)}',
               [
                 '${CoachTrainingUtils.asNonNegativeInt(block['laps'])} giri',
                 '${_blockReferences(block)} riferimenti/giro',
@@ -570,7 +604,7 @@ class _AthleteEventScreenState extends State<AthleteEventScreen> {
           _plainRow(
               'Meteo', weather?.isEmpty == false ? weather! : 'Non inserito'),
           _plainRow(
-            'Qualita',
+            'Qualità',
             quality == null
                 ? 'Non inserita'
                 : '${CoachTrainingUtils.asNonNegativeInt(quality)}/5',
@@ -582,7 +616,8 @@ class _AthleteEventScreenState extends State<AthleteEventScreen> {
 
   Widget _volumeEditorCard() {
     final tech = widget.event.technicalDetails ?? {};
-    final free = CoachTrainingUtils.freeSkiingFromDetails(tech);
+    final freeBySpecialty =
+        CoachTrainingUtils.freeSkiingBySpecialtyFromDetails(tech);
     final tracks = _eventTracks();
     final trainingBlocks = _eventTrainingBlocks();
 
@@ -605,20 +640,22 @@ class _AthleteEventScreenState extends State<AthleteEventScreen> {
             style: TextStyle(color: AppTheme.textMediumEmphasis, fontSize: 12),
           ),
           const SizedBox(height: 18),
-          if (free.isNotEmpty)
+          for (final entry in freeBySpecialty.entries)
             _volumeBlock(
-              title: 'Campo libero',
-              controller: _freeLapsCtrl,
+              title: 'Campo libero ${entry.key}',
+              controller: _freeLapsCtrls[entry.key]!,
               metricLabel: 'Cambi/giro',
-              metricController: _freeChangesCtrl,
+              metricController: _freeChangesCtrls[entry.key]!,
               totalLabel: 'Cambi totali',
               totalValue: CoachTrainingUtils.asNonNegativeInt(
-                      _freeLapsCtrl.text) *
-                  CoachTrainingUtils.asNonNegativeInt(_freeChangesCtrl.text),
+                      _freeLapsCtrls[entry.key]!.text) *
+                  CoachTrainingUtils.asNonNegativeInt(
+                    _freeChangesCtrls[entry.key]!.text,
+                  ),
             ),
           for (var i = 0; i < tracks.length; i++)
             _volumeBlock(
-              title: 'Pali / Tracciato ${i + 1}',
+              title: '${_blockSpecialtyLabel(tracks[i])} / Tracciato ${i + 1}',
               controller: _trackLapsCtrls[
                   tracks[i]['id']?.toString() ?? 'track_${i + 1}']!,
               metricLabel: 'Porte/giro',
@@ -638,7 +675,7 @@ class _AthleteEventScreenState extends State<AthleteEventScreen> {
             ),
           for (var i = 0; i < trainingBlocks.length; i++)
             _volumeBlock(
-              title: 'Addestramento',
+              title: 'Addestramento ${_blockSpecialtyLabel(trainingBlocks[i])}',
               controller: _trainingLapsCtrls[
                   trainingBlocks[i]['id']?.toString() ?? 'training_${i + 1}']!,
               metricLabel: 'Riferimenti/giro',
@@ -1139,6 +1176,13 @@ class _AthleteEventScreenState extends State<AthleteEventScreen> {
     );
   }
 
+  String _blockSpecialtyLabel(Map<String, dynamic> block) {
+    return CoachTrainingUtils.specialtyLabel(
+      block['specialty']?.toString() ??
+          CoachTrainingUtils.eventSpecialty(widget.event),
+    );
+  }
+
   String _painValueForSave() {
     if (_painSelection == 'Altro') {
       final custom = _painCtrl.text.trim();
@@ -1192,7 +1236,7 @@ class _AthleteEventScreenState extends State<AthleteEventScreen> {
       case ActivityCategory.plyometrics:
         return 'Pliometria';
       case ActivityCategory.speedAgility:
-        return 'Velocita/agilita';
+        return 'Velocità/agilità';
       case ActivityCategory.endurance:
         return 'Resistenza';
       case ActivityCategory.mobility:
@@ -1240,6 +1284,14 @@ class _AthleteEventScreenState extends State<AthleteEventScreen> {
   }
 
   Map<String, dynamic> _currentAttendeeDraft() {
+    final freeLapsBySpecialty = {
+      for (final entry in _freeLapsCtrls.entries)
+        entry.key: CoachTrainingUtils.asNonNegativeInt(entry.value.text),
+    };
+    final freeChangesBySpecialty = {
+      for (final entry in _freeChangesCtrls.entries)
+        entry.key: CoachTrainingUtils.asNonNegativeInt(entry.value.text),
+    };
     final trackLaps = {
       for (final entry in _trackLapsCtrls.entries)
         entry.key: CoachTrainingUtils.asNonNegativeInt(entry.value.text),
@@ -1260,8 +1312,14 @@ class _AthleteEventScreenState extends State<AthleteEventScreen> {
       ...?_attendee,
       'attendanceStatus': CoachTrainingUtils.attendancePresent,
       'isPresent': true,
-      'freeLaps': CoachTrainingUtils.asNonNegativeInt(_freeLapsCtrl.text),
-      'freeChanges': CoachTrainingUtils.asNonNegativeInt(_freeChangesCtrl.text),
+      if (freeLapsBySpecialty.isNotEmpty)
+        'freeLaps': freeLapsBySpecialty.values.first,
+      if (freeChangesBySpecialty.isNotEmpty)
+        'freeChanges': freeChangesBySpecialty.values.first,
+      if (freeLapsBySpecialty.isNotEmpty)
+        'freeLapsBySpecialty': freeLapsBySpecialty,
+      if (freeChangesBySpecialty.isNotEmpty)
+        'freeChangesBySpecialty': freeChangesBySpecialty,
       if (trackLaps.isNotEmpty) 'trackLaps': trackLaps,
       if (trackGates.isNotEmpty) 'trackGates': trackGates,
       if (trackLaps.isNotEmpty) 'laps': trackLaps.values.first,
@@ -1317,6 +1375,14 @@ class _AthleteEventScreenState extends State<AthleteEventScreen> {
   Future<void> _savePersonalData() async {
     setState(() => _isLoading = true);
     final appState = Provider.of<AppState>(context, listen: false);
+    final freeLapsBySpecialty = {
+      for (final entry in _freeLapsCtrls.entries)
+        entry.key: CoachTrainingUtils.asNonNegativeInt(entry.value.text),
+    };
+    final freeChangesBySpecialty = {
+      for (final entry in _freeChangesCtrls.entries)
+        entry.key: CoachTrainingUtils.asNonNegativeInt(entry.value.text),
+    };
     final trackLaps = {
       for (final entry in _trackLapsCtrls.entries)
         entry.key: CoachTrainingUtils.asNonNegativeInt(entry.value.text),
@@ -1335,8 +1401,15 @@ class _AthleteEventScreenState extends State<AthleteEventScreen> {
     };
     await appState.updateAthleteEventDetails(
       widget.event,
-      freeLaps: CoachTrainingUtils.asNonNegativeInt(_freeLapsCtrl.text),
-      freeChanges: CoachTrainingUtils.asNonNegativeInt(_freeChangesCtrl.text),
+      freeLaps:
+          freeLapsBySpecialty.isEmpty ? null : freeLapsBySpecialty.values.first,
+      freeChanges: freeChangesBySpecialty.isEmpty
+          ? null
+          : freeChangesBySpecialty.values.first,
+      freeLapsBySpecialty:
+          freeLapsBySpecialty.isEmpty ? null : freeLapsBySpecialty,
+      freeChangesBySpecialty:
+          freeChangesBySpecialty.isEmpty ? null : freeChangesBySpecialty,
       laps: trackLaps.isEmpty ? null : trackLaps.values.first,
       trackLaps: trackLaps.isEmpty ? null : trackLaps,
       trackGates: trackGates.isEmpty ? null : trackGates,

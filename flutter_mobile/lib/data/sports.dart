@@ -16,9 +16,11 @@ const List<Sport> sportsData = [
   Sport('soccer', 'Calcio', Icons.sports_soccer),
   Sport('tennis', 'Tennis', Icons.sports_tennis),
   Sport('road_cycling', 'Ciclismo', Icons.directions_bike),
+  Sport('spearfishing', 'Pesca Subacquea', Icons.scuba_diving),
   Sport('stretching', 'Mobilità / Yoga', Icons.self_improvement),
   Sport('athletic_prep', 'Prep. Atletica', Icons.run_circle),
   Sport('physiotherapy', 'Fisioterapia', Icons.medical_services),
   Sport('hyperarch', 'Hyperarch Fascia Training', Icons.fitness_center),
+  Sport('lattacidemia', 'Lattacidemia', Icons.science),
   Sport('tendon_isometrics', 'Isometrie Tendini', Icons.accessibility_new),
 ];

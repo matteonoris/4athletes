@@ -61,8 +61,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
     final appState = Provider.of<AppState>(context, listen: false);
 
     if (!enabled) {
-      await TrainingReminderNotificationService.instance
-          .cancelDailyTrainingReminder();
+      await TrainingReminderNotificationService.instance.cancelAllReminders();
       if (!mounted) return;
       setState(() => profile.notificationsEnabled = false);
       appState.updateProfile(profile);
@@ -70,7 +69,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
     }
 
     final granted = await TrainingReminderNotificationService.instance
-        .requestPermissionAndSchedule();
+        .requestPermissionAndSchedule(
+      profile: profile,
+      bodyLogs: appState.bodyLogs,
+    );
     if (!mounted) return;
 
     setState(() => profile.notificationsEnabled = granted);
@@ -79,7 +81,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Text(granted
-            ? 'Reminder serale attivato alle 21:00.'
+            ? 'Reminder attivati.'
             : 'Permesso notifiche non concesso. Controlla le impostazioni del telefono.'),
         backgroundColor: granted ? AppTheme.success : AppTheme.error,
       ),

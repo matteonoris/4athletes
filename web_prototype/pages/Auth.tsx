@@ -137,8 +137,8 @@ const Auth: React.FC<Props> = ({ onRegister, onLogin }) => {
   const openPlatformSettings = () => {
     setNotice(
       platform === 'ios'
-        ? 'Nell app iOS apriremo Impostazioni > Salute > Accesso dati e dispositivi.'
-        : 'Nell app Android apriremo Impostazioni > Health Connect > Autorizzazioni app.',
+        ? 'Nell\'app iOS apriremo Impostazioni > Salute > Accesso dati e dispositivi.'
+        : 'Nell\'app Android apriremo Impostazioni > Health Connect > Autorizzazioni app.',
     );
   };
 
@@ -314,7 +314,7 @@ const Auth: React.FC<Props> = ({ onRegister, onLogin }) => {
 
 const permissionRows: Array<{ key: PermissionKey; label: string; detail: string }> = [
   { key: 'camera', label: 'Fotocamera', detail: 'Foto profilo' },
-  { key: 'sleep', label: 'Sonno', detail: 'Qualita e durata' },
+  { key: 'sleep', label: 'Sonno', detail: 'Qualità e durata' },
   { key: 'heartRate', label: 'Frequenza cardiaca', detail: 'FC, HRV e recupero' },
   { key: 'cycle', label: 'Ciclo mestruale', detail: 'Fasi e personalizzazione' },
   { key: 'workouts', label: 'Allenamenti', detail: 'Sessioni e carico' },

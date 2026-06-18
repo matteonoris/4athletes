@@ -74,6 +74,7 @@ export const sportsData: SportDef[] = [
     { id: 'stair_climber', name: 'Stair Climber', icon: Mountain, category: 'Fitness' },
     { id: 'physiotherapy', name: 'Fisioterapia', icon: Activity, category: 'Fitness' },
     { id: 'hyperarch', name: 'Hyperarch Fascia Training', icon: Zap, category: 'Fitness' },
+    { id: 'lattacidemia', name: 'Lattacidemia', icon: Activity, category: 'Fitness' },
     { id: 'tendon_isometrics', name: 'Isometrie Tendini', icon: Move, category: 'Fitness' },
 
     // COMBAT

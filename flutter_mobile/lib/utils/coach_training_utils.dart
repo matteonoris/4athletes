@@ -7,7 +7,9 @@ class TrainingVolumeSummary {
   final int polePasses;
   final int trainingLaps;
   final int trainingDirectionChanges;
+  final Map<String, int> freeDirectionChangesBySpecialty;
   final Map<String, int> polePassesBySpecialty;
+  final Map<String, int> trainingDirectionChangesBySpecialty;
 
   const TrainingVolumeSummary({
     this.freeLaps = 0,
@@ -16,7 +18,9 @@ class TrainingVolumeSummary {
     this.polePasses = 0,
     this.trainingLaps = 0,
     this.trainingDirectionChanges = 0,
+    this.freeDirectionChangesBySpecialty = const {},
     this.polePassesBySpecialty = const {},
+    this.trainingDirectionChangesBySpecialty = const {},
   });
 
   int get totalDirectionChanges =>
@@ -26,9 +30,21 @@ class TrainingVolumeSummary {
       freeDirectionChanges + polePasses + trainingDirectionChanges;
 
   TrainingVolumeSummary operator +(TrainingVolumeSummary other) {
+    final freeBySpecialty =
+        Map<String, int>.from(freeDirectionChangesBySpecialty);
+    for (final entry in other.freeDirectionChangesBySpecialty.entries) {
+      freeBySpecialty[entry.key] =
+          (freeBySpecialty[entry.key] ?? 0) + entry.value;
+    }
     final bySpecialty = Map<String, int>.from(polePassesBySpecialty);
     for (final entry in other.polePassesBySpecialty.entries) {
       bySpecialty[entry.key] = (bySpecialty[entry.key] ?? 0) + entry.value;
+    }
+    final trainingBySpecialty =
+        Map<String, int>.from(trainingDirectionChangesBySpecialty);
+    for (final entry in other.trainingDirectionChangesBySpecialty.entries) {
+      trainingBySpecialty[entry.key] =
+          (trainingBySpecialty[entry.key] ?? 0) + entry.value;
     }
     return TrainingVolumeSummary(
       freeLaps: freeLaps + other.freeLaps,
@@ -38,7 +54,9 @@ class TrainingVolumeSummary {
       trainingLaps: trainingLaps + other.trainingLaps,
       trainingDirectionChanges:
           trainingDirectionChanges + other.trainingDirectionChanges,
+      freeDirectionChangesBySpecialty: freeBySpecialty,
       polePassesBySpecialty: bySpecialty,
+      trainingDirectionChangesBySpecialty: trainingBySpecialty,
     );
   }
 
@@ -51,7 +69,10 @@ class TrainingVolumeSummary {
         'trainingDirectionChanges': trainingDirectionChanges,
         'totalDirectionChanges': totalDirectionChanges,
         'totalSkiDirectionChanges': totalSkiDirectionChanges,
+        'freeDirectionChangesBySpecialty': freeDirectionChangesBySpecialty,
         'polePassesBySpecialty': polePassesBySpecialty,
+        'trainingDirectionChangesBySpecialty':
+            trainingDirectionChangesBySpecialty,
       };
 }
 
@@ -151,13 +172,61 @@ class CoachTrainingUtils {
     return specialtyFromDetails(event.technicalDetails);
   }
 
-  static String specialtyFromDetails(Map<String, dynamic>? details) {
-    final specialties = details?['specialties'];
-    if (specialties is List && specialties.isNotEmpty) {
-      return normalizeSpecialty(specialties.first.toString());
+  static List<String> specialtiesFromDetails(Map<String, dynamic>? details) {
+    final values = <String>[];
+
+    void add(dynamic raw) {
+      final text = raw?.toString().trim() ?? '';
+      if (text.isEmpty) return;
+      final normalized = normalizeSpecialty(text);
+      if (normalized.isNotEmpty && !values.contains(normalized)) {
+        values.add(normalized);
+      }
     }
+
+    final specialties = details?['specialties'];
+    if (specialties is List) {
+      for (final specialty in specialties) {
+        add(specialty);
+      }
+    }
+
+    add(details?['specialty']);
+
+    final freeBySpecialty = details?['freeSkiingBySpecialty'];
+    if (freeBySpecialty is Map) {
+      for (final key in freeBySpecialty.keys) {
+        add(key);
+      }
+    }
+
+    final tracks = details?['tracks'];
+    if (tracks is List) {
+      for (final track in tracks.whereType<Map>()) {
+        add(track['specialty']);
+      }
+    }
+
+    final trainingBlocks = details?['trainingBlocks'];
+    if (trainingBlocks is List) {
+      for (final block in trainingBlocks.whereType<Map>()) {
+        add(block['specialty']);
+      }
+    }
+
+    return values.isEmpty ? const ['CL'] : values;
+  }
+
+  static String specialtyFromDetails(Map<String, dynamic>? details) {
+    final specialties = specialtiesFromDetails(details);
+    if (specialties.isNotEmpty) return specialties.first;
     final specialty = details?['specialty']?.toString();
     return normalizeSpecialty(specialty ?? 'CL');
+  }
+
+  static String specialtyLabel(String specialty) {
+    final normalized = normalizeSpecialty(specialty);
+    return normalized == 'SX' ? 'SX Ski Cross' : normalized;
   }
 
   static String normalizeSpecialty(String value) {
@@ -187,8 +256,42 @@ class CoachTrainingUtils {
   static Map<String, dynamic> freeSkiingFromDetails(
     Map<String, dynamic>? details,
   ) {
+    final bySpecialty = freeSkiingBySpecialtyFromDetails(details);
+    if (bySpecialty.isNotEmpty) {
+      return Map<String, dynamic>.from(bySpecialty.values.first);
+    }
     if (details == null) return {};
     return _mapValue(details['freeSkiing']);
+  }
+
+  static Map<String, Map<String, dynamic>> freeSkiingBySpecialtyFromDetails(
+    Map<String, dynamic>? details,
+  ) {
+    if (details == null) return {};
+    final result = <String, Map<String, dynamic>>{};
+    final bySpecialty = details['freeSkiingBySpecialty'];
+    if (bySpecialty is Map) {
+      for (final entry in bySpecialty.entries) {
+        final value = _mapValue(entry.value);
+        if (value.isEmpty) continue;
+        final specialty = normalizeSpecialty(entry.key.toString());
+        result[specialty] = {
+          ...value,
+          'specialty': specialty,
+        };
+      }
+    }
+    if (result.isEmpty) {
+      final free = _mapValue(details['freeSkiing']);
+      if (free.isNotEmpty) {
+        final specialty = specialtyFromDetails(details);
+        result[specialty] = {
+          ...free,
+          'specialty': specialty,
+        };
+      }
+    }
+    return result;
   }
 
   static List<Map<String, dynamic>> tracksFromDetails(
@@ -217,34 +320,63 @@ class CoachTrainingUtils {
     Map<String, dynamic> attendee,
   ) {
     final tech = Map<String, dynamic>.from(event.technicalDetails ?? {});
-    final specialty = eventSpecialty(event);
+    final specialties = specialtiesFromDetails(tech);
+    final specialty =
+        specialties.isEmpty ? eventSpecialty(event) : specialties.first;
     final details = <String, dynamic>{
       'from_calendar': true,
       'specialty': specialty,
-      'specialties': [specialty],
+      'specialties': specialties,
       'snowCondition': tech['snowCondition'],
       'weatherCondition': tech['weatherCondition'],
       'technicalDetails': tech,
       'athleteModified': attendee['modifiedByAthlete'] == true,
     };
 
-    final free = _mapValue(tech['freeSkiing']);
-    if (free.isNotEmpty) {
-      final freeLaps = asInt(
-        attendee['freeLaps'],
-        fallback: asInt(free['laps']),
-      );
-      final freeChanges = asInt(
-        attendee['freeChanges'],
-        fallback: asInt(free['changes']),
-      );
-      details['freeSkiing'] = {
-        ...free,
-        'laps': asNonNegativeInt(freeLaps),
-        'changes': asNonNegativeInt(freeChanges),
+    final freeBySpecialty = freeSkiingBySpecialtyFromDetails(tech);
+    if (freeBySpecialty.isNotEmpty) {
+      final attendeeFreeLapsBySpecialty =
+          _mapValue(attendee['freeLapsBySpecialty']);
+      final attendeeFreeChangesBySpecialty =
+          _mapValue(attendee['freeChangesBySpecialty']);
+      final resolvedFreeBySpecialty = <String, Map<String, dynamic>>{};
+      for (final entry in freeBySpecialty.entries) {
+        final free = entry.value;
+        final useLegacyFallback = freeBySpecialty.length == 1;
+        final freeLaps = asInt(
+          attendeeFreeLapsBySpecialty[entry.key],
+          fallback: asInt(
+            useLegacyFallback ? attendee['freeLaps'] : null,
+            fallback: asInt(free['laps']),
+          ),
+        );
+        final freeChanges = asInt(
+          attendeeFreeChangesBySpecialty[entry.key],
+          fallback: asInt(
+            useLegacyFallback ? attendee['freeChanges'] : null,
+            fallback: asInt(free['changes']),
+          ),
+        );
+        resolvedFreeBySpecialty[entry.key] = {
+          ...free,
+          'specialty': entry.key,
+          'laps': asNonNegativeInt(freeLaps),
+          'changes': asNonNegativeInt(freeChanges),
+        };
+      }
+      details['freeSkiingBySpecialty'] = resolvedFreeBySpecialty;
+      final firstFree = resolvedFreeBySpecialty.values.first;
+      details['freeSkiing'] = firstFree;
+      details['freeLaps'] = asNonNegativeInt(firstFree['laps']);
+      details['freeChanges'] = asNonNegativeInt(firstFree['changes']);
+      details['freeLapsBySpecialty'] = {
+        for (final entry in resolvedFreeBySpecialty.entries)
+          entry.key: asNonNegativeInt(entry.value['laps']),
       };
-      details['freeLaps'] = asNonNegativeInt(freeLaps);
-      details['freeChanges'] = asNonNegativeInt(freeChanges);
+      details['freeChangesBySpecialty'] = {
+        for (final entry in resolvedFreeBySpecialty.entries)
+          entry.key: asNonNegativeInt(entry.value['changes']),
+      };
     }
 
     final tracks = _buildTracks(tech, attendee);
@@ -306,19 +438,30 @@ class CoachTrainingUtils {
 
     int freeLaps = 0;
     int freeDirectionChanges = 0;
-    final free = _mapValue(details['freeSkiing']);
-    if (free.isNotEmpty) {
-      freeLaps = asInt(
-        details['freeLaps'],
-        fallback: asInt(free['laps']),
-      );
-      freeLaps = asNonNegativeInt(freeLaps);
-      final changes = asNonNegativeInt(free['changes']);
-      freeDirectionChanges = freeLaps * changes;
+    final freeDirectionChangesBySpecialty = <String, int>{};
+    final freeBySpecialty = freeSkiingBySpecialtyFromDetails(details);
+    if (freeBySpecialty.isNotEmpty) {
+      for (final entry in freeBySpecialty.entries) {
+        final free = entry.value;
+        final useLegacyFallback = freeBySpecialty.length == 1;
+        final laps = asNonNegativeInt(
+          useLegacyFallback ? details['freeLaps'] : free['laps'],
+          fallback: asNonNegativeInt(free['laps']),
+        );
+        final changes = asNonNegativeInt(free['changes']);
+        final total = laps * changes;
+        freeLaps += laps;
+        freeDirectionChanges += total;
+        if (total > 0) {
+          freeDirectionChangesBySpecialty[entry.key] =
+              (freeDirectionChangesBySpecialty[entry.key] ?? 0) + total;
+        }
+      }
     }
 
     int poleLaps = 0;
     int polePasses = 0;
+    final polePassesBySpecialty = <String, int>{};
     final tracks = _tracksFromDetails(details);
     if (tracks.isNotEmpty) {
       for (final track in tracks) {
@@ -327,8 +470,14 @@ class CoachTrainingUtils {
           track['gates'],
           fallback: asNonNegativeInt(track['changes']),
         );
+        final total = laps * gates;
+        final trackSpecialty = _specialtyForBlock(track, specialty);
         poleLaps += laps;
-        polePasses += laps * gates;
+        polePasses += total;
+        if (total > 0) {
+          polePassesBySpecialty[trackSpecialty] =
+              (polePassesBySpecialty[trackSpecialty] ?? 0) + total;
+        }
       }
     } else {
       final gated = _mapValue(details['gatedSkiing']);
@@ -342,11 +491,15 @@ class CoachTrainingUtils {
           fallback: asNonNegativeInt(gated['changes']),
         );
         polePasses = poleLaps * gates;
+        if (polePasses > 0) {
+          polePassesBySpecialty[specialty] = polePasses;
+        }
       }
     }
 
     int trainingLaps = 0;
     int trainingDirectionChanges = 0;
+    final trainingDirectionChangesBySpecialty = <String, int>{};
     final trainingBlocks = _trainingBlocksFromDetails(details);
     for (final block in trainingBlocks) {
       final laps = asNonNegativeInt(block['laps']);
@@ -354,8 +507,14 @@ class CoachTrainingUtils {
         block['references'],
         fallback: asNonNegativeInt(block['changes']),
       );
+      final total = laps * references;
+      final blockSpecialty = _specialtyForBlock(block, specialty);
       trainingLaps += laps;
-      trainingDirectionChanges += laps * references;
+      trainingDirectionChanges += total;
+      if (total > 0) {
+        trainingDirectionChangesBySpecialty[blockSpecialty] =
+            (trainingDirectionChangesBySpecialty[blockSpecialty] ?? 0) + total;
+      }
     }
 
     return TrainingVolumeSummary(
@@ -365,8 +524,9 @@ class CoachTrainingUtils {
       polePasses: polePasses,
       trainingLaps: trainingLaps,
       trainingDirectionChanges: trainingDirectionChanges,
-      polePassesBySpecialty:
-          polePasses > 0 ? {specialty: polePasses} : const {},
+      freeDirectionChangesBySpecialty: freeDirectionChangesBySpecialty,
+      polePassesBySpecialty: polePassesBySpecialty,
+      trainingDirectionChangesBySpecialty: trainingDirectionChangesBySpecialty,
     );
   }
 
@@ -494,5 +654,14 @@ class CoachTrainingUtils {
     if (value is Map<String, dynamic>) return Map<String, dynamic>.from(value);
     if (value is Map) return Map<String, dynamic>.from(value);
     return {};
+  }
+
+  static String _specialtyForBlock(
+    Map<String, dynamic> block,
+    String fallback,
+  ) {
+    final raw = block['specialty']?.toString();
+    if (raw == null || raw.trim().isEmpty) return fallback;
+    return normalizeSpecialty(raw);
   }
 }

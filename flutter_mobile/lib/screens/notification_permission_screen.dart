@@ -24,7 +24,10 @@ class _NotificationPermissionScreenState
     setState(() => _isLoading = true);
     final appState = Provider.of<AppState>(context, listen: false);
     final granted = await TrainingReminderNotificationService.instance
-        .requestPermissionAndSchedule();
+        .requestPermissionAndSchedule(
+      profile: appState.userProfile,
+      bodyLogs: appState.bodyLogs,
+    );
 
     if (appState.userProfile != null) {
       appState.userProfile!.notificationsEnabled = granted;
@@ -55,7 +58,7 @@ class _NotificationPermissionScreenState
       appState.userProfile!.notificationsEnabled = false;
       appState.updateProfile(appState.userProfile!);
     }
-    TrainingReminderNotificationService.instance.cancelDailyTrainingReminder();
+    TrainingReminderNotificationService.instance.cancelAllReminders();
     _navigateToHome();
   }
 

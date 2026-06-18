@@ -157,4 +157,49 @@ void main() {
     expect(summary.trainingDirectionChanges, 0);
     expect(summary.polePassesBySpecialty, isEmpty);
   });
+
+  test('splits dual specialty ski volumes by block specialty', () {
+    final details = {
+      'specialties': ['SL', 'GS'],
+      'freeSkiingBySpecialty': {
+        'SL': {'laps': 2, 'changes': 10},
+        'GS': {'laps': 3, 'changes': 12},
+      },
+      'tracks': [
+        {'id': 's1_track_1', 'specialty': 'SL', 'laps': 4, 'gates': 45},
+        {'id': 's2_track_1', 'specialty': 'GS', 'laps': 5, 'gates': 35},
+      ],
+      'trainingBlocks': [
+        {
+          'id': 's1_training_1',
+          'specialty': 'SL',
+          'laps': 2,
+          'references': 8,
+        },
+        {
+          'id': 's2_training_1',
+          'specialty': 'GS',
+          'laps': 3,
+          'references': 9,
+        },
+      ],
+    };
+
+    final summary = CoachTrainingUtils.volumeFromDetails(details);
+
+    expect(summary.freeLaps, 5);
+    expect(summary.freeDirectionChanges, 56);
+    expect(summary.freeDirectionChangesBySpecialty['SL'], 20);
+    expect(summary.freeDirectionChangesBySpecialty['GS'], 36);
+    expect(summary.poleLaps, 9);
+    expect(summary.polePasses, 355);
+    expect(summary.polePassesBySpecialty['SL'], 180);
+    expect(summary.polePassesBySpecialty['GS'], 175);
+    expect(summary.trainingLaps, 5);
+    expect(summary.trainingDirectionChanges, 43);
+    expect(summary.trainingDirectionChangesBySpecialty['SL'], 16);
+    expect(summary.trainingDirectionChangesBySpecialty['GS'], 27);
+    expect(summary.totalDirectionChanges, 99);
+    expect(summary.totalSkiDirectionChanges, 454);
+  });
 }

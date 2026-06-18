@@ -255,7 +255,7 @@ class _DrylandActivityScreenState extends State<DrylandActivityScreen> {
       case ActivityCategory.plyometrics:
         return 'Pliometria';
       case ActivityCategory.speedAgility:
-        return 'Velocita / Agilita';
+        return 'Velocità / Agilità';
       case ActivityCategory.endurance:
         return 'Resistenza';
       case ActivityCategory.mobility:
@@ -347,7 +347,7 @@ class _DrylandActivityScreenState extends State<DrylandActivityScreen> {
       blocks.add(TrainingBlock(
         id: 'speed_agility_1',
         type: TrainingBlockType.speedAgility,
-        name: 'Velocita / Agilita',
+        name: 'Velocità / Agilità',
         drills: _speedDrills
             .map((item) => SpeedAgilityDrill.fromJson(item))
             .toList(),
@@ -519,7 +519,7 @@ class _DrylandActivityScreenState extends State<DrylandActivityScreen> {
           child: ElevatedButton.icon(
             onPressed: _saveSession,
             icon: const Icon(Icons.check_circle_outline),
-            label: const Text('Salva attivita'),
+            label: const Text('Salva attività'),
             style: ElevatedButton.styleFrom(
               backgroundColor: AppTheme.primary,
               foregroundColor: AppTheme.background,
@@ -1381,7 +1381,7 @@ class _DrylandActivityScreenState extends State<DrylandActivityScreen> {
                     (v) => _endurance['distanceKm'] = v)),
             const SizedBox(width: 8),
             Expanded(
-                child: _inlineNumber('Velocita km/h', _endurance['avgSpeed'],
+                child: _inlineNumber('Velocità km/h', _endurance['avgSpeed'],
                     (v) => _endurance['avgSpeed'] = v)),
           ]),
           const SizedBox(height: 8),
@@ -1579,7 +1579,7 @@ class _DrylandActivityScreenState extends State<DrylandActivityScreen> {
           ),
           const SizedBox(height: 8),
           _textInput(
-            'Intensita',
+            'Intensità',
             initialValue: circuit['intensity']?.toString() ?? '',
             onChanged: (v) => circuit['intensity'] = v,
           ),

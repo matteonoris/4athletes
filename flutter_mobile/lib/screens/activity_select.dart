@@ -102,6 +102,8 @@ class _ActivitySelectScreenState extends State<ActivitySelectScreen> {
         PhosphorIcons.lightning()),
     const SportActivity('hyperarch', 'HYPERARCH FASCIA TRAINING', 'FITNESS',
         Icons.fitness_center),
+    const SportActivity(
+        'lattacidemia', 'LATTACIDEMIA', 'FITNESS', Icons.science),
     const SportActivity('tendon_isometrics', 'ALLENAMENTO TENDINI', 'FITNESS',
         Icons.accessibility_new),
     const SportActivity(
@@ -144,6 +146,8 @@ class _ActivitySelectScreenState extends State<ActivitySelectScreen> {
     const SportActivity('sailing', 'SAILING', 'WATER', Icons.sailing),
     const SportActivity(
         'scuba_diving', 'SCUBA DIVING', 'WATER', Icons.scuba_diving),
+    const SportActivity(
+        'spearfishing', 'PESCA SUBACQUEA', 'WATER', Icons.scuba_diving),
     const SportActivity(
         'kite_surfing', 'KITE SURFING', 'WATER', Icons.kitesurfing),
     const SportActivity('kayaking', 'KAYAKING', 'WATER', Icons.kayaking),
@@ -191,7 +195,7 @@ class _ActivitySelectScreenState extends State<ActivitySelectScreen> {
     ),
     _DrylandCategoryOption(
       ActivityCategory.speedAgility,
-      'Velocita / Agilita',
+      'Velocità / Agilità',
       'Sprint, drill, coni, ostacoli',
       Icons.speed,
       Color(0xFF43D9B8),
@@ -352,7 +356,7 @@ class _ActivitySelectScreenState extends State<ActivitySelectScreen> {
             }
           },
         ),
-        title: Text(_showAllSports ? 'Sport' : 'Aggiungi attivita',
+        title: Text(_showAllSports ? 'Sport' : 'Aggiungi attività',
             style: TextStyle(
                 color: AppTheme.textHighEmphasis,
                 fontSize: _showAllSports ? 16 : 17,
@@ -541,7 +545,7 @@ class _ActivitySelectScreenState extends State<ActivitySelectScreen> {
                       fontSize: 14,
                     ),
                   ),
-                  SizedBox(height: 4),
+                  const SizedBox(height: 4),
                   Text(
                     'Apple Health / Health Connect, con cardio e zone',
                     maxLines: 2,

@@ -1612,10 +1612,9 @@ class _CoachTrainingViewState extends State<_CoachTrainingView> {
     final isSki = event.sportCategory == 'ski';
     String? specialty;
     if (isSki) {
-      final specs = event.technicalDetails?['specialties'] as List?;
-      if (specs != null && specs.isNotEmpty) {
-        specialty = specs.first.toString();
-      }
+      final specs =
+          CoachTrainingUtils.specialtiesFromDetails(event.technicalDetails);
+      if (specs.isNotEmpty) specialty = specs.join('+');
     } else {
       specialty = event.drylandSpecialty;
     }
@@ -1665,10 +1664,7 @@ class _CoachTrainingViewState extends State<_CoachTrainingView> {
                                     : const Color(0xFFFF7A00)
                                         .withValues(alpha: 0.15),
                                 borderRadius: BorderRadius.circular(6)),
-                            child: Text(
-                                specialty.length > 4
-                                    ? specialty.substring(0, 4).toUpperCase()
-                                    : specialty.toUpperCase(),
+                            child: Text(specialty.toUpperCase(),
                                 style: TextStyle(
                                     color: isSki
                                         ? AppTheme.primary

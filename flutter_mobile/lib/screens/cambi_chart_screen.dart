@@ -21,6 +21,7 @@ class CambiChartScreen extends StatelessWidget {
     if (specialty == 'DH') return Colors.purpleAccent;
     if (specialty == 'SX') return Colors.redAccent;
     if (specialty == 'CL') return Colors.orangeAccent;
+    if (specialty.startsWith('ADD ')) return Colors.amberAccent;
     if (specialty == 'ADD') return Colors.amberAccent;
     return Colors.grey;
   }
@@ -298,6 +299,11 @@ class CambiChartScreen extends StatelessWidget {
 
   int _sortIndex(String specialty) {
     const order = ['CL', 'SL', 'GS', 'SG', 'DH', 'SX', 'ADD'];
+    if (specialty.startsWith('ADD ')) {
+      final base = specialty.substring(4);
+      final baseIndex = order.indexOf(base);
+      return order.length + (baseIndex == -1 ? order.length : baseIndex);
+    }
     final index = order.indexOf(specialty);
     return index == -1 ? order.length : index;
   }

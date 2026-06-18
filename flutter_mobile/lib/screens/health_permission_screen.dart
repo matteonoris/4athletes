@@ -97,7 +97,7 @@ class _HealthPermissionScreenState extends State<HealthPermissionScreen> {
               Text(
                 Platform.isIOS
                     ? 'Per offrirti analisi dettagliate su allenamento, recupero e sonno, 4ATHLETES richiede accesso ai dati Apple Health supportati.'
-                    : 'Per offrirti analisi dettagliate su allenamento, recupero e sonno, 4ATHLETES richiede accesso a Health Connect. Se non e installato, ti porteremo al Play Store.',
+                    : 'Per offrirti analisi dettagliate su allenamento, recupero e sonno, 4ATHLETES richiede accesso a Health Connect. Se non è installato, ti porteremo al Play Store.',
                 textAlign: TextAlign.center,
                 style:
                     TextStyle(color: AppTheme.textMediumEmphasis, fontSize: 14),
@@ -124,7 +124,7 @@ class _HealthPermissionScreenState extends State<HealthPermissionScreen> {
                       _buildPermissionItem(
                           PhosphorIconsRegular.fire,
                           'Calorie attive',
-                          'Per stimare consumo energetico e intensita.'),
+                          'Per stimare consumo energetico e intensità.'),
                       _buildPermissionItem(
                           PhosphorIconsRegular.thermometer,
                           'Parametri vitali',

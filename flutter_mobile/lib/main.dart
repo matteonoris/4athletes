@@ -43,8 +43,10 @@ void main() async {
   final appState = AppState();
   await TrainingReminderNotificationService.instance.initialize();
   await appState.init();
-  await TrainingReminderNotificationService.instance
-      .syncForProfile(appState.userProfile);
+  await TrainingReminderNotificationService.instance.syncForProfile(
+    appState.userProfile,
+    bodyLogs: appState.bodyLogs,
+  );
   await initializeDateFormatting('it', null);
 
   runApp(

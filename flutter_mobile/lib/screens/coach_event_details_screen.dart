@@ -46,17 +46,19 @@ class _BlockDraft {
   })  : lapsCtrl = TextEditingController(text: laps),
         metricCtrl = TextEditingController(text: metric);
 
-  Map<String, dynamic> toTrackJson() => {
+  Map<String, dynamic> toTrackJson(String specialty) => {
         'id': id,
         'name': name,
+        'specialty': specialty,
         'laps': lapsCtrl.text,
         'gates': metricCtrl.text,
         'changes': metricCtrl.text,
       };
 
-  Map<String, dynamic> toTrainingJson() => {
+  Map<String, dynamic> toTrainingJson(String specialty) => {
         'id': id,
         'name': name,
+        'specialty': specialty,
         'laps': lapsCtrl.text,
         'references': metricCtrl.text,
         'changes': metricCtrl.text,
@@ -65,6 +67,36 @@ class _BlockDraft {
   void dispose() {
     lapsCtrl.dispose();
     metricCtrl.dispose();
+  }
+}
+
+class _SkiSpecialtyDraft {
+  String specialty;
+  final TextEditingController freeLapsCtrl;
+  final TextEditingController freeChangesCtrl;
+  final List<_BlockDraft> tracks;
+  final List<_BlockDraft> trainingBlocks;
+
+  _SkiSpecialtyDraft({
+    required this.specialty,
+    String freeLaps = '',
+    String freeChanges = '',
+    List<_BlockDraft>? tracks,
+    List<_BlockDraft>? trainingBlocks,
+  })  : freeLapsCtrl = TextEditingController(text: freeLaps),
+        freeChangesCtrl = TextEditingController(text: freeChanges),
+        tracks = tracks ?? [],
+        trainingBlocks = trainingBlocks ?? [];
+
+  void dispose() {
+    freeLapsCtrl.dispose();
+    freeChangesCtrl.dispose();
+    for (final track in tracks) {
+      track.dispose();
+    }
+    for (final block in trainingBlocks) {
+      block.dispose();
+    }
   }
 }
 
@@ -94,14 +126,11 @@ class _CoachEventDetailsScreenState extends State<CoachEventDetailsScreen> {
   late TextEditingController _notesCtrl;
   late TextEditingController _snowCtrl;
   late TextEditingController _weatherCtrl;
-  late TextEditingController _freeLapsCtrl;
-  late TextEditingController _freeChangesCtrl;
   late TextEditingController _drylandSpecialtyCtrl;
 
   String _eventStatus = CoachTrainingUtils.statusPlanned;
   String _eventType = 'training';
   String _sportCategory = 'ski';
-  String _selectedSpecialty = 'SL';
   int _qualityRating = 3;
   bool _chronoEnabled = false;
   bool _isLoadingAthletes = false;
@@ -113,8 +142,7 @@ class _CoachEventDetailsScreenState extends State<CoachEventDetailsScreen> {
 
   final List<Team> _selectedTeams = [];
   final List<Map<String, dynamic>> _athletes = [];
-  final List<_BlockDraft> _tracks = [];
-  final List<_BlockDraft> _trainingBlocks = [];
+  final List<_SkiSpecialtyDraft> _skiDrafts = [];
   final List<Map<String, dynamic>> _strengthExercises = [];
   final List<Map<String, dynamic>> _plyometricExercises = [];
   final List<Map<String, dynamic>> _speedDrills = [];
@@ -166,12 +194,6 @@ class _CoachEventDetailsScreenState extends State<CoachEventDetailsScreen> {
     _eventType = event?.type == 'race' ? 'race' : 'training';
     _sportCategory =
         event?.sportCategory ?? (widget.isSkiWorkout ? 'ski' : 'dryland');
-    _selectedSpecialty = event != null
-        ? CoachTrainingUtils.eventSpecialty(event)
-        : (widget.isSkiWorkout ? 'SL' : 'CL');
-    if (!CoachTrainingUtils.specialties.contains(_selectedSpecialty)) {
-      _selectedSpecialty = 'SL';
-    }
     _qualityRating = CoachTrainingUtils.asInt(
       tech['qualityRating'],
       fallback: 3,
@@ -193,10 +215,6 @@ class _CoachEventDetailsScreenState extends State<CoachEventDetailsScreen> {
         TextEditingController(text: tech['snowCondition'] ?? 'Compatta');
     _weatherCtrl =
         TextEditingController(text: tech['weatherCondition'] ?? 'Sole');
-    _freeLapsCtrl = TextEditingController(
-        text: tech['freeSkiing']?['laps']?.toString() ?? '');
-    _freeChangesCtrl = TextEditingController(
-        text: tech['freeSkiing']?['changes']?.toString() ?? '');
     _drylandSpecialtyCtrl =
         TextEditingController(text: event?.drylandSpecialty ?? '');
 
@@ -205,7 +223,7 @@ class _CoachEventDetailsScreenState extends State<CoachEventDetailsScreen> {
       _chronoEnabled = chrono['enabled'] == true;
     }
 
-    _loadTechnicalBlocks(tech);
+    _loadSkiDrafts(tech);
     _loadDrylandPlan(tech);
     _loadSelectedTeams();
     if (_selectedTeams.isNotEmpty) {
@@ -215,39 +233,81 @@ class _CoachEventDetailsScreenState extends State<CoachEventDetailsScreen> {
     }
   }
 
-  void _loadTechnicalBlocks(Map<String, dynamic> tech) {
-    final tracks = tech['tracks'];
-    if (tracks is List) {
-      for (var i = 0; i < tracks.length && i < 3; i++) {
+  void _loadSkiDrafts(Map<String, dynamic> tech) {
+    if (!_isSki) return;
+
+    final specialties = (widget.event == null
+            ? <String>[widget.isSkiWorkout ? 'SL' : 'CL']
+            : CoachTrainingUtils.specialtiesFromDetails(tech))
+        .where(CoachTrainingUtils.specialties.contains)
+        .take(2)
+        .toList();
+    if (specialties.isEmpty) specialties.add('SL');
+
+    final freeBySpecialty =
+        CoachTrainingUtils.freeSkiingBySpecialtyFromDetails(tech);
+    final tracks = CoachTrainingUtils.tracksFromDetails(tech);
+    final trainingBlocks = CoachTrainingUtils.trainingBlocksFromDetails(tech);
+    final primarySpecialty = specialties.first;
+
+    for (final specialty in specialties) {
+      final free = freeBySpecialty[specialty] ??
+          (specialties.length == 1
+              ? CoachTrainingUtils.freeSkiingFromDetails(tech)
+              : const <String, dynamic>{});
+      final draft = _SkiSpecialtyDraft(
+        specialty: specialty,
+        freeLaps: free['laps']?.toString() ?? '',
+        freeChanges: free['changes']?.toString() ?? '',
+      );
+
+      for (var i = 0; i < tracks.length && draft.tracks.length < 3; i++) {
         final track = tracks[i];
-        if (track is! Map) continue;
-        _tracks.add(_BlockDraft(
-          id: track['id']?.toString() ?? 'track_${i + 1}',
-          name: track['name']?.toString() ?? 'Tracciato ${i + 1}',
+        final trackSpecialty = CoachTrainingUtils.normalizeSpecialty(
+          track['specialty']?.toString() ?? primarySpecialty,
+        );
+        if (trackSpecialty != specialty) continue;
+        draft.tracks.add(_BlockDraft(
+          id: track['id']?.toString() ??
+              _blockIdForDraft(draft, 'track', draft.tracks.length + 1),
+          name: track['name']?.toString() ??
+              'Tracciato ${draft.tracks.length + 1}',
           laps: track['laps']?.toString() ?? '',
           metric: (track['gates'] ?? track['changes'])?.toString() ?? '',
         ));
       }
-    } else if (tech['gatedSkiing'] is Map) {
-      final gated = tech['gatedSkiing'] as Map;
-      _tracks.add(_BlockDraft(
-        id: 'track_1',
-        name: 'Tracciato 1',
-        laps: gated['laps']?.toString() ?? '',
-        metric: (gated['gates'] ?? gated['changes'])?.toString() ?? '',
-      ));
-    }
 
-    final blocks = tech['trainingBlocks'];
-    if (blocks is List) {
-      for (var i = 0; i < blocks.length; i++) {
-        final block = blocks[i];
-        if (block is! Map) continue;
-        _trainingBlocks.add(_BlockDraft(
-          id: block['id']?.toString() ?? 'training_${i + 1}',
+      for (var i = 0; i < trainingBlocks.length; i++) {
+        final block = trainingBlocks[i];
+        final blockSpecialty = CoachTrainingUtils.normalizeSpecialty(
+          block['specialty']?.toString() ?? primarySpecialty,
+        );
+        if (blockSpecialty != specialty) continue;
+        draft.trainingBlocks.add(_BlockDraft(
+          id: block['id']?.toString() ??
+              _blockIdForDraft(
+                draft,
+                'training',
+                draft.trainingBlocks.length + 1,
+              ),
           name: block['name']?.toString() ?? 'Addestramento',
           laps: block['laps']?.toString() ?? '',
           metric: (block['references'] ?? block['changes'])?.toString() ?? '',
+        ));
+      }
+
+      _skiDrafts.add(draft);
+    }
+
+    if (_skiDrafts.length == 1 && tech['gatedSkiing'] is Map) {
+      final gated = tech['gatedSkiing'] as Map;
+      final draft = _skiDrafts.first;
+      if (draft.tracks.isEmpty) {
+        draft.tracks.add(_BlockDraft(
+          id: _blockIdForDraft(draft, 'track', 1),
+          name: 'Tracciato 1',
+          laps: gated['laps']?.toString() ?? '',
+          metric: (gated['gates'] ?? gated['changes'])?.toString() ?? '',
         ));
       }
     }
@@ -339,7 +399,7 @@ class _CoachEventDetailsScreenState extends State<CoachEventDetailsScreen> {
       blocks.add(TrainingBlock(
         id: 'speed_agility_1',
         type: TrainingBlockType.speedAgility,
-        name: 'Velocita / Agilita',
+        name: 'Velocità / Agilità',
         drills: _speedDrills
             .map((item) => SpeedAgilityDrill.fromJson(item))
             .toList(),
@@ -543,6 +603,8 @@ class _CoachEventDetailsScreenState extends State<CoachEventDetailsScreen> {
       'laps': source?['laps'],
       'freeLaps': source?['freeLaps'],
       'freeChanges': source?['freeChanges'],
+      'freeLapsBySpecialty': source?['freeLapsBySpecialty'],
+      'freeChangesBySpecialty': source?['freeChangesBySpecialty'],
       'trainingLaps': source?['trainingLaps'],
       'trackLaps': source?['trackLaps'],
       'trackGates': source?['trackGates'],
@@ -583,14 +645,9 @@ class _CoachEventDetailsScreenState extends State<CoachEventDetailsScreen> {
     _notesCtrl.dispose();
     _snowCtrl.dispose();
     _weatherCtrl.dispose();
-    _freeLapsCtrl.dispose();
-    _freeChangesCtrl.dispose();
     _drylandSpecialtyCtrl.dispose();
-    for (final track in _tracks) {
-      track.dispose();
-    }
-    for (final block in _trainingBlocks) {
-      block.dispose();
+    for (final draft in _skiDrafts) {
+      draft.dispose();
     }
     super.dispose();
   }
@@ -734,50 +791,7 @@ class _CoachEventDetailsScreenState extends State<CoachEventDetailsScreen> {
           ),
           const SizedBox(height: 18),
           if (_isSki) ...[
-            Text(
-              'SPECIALITA',
-              style: TextStyle(
-                color: AppTheme.textMediumEmphasis,
-                fontSize: 12,
-                fontWeight: FontWeight.bold,
-                letterSpacing: 1,
-              ),
-            ),
-            const SizedBox(height: 10),
-            Wrap(
-              spacing: 8,
-              runSpacing: 8,
-              children: CoachTrainingUtils.specialties.map((specialty) {
-                final selected = specialty == _selectedSpecialty;
-                return ChoiceChip(
-                  label: Text(specialty == 'SX' ? 'SX Ski Cross' : specialty),
-                  selected: selected,
-                  onSelected: (_) => setState(() {
-                    _selectedSpecialty = specialty;
-                    if (specialty == 'CL') {
-                      for (final track in _tracks) {
-                        track.dispose();
-                      }
-                      for (final block in _trainingBlocks) {
-                        block.dispose();
-                      }
-                      _tracks.clear();
-                      _trainingBlocks.clear();
-                    }
-                  }),
-                  selectedColor: AppTheme.primary,
-                  backgroundColor: AppTheme.background,
-                  labelStyle: TextStyle(
-                    color:
-                        selected ? Colors.white : AppTheme.textMediumEmphasis,
-                    fontWeight: FontWeight.bold,
-                  ),
-                  side: BorderSide(
-                    color: selected ? AppTheme.primary : AppTheme.subtleFill,
-                  ),
-                );
-              }).toList(),
-            ),
+            _buildSpecialtySelector(),
             const SizedBox(height: 18),
           ],
           _input('Titolo', _titleCtrl),
@@ -818,6 +832,98 @@ class _CoachEventDetailsScreenState extends State<CoachEventDetailsScreen> {
           ],
         ],
       ),
+    );
+  }
+
+  Widget _buildSpecialtySelector() {
+    if (_skiDrafts.isEmpty) return const SizedBox.shrink();
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            Expanded(
+              child: Text(
+                'SPECIALITA',
+                style: TextStyle(
+                  color: AppTheme.textMediumEmphasis,
+                  fontSize: 12,
+                  fontWeight: FontWeight.bold,
+                  letterSpacing: 1,
+                ),
+              ),
+            ),
+            OutlinedButton.icon(
+              onPressed: () => setState(() {
+                if (_skiDrafts.length > 1) {
+                  final removed = _skiDrafts.removeLast();
+                  removed.dispose();
+                } else {
+                  _skiDrafts.add(_SkiSpecialtyDraft(
+                    specialty: _firstAvailableSpecialty(),
+                  ));
+                }
+              }),
+              icon: Icon(
+                _skiDrafts.length > 1 ? Icons.remove : Icons.add,
+                size: 18,
+              ),
+              label: Text(
+                _skiDrafts.length > 1 ? 'Rimuovi seconda' : 'Doppia specialita',
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 10),
+        _specialtyChoiceGroup(_skiDrafts.first),
+        if (_skiDrafts.length > 1) ...[
+          const SizedBox(height: 12),
+          Text(
+            'SECONDA SPECIALITA',
+            style: TextStyle(
+              color: AppTheme.textMediumEmphasis,
+              fontSize: 12,
+              fontWeight: FontWeight.bold,
+              letterSpacing: 1,
+            ),
+          ),
+          const SizedBox(height: 10),
+          _specialtyChoiceGroup(_skiDrafts[1]),
+        ],
+      ],
+    );
+  }
+
+  Widget _specialtyChoiceGroup(_SkiSpecialtyDraft draft) {
+    return Wrap(
+      spacing: 8,
+      runSpacing: 8,
+      children: CoachTrainingUtils.specialties.map((specialty) {
+        final selected = specialty == draft.specialty;
+        final usedByOther = _skiDrafts
+            .any((item) => item != draft && item.specialty == specialty);
+        return ChoiceChip(
+          label: Text(CoachTrainingUtils.specialtyLabel(specialty)),
+          selected: selected,
+          onSelected: usedByOther
+              ? null
+              : (_) => setState(() => _setDraftSpecialty(draft, specialty)),
+          selectedColor: AppTheme.primary,
+          disabledColor: AppTheme.subtleFill.withValues(alpha: 0.4),
+          backgroundColor: AppTheme.background,
+          labelStyle: TextStyle(
+            color: selected
+                ? Colors.white
+                : usedByOther
+                    ? AppTheme.textMediumEmphasis.withValues(alpha: 0.45)
+                    : AppTheme.textMediumEmphasis,
+            fontWeight: FontWeight.bold,
+          ),
+          side: BorderSide(
+            color: selected ? AppTheme.primary : AppTheme.subtleFill,
+          ),
+        );
+      }).toList(),
     );
   }
 
@@ -1334,7 +1440,7 @@ class _CoachEventDetailsScreenState extends State<CoachEventDetailsScreen> {
       children: [
         if (_speedDrills.isEmpty)
           Text(
-            'Aggiungi un drill velocita/agilita.',
+            'Aggiungi un drill velocità/agilità.',
             style: TextStyle(color: AppTheme.textMediumEmphasis),
           )
         else
@@ -1571,7 +1677,7 @@ class _CoachEventDetailsScreenState extends State<CoachEventDetailsScreen> {
           ),
           const SizedBox(height: 8),
           _inlineText(
-            'Intensita',
+            'Intensità',
             circuit['intensity']?.toString() ?? '',
             (v) => circuit['intensity'] = v,
           ),
@@ -1683,7 +1789,7 @@ class _CoachEventDetailsScreenState extends State<CoachEventDetailsScreen> {
       case ActivityCategory.plyometrics:
         return 'Pliometria';
       case ActivityCategory.speedAgility:
-        return 'Velocita / Agilita';
+        return 'Velocità / Agilità';
       case ActivityCategory.endurance:
         return 'Resistenza';
       case ActivityCategory.mobility:
@@ -2016,7 +2122,8 @@ class _CoachEventDetailsScreenState extends State<CoachEventDetailsScreen> {
                       ),
                     ),
                     if (athlete['modifiedByAthlete'] == true)
-                      _smallBadge('Modificato dall atleta', AppTheme.secondary),
+                      _smallBadge(
+                          'Modificato dall\'atleta', AppTheme.secondary),
                   ],
                 ),
                 const SizedBox(height: 10),
@@ -2084,71 +2191,11 @@ class _CoachEventDetailsScreenState extends State<CoachEventDetailsScreen> {
           const SizedBox(height: 16),
           _qualityPicker(),
           const SizedBox(height: 16),
-          _technicalBlockCard(
-            title: 'Campo libero',
-            subtitle:
-                'Totale cambi: ${_total(_freeLapsCtrl, _freeChangesCtrl)}',
-            icon: Icons.show_chart,
-            color: AppTheme.secondary,
-            lapsCtrl: _freeLapsCtrl,
-            metricCtrl: _freeChangesCtrl,
-            metricLabel: 'Cambi/giro',
-          ),
-          if (_selectedSpecialty != 'CL') ...[
-            const SizedBox(height: 14),
-            ..._tracks.map((track) {
-              final index = _tracks.indexOf(track);
-              return Padding(
-                padding: const EdgeInsets.only(bottom: 12),
-                child: _technicalBlockCard(
-                  title: track.name,
-                  subtitle:
-                      'Totale passaggi: ${_total(track.lapsCtrl, track.metricCtrl)}',
-                  icon: Icons.bolt,
-                  color: AppTheme.primary,
-                  lapsCtrl: track.lapsCtrl,
-                  metricCtrl: track.metricCtrl,
-                  metricLabel: 'Porte/giro',
-                  onRemove: index == 0 && _tracks.length == 1
-                      ? null
-                      : () => setState(() {
-                            _tracks.remove(track);
-                            track.dispose();
-                          }),
-                ),
-              );
-            }),
-            if (_tracks.length < 3)
-              TextButton.icon(
-                onPressed: _addTrack,
-                icon: const Icon(Icons.add),
-                label: const Text('Aggiungi tracciato'),
-              ),
-            const SizedBox(height: 8),
-            ..._trainingBlocks.map((block) {
-              return Padding(
-                padding: const EdgeInsets.only(bottom: 12),
-                child: _technicalBlockCard(
-                  title: block.name,
-                  subtitle:
-                      'Totale cambi: ${_total(block.lapsCtrl, block.metricCtrl)}',
-                  icon: Icons.alt_route,
-                  color: Colors.orange,
-                  lapsCtrl: block.lapsCtrl,
-                  metricCtrl: block.metricCtrl,
-                  metricLabel: 'Riferimenti/giro',
-                  onRemove: () => setState(() {
-                    _trainingBlocks.remove(block);
-                    block.dispose();
-                  }),
-                ),
-              );
-            }),
-            TextButton.icon(
-              onPressed: _trainingBlocks.isEmpty ? _addTrainingBlock : null,
-              icon: const Icon(Icons.add),
-              label: const Text('Aggiungi addestramento'),
-            ),
+          ..._skiDrafts.map((draft) {
+            final index = _skiDrafts.indexOf(draft);
+            return _skiSpecialtyTechnicalSection(draft, index);
+          }),
+          if (_skiDrafts.any((draft) => draft.specialty != 'CL')) ...[
             SwitchListTile(
               value: _chronoEnabled,
               onChanged: (value) => setState(() => _chronoEnabled = value),
@@ -2168,6 +2215,111 @@ class _CoachEventDetailsScreenState extends State<CoachEventDetailsScreen> {
           ],
           const SizedBox(height: 16),
           _notesInput(),
+        ],
+      ),
+    );
+  }
+
+  Widget _skiSpecialtyTechnicalSection(
+    _SkiSpecialtyDraft draft,
+    int draftIndex,
+  ) {
+    final label = CoachTrainingUtils.specialtyLabel(draft.specialty);
+    return Padding(
+      padding:
+          EdgeInsets.only(bottom: draftIndex == _skiDrafts.length - 1 ? 0 : 18),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                decoration: BoxDecoration(
+                  color: AppTheme.primary.withValues(alpha: 0.12),
+                  borderRadius: BorderRadius.circular(10),
+                  border: Border.all(
+                    color: AppTheme.primary.withValues(alpha: 0.28),
+                  ),
+                ),
+                child: Text(
+                  'Specialita ${draftIndex + 1} - $label',
+                  style: const TextStyle(
+                    color: AppTheme.primary,
+                    fontSize: 12,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          _technicalBlockCard(
+            title: '$label - Campo libero',
+            subtitle:
+                'Totale cambi: ${_total(draft.freeLapsCtrl, draft.freeChangesCtrl)}',
+            icon: Icons.show_chart,
+            color: AppTheme.secondary,
+            lapsCtrl: draft.freeLapsCtrl,
+            metricCtrl: draft.freeChangesCtrl,
+            metricLabel: 'Cambi/giro',
+          ),
+          if (draft.specialty != 'CL') ...[
+            const SizedBox(height: 14),
+            ...draft.tracks.map((track) {
+              return Padding(
+                padding: const EdgeInsets.only(bottom: 12),
+                child: _technicalBlockCard(
+                  title: '$label - ${track.name}',
+                  subtitle:
+                      'Totale passaggi: ${_total(track.lapsCtrl, track.metricCtrl)}',
+                  icon: Icons.bolt,
+                  color: AppTheme.primary,
+                  lapsCtrl: track.lapsCtrl,
+                  metricCtrl: track.metricCtrl,
+                  metricLabel: 'Porte/giro',
+                  onRemove: () => setState(() {
+                    draft.tracks.remove(track);
+                    track.dispose();
+                  }),
+                ),
+              );
+            }),
+            if (draft.tracks.length < 3)
+              TextButton.icon(
+                onPressed: () => _addTrack(draft),
+                icon: const Icon(Icons.add),
+                label: Text('Aggiungi tracciato $label'),
+              ),
+            const SizedBox(height: 8),
+            ...draft.trainingBlocks.map((block) {
+              return Padding(
+                padding: const EdgeInsets.only(bottom: 12),
+                child: _technicalBlockCard(
+                  title: '$label - ${block.name}',
+                  subtitle:
+                      'Totale cambi: ${_total(block.lapsCtrl, block.metricCtrl)}',
+                  icon: Icons.alt_route,
+                  color: Colors.orange,
+                  lapsCtrl: block.lapsCtrl,
+                  metricCtrl: block.metricCtrl,
+                  metricLabel: 'Riferimenti/giro',
+                  onRemove: () => setState(() {
+                    draft.trainingBlocks.remove(block);
+                    block.dispose();
+                  }),
+                ),
+              );
+            }),
+            TextButton.icon(
+              onPressed: draft.trainingBlocks.isEmpty
+                  ? () => _addTrainingBlock(draft)
+                  : null,
+              icon: const Icon(Icons.add),
+              label: Text('Aggiungi addestramento $label'),
+            ),
+          ],
         ],
       ),
     );
@@ -2210,7 +2362,7 @@ class _CoachEventDetailsScreenState extends State<CoachEventDetailsScreen> {
                           ),
                           if (athlete['modifiedByAthlete'] == true)
                             _smallBadge(
-                                'Modificato dall atleta', AppTheme.secondary),
+                                'Modificato dall\'atleta', AppTheme.secondary),
                           IconButton(
                             icon: const Icon(Icons.edit_outlined,
                                 color: AppTheme.primary),
@@ -2226,11 +2378,28 @@ class _CoachEventDetailsScreenState extends State<CoachEventDetailsScreen> {
                           _metricBadge('CL giri', summary.freeLaps),
                           _metricBadge(
                               'CL cambi', summary.freeDirectionChanges),
-                          _metricBadge('Pali giri', summary.poleLaps),
-                          _metricBadge('Passaggi', summary.polePasses),
+                          if (summary.polePassesBySpecialty.length > 1)
+                            ...summary.polePassesBySpecialty.entries.map(
+                              (entry) => _metricBadge(
+                                  'Pali ${entry.key}', entry.value),
+                            )
+                          else ...[
+                            _metricBadge('Pali giri', summary.poleLaps),
+                            _metricBadge('Passaggi', summary.polePasses),
+                          ],
                           _metricBadge('Add. giri', summary.trainingLaps),
-                          _metricBadge(
-                              'Add. cambi', summary.trainingDirectionChanges),
+                          if (summary
+                                  .trainingDirectionChangesBySpecialty.length >
+                              1)
+                            ...summary
+                                .trainingDirectionChangesBySpecialty.entries
+                                .map(
+                              (entry) => _metricBadge(
+                                  'Add. ${entry.key}', entry.value),
+                            )
+                          else
+                            _metricBadge(
+                                'Add. cambi', summary.trainingDirectionChanges),
                         ],
                       ),
                     ],
@@ -2522,7 +2691,7 @@ class _CoachEventDetailsScreenState extends State<CoachEventDetailsScreen> {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(
-          'QUALITA ALLENAMENTO',
+          'QUALITÀ ALLENAMENTO',
           style: TextStyle(
             color: AppTheme.textMediumEmphasis,
             fontSize: 11,
@@ -2779,21 +2948,22 @@ class _CoachEventDetailsScreenState extends State<CoachEventDetailsScreen> {
     });
   }
 
-  void _addTrack() {
-    if (_tracks.length >= 3) return;
+  void _addTrack(_SkiSpecialtyDraft draft) {
+    if (draft.tracks.length >= 3) return;
     setState(() {
-      final number = _tracks.length + 1;
-      _tracks.add(_BlockDraft(
-        id: 'track_$number',
+      final number = draft.tracks.length + 1;
+      draft.tracks.add(_BlockDraft(
+        id: _blockIdForDraft(draft, 'track', number),
         name: 'Tracciato $number',
       ));
     });
   }
 
-  void _addTrainingBlock() {
+  void _addTrainingBlock(_SkiSpecialtyDraft draft) {
     setState(() {
-      _trainingBlocks.add(_BlockDraft(
-        id: 'training_1',
+      draft.trainingBlocks.add(_BlockDraft(
+        id: _blockIdForDraft(
+            draft, 'training', draft.trainingBlocks.length + 1),
         name: 'Addestramento',
       ));
     });
@@ -2801,6 +2971,51 @@ class _CoachEventDetailsScreenState extends State<CoachEventDetailsScreen> {
 
   int _total(TextEditingController a, TextEditingController b) {
     return CoachTrainingUtils.asInt(a.text) * CoachTrainingUtils.asInt(b.text);
+  }
+
+  String _blockIdForDraft(
+    _SkiSpecialtyDraft draft,
+    String type,
+    int number,
+  ) {
+    final draftIndex = _skiDrafts.indexOf(draft);
+    final prefix = draftIndex >= 0 ? 's${draftIndex + 1}' : draft.specialty;
+    return '${prefix}_${type}_$number';
+  }
+
+  String _firstAvailableSpecialty() {
+    final preferred = CoachTrainingUtils.specialties
+        .where((specialty) => specialty != 'CL')
+        .toList();
+    for (final specialty in preferred) {
+      if (!_skiDrafts.any((draft) => draft.specialty == specialty)) {
+        return specialty;
+      }
+    }
+    for (final specialty in CoachTrainingUtils.specialties) {
+      if (!_skiDrafts.any((draft) => draft.specialty == specialty)) {
+        return specialty;
+      }
+    }
+    return 'GS';
+  }
+
+  void _setDraftSpecialty(_SkiSpecialtyDraft draft, String specialty) {
+    if (_skiDrafts
+        .any((item) => item != draft && item.specialty == specialty)) {
+      return;
+    }
+    draft.specialty = specialty;
+    if (specialty == 'CL') {
+      for (final track in draft.tracks) {
+        track.dispose();
+      }
+      for (final block in draft.trainingBlocks) {
+        block.dispose();
+      }
+      draft.tracks.clear();
+      draft.trainingBlocks.clear();
+    }
   }
 
   String _statusLabel(String status) {
@@ -2932,24 +3147,53 @@ class _CoachEventDetailsScreenState extends State<CoachEventDetailsScreen> {
       };
     }
 
-    final tracks = _selectedSpecialty == 'CL'
-        ? <Map<String, dynamic>>[]
-        : _tracks.map((track) => track.toTrackJson()).toList();
-    final trainingBlocks = _selectedSpecialty == 'CL'
-        ? <Map<String, dynamic>>[]
-        : _trainingBlocks.map((block) => block.toTrainingJson()).toList();
+    final activeDrafts = _skiDrafts;
+    if (activeDrafts.isEmpty) {
+      return {
+        'technicalVersion': 3,
+        'teamIds': _selectedTeams.map((team) => team.id).toList(),
+        'qualityRating': _qualityRating,
+        'snowCondition': _snowCtrl.text,
+        'weatherCondition': _weatherCtrl.text,
+        'specialties': ['SL'],
+        'freeSkiing': {'specialty': 'SL', 'laps': '', 'changes': ''},
+        'freeSkiingBySpecialty': {
+          'SL': {'specialty': 'SL', 'laps': '', 'changes': ''},
+        },
+        'chrono': {'enabled': _chronoEnabled},
+      };
+    }
+    final freeBySpecialty = {
+      for (final draft in activeDrafts)
+        draft.specialty: {
+          'specialty': draft.specialty,
+          'laps': draft.freeLapsCtrl.text,
+          'changes': draft.freeChangesCtrl.text,
+        },
+    };
+    final tracks = <Map<String, dynamic>>[
+      for (final draft in activeDrafts)
+        if (draft.specialty != 'CL')
+          ...draft.tracks.map((track) => track.toTrackJson(draft.specialty)),
+    ];
+    final trainingBlocks = <Map<String, dynamic>>[
+      for (final draft in activeDrafts)
+        if (draft.specialty != 'CL')
+          ...draft.trainingBlocks.map(
+            (block) => block.toTrainingJson(draft.specialty),
+          ),
+    ];
+    final firstFree = freeBySpecialty.values.first;
 
     final details = <String, dynamic>{
-      'technicalVersion': 2,
+      'technicalVersion': 3,
       'teamIds': _selectedTeams.map((team) => team.id).toList(),
       'qualityRating': _qualityRating,
       'snowCondition': _snowCtrl.text,
       'weatherCondition': _weatherCtrl.text,
-      'specialties': [_selectedSpecialty],
-      'freeSkiing': {
-        'laps': _freeLapsCtrl.text,
-        'changes': _freeChangesCtrl.text,
-      },
+      'specialties': activeDrafts.map((draft) => draft.specialty).toList(),
+      'freeSkiingBySpecialty': freeBySpecialty,
+      'freeSkiing': firstFree,
       if (tracks.isNotEmpty) 'tracks': tracks,
       if (tracks.isNotEmpty)
         'gatedSkiing': {
@@ -2982,6 +3226,8 @@ class _CoachEventDetailsScreenState extends State<CoachEventDetailsScreen> {
         'laps': athlete['laps'],
         'freeLaps': athlete['freeLaps'],
         'freeChanges': athlete['freeChanges'],
+        'freeLapsBySpecialty': athlete['freeLapsBySpecialty'],
+        'freeChangesBySpecialty': athlete['freeChangesBySpecialty'],
         'trainingLaps': athlete['trainingLaps'],
         'trackLaps': athlete['trackLaps'],
         'trackGates': athlete['trackGates'],
@@ -3027,9 +3273,19 @@ class _CoachEventDetailsScreenState extends State<CoachEventDetailsScreen> {
   Future<void> _showAthleteDataSheet(int index) async {
     if (index < 0 || index >= _athletes.length) return;
     final athlete = _athletes[index];
-    final freeCtrl = TextEditingController(
-      text: (athlete['freeLaps'] ?? _freeLapsCtrl.text).toString(),
-    );
+    final freeLapsBySpecialty = athlete['freeLapsBySpecialty'] is Map
+        ? Map<String, dynamic>.from(athlete['freeLapsBySpecialty'])
+        : <String, dynamic>{};
+    final freeCtrls = <String, TextEditingController>{};
+    for (final draft in _skiDrafts) {
+      final useLegacyFallback = _skiDrafts.length == 1;
+      freeCtrls[draft.specialty] = TextEditingController(
+        text: (freeLapsBySpecialty[draft.specialty] ??
+                (useLegacyFallback ? athlete['freeLaps'] : null) ??
+                draft.freeLapsCtrl.text)
+            .toString(),
+      );
+    }
     final rpeCtrl =
         TextEditingController(text: athlete['rpe']?.toString() ?? '');
     final painCtrl =
@@ -3042,19 +3298,23 @@ class _CoachEventDetailsScreenState extends State<CoachEventDetailsScreen> {
     final trackLaps = athlete['trackLaps'] is Map
         ? Map<String, dynamic>.from(athlete['trackLaps'])
         : <String, dynamic>{};
-    for (final track in _tracks) {
-      trackCtrls[track.id] = TextEditingController(
-        text: (trackLaps[track.id] ?? track.lapsCtrl.text).toString(),
-      );
+    for (final draft in _skiDrafts) {
+      for (final track in draft.tracks) {
+        trackCtrls[track.id] = TextEditingController(
+          text: (trackLaps[track.id] ?? track.lapsCtrl.text).toString(),
+        );
+      }
     }
     final trainingCtrls = <String, TextEditingController>{};
     final trainingLaps = athlete['trainingBlockLaps'] is Map
         ? Map<String, dynamic>.from(athlete['trainingBlockLaps'])
         : <String, dynamic>{};
-    for (final block in _trainingBlocks) {
-      trainingCtrls[block.id] = TextEditingController(
-        text: (trainingLaps[block.id] ?? block.lapsCtrl.text).toString(),
-      );
+    for (final draft in _skiDrafts) {
+      for (final block in draft.trainingBlocks) {
+        trainingCtrls[block.id] = TextEditingController(
+          text: (trainingLaps[block.id] ?? block.lapsCtrl.text).toString(),
+        );
+      }
     }
 
     await showModalBottomSheet(
@@ -3087,15 +3347,21 @@ class _CoachEventDetailsScreenState extends State<CoachEventDetailsScreen> {
                     ),
                   ),
                   const SizedBox(height: 18),
-                  _sheetNumberInput('Giri campo libero', freeCtrl),
-                  ..._tracks.map((track) => _sheetNumberInput(
-                        'Giri ${track.name.toLowerCase()}',
-                        trackCtrls[track.id]!,
-                      )),
-                  ..._trainingBlocks.map((block) => _sheetNumberInput(
-                        'Giri addestramento',
-                        trainingCtrls[block.id]!,
-                      )),
+                  for (final draft in _skiDrafts)
+                    _sheetNumberInput(
+                      'Giri campo libero ${draft.specialty}',
+                      freeCtrls[draft.specialty]!,
+                    ),
+                  for (final draft in _skiDrafts)
+                    ...draft.tracks.map((track) => _sheetNumberInput(
+                          'Giri ${draft.specialty} ${track.name.toLowerCase()}',
+                          trackCtrls[track.id]!,
+                        )),
+                  for (final draft in _skiDrafts)
+                    ...draft.trainingBlocks.map((block) => _sheetNumberInput(
+                          'Giri addestramento ${draft.specialty}',
+                          trainingCtrls[block.id]!,
+                        )),
                   _sheetNumberInput('RPE', rpeCtrl),
                   _sheetTextInput('Dolore', painCtrl),
                   if (_chronoEnabled) _sheetTextInput('Crono', chronoCtrl),
@@ -3106,9 +3372,16 @@ class _CoachEventDetailsScreenState extends State<CoachEventDetailsScreen> {
                     child: ElevatedButton(
                       onPressed: () {
                         setState(() {
-                          athlete['freeLaps'] =
-                              CoachTrainingUtils.asInt(freeCtrl.text);
-                          if (_tracks.isNotEmpty) {
+                          final freeBySpecialty = {
+                            for (final entry in freeCtrls.entries)
+                              entry.key:
+                                  CoachTrainingUtils.asInt(entry.value.text),
+                          };
+                          if (freeBySpecialty.isNotEmpty) {
+                            athlete['freeLapsBySpecialty'] = freeBySpecialty;
+                            athlete['freeLaps'] = freeBySpecialty.values.first;
+                          }
+                          if (trackCtrls.isNotEmpty) {
                             athlete['trackLaps'] = {
                               for (final entry in trackCtrls.entries)
                                 entry.key:
@@ -3118,7 +3391,7 @@ class _CoachEventDetailsScreenState extends State<CoachEventDetailsScreen> {
                               trackCtrls.values.first.text,
                             );
                           }
-                          if (_trainingBlocks.isNotEmpty) {
+                          if (trainingCtrls.isNotEmpty) {
                             athlete['trainingBlockLaps'] = {
                               for (final entry in trainingCtrls.entries)
                                 entry.key:
@@ -3147,7 +3420,9 @@ class _CoachEventDetailsScreenState extends State<CoachEventDetailsScreen> {
       },
     );
 
-    freeCtrl.dispose();
+    for (final controller in freeCtrls.values) {
+      controller.dispose();
+    }
     rpeCtrl.dispose();
     painCtrl.dispose();
     chronoCtrl.dispose();
@@ -3222,7 +3497,7 @@ class _CoachEventDetailsScreenState extends State<CoachEventDetailsScreen> {
     if (_eventStatus == CoachTrainingUtils.statusCompleted && !_canComplete) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('Puoi completare solo allenamenti gia terminati.'),
+          content: Text('Puoi completare solo allenamenti già terminati.'),
         ),
       );
       return;

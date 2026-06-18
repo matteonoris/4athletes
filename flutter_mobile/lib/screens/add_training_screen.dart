@@ -1696,7 +1696,7 @@ class _AddTrainingScreenState extends State<AddTrainingScreen> {
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  const Text('RPE (Sforzo Perceputo)',
+                  const Text('RPE (Sforzo Percepito)',
                       style:
                           TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
                   Text(

@@ -266,7 +266,7 @@ class _AuthScreenState extends State<AuthScreen>
     );
 
     if (kOnboardingPreviewMode) {
-      _showMessage('Preview completata: nessun profilo reale e stato creato.');
+      _showMessage('Preview completata: nessun profilo reale è stato creato.');
       return;
     }
 

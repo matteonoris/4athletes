@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:keyboard_actions/keyboard_actions.dart';
 import 'package:provider/provider.dart';
 
 import '../core/theme.dart';
@@ -37,6 +38,13 @@ class _SkiActivityScreenState extends State<SkiActivityScreen> {
   final _chronoCtrl = TextEditingController();
   final _painCtrl = TextEditingController();
   final _notesCtrl = TextEditingController();
+
+  final _freeLapsFocus = FocusNode();
+  final _freeChangesFocus = FocusNode();
+  final _trackLapsFocus = FocusNode();
+  final _trackGatesFocus = FocusNode();
+  final _trainingLapsFocus = FocusNode();
+  final _trainingRefsFocus = FocusNode();
 
   @override
   void initState() {
@@ -101,6 +109,12 @@ class _SkiActivityScreenState extends State<SkiActivityScreen> {
     _chronoCtrl.dispose();
     _painCtrl.dispose();
     _notesCtrl.dispose();
+    _freeLapsFocus.dispose();
+    _freeChangesFocus.dispose();
+    _trackLapsFocus.dispose();
+    _trackGatesFocus.dispose();
+    _trainingLapsFocus.dispose();
+    _trainingRefsFocus.dispose();
     super.dispose();
   }
 
@@ -232,6 +246,81 @@ class _SkiActivityScreenState extends State<SkiActivityScreen> {
     Navigator.of(context).popUntil((route) => route.isFirst);
   }
 
+  Future<void> _delete() async {
+    HapticFeedback.mediumImpact();
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: AppTheme.card,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: Text(
+          'Elimina Allenamento',
+          style: TextStyle(
+            color: AppTheme.textHighEmphasis,
+            fontWeight: FontWeight.bold,
+          ),
+        ),
+        content: Text(
+          'Sei sicuro di voler eliminare questo allenamento?',
+          style: TextStyle(color: AppTheme.textMediumEmphasis),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: Text(
+              'Annulla',
+              style: TextStyle(color: AppTheme.textMediumEmphasis),
+            ),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text(
+              'Elimina',
+              style: TextStyle(
+                color: AppTheme.error,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+    final id = widget.initialSession?.id;
+    if (confirm != true || id == null || !mounted) return;
+    Provider.of<AppState>(context, listen: false).deleteSession(id);
+    Navigator.of(context).popUntil((route) => route.isFirst);
+  }
+
+  KeyboardActionsConfig _keyboardActionsConfig() {
+    KeyboardActionsItem action(FocusNode node) {
+      return KeyboardActionsItem(
+        focusNode: node,
+        toolbarButtons: [
+          (node) => TextButton(
+                onPressed: node.unfocus,
+                child: const Text(
+                  'Fatto',
+                  style: TextStyle(fontWeight: FontWeight.bold),
+                ),
+              ),
+        ],
+      );
+    }
+
+    return KeyboardActionsConfig(
+      keyboardActionsPlatform: KeyboardActionsPlatform.IOS,
+      keyboardBarColor: AppTheme.card,
+      actions: [
+        action(_freeLapsFocus),
+        action(_freeChangesFocus),
+        action(_trackLapsFocus),
+        action(_trackGatesFocus),
+        action(_trainingLapsFocus),
+        action(_trainingRefsFocus),
+      ],
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -244,18 +333,29 @@ class _SkiActivityScreenState extends State<SkiActivityScreen> {
           icon: const Icon(Icons.close),
           onPressed: () => Navigator.pop(context),
         ),
-      ),
-      body: ListView(
-        padding: const EdgeInsets.fromLTRB(16, 16, 16, 110),
-        children: [
-          _overviewCard(),
-          const SizedBox(height: 16),
-          _technicalCard(),
-          const SizedBox(height: 16),
-          _conditionsCard(),
-          const SizedBox(height: 16),
-          _personalCard(),
+        actions: [
+          if (widget.initialSession != null)
+            IconButton(
+              icon: const Icon(Icons.delete_outline, color: AppTheme.error),
+              tooltip: 'Elimina allenamento',
+              onPressed: _delete,
+            ),
         ],
+      ),
+      body: KeyboardActions(
+        config: _keyboardActionsConfig(),
+        child: ListView(
+          padding: const EdgeInsets.fromLTRB(16, 16, 16, 110),
+          children: [
+            _overviewCard(),
+            const SizedBox(height: 16),
+            _technicalCard(),
+            const SizedBox(height: 16),
+            _conditionsCard(),
+            const SizedBox(height: 16),
+            _personalCard(),
+          ],
+        ),
       ),
       bottomNavigationBar: SafeArea(
         child: Padding(
@@ -467,9 +567,13 @@ class _SkiActivityScreenState extends State<SkiActivityScreen> {
           const SizedBox(height: 10),
           Row(
             children: [
-              Expanded(child: _numberInput(firstLabel, first)),
+              Expanded(
+                child: _numberInput(firstLabel, first, _focusNodeFor(first)),
+              ),
               const SizedBox(width: 10),
-              Expanded(child: _numberInput(secondLabel, second)),
+              Expanded(
+                child: _numberInput(secondLabel, second, _focusNodeFor(second)),
+              ),
             ],
           ),
           const SizedBox(height: 8),
@@ -576,10 +680,25 @@ class _SkiActivityScreenState extends State<SkiActivityScreen> {
     );
   }
 
-  Widget _numberInput(String label, TextEditingController controller) {
+  FocusNode _focusNodeFor(TextEditingController controller) {
+    if (controller == _freeLapsCtrl) return _freeLapsFocus;
+    if (controller == _freeChangesCtrl) return _freeChangesFocus;
+    if (controller == _trackLapsCtrl) return _trackLapsFocus;
+    if (controller == _trackGatesCtrl) return _trackGatesFocus;
+    if (controller == _trainingLapsCtrl) return _trainingLapsFocus;
+    return _trainingRefsFocus;
+  }
+
+  Widget _numberInput(
+    String label,
+    TextEditingController controller,
+    FocusNode focusNode,
+  ) {
     return TextField(
       controller: controller,
+      focusNode: focusNode,
       keyboardType: TextInputType.number,
+      textInputAction: TextInputAction.done,
       inputFormatters: [FilteringTextInputFormatter.digitsOnly],
       style: TextStyle(
           color: AppTheme.textHighEmphasis, fontWeight: FontWeight.bold),

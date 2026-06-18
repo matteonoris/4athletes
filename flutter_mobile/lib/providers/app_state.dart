@@ -429,6 +429,10 @@ class AppState extends ChangeNotifier {
     await _loadCoachEvents();
     await _loadNotifications();
     _loadWorkoutTemplates();
+    await TrainingReminderNotificationService.instance.syncForProfile(
+      _userProfile,
+      bodyLogs: _bodyLogs,
+    );
   }
 
   void login(UserProfile profile) async {
@@ -465,8 +469,7 @@ class AppState extends ChangeNotifier {
     _coachEvents.clear();
     _notifications.clear();
     _workoutTemplates.clear();
-    await TrainingReminderNotificationService.instance
-        .cancelDailyTrainingReminder();
+    await TrainingReminderNotificationService.instance.cancelAllReminders();
     notifyListeners();
   }
 
@@ -763,7 +766,10 @@ class AppState extends ChangeNotifier {
     _applyThemeMode(updatedProfile.themeMode);
     _userProfile = updatedProfile;
     _saveUserProfile();
-    TrainingReminderNotificationService.instance.syncForProfile(_userProfile);
+    TrainingReminderNotificationService.instance.syncForProfile(
+      _userProfile,
+      bodyLogs: _bodyLogs,
+    );
     notifyListeners();
   }
 
@@ -1235,8 +1241,16 @@ class AppState extends ChangeNotifier {
     }
   }
 
-  Future<void> addSession(TrainingSession session) async {
+  Future<void> addSession(
+    TrainingSession session, {
+    bool fromHealthSync = false,
+  }) async {
     try {
+      if (!fromHealthSync) {
+        session = _markManualHealthDurationOverrideIfNeeded(session);
+      }
+      session = HealthWorkoutMergeUtils.normalizeSessionHealthDetails(session);
+
       if (!_isValidUuid(session.id)) {
         // Insert new
         final response = await _supabase
@@ -1291,6 +1305,38 @@ class AppState extends ChangeNotifier {
     }
   }
 
+  TrainingSession _markManualHealthDurationOverrideIfNeeded(
+    TrainingSession session,
+  ) {
+    final details = session.details;
+    if (details == null || details['source'] != 'health_sync') return session;
+    if (!_isValidUuid(session.id)) return session;
+
+    final existingIndex = _sessions.indexWhere((s) => s.id == session.id);
+    if (existingIndex < 0) return session;
+
+    final existing = _sessions[existingIndex];
+    final changedTimeRange = existing.date != session.date ||
+        existing.startTime != session.startTime ||
+        existing.endTime != session.endTime ||
+        existing.duration != session.duration;
+    if (!changedTimeRange) return session;
+
+    final updatedDetails = Map<String, dynamic>.from(details);
+    updatedDetails['duration_user_overridden'] = true;
+    return TrainingSession(
+      id: session.id,
+      sportId: session.sportId,
+      date: session.date,
+      startTime: session.startTime,
+      endTime: session.endTime,
+      duration: session.duration,
+      effort: session.effort,
+      eventId: session.eventId,
+      details: updatedDetails,
+    );
+  }
+
   Future<void> _syncCoachEventAttendeeLapsFromSession(
       TrainingSession session) async {
     if (session.sportId != 'alpine_skiing' ||
@@ -1310,6 +1356,22 @@ class AppState extends ChangeNotifier {
     final freeChanges = details['freeSkiing'] is Map
         ? int.tryParse(details['freeSkiing']['changes']?.toString() ?? '')
         : null;
+    final freeLapsBySpecialty = <String, int>{};
+    final freeChangesBySpecialty = <String, int>{};
+    final freeBySpecialty = details['freeSkiingBySpecialty'];
+    if (freeBySpecialty is Map) {
+      for (final entry in freeBySpecialty.entries) {
+        final specialty = CoachTrainingUtils.normalizeSpecialty(
+          entry.key.toString(),
+        );
+        final free = entry.value;
+        if (free is! Map) continue;
+        final laps = int.tryParse(free['laps']?.toString() ?? '');
+        final changes = int.tryParse(free['changes']?.toString() ?? '');
+        if (laps != null) freeLapsBySpecialty[specialty] = laps;
+        if (changes != null) freeChangesBySpecialty[specialty] = changes;
+      }
+    }
     final trackLaps = <String, int>{};
     final trackGates = <String, int>{};
     final tracks = details['tracks'];
@@ -1346,6 +1408,8 @@ class AppState extends ChangeNotifier {
     if (gatedLaps == null &&
         freeLaps == null &&
         freeChanges == null &&
+        freeLapsBySpecialty.isEmpty &&
+        freeChangesBySpecialty.isEmpty &&
         trackLaps.isEmpty &&
         trackGates.isEmpty &&
         trainingBlockLaps.isEmpty &&
@@ -1411,6 +1475,12 @@ class AppState extends ChangeNotifier {
         if (freeLaps != null) attendee['freeLaps'] = freeLaps;
       }
       if (freeChanges != null) attendee['freeChanges'] = freeChanges;
+      if (freeLapsBySpecialty.isNotEmpty) {
+        attendee['freeLapsBySpecialty'] = freeLapsBySpecialty;
+      }
+      if (freeChangesBySpecialty.isNotEmpty) {
+        attendee['freeChangesBySpecialty'] = freeChangesBySpecialty;
+      }
       if (trackLaps.isNotEmpty) attendee['trackLaps'] = trackLaps;
       if (trackGates.isNotEmpty) attendee['trackGates'] = trackGates;
       if (trainingBlockLaps.isNotEmpty) {
@@ -1711,6 +1781,7 @@ class AppState extends ChangeNotifier {
               existingByExternalId,
               session,
             ),
+            fromHealthSync: true,
           );
           continue;
         }
@@ -1735,6 +1806,7 @@ class AppState extends ChangeNotifier {
           _sessions.removeWhere((s) => duplicateIds.contains(s.id));
           await addSession(
             HealthWorkoutMergeUtils.mergeImportedSession(baseSession, session),
+            fromHealthSync: true,
           );
           continue;
         }
@@ -1753,6 +1825,7 @@ class AppState extends ChangeNotifier {
               overlapCandidate,
               session,
             ),
+            fromHealthSync: true,
           );
           continue;
         }
@@ -1760,7 +1833,7 @@ class AppState extends ChangeNotifier {
         if (extId != null) {
           processedExternalIds.add(extId);
         }
-        await addSession(session);
+        await addSession(session, fromHealthSync: true);
       }
 
       // Sync Health Metrics (HRV, RHR)
@@ -2084,6 +2157,10 @@ class AppState extends ChangeNotifier {
 
     if (log.type == 'weight') {
       _userProfile!.weight = log.value;
+      TrainingReminderNotificationService.instance.syncForProfile(
+        _userProfile,
+        bodyLogs: _bodyLogs,
+      );
     } else if (log.type == 'height') {
       _userProfile!.height = log.value;
     }
@@ -2132,6 +2209,10 @@ class AppState extends ChangeNotifier {
     try {
       await _supabase.from('body_metric_logs').delete().eq('id', id);
       _bodyLogs.removeWhere((l) => l.id == id);
+      await TrainingReminderNotificationService.instance.syncForProfile(
+        _userProfile,
+        bodyLogs: _bodyLogs,
+      );
       notifyListeners();
     } catch (e) {
       debugPrint('Error deleting body log: $e');
@@ -2683,6 +2764,8 @@ class AppState extends ChangeNotifier {
     int? laps,
     int? freeLaps,
     int? freeChanges,
+    Map<String, int>? freeLapsBySpecialty,
+    Map<String, int>? freeChangesBySpecialty,
     int? trainingLaps,
     Map<String, int>? trackLaps,
     Map<String, int>? trackGates,
@@ -2707,6 +2790,12 @@ class AppState extends ChangeNotifier {
         if (laps != null) a['laps'] = laps;
         if (freeLaps != null) a['freeLaps'] = freeLaps;
         if (freeChanges != null) a['freeChanges'] = freeChanges;
+        if (freeLapsBySpecialty != null) {
+          a['freeLapsBySpecialty'] = freeLapsBySpecialty;
+        }
+        if (freeChangesBySpecialty != null) {
+          a['freeChangesBySpecialty'] = freeChangesBySpecialty;
+        }
         if (trainingLaps != null) a['trainingLaps'] = trainingLaps;
         if (trackLaps != null) a['trackLaps'] = trackLaps;
         if (trackGates != null) a['trackGates'] = trackGates;
@@ -2740,6 +2829,10 @@ class AppState extends ChangeNotifier {
         if (laps != null) 'laps': laps,
         if (freeLaps != null) 'freeLaps': freeLaps,
         if (freeChanges != null) 'freeChanges': freeChanges,
+        if (freeLapsBySpecialty != null)
+          'freeLapsBySpecialty': freeLapsBySpecialty,
+        if (freeChangesBySpecialty != null)
+          'freeChangesBySpecialty': freeChangesBySpecialty,
         if (trainingLaps != null) 'trainingLaps': trainingLaps,
         if (trackLaps != null) 'trackLaps': trackLaps,
         if (trackGates != null) 'trackGates': trackGates,

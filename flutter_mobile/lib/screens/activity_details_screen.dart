@@ -823,7 +823,9 @@ class ActivityDetailsScreen extends StatelessWidget {
     final summary = CoachTrainingUtils.volumeFromDetails(details);
     final appState = Provider.of<AppState>(context, listen: false);
     final sourceEvent = _findSourceEvent(appState);
-    final specialty = CoachTrainingUtils.specialtyFromDetails(details);
+    final specialties = CoachTrainingUtils.specialtiesFromDetails(details);
+    final specialtyLabel =
+        specialties.map(CoachTrainingUtils.specialtyLabel).join(' + ');
     final athleteModified = details['athleteModified'] == true;
     final isCoachSession =
         details['from_calendar'] == true || session.eventId != null;
@@ -856,6 +858,57 @@ class ActivityDetailsScreen extends StatelessWidget {
               );
             },
           ),
+          if (!isCoachSession)
+            IconButton(
+              icon: const Icon(Icons.delete_outline, color: AppTheme.error),
+              tooltip: 'Elimina allenamento',
+              onPressed: () {
+                showDialog(
+                  context: context,
+                  builder: (ctx) => AlertDialog(
+                    backgroundColor: AppTheme.card,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(16),
+                    ),
+                    title: Text(
+                      'Elimina Allenamento',
+                      style: TextStyle(
+                        color: AppTheme.textHighEmphasis,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    content: Text(
+                      'Sei sicuro di voler eliminare questo allenamento?',
+                      style: TextStyle(color: AppTheme.textMediumEmphasis),
+                    ),
+                    actions: [
+                      TextButton(
+                        onPressed: () => Navigator.pop(ctx),
+                        child: Text(
+                          'Annulla',
+                          style: TextStyle(color: AppTheme.textMediumEmphasis),
+                        ),
+                      ),
+                      TextButton(
+                        onPressed: () {
+                          Provider.of<AppState>(context, listen: false)
+                              .deleteSession(session.id);
+                          Navigator.pop(ctx);
+                          Navigator.pop(context);
+                        },
+                        child: const Text(
+                          'Elimina',
+                          style: TextStyle(
+                            color: AppTheme.error,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                );
+              },
+            ),
         ],
       ),
       body: ListView(
@@ -894,7 +947,7 @@ class ActivityDetailsScreen extends StatelessWidget {
                 ],
                 const SizedBox(height: 18),
                 _buildDetailRow(context, 'Specialità e data',
-                    '$specialty · ${session.date}'),
+                    '$specialtyLabel · ${session.date}'),
                 _buildDetailRow(context, 'Orario',
                     '${session.startTime} - ${session.endTime}'),
                 _buildDetailRow(context, 'Durata',
@@ -987,11 +1040,22 @@ class ActivityDetailsScreen extends StatelessWidget {
     );
   }
 
+  String _skiBlockSpecialtyLabel(
+    Map<String, dynamic> details,
+    Map<String, dynamic> block,
+  ) {
+    return CoachTrainingUtils.specialtyLabel(
+      block['specialty']?.toString() ??
+          CoachTrainingUtils.specialtyFromDetails(details),
+    );
+  }
+
   Widget _buildSkiTechnicalCard(
     BuildContext context,
     Map<String, dynamic> details,
   ) {
-    final free = CoachTrainingUtils.freeSkiingFromDetails(details);
+    final freeBySpecialty =
+        CoachTrainingUtils.freeSkiingBySpecialtyFromDetails(details);
     final tracks = CoachTrainingUtils.tracksFromDetails(details);
     final trainingBlocks =
         CoachTrainingUtils.trainingBlocksFromDetails(details);
@@ -1005,20 +1069,20 @@ class ActivityDetailsScreen extends StatelessWidget {
           const Text('Dettagli tecnici',
               style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
           const SizedBox(height: 16),
-          if (free.isNotEmpty)
+          for (final entry in freeBySpecialty.entries)
             _technicalBlock(
               context,
-              'Campo libero',
+              'Campo libero ${entry.key}',
               [
-                '${CoachTrainingUtils.asNonNegativeInt(details['freeLaps'], fallback: CoachTrainingUtils.asNonNegativeInt(free['laps']))} giri',
-                '${CoachTrainingUtils.asNonNegativeInt(free['changes'])} cambi/giro',
-                '${CoachTrainingUtils.asNonNegativeInt(details['freeLaps'], fallback: CoachTrainingUtils.asNonNegativeInt(free['laps'])) * CoachTrainingUtils.asNonNegativeInt(free['changes'])} cambi totali',
+                '${CoachTrainingUtils.asNonNegativeInt(entry.value['laps'])} giri',
+                '${CoachTrainingUtils.asNonNegativeInt(entry.value['changes'])} cambi/giro',
+                '${CoachTrainingUtils.asNonNegativeInt(entry.value['laps']) * CoachTrainingUtils.asNonNegativeInt(entry.value['changes'])} cambi totali',
               ],
             ),
           for (var i = 0; i < tracks.length; i++)
             _technicalBlock(
               context,
-              'Pali / Tracciato ${i + 1}',
+              '${_skiBlockSpecialtyLabel(details, tracks[i])} / Tracciato ${i + 1}',
               [
                 '${CoachTrainingUtils.asNonNegativeInt(tracks[i]['laps'])} giri',
                 '${CoachTrainingUtils.asNonNegativeInt(tracks[i]['gates'], fallback: CoachTrainingUtils.asNonNegativeInt(tracks[i]['changes']))} porte/giro',
@@ -1028,7 +1092,7 @@ class ActivityDetailsScreen extends StatelessWidget {
           for (final block in trainingBlocks)
             _technicalBlock(
               context,
-              'Addestramento',
+              'Addestramento ${_skiBlockSpecialtyLabel(details, block)}',
               [
                 '${CoachTrainingUtils.asNonNegativeInt(block['laps'])} giri',
                 '${CoachTrainingUtils.asNonNegativeInt(block['references'], fallback: CoachTrainingUtils.asNonNegativeInt(block['changes']))} riferimenti/giro',
@@ -1168,7 +1232,7 @@ class ActivityDetailsScreen extends StatelessWidget {
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Dettaglio Attivita'),
+        title: const Text('Dettaglio Attività'),
         actions: [
           IconButton(
             icon: const Icon(PhosphorIconsRegular.pencilSimple,
@@ -1534,7 +1598,7 @@ class ActivityDetailsScreen extends StatelessWidget {
       case TrainingBlockType.plyometrics:
         return 'Pliometria';
       case TrainingBlockType.speedAgility:
-        return 'Velocita/agilita';
+        return 'Velocità/agilità';
       case TrainingBlockType.endurance:
         return 'Resistenza';
       case TrainingBlockType.mobility:
@@ -1553,7 +1617,7 @@ class ActivityDetailsScreen extends StatelessWidget {
       case ActivityCategory.plyometrics:
         return 'Pliometria';
       case ActivityCategory.speedAgility:
-        return 'Velocita/agilita';
+        return 'Velocità/agilità';
       case ActivityCategory.endurance:
         return 'Resistenza';
       case ActivityCategory.mobility:
@@ -1947,6 +2011,7 @@ class ActivityDetailsScreen extends StatelessWidget {
                       'avg_pace_sec_per_km',
                       'avg_speed_kmh',
                       'hr_samples',
+                      'hr_samples_full',
                       'hr_coverage_minutes',
                       'hr_zone_boundaries',
                       'elevation_source',
@@ -1961,7 +2026,8 @@ class ActivityDetailsScreen extends StatelessWidget {
                       'hr_zones_seconds',
                       'dominant_hr_zone',
                       'merged_source_workout_ids',
-                      'source_part_count'
+                      'source_part_count',
+                      'duration_user_overridden'
                     ].contains(k));
 
               if (filteredDetails.isEmpty) return const SizedBox();

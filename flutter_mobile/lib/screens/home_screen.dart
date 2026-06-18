@@ -922,8 +922,10 @@ class _DashboardViewState extends State<_DashboardView> {
                                       padding: const EdgeInsets.only(
                                           top: 2, bottom: 2),
                                       child: Text(
-                                        session.details!['specialties'][0]
-                                            .toString(),
+                                        CoachTrainingUtils
+                                            .specialtiesFromDetails(
+                                          session.details,
+                                        ).join(' + '),
                                         style: Theme.of(context)
                                             .textTheme
                                             .bodySmall
