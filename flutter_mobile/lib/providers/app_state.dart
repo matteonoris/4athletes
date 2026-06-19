@@ -2569,13 +2569,23 @@ class AppState extends ChangeNotifier {
         'details': sessionDetails,
       };
 
+      String? sessionId = existingSession?['id']?.toString();
       if (existingSession != null) {
         await _supabase
             .from('training_sessions')
             .update(sessionPayload)
             .eq('id', existingSession['id']);
       } else {
-        await _supabase.from('training_sessions').insert(sessionPayload);
+        final inserted = await _supabase
+            .from('training_sessions')
+            .insert(sessionPayload)
+            .select('id')
+            .single();
+        sessionId = inserted['id']?.toString();
+      }
+
+      if (resolvedAthleteId == userId && sessionId != null) {
+        _upsertGeneratedSessionLocally(sessionId, sessionPayload);
       }
     }
 
@@ -2586,8 +2596,41 @@ class AppState extends ChangeNotifier {
     for (final row in existing as List) {
       if (!presentIds.contains(row['user_id'])) {
         await _supabase.from('training_sessions').delete().eq('id', row['id']);
+        if (row['user_id'] == userId) {
+          _sessions.removeWhere((s) => s.id == row['id']);
+        }
       }
     }
+  }
+
+  void _upsertGeneratedSessionLocally(
+    String id,
+    Map<String, dynamic> payload,
+  ) {
+    final session = TrainingSession(
+      id: id,
+      sportId: payload['sport_id']?.toString() ?? '',
+      date: payload['date']?.toString() ?? '',
+      startTime: payload['start_time']?.toString() ?? '',
+      endTime: payload['end_time']?.toString() ?? '',
+      duration: payload['duration']?.toString() ?? '0',
+      effort: CoachTrainingUtils.asInt(payload['effort'], fallback: 5),
+      eventId: payload['event_id']?.toString(),
+      details: payload['details'] is Map
+          ? Map<String, dynamic>.from(payload['details'] as Map)
+          : null,
+    );
+    final index = _sessions.indexWhere(
+      (s) =>
+          s.id == id ||
+          (session.eventId != null && s.eventId == session.eventId),
+    );
+    if (index >= 0) {
+      _sessions[index] = session;
+    } else {
+      _sessions.insert(0, session);
+    }
+    _sessions.sort((a, b) => b.date.compareTo(a.date));
   }
 
   Future<String?> _resolveAthleteId(String athleteId) async {

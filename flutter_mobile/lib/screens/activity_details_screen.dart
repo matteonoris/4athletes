@@ -1637,6 +1637,23 @@ class ActivityDetailsScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final latestSession = context.select<AppState, TrainingSession?>(
+      (appState) => appState.sessions.cast<TrainingSession?>().firstWhere(
+            (candidate) =>
+                candidate?.id == session.id ||
+                (session.eventId != null &&
+                    candidate?.eventId == session.eventId),
+            orElse: () => null,
+          ),
+    );
+    if (latestSession != null && !identical(latestSession, session)) {
+      return ActivityDetailsScreen(
+        session: latestSession,
+        sportName: sportName,
+        prLogs: prLogs,
+      );
+    }
+
     final hasPainZones = session.details != null &&
         session.details!['painZones'] != null &&
         (session.details!['painZones'] as List).isNotEmpty;

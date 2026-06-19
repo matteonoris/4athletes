@@ -1,6 +1,6 @@
-Build TestFlight dedicata a tracciamento attivita', strain di allenamento e import da Health.
+Build TestFlight dedicata a import Health e sessioni coach.
 
-- Aggiunge il calcolo dello strain giornaliero da sessioni e dati salute.
-- Migliora selezione e copertura dei campioni cardio negli allenamenti Health.
-- Conserva piu' dettagli coach come giri, porte e blocchi dryland.
-- Rifinisce inserimento attivita', promemoria e contrasto UI in light e dark mode.
+- Mantiene le sessioni sci coach come sci alpino quando Garmin invia snow sports generico.
+- Aggiorna i dettagli attivita' dopo la sincronizzazione locale delle sessioni generate.
+- Conserva i dettagli coach durante il merge con metriche wearable.
+- Migliora il mapping Health per varianti sci e neve.

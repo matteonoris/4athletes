@@ -815,7 +815,8 @@ class HealthService {
   }
 
   String _mapNativeActivityToSportId(String? type) {
-    final normalized = (type ?? '').toUpperCase();
+    final normalized =
+        (type ?? '').trim().toUpperCase().replaceAll(RegExp(r'[\s-]+'), '_');
     switch (normalized) {
       case 'RUNNING':
       case 'RUNNING_TREADMILL':
@@ -846,8 +847,15 @@ class HealthService {
       case 'FLEXIBILITY':
         return 'yoga';
       case 'DOWNHILL_SKIING':
+      case 'DOWNHILL_SKI':
+      case 'ALPINE_SKIING':
+      case 'ALPINE_SKI':
       case 'SNOWBOARDING':
       case 'SKIING':
+      case 'SKI':
+      case 'SNOW_SPORTS':
+      case 'SNOW_SPORT':
+      case 'SNOWSPORTS':
         return 'alpine_skiing';
       case 'CROSS_COUNTRY_SKIING':
         return 'cross_country_skiing';

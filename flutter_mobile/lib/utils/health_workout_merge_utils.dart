@@ -74,7 +74,7 @@ class HealthWorkoutMergeUtils {
 
     final merged = TrainingSession(
       id: existing.id,
-      sportId: imported.sportId,
+      sportId: _mergedSportId(existing.sportId, imported.sportId),
       date: mergedRange?.date ?? imported.date,
       startTime: mergedRange != null
           ? _formatSessionClock(mergedRange.start)
@@ -168,26 +168,71 @@ class HealthWorkoutMergeUtils {
   }
 
   static bool _sameSportFamily(String a, String b) {
-    String family(String sportId) {
-      if (sportId.contains('running') ||
-          sportId == 'marathon' ||
-          sportId == 'track_field') {
-        return 'running';
-      }
-      if (sportId.contains('cycling') || sportId == 'spinning') {
-        return 'cycling';
-      }
-      if (sportId == 'walking' || sportId == 'hiking') return 'walking';
-      if (sportId == 'swimming') return 'swimming';
-      if (sportId == 'rowing') return 'rowing';
-      if (sportId == 'cross_country_skiing') return 'nordic_ski';
-      if (sportId == 'alpine_skiing' || sportId == 'snowboarding') {
-        return 'snow';
-      }
-      return sportId;
+    return _sportFamily(a) == _sportFamily(b);
+  }
+
+  static String _mergedSportId(String existingSportId, String importedSportId) {
+    if (_sportFamily(existingSportId) != _sportFamily(importedSportId)) {
+      return importedSportId;
     }
 
-    return family(a) == family(b);
+    if (_sportFamily(importedSportId) == 'snow') {
+      final existingCanonical = _canonicalSnowSportId(existingSportId);
+      final importedCanonical = _canonicalSnowSportId(importedSportId);
+      if (existingCanonical == 'alpine_skiing' &&
+          importedCanonical == 'alpine_skiing') {
+        return 'alpine_skiing';
+      }
+    }
+
+    return importedSportId;
+  }
+
+  static String _sportFamily(String sportId) {
+    final normalized = _normalizeSportId(sportId);
+    if (normalized.contains('running') ||
+        normalized == 'marathon' ||
+        normalized == 'track_field' ||
+        normalized == 'track_and_field') {
+      return 'running';
+    }
+    if (normalized.contains('cycling') || normalized == 'spinning') {
+      return 'cycling';
+    }
+    if (normalized == 'walking' || normalized == 'hiking') return 'walking';
+    if (normalized == 'swimming') return 'swimming';
+    if (normalized == 'rowing' || normalized == 'rowing_machine') {
+      return 'rowing';
+    }
+    if (normalized == 'cross_country_skiing' || normalized == 'xc_skiing') {
+      return 'nordic_ski';
+    }
+    if (_canonicalSnowSportId(normalized) != normalized ||
+        normalized == 'alpine_skiing' ||
+        normalized == 'snowboarding') {
+      return 'snow';
+    }
+    return normalized;
+  }
+
+  static String _canonicalSnowSportId(String sportId) {
+    final normalized = _normalizeSportId(sportId);
+    if (normalized == 'alpine_skiing' ||
+        normalized == 'alpine_ski' ||
+        normalized == 'downhill_skiing' ||
+        normalized == 'downhill_ski' ||
+        normalized == 'skiing' ||
+        normalized == 'ski' ||
+        normalized == 'snow_sports' ||
+        normalized == 'snow_sport' ||
+        normalized == 'snowsports') {
+      return 'alpine_skiing';
+    }
+    return normalized;
+  }
+
+  static String _normalizeSportId(String sportId) {
+    return sportId.trim().toLowerCase().replaceAll(RegExp(r'[\s-]+'), '_');
   }
 
   static _SessionDateTimeRange? _sessionDateTimeRange(

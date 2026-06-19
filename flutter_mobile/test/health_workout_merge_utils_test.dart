@@ -64,6 +64,57 @@ void main() {
     );
   }
 
+  TrainingSession coachSkiSession({
+    String id = 'coach_ski_1',
+    String startTime = '09:00:00',
+    String endTime = '12:00:00',
+  }) {
+    return TrainingSession(
+      id: id,
+      sportId: 'alpine_skiing',
+      date: '2026-06-12',
+      startTime: startTime,
+      endTime: endTime,
+      duration: '180',
+      effort: 7,
+      eventId: 'coach_event_1',
+      details: const {
+        'skiSchemaVersion': 2,
+        'activityDomain': 'sport',
+        'snowCondition': 'Compatta',
+        'gatedSkiing': {'laps': '8'},
+      },
+    );
+  }
+
+  TrainingSession importedSnowSports({
+    String id = 'import_snow_1',
+    String sportId = 'snow_sports',
+    String startTime = '09:07:00',
+    String endTime = '12:10:00',
+  }) {
+    return TrainingSession(
+      id: id,
+      sportId: sportId,
+      date: '2026-06-12',
+      startTime: startTime,
+      endTime: endTime,
+      duration: '183',
+      effort: 5,
+      details: const {
+        'source': 'health_sync',
+        'external_id': 'garmin-snow-1',
+        'source_name': 'com.garmin.android.apps.connectmobile',
+        'active_duration_seconds': 10980,
+        'avg_hr': 132,
+        'max_hr': 171,
+        'hr_samples': [
+          {'time': 1781248020000, 'bpm': 132}
+        ],
+      },
+    );
+  }
+
   test(
       'fonde forza strutturata e import wearable con orari leggermente diversi',
       () {
@@ -180,5 +231,34 @@ void main() {
     );
 
     expect(candidate, isNull);
+  });
+
+  test('fonde allenamento sci coach con import Garmin snow sports', () {
+    final existing = coachSkiSession();
+    final imported = importedSnowSports();
+
+    final candidate = HealthWorkoutMergeUtils.bestOverlapMergeCandidate(
+      [existing],
+      imported,
+    );
+    final merged = HealthWorkoutMergeUtils.mergeImportedSession(
+      candidate!,
+      imported,
+    );
+
+    expect(candidate.id, existing.id);
+    expect(merged.id, existing.id);
+    expect(merged.eventId, existing.eventId);
+    expect(merged.sportId, 'alpine_skiing');
+    expect(merged.startTime, '09:07:00');
+    expect(merged.endTime, '12:10:00');
+    expect(merged.duration, '183');
+    expect(merged.details?['snowCondition'], 'Compatta');
+    expect(merged.details?['gatedSkiing'], existing.details?['gatedSkiing']);
+    expect(merged.details?['source'], 'health_sync');
+    expect(merged.details?['source_name'],
+        'com.garmin.android.apps.connectmobile');
+    expect(merged.details?['avg_hr'], 132);
+    expect(merged.details?['max_hr'], 171);
   });
 }
