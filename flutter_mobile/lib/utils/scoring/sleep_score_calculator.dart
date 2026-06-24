@@ -197,11 +197,23 @@ _ComponentScore _calculateCircadianRegularityScore(
   HistoricalDailyData historicalData,
   AlgorithmConfig config,
 ) {
-  final todayOnset = minutesSinceLocalMidnight(
-    today.sleepOnsetTimestamp,
-    profile.timezone,
-    config,
-  );
+  double? clockMinutes(DateTime? timestamp) => minutesSinceLocalMidnight(
+        timestamp,
+        profile.timezone,
+        config,
+      );
+
+  double? meanCircularDeviation(List<double> values) {
+    final mean = circularMeanMinutes(values, config);
+    if (mean == null) return null;
+    return values
+            .map((value) =>
+                circularAbsoluteDifferenceMinutes(value, mean, config))
+            .reduce((sum, value) => sum + value) /
+        values.length;
+  }
+
+  final todayOnset = clockMinutes(today.sleepOnsetTimestamp);
   if (todayOnset == null) {
     return _ComponentScore(
       value: null,
@@ -213,31 +225,39 @@ _ComponentScore _calculateCircadianRegularityScore(
     );
   }
 
-  final historicalOnsets = historicalData
-      .takeLast(config.history.rollingWindowDays)
-      .map((day) => minutesSinceLocalMidnight(
-            day.sleepOnsetTimestamp,
-            profile.timezone,
-            config,
-          ))
+  final historicalNights = historicalData
+      .where((day) => clockMinutes(day.sleepOnsetTimestamp) != null)
+      .toList(growable: false)
+      .takeLast(config.sleepScore.circadianWindowDays - 1);
+  final onsetValues = historicalNights
+      .map((day) => clockMinutes(day.sleepOnsetTimestamp))
       .where(isFiniteNumber)
       .map((value) => value!.toDouble())
-      .toList(growable: false);
-  final historicalMean = circularMeanMinutes(historicalOnsets, config);
+      .toList()
+    ..add(todayOnset);
 
-  if (historicalMean == null) {
+  if (onsetValues.length < 2) {
     return _ComponentScore(
       value: null,
       warning: 'sleep_onset_history_unavailable',
-      details: {'historicalOnsetCount': historicalOnsets.length},
+      details: {'historicalOnsetCount': onsetValues.length - 1},
     );
   }
 
-  final deviationMinutes = circularAbsoluteDifferenceMinutes(
-    todayOnset,
-    historicalMean,
-    config,
-  );
+  final wakeValues = historicalNights
+      .map((day) => clockMinutes(day.sleepWakeTimestamp))
+      .where(isFiniteNumber)
+      .map((value) => value!.toDouble())
+      .toList();
+  final todayWake = clockMinutes(today.sleepWakeTimestamp);
+  if (todayWake != null) wakeValues.add(todayWake);
+
+  final onsetDeviation = meanCircularDeviation(onsetValues)!;
+  final wakeDeviation =
+      wakeValues.length >= 2 ? meanCircularDeviation(wakeValues) : null;
+  final deviationMinutes = wakeDeviation == null
+      ? onsetDeviation
+      : (onsetDeviation + wakeDeviation) / 2;
   final value = clampDouble(
     config.score.max -
         (config.sleepScore.circadianPenaltyPerStep *
@@ -252,9 +272,12 @@ _ComponentScore _calculateCircadianRegularityScore(
     value: value,
     details: {
       'todayOnsetMinutes': todayOnset,
-      'historicalMeanOnsetMinutes': historicalMean,
+      'todayWakeMinutes': todayWake,
       'deviationMinutes': deviationMinutes,
-      'historicalOnsetCount': historicalOnsets.length,
+      'onsetDeviationMinutes': onsetDeviation,
+      'wakeDeviationMinutes': wakeDeviation,
+      'windowNightCount': onsetValues.length,
+      'windowDays': config.sleepScore.circadianWindowDays,
     },
   );
 }

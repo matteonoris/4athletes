@@ -8,6 +8,7 @@ import '../models/models.dart';
 import '../providers/app_state.dart';
 // sports.dart removed
 import '../data/exercises.dart';
+import '../utils/strength_pr_utils.dart';
 import '../widgets/custom_card.dart';
 
 class _SkiBlockDraft {
@@ -220,12 +221,11 @@ class _AddTrainingScreenState extends State<AddTrainingScreen> {
   }
 
   double _oneRepMaxForExercise(AppState appState, String exerciseId) {
-    var maxLoad = appState.userProfile?.oneRepMax?[exerciseId] ?? 0.0;
-    for (final log
-        in appState.prLogs.where((l) => l.exerciseId == exerciseId)) {
-      if (log.weight > maxLoad) maxLoad = log.weight;
-    }
-    return maxLoad;
+    return currentOneRepMaxForExercise(
+      exerciseId,
+      appState.prLogs,
+      profileOneRepMax: appState.userProfile?.oneRepMax,
+    );
   }
 
   Map<String, dynamic> _newWeightliftingSet(List<dynamic> sets) {

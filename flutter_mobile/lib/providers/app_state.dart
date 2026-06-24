@@ -27,7 +27,8 @@ import '../utils/metrics_engine.dart';
 import '../utils/strain_session_mapper.dart';
 
 class AppState extends ChangeNotifier {
-  static const String _healthScoreCachePrefix = 'health_sync_v8_health_90d_';
+  static const String _healthScoreCachePrefix =
+      'health_sync_v10_sleep_consistency_';
   static const String _themeModeKey = 'themeMode';
 
   SharedPreferences? _prefs;
@@ -244,7 +245,10 @@ class AppState extends ChangeNotifier {
       debugPrint('Error syncing weight in syncDailyHealthData: $e');
     }
 
-    final shouldReadCache = targetDay.isBefore(today) || !forceRefresh;
+    // Today's sleep data can still be completed or corrected by the source
+    // app after the first morning sync. Always re-read it when the Home screen
+    // starts instead of pinning a partial sleep architecture for the full day.
+    final shouldReadCache = targetDay.isBefore(today);
     if (shouldReadCache &&
         _loadCachedHealthScores(cacheKey, dateKey,
             syncMissingScoreLogs: targetDay == today)) {
@@ -259,7 +263,10 @@ class AppState extends ChangeNotifier {
     }
 
     // Controlla la cache locale
-    if (!forceRefresh && _prefs != null && _prefs!.containsKey(cacheKey)) {
+    if (targetDay.isBefore(today) &&
+        !forceRefresh &&
+        _prefs != null &&
+        _prefs!.containsKey(cacheKey)) {
       try {
         final cached = jsonDecode(_prefs!.getString(cacheKey)!);
 

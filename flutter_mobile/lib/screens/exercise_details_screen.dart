@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 import '../core/theme.dart';
 import '../models/models.dart';
 import '../providers/app_state.dart';
+import '../utils/strength_pr_utils.dart';
 import '../widgets/custom_card.dart';
 import '../widgets/primary_button.dart';
 
@@ -43,8 +44,11 @@ class _ExerciseDetailsScreenState extends State<ExerciseDetailsScreen> {
         .toList()
       ..sort((a, b) => b.date.compareTo(a.date));
 
-    final currentMax =
-        appState.userProfile?.oneRepMax?[widget.exerciseId] ?? 0.0;
+    final currentMax = currentOneRepMaxForExercise(
+      widget.exerciseId,
+      appState.prLogs,
+      profileOneRepMax: appState.userProfile?.oneRepMax,
+    );
 
     return Scaffold(
       appBar: AppBar(

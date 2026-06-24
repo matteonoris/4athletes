@@ -37,27 +37,37 @@ class AthleteMetricsEngine {
       remSleepMinutes: remSleepTime,
       timeInBedMinutes: timeInBed,
       sleepOnsetTimestamp: sleepOnsetTime,
+      sleepWakeTimestamp:
+          sleepOnsetTime.add(Duration(minutes: timeInBed.round())),
     );
     final history = [
       DailyWearableData(
         date: _dateKey(avgSleepOnsetTime.subtract(const Duration(days: 1))),
         totalSleepTimeMinutes: targetSleepTime,
         sleepOnsetTimestamp: avgSleepOnsetTime,
+        sleepWakeTimestamp:
+            avgSleepOnsetTime.add(Duration(minutes: targetSleepTime.round())),
       ),
       DailyWearableData(
         date: _dateKey(avgSleepOnsetTime.subtract(const Duration(days: 2))),
         totalSleepTimeMinutes: targetSleepTime,
         sleepOnsetTimestamp: avgSleepOnsetTime,
+        sleepWakeTimestamp:
+            avgSleepOnsetTime.add(Duration(minutes: targetSleepTime.round())),
       ),
       DailyWearableData(
         date: _dateKey(avgSleepOnsetTime.subtract(const Duration(days: 3))),
         totalSleepTimeMinutes: targetSleepTime,
         sleepOnsetTimestamp: avgSleepOnsetTime,
+        sleepWakeTimestamp:
+            avgSleepOnsetTime.add(Duration(minutes: targetSleepTime.round())),
       ),
       DailyWearableData(
         date: _dateKey(avgSleepOnsetTime.subtract(const Duration(days: 4))),
         totalSleepTimeMinutes: targetSleepTime,
         sleepOnsetTimestamp: avgSleepOnsetTime,
+        sleepWakeTimestamp:
+            avgSleepOnsetTime.add(Duration(minutes: targetSleepTime.round())),
       ),
     ];
     final sleepNeed = DailySleepNeedResult(

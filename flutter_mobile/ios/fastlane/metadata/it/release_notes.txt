@@ -1,6 +1,7 @@
-Build TestFlight dedicata a import Health e sessioni coach.
+Build TestFlight dedicata a punteggi sonno Health, grafici trend e PR forza.
 
-- Mantiene le sessioni sci coach come sci alpino quando Garmin invia snow sports generico.
-- Aggiorna i dettagli attivita' dopo la sincronizzazione locale delle sessioni generate.
-- Conserva i dettagli coach durante il merge con metriche wearable.
-- Migliora il mapping Health per varianti sci e neve.
+- Assegna le fasi di sonno notturne alla data di risveglio, includendo il sonno prima di mezzanotte.
+- Calcola la regolarita' del sonno usando sia ora di addormentamento sia ora di risveglio nella finestra recente.
+- Aggiorna la cache Health di oggi cosi' i dati parziali del mattino possono essere corretti.
+- Mostra le bande trend dei punteggi come variabilita' mobile invece di una deviazione statica.
+- Usa l'ultimo log PR come massimale corrente nelle schermate di allenamento forza.

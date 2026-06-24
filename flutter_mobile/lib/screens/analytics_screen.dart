@@ -4,6 +4,7 @@ import 'package:phosphor_flutter/phosphor_flutter.dart';
 
 import '../core/theme.dart';
 import '../providers/app_state.dart';
+import '../utils/strength_pr_utils.dart';
 import '../widgets/custom_card.dart';
 import '../models/models.dart';
 import 'activity_details_screen.dart';
@@ -46,10 +47,7 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
 
   // Get Latest PR by date (not the highest — just the most recently added)
   double _getLatestPR(List<PRLog> logs, String exerciseId) {
-    final filtered = logs.where((l) => l.exerciseId == exerciseId).toList()
-      ..sort(
-          (a, b) => DateTime.parse(b.date).compareTo(DateTime.parse(a.date)));
-    return filtered.isNotEmpty ? filtered.first.weight : 0.0;
+    return currentOneRepMaxForExercise(exerciseId, logs);
   }
 
   double _getLatestBodyVal(List<BodyMetricLog> logs, String type) {

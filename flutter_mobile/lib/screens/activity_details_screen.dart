@@ -8,6 +8,7 @@ import '../models/models.dart';
 import '../models/training_activity_models.dart';
 import '../utils/time_utils.dart';
 import '../utils/coach_training_utils.dart';
+import '../utils/strength_pr_utils.dart';
 import '../utils/training_metrics_utils.dart';
 import '../services/health_import_normalizer.dart';
 import '../providers/app_state.dart';
@@ -597,18 +598,13 @@ class ActivityDetailsScreen extends StatelessWidget {
     String exerciseId,
     List<PRLog> logs,
   ) {
-    var maxLoad = 0.0;
-    for (final log in logs.where((l) => l.exerciseId == exerciseId)) {
-      if (log.weight > maxLoad) maxLoad = log.weight;
-    }
-    var profileMax = 0.0;
-    if (prLogs == null) {
-      profileMax = Provider.of<AppState>(context, listen: false)
-              .userProfile
-              ?.oneRepMax?[exerciseId] ??
-          0.0;
-    }
-    return profileMax > maxLoad ? profileMax : maxLoad;
+    return currentOneRepMaxForExercise(
+      exerciseId,
+      logs,
+      profileOneRepMax: prLogs == null
+          ? Provider.of<AppState>(context, listen: false).userProfile?.oneRepMax
+          : null,
+    );
   }
 
   String _formatLoad(double value) {

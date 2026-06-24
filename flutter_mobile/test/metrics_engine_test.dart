@@ -99,6 +99,30 @@ void main() {
     expect(deviation, lessThanOrEqualTo(10));
   });
 
+  test('sleep regularity uses bedtime and wake time over four nights', () {
+    final history = [
+      _makeDay(1),
+      _makeDay(2),
+      _makeDay(3),
+    ];
+    final today = _makeDay(
+      4,
+      sleepOnsetTimestamp: DateTime(2026, 5, 5, 0, 30),
+      sleepWakeTimestamp: DateTime(2026, 5, 5, 8, 30),
+    );
+
+    final result = calculateRecoveryAndSleep(profile, today, history);
+    final regularity =
+        result.sleepScore.components['circadianRegularity'] as Map;
+
+    expect(regularity['value'], closeTo(77.5, 0.05));
+    expect(regularity['details']['windowNightCount'], 4);
+    expect(
+      regularity['details']['wakeDeviationMinutes'],
+      closeTo(22.5, 0.05),
+    );
+  });
+
   test('missing SpO2 is warned and remaining recovery components are used', () {
     final history = _makeHistory(
       8,
@@ -196,14 +220,19 @@ DailyWearableData _makeDay(
   double? respiratoryRate = 14,
   double? spo2Percent = 98,
   double? previousDayStrainScore = 40,
+  DateTime? sleepOnsetTimestamp,
+  DateTime? sleepWakeTimestamp,
 }) {
+  final onset = sleepOnsetTimestamp ?? DateTime(2026, 5, dayOfMonth, 23, 30);
   return DailyWearableData(
     date: '2026-05-${dayOfMonth.toString().padLeft(2, '0')}',
     totalSleepTimeMinutes: totalSleepTimeMinutes,
     deepSleepMinutes: deepSleepMinutes,
     remSleepMinutes: remSleepMinutes,
     timeInBedMinutes: timeInBedMinutes,
-    sleepOnsetTimestamp: DateTime(2026, 5, dayOfMonth, 23, 30),
+    sleepOnsetTimestamp: onset,
+    sleepWakeTimestamp:
+        sleepWakeTimestamp ?? onset.add(const Duration(hours: 8)),
     naps: const [],
     restingHeartRateBpm: restingHeartRateBpm,
     hrvRmssdMs: hrvRmssdMs,
@@ -234,6 +263,7 @@ DailyWearableData _copyDay(
     remSleepMinutes: remSleepMinutes ?? day.remSleepMinutes,
     timeInBedMinutes: timeInBedMinutes ?? day.timeInBedMinutes,
     sleepOnsetTimestamp: day.sleepOnsetTimestamp,
+    sleepWakeTimestamp: day.sleepWakeTimestamp,
     naps: day.naps,
     restingHeartRateBpm: restingHeartRateBpm ?? day.restingHeartRateBpm,
     hrvRmssdMs: hrvRmssdMs ?? day.hrvRmssdMs,

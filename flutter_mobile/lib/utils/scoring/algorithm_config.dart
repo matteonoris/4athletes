@@ -135,6 +135,7 @@ class SleepNeedConfig {
 class SleepScoreConfig {
   final SleepScoreWeights weights;
   final double restorativeRatioTarget;
+  final int circadianWindowDays;
   final double circadianToleranceMinutes;
   final double circadianPenaltyStepMinutes;
   final double circadianPenaltyPerStep;
@@ -142,6 +143,7 @@ class SleepScoreConfig {
   const SleepScoreConfig({
     required this.weights,
     required this.restorativeRatioTarget,
+    required this.circadianWindowDays,
     required this.circadianToleranceMinutes,
     required this.circadianPenaltyStepMinutes,
     required this.circadianPenaltyPerStep,
@@ -402,8 +404,9 @@ const defaultAlgorithmConfig = AlgorithmConfig(
       efficiency: 0.15,
     ),
     restorativeRatioTarget: 0.40,
-    circadianToleranceMinutes: 30,
-    circadianPenaltyStepMinutes: 30,
+    circadianWindowDays: 4,
+    circadianToleranceMinutes: 0,
+    circadianPenaltyStepMinutes: 15,
     circadianPenaltyPerStep: 15,
   ),
   recoveryScore: RecoveryScoreConfig(

@@ -26,6 +26,7 @@ class HealthSyncService {
   final Health _health = Health();
   final AthleteMetricsEngine _metricsEngine = const AthleteMetricsEngine();
   static const Duration _mainSleepMaxGap = Duration(minutes: 90);
+  static const Duration _mainSleepLookback = Duration(hours: 12);
   static const int _napStartHour = 9;
   static const int _napEndHour = 20;
 
@@ -130,6 +131,7 @@ class HealthSyncService {
           remSleepMinutes: sleep.remSleepMinutes,
           timeInBedMinutes: sleep.timeInBedMinutes,
           sleepOnsetTimestamp: sleep.sleepOnset,
+          sleepWakeTimestamp: sleep.wakeTime,
           naps: _napsForDate(healthData, day),
           restingHeartRateBpm: getValueForDate('resting_hr', day),
           skinTemperatureCelsius: getValueForDate('temp', day),
@@ -157,6 +159,7 @@ class HealthSyncService {
       remSleepMinutes: todaySleep.remSleepMinutes,
       timeInBedMinutes: todaySleep.timeInBedMinutes,
       sleepOnsetTimestamp: todaySleep.sleepOnset,
+      sleepWakeTimestamp: todaySleep.wakeTime,
       naps: _napsForDate(healthData, target),
       restingHeartRateBpm: rhrToday,
       skinTemperatureCelsius: tempToday,
@@ -267,8 +270,8 @@ class HealthSyncService {
 
     double totalMinutes = 0.0;
     for (var point in filtered) {
-      totalMinutes +=
-          point.dateTo.difference(point.dateFrom).inMinutes.toDouble();
+      totalMinutes += point.dateTo.difference(point.dateFrom).inMicroseconds /
+          Duration.microsecondsPerMinute;
     }
     return totalMinutes;
   }
@@ -283,7 +286,10 @@ class HealthSyncService {
     final dayPoints = _mainSleepPointsForDate(
       data: data,
       sleepTypes: sleepTypes,
-      dayStart: dayStart,
+      // A sleep day is assigned to the date on which the athlete wakes up.
+      // Include the previous evening so stages completed before midnight are
+      // not dropped from that night's architecture.
+      dayStart: dayStart.subtract(_mainSleepLookback),
       dayEnd: end,
     );
 
@@ -363,7 +369,7 @@ class HealthSyncService {
       var dayPoints = _mainSleepPointsForDate(
         data: sleepData,
         sleepTypes: sleepTypes,
-        dayStart: dayStart,
+        dayStart: dayStart.subtract(_mainSleepLookback),
         dayEnd: end,
       );
       if (dayPoints.isNotEmpty) {
@@ -446,7 +452,7 @@ class HealthSyncService {
     final blocks = _sleepBlocksForDate(
       data: data,
       sleepTypes: _readableSleepTypes,
-      dayStart: dayStart,
+      dayStart: dayStart.subtract(_mainSleepLookback),
       dayEnd: dayEnd,
     );
     final mainBlock = _selectMainSleepBlock(blocks);
@@ -457,6 +463,11 @@ class HealthSyncService {
       if (identical(block, mainBlock)) continue;
 
       final start = _firstPointStart(block).toLocal();
+      if (start.year != day.year ||
+          start.month != day.month ||
+          start.day != day.day) {
+        continue;
+      }
       if (start.hour < _napStartHour || start.hour >= _napEndHour) {
         continue;
       }
@@ -588,6 +599,22 @@ class HealthSyncService {
       HealthDataType.SLEEP_OUT_OF_BED,
       HealthDataType.SLEEP_UNKNOWN,
     ];
+  }
+
+  @visibleForTesting
+  Map<String, double?> aggregateSleepForTesting(
+    List<HealthDataPoint> data,
+    DateTime day,
+  ) {
+    final aggregate = _aggregateSleepForDate(data, day);
+    return {
+      'totalSleepMinutes': aggregate.totalSleepMinutes,
+      'deepSleepMinutes': aggregate.deepSleepMinutes,
+      'remSleepMinutes': aggregate.remSleepMinutes,
+      'lightSleepMinutes': aggregate.lightSleepMinutes,
+      'awakeMinutes': aggregate.awakeMinutes,
+      'timeInBedMinutes': aggregate.timeInBedMinutes,
+    };
   }
 }
 

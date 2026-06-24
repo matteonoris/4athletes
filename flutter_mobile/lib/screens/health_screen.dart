@@ -545,13 +545,8 @@ class _ScoreStatsRow extends StatelessWidget {
         ),
         const SizedBox(width: 10),
         Expanded(
-          child: _ScoreMiniStat(
-            label: 'Dev. std',
-            value: _formatScoreStat(stats.standardDeviation),
-          ),
+          child: _ScoreTrendChip(stats: stats, color: color),
         ),
-        const SizedBox(width: 10),
-        _ScoreTrendChip(stats: stats, color: color),
       ],
     );
   }
@@ -626,7 +621,7 @@ class _ScoreTrendChip extends StatelessWidget {
             : AppTheme.error;
 
     return Container(
-      width: 104,
+      width: double.infinity,
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
       decoration: BoxDecoration(
         color: trendColor.withValues(alpha: AppTheme.isDark ? 0.16 : 0.10),
@@ -673,15 +668,14 @@ class _ScoreTrendChart extends StatelessWidget {
     if (values.isEmpty) return const _NoDataChart();
 
     final lineBars = <LineChartBarData>[];
-    final hasBand = stats.hasDeviationBand && series.length > 1;
-    final lowerBand = stats.lowerBand?.clamp(0.0, 100.0).toDouble();
-    final upperBand = stats.upperBand?.clamp(0.0, 100.0).toDouble();
+    final rollingBand = _rollingScoreBandSpots(series);
+    final hasBand = rollingBand != null;
     final average = stats.average?.clamp(0.0, 100.0).toDouble();
     final lastValueIndex = _lastValueIndex(series);
 
-    if (hasBand && lowerBand != null && upperBand != null) {
-      lineBars.add(_constantScoreLine(series.length, lowerBand));
-      lineBars.add(_constantScoreLine(series.length, upperBand));
+    if (rollingBand != null) {
+      lineBars.add(_scoreBandLine(rollingBand.lower));
+      lineBars.add(_scoreBandLine(rollingBand.upper));
     }
 
     if (average != null && series.length > 1) {
@@ -731,14 +725,8 @@ class _ScoreTrendChart extends StatelessWidget {
                 BetweenBarsData(
                   fromIndex: 0,
                   toIndex: 1,
-                  gradient: LinearGradient(
-                    begin: Alignment.topCenter,
-                    end: Alignment.bottomCenter,
-                    colors: [
-                      color.withValues(alpha: 0.05),
-                      color.withValues(alpha: AppTheme.isDark ? 0.20 : 0.14),
-                      color.withValues(alpha: 0.05),
-                    ],
+                  color: color.withValues(
+                    alpha: AppTheme.isDark ? 0.12 : 0.09,
                   ),
                 ),
               ]
@@ -2136,12 +2124,10 @@ double? _averageNullable(Iterable<double?> values) {
 
 class _ScoreTrendStats {
   final double? average;
-  final double? standardDeviation;
   final double? currentValue;
 
   const _ScoreTrendStats({
     required this.average,
-    required this.standardDeviation,
     required this.currentValue,
   });
 
@@ -2156,16 +2142,11 @@ class _ScoreTrendStats {
     if (list.isEmpty) {
       return _ScoreTrendStats(
         average: null,
-        standardDeviation: null,
         currentValue: currentValue,
       );
     }
 
     final average = list.reduce((a, b) => a + b) / list.length;
-    final variance = list
-            .map((value) => math.pow(value - average, 2).toDouble())
-            .reduce((a, b) => a + b) /
-        list.length;
     final latestValue = currentValue ??
         series.reversed.map((point) => point.value).firstWhere(
             (value) => value != null && value.isFinite,
@@ -2173,19 +2154,9 @@ class _ScoreTrendStats {
 
     return _ScoreTrendStats(
       average: average,
-      standardDeviation: math.sqrt(variance),
       currentValue: latestValue,
     );
   }
-
-  bool get hasDeviationBand =>
-      average != null && standardDeviation != null && standardDeviation! > 0.01;
-
-  double? get lowerBand =>
-      hasDeviationBand ? average! - standardDeviation! : null;
-
-  double? get upperBand =>
-      hasDeviationBand ? average! + standardDeviation! : null;
 
   double? get deltaFromAverage =>
       average != null && currentValue != null ? currentValue! - average! : null;
@@ -2218,10 +2189,59 @@ List<FlSpot> _constantScoreSpots(int count, double value) {
   );
 }
 
-LineChartBarData _constantScoreLine(int count, double value) {
+class _ScoreBandSpots {
+  final List<FlSpot> lower;
+  final List<FlSpot> upper;
+
+  const _ScoreBandSpots({required this.lower, required this.upper});
+}
+
+_ScoreBandSpots? _rollingScoreBandSpots(
+  List<DailyChartPoint> series, {
+  int windowDays = 7,
+  int minimumValues = 3,
+}) {
+  final lower = <FlSpot>[];
+  final upper = <FlSpot>[];
+  var validBandPoints = 0;
+
+  for (var index = 0; index < series.length; index++) {
+    final windowStart = math.max(0, index - windowDays + 1);
+    final windowValues = series
+        .sublist(windowStart, index + 1)
+        .map((point) => point.value)
+        .whereType<double>()
+        .where((value) => value.isFinite)
+        .toList(growable: false);
+
+    if (windowValues.length < minimumValues) {
+      lower.add(FlSpot.nullSpot);
+      upper.add(FlSpot.nullSpot);
+      continue;
+    }
+
+    final average = windowValues.reduce((a, b) => a + b) / windowValues.length;
+    final variance = windowValues
+            .map((value) => math.pow(value - average, 2).toDouble())
+            .reduce((a, b) => a + b) /
+        windowValues.length;
+    final deviation = math.sqrt(variance);
+
+    lower.add(FlSpot(index.toDouble(), (average - deviation).clamp(0, 100)));
+    upper.add(FlSpot(index.toDouble(), (average + deviation).clamp(0, 100)));
+    validBandPoints += 1;
+  }
+
+  if (validBandPoints < 2) return null;
+  return _ScoreBandSpots(lower: lower, upper: upper);
+}
+
+LineChartBarData _scoreBandLine(List<FlSpot> spots) {
   return LineChartBarData(
-    spots: _constantScoreSpots(count, value),
-    isCurved: false,
+    spots: spots,
+    isCurved: true,
+    curveSmoothness: 0.2,
+    preventCurveOverShooting: true,
     color: Colors.transparent,
     barWidth: 0,
     dotData: const FlDotData(show: false),
@@ -2272,8 +2292,8 @@ LineChartBarData _scoreValueBar(
         begin: Alignment.topCenter,
         end: Alignment.bottomCenter,
         colors: [
-          color.withValues(alpha: AppTheme.isDark ? 0.18 : 0.16),
-          color.withValues(alpha: 0.02),
+          color.withValues(alpha: AppTheme.isDark ? 0.14 : 0.12),
+          color.withValues(alpha: 0.015),
         ],
       ),
     ),

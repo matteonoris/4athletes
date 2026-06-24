@@ -1,6 +1,7 @@
-TestFlight build focused on Health workout imports and coach training sessions.
+TestFlight build focused on Health sleep scoring, trend charts, and strength PR accuracy.
 
-- Keeps coach ski sessions as alpine skiing when Garmin reports generic snow sports.
-- Refreshes activity details after generated sessions are synced locally.
-- Preserves richer coach training details while merging wearable metrics.
-- Improves native Health sport mapping for ski and snow activity variants.
+- Assigns overnight sleep stages to the wake-up date so pre-midnight sleep is included.
+- Updates sleep regularity to consider both bedtime and wake time across the recent window.
+- Refreshes today's Health cache behavior so partial morning sleep data can be corrected.
+- Shows score trend bands as rolling variability instead of a single static deviation.
+- Uses the latest strength PR log as the current one-rep max across training screens.

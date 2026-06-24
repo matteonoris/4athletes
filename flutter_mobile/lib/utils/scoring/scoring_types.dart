@@ -291,6 +291,7 @@ class DailyWearableData {
   final double? remSleepMinutes;
   final double? timeInBedMinutes;
   final DateTime? sleepOnsetTimestamp;
+  final DateTime? sleepWakeTimestamp;
   final List<Nap>? naps;
   final double? restingHeartRateBpm;
   final double? hrvRmssdMs;
@@ -307,6 +308,7 @@ class DailyWearableData {
     this.remSleepMinutes,
     this.timeInBedMinutes,
     this.sleepOnsetTimestamp,
+    this.sleepWakeTimestamp,
     this.naps,
     this.restingHeartRateBpm,
     this.hrvRmssdMs,
@@ -329,6 +331,7 @@ class DailyWearableData {
       remSleepMinutes: remSleepMinutes,
       timeInBedMinutes: timeInBedMinutes,
       sleepOnsetTimestamp: sleepOnsetTimestamp,
+      sleepWakeTimestamp: sleepWakeTimestamp,
       naps: naps,
       restingHeartRateBpm: restingHeartRateBpm ?? this.restingHeartRateBpm,
       hrvRmssdMs: hrvRmssdMs ?? this.hrvRmssdMs,

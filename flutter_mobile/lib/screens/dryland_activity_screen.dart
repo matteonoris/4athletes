@@ -8,6 +8,7 @@ import '../models/models.dart';
 import '../models/training_activity_models.dart';
 import '../providers/app_state.dart';
 import '../services/training_activity_service.dart';
+import '../utils/strength_pr_utils.dart';
 import '../widgets/custom_card.dart';
 
 class DrylandActivityScreen extends StatefulWidget {
@@ -172,12 +173,11 @@ class _DrylandActivityScreenState extends State<DrylandActivityScreen> {
   }
 
   double _oneRepMaxForExercise(AppState appState, String exerciseId) {
-    var maxLoad = appState.userProfile?.oneRepMax?[exerciseId] ?? 0.0;
-    for (final log
-        in appState.prLogs.where((log) => log.exerciseId == exerciseId)) {
-      if (log.weight > maxLoad) maxLoad = log.weight;
-    }
-    return maxLoad;
+    return currentOneRepMaxForExercise(
+      exerciseId,
+      appState.prLogs,
+      profileOneRepMax: appState.userProfile?.oneRepMax,
+    );
   }
 
   double? _percent1RMForSet(
