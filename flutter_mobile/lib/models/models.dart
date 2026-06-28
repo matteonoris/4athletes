@@ -218,7 +218,7 @@ class UserProfile {
 class BodyMetricLog {
   String id;
   String date;
-  String type; // 'weight' | 'height' | 'fat'
+  String type; // Body, health, score, or coach-defined metric key.
   double value;
 
   BodyMetricLog({

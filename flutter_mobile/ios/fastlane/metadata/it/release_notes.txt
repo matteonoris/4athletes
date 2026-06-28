@@ -1,7 +1,7 @@
-Build TestFlight dedicata a punteggi sonno Health, grafici trend e PR forza.
+Build TestFlight dedicata a import Health, persistenza metriche wearable e leggibilita' delle sessioni dryland.
 
-- Assegna le fasi di sonno notturne alla data di risveglio, includendo il sonno prima di mezzanotte.
-- Calcola la regolarita' del sonno usando sia ora di addormentamento sia ora di risveglio nella finestra recente.
-- Aggiorna la cache Health di oggi cosi' i dati parziali del mattino possono essere corretti.
-- Mostra le bande trend dei punteggi come variabilita' mobile invece di una deviazione statica.
-- Usa l'ultimo log PR come massimale corrente nelle schermate di allenamento forza.
+- Mappa piu' tipi di allenamento Apple Health, inclusi core training, Pilates, mixed cardio, scale, arti marziali e recupero.
+- Mantiene le card dei punteggi Health popolate dai log salvati quando si guardano giorni passati o il sonno di oggi e' ancora incompleto.
+- Sincronizza uno storico wearable piu' ampio e salva da remoto SpO2, frequenza respiratoria, temperatura, HRV e peso.
+- Migliora i riepiloghi dryland con blocchi forza espandibili, dettagli set, badge, volume, carico massimo e percentuali 1RM.
+- Rifinisce il layout dell'intestazione stagionale sugli schermi stretti.

@@ -95,6 +95,14 @@ class AppState extends ChangeNotifier {
 
   double? get currentStrainScore => strainScoreForDate(DateTime.now());
 
+  double? sleepScoreForDate(DateTime date) {
+    return _scoreLogValueForDate('sleep_score', localDateKey(date));
+  }
+
+  double? recoveryScoreForDate(DateTime date) {
+    return _scoreLogValueForDate('recovery_score', localDateKey(date));
+  }
+
   double? strainScoreForDate(DateTime date) {
     final dateKey = localDateKey(date);
     if (dateKey == localDateKey(DateTime.now())) {
@@ -102,12 +110,43 @@ class AppState extends ChangeNotifier {
       if (currentMetric != null) return currentMetric;
     }
 
+    return _scoreLogValueForDate('strain_score', dateKey);
+  }
+
+  double? _scoreLogValueForDate(String type, String dateKey) {
     for (final log in _bodyLogs.reversed) {
-      if (log.type == 'strain_score' && log.date == dateKey) {
+      if (log.type == type && log.date == dateKey) {
         return log.value;
       }
     }
     return null;
+  }
+
+  bool _hydrateCurrentScoresFromLogs(String dateKey) {
+    final sleepScore = _scoreLogValueForDate('sleep_score', dateKey);
+    final recoveryScore = _scoreLogValueForDate('recovery_score', dateKey);
+    final strainScore = _scoreLogValueForDate('strain_score', dateKey);
+
+    if (sleepScore == null && recoveryScore == null && strainScore == null) {
+      return false;
+    }
+
+    _currentSleepScore = sleepScore;
+    _currentRecoveryScore = recoveryScore;
+    _currentDailyMetrics = {
+      if (strainScore != null) 'strainScore': strainScore,
+    };
+    _currentHistoricalMetrics ??= <String, List<double>>{};
+    _currentLocalSleepHistory ??= <Map<String, dynamic>>[];
+
+    if (recoveryScore == null && sleepScore != null) {
+      _healthSyncError = "CALIBRATION_PHASE";
+    }
+
+    _healthSyncCompleted = true;
+    _isSyncingHealth = false;
+    notifyListeners();
+    return true;
   }
 
   Map<String, double>? _currentDailyMetrics;
@@ -129,6 +168,7 @@ class AppState extends ChangeNotifier {
 
   String? _healthSyncError;
   String? get healthSyncError => _healthSyncError;
+  static const int _healthMetricSyncLookbackDays = 90;
 
   void _clearCurrentHealthScores() {
     _currentSleepScore = null;
@@ -256,6 +296,7 @@ class AppState extends ChangeNotifier {
     }
 
     if (targetDay.isBefore(today)) {
+      if (_hydrateCurrentScoresFromLogs(dateKey)) return;
       _healthSyncCompleted = true;
       _isSyncingHealth = false;
       notifyListeners();
@@ -397,8 +438,10 @@ class AppState extends ChangeNotifier {
       if (errStr.contains('CALIBRATION_PHASE')) {
         _healthSyncError = "CALIBRATION_PHASE";
       } else if (errStr.contains('NO_TODAY_SLEEP_DATA')) {
-        _clearCurrentHealthScores();
-        _healthSyncError = "NO_TODAY_SLEEP_DATA";
+        if (!_hydrateCurrentScoresFromLogs(dateKey)) {
+          _clearCurrentHealthScores();
+          _healthSyncError = "NO_TODAY_SLEEP_DATA";
+        }
       } else if (errStr.contains('Health Connect')) {
         _healthSyncError = "HEALTH_CONNECT_NOT_INSTALLED";
       } else {
@@ -2056,23 +2099,24 @@ class AppState extends ChangeNotifier {
 
   Future<void> syncDailyHealthMetrics() async {
     try {
-      final results = await HealthService().syncDailyHealthMetrics(days: 7);
+      final results = await HealthService()
+          .syncDailyHealthMetrics(days: _healthMetricSyncLookbackDays);
 
       for (var rhrLog in results['resting_hr']!) {
         final exists = _bodyLogs
             .any((l) => l.type == 'resting_hr' && l.date == rhrLog.date);
         if (!exists) {
-          addBodyLog(rhrLog);
+          await addBodyLog(rhrLog);
         }
       }
 
-      // Local only metrics
+      // Persist optional wearable metrics so they survive reinstall/device changes.
       for (var metricKey in ['spo2', 'resp', 'temp']) {
         for (var log in results[metricKey]!) {
           final exists =
               _bodyLogs.any((l) => l.type == metricKey && l.date == log.date);
           if (!exists) {
-            addLocalBodyLog(log);
+            await addBodyLog(log);
           }
         }
       }
@@ -2117,7 +2161,7 @@ class AppState extends ChangeNotifier {
           final exists =
               _bodyLogs.any((l) => l.type == 'hrv' && l.date == dateStr);
           if (!exists) {
-            addBodyLog(BodyMetricLog(
+            await addBodyLog(BodyMetricLog(
                 id: 'hrv_$dateStr',
                 date: dateStr,
                 type: 'hrv',
@@ -2130,7 +2174,7 @@ class AppState extends ChangeNotifier {
           final exists =
               _bodyLogs.any((l) => l.type == 'hrv' && l.date == hrvLog.date);
           if (!exists) {
-            addBodyLog(hrvLog);
+            await addBodyLog(hrvLog);
           }
         }
       }
@@ -2141,7 +2185,7 @@ class AppState extends ChangeNotifier {
           final exists = _bodyLogs
               .any((l) => l.type == 'weight' && l.date == weightLog.date);
           if (!exists) {
-            addBodyLog(weightLog);
+            await addBodyLog(weightLog);
           }
         }
       }
@@ -2150,7 +2194,7 @@ class AppState extends ChangeNotifier {
     }
   }
 
-  void addBodyLog(BodyMetricLog log) async {
+  Future<void> addBodyLog(BodyMetricLog log) async {
     // Aggiornamento ottimistico locale
     final existingIndex =
         _bodyLogs.indexWhere((l) => l.type == log.type && l.date == log.date);

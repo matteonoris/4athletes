@@ -1500,32 +1500,32 @@ class ActivityDetailsScreen extends StatelessWidget {
   }
 
   Widget _drylandBlockSummary(BuildContext context, TrainingBlock block) {
-    final rows = <String>[];
+    final rows = <Widget>[];
     final logs = _effectivePrLogs(context);
+    final exerciseGroups = <String, List<ExerciseEntry>>{};
     for (final exercise in block.exercises) {
-      rows.add('${exercise.name} · ${exercise.sets.length} serie');
+      exerciseGroups
+          .putIfAbsent(_drylandExerciseGroupKey(exercise), () => [])
+          .add(exercise);
     }
-    for (final exercise in block.exercises) {
-      final maxLoad = _oneRepMaxForExercise(context, exercise.exerciseId, logs);
-      for (final entry in exercise.sets.asMap().entries) {
-        final set = entry.value;
-        rows.add(
-          '${exercise.name} · ${_strengthSetText(
-            entry.key,
-            kg: set.kg,
-            reps: set.reps,
-            durationSeconds: set.durationSeconds,
-            percent1RM: set.percent1RM,
-            maxLoad: maxLoad,
-          )}',
-        );
-      }
+    for (final exercises in exerciseGroups.values) {
+      rows.add(_drylandStrengthExerciseTile(context, exercises, logs));
     }
     for (final entry in block.plyometrics) {
-      rows.add('${entry.exerciseName} · ${entry.totalContacts} contatti');
+      rows.add(_drylandCompactLine(
+        context,
+        entry.exerciseName,
+        '${entry.sets.length} serie',
+        '${entry.totalContacts} contatti',
+      ));
     }
     for (final drill in block.drills) {
-      rows.add('${drill.name} · ${drill.sets ?? 0} serie');
+      rows.add(_drylandCompactLine(
+        context,
+        drill.name,
+        '${drill.sets ?? 0} serie',
+        null,
+      ));
     }
     final circuits = block.metrics['circuits'];
     if (circuits is List) {
@@ -1536,19 +1536,25 @@ class ActivityDetailsScreen extends StatelessWidget {
         final rest = item['restSeconds']?.toString() ?? '-';
         final intervalCount =
             item['intervals'] is List ? (item['intervals'] as List).length : 0;
-        rows.add(intervalCount > 0
-            ? '$name Â· ${rounds}x Â· $intervalCount intervalli'
-            : '$name Â· ${rounds}x Â· ${work}s/${rest}s');
+        rows.add(_drylandCompactLine(
+          context,
+          name,
+          '${rounds}x',
+          intervalCount > 0 ? '$intervalCount intervalli' : '${work}s/${rest}s',
+        ));
       }
     }
     if (block.endurance != null) {
       final endurance = block.endurance!;
-      rows.add(
-        '${(endurance.durationSeconds ?? 0) ~/ 60} min · ${(endurance.distanceKm ?? 0).toStringAsFixed(1)} km',
-      );
+      rows.add(_drylandCompactLine(
+        context,
+        'Resistenza',
+        '${(endurance.durationSeconds ?? 0) ~/ 60} min',
+        '${(endurance.distanceKm ?? 0).toStringAsFixed(1)} km',
+      ));
     }
     if (rows.isEmpty && (block.notes ?? '').isNotEmpty) {
-      rows.add(block.notes!);
+      rows.add(_drylandCompactLine(context, block.notes!, null, null));
     }
 
     return Container(
@@ -1573,16 +1579,263 @@ class ActivityDetailsScreen extends StatelessWidget {
           const SizedBox(height: 8),
           for (final row in rows)
             Padding(
-              padding: const EdgeInsets.only(bottom: 4),
-              child: Text(
-                row,
-                style: TextStyle(
-                  color: AppTheme.textMediumEmphasis,
-                  fontSize: 13,
-                ),
-              ),
+              padding: const EdgeInsets.only(bottom: 8),
+              child: row,
             ),
         ],
+      ),
+    );
+  }
+
+  Widget _drylandStrengthExerciseTile(
+    BuildContext context,
+    List<ExerciseEntry> exercises,
+    List<PRLog> logs,
+  ) {
+    final exercise = exercises.first;
+    final sets = exercises.expand((entry) => entry.sets).toList();
+    final totalReps = sets.fold<int>(0, (sum, set) => sum + (set.reps ?? 0));
+    final volume = sets.fold<double>(0, (sum, set) => sum + set.volumeKg);
+    final completedSets = sets
+        .where((set) =>
+            (set.kg ?? 0) > 0 ||
+            (set.reps ?? 0) > 0 ||
+            (set.durationSeconds ?? 0) > 0)
+        .length;
+    final maxLoad = _oneRepMaxForExercise(context, exercise.exerciseId, logs);
+    final topLoad = sets.fold<double>(
+      0,
+      (current, set) => (set.kg ?? 0) > current ? set.kg! : current,
+    );
+    final subtitle = <String>[
+      '${sets.length} serie',
+      if (completedSets != sets.length) '$completedSets compilate',
+      if (totalReps > 0) '$totalReps reps',
+      if (volume > 0) '${_formatLoad(volume)} kg volume',
+      if (topLoad > 0) '${_formatLoad(topLoad)} kg max',
+    ];
+
+    return Container(
+      decoration: BoxDecoration(
+        color: AppTheme.subtleFill,
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: AppTheme.subtleBorder),
+      ),
+      child: Theme(
+        data: Theme.of(context).copyWith(dividerColor: Colors.transparent),
+        child: ExpansionTile(
+          tilePadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 2),
+          childrenPadding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
+          dense: true,
+          title: Text(
+            exercise.name,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: TextStyle(
+              color: AppTheme.textHighEmphasis,
+              fontWeight: FontWeight.w700,
+              fontSize: 14,
+            ),
+          ),
+          subtitle: Padding(
+            padding: const EdgeInsets.only(top: 4),
+            child: Wrap(
+              spacing: 6,
+              runSpacing: 6,
+              children: subtitle
+                  .map((label) => _drylandSmallBadge(label, AppTheme.primary))
+                  .toList(),
+            ),
+          ),
+          iconColor: AppTheme.textMediumEmphasis,
+          collapsedIconColor: AppTheme.textMediumEmphasis,
+          children: [
+            if (exercise.equipment != null ||
+                exercise.variant != null ||
+                _drylandUnilateralModeLabel(exercise.unilateralMode) !=
+                    null) ...[
+              _drylandSetMetaRow(
+                context,
+                'Setup',
+                [
+                  if (exercise.equipment != null) exercise.equipment!,
+                  if (exercise.variant != null) exercise.variant!,
+                  if (_drylandUnilateralModeLabel(exercise.unilateralMode) !=
+                      null)
+                    _drylandUnilateralModeLabel(exercise.unilateralMode)!,
+                ].join(' · '),
+              ),
+              const SizedBox(height: 8),
+            ],
+            for (final entry in sets.asMap().entries)
+              _drylandSetRow(
+                context,
+                entry.key,
+                entry.value,
+                maxLoad,
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  String _drylandExerciseGroupKey(ExerciseEntry exercise) {
+    final id = exercise.exerciseId.trim().isEmpty
+        ? exercise.name.trim().toLowerCase()
+        : exercise.exerciseId.trim().toLowerCase();
+    return [
+      id,
+      exercise.name.trim().toLowerCase(),
+      exercise.equipment?.trim().toLowerCase() ?? '',
+      exercise.variant?.trim().toLowerCase() ?? '',
+      exercise.unilateralMode,
+    ].join('|');
+  }
+
+  Widget _drylandCompactLine(
+    BuildContext context,
+    String title,
+    String? primary,
+    String? secondary,
+  ) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      decoration: BoxDecoration(
+        color: AppTheme.subtleFill,
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: AppTheme.subtleBorder),
+      ),
+      child: Row(
+        children: [
+          Expanded(
+            child: Text(
+              title,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(
+                color: AppTheme.textHighEmphasis,
+                fontWeight: FontWeight.w700,
+                fontSize: 14,
+              ),
+            ),
+          ),
+          if (primary != null) _drylandSmallBadge(primary, AppTheme.primary),
+          if (secondary != null) ...[
+            const SizedBox(width: 6),
+            _drylandSmallBadge(secondary, AppTheme.secondary),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Widget _drylandSetRow(
+    BuildContext context,
+    int setIndex,
+    StrengthSet set,
+    double maxLoad,
+  ) {
+    final load = set.kg ?? 0;
+    final pct = (set.percent1RM ?? 0) > 0
+        ? set.percent1RM!
+        : maxLoad > 0 && load > 0
+            ? (load / maxLoad) * 100
+            : null;
+    final details = <String>[
+      if (load > 0) '${_formatLoad(load)} kg',
+      if ((set.reps ?? 0) > 0) '${set.reps} reps',
+      if ((set.durationSeconds ?? 0) > 0) '${set.durationSeconds}s',
+      if (pct != null) '${pct.toStringAsFixed(0)}% 1RM',
+      if (_drylandSideLabel(set.side) != null) _drylandSideLabel(set.side)!,
+      if ((set.rpe ?? 0) > 0) 'RPE ${set.rpe}',
+      if ((set.rir ?? 0) > 0) 'RIR ${set.rir}',
+      if ((set.restSeconds ?? 0) > 0) 'rec ${set.restSeconds}s',
+      if ((set.tempo ?? '').isNotEmpty) 'tempo ${set.tempo}',
+    ];
+    final value = details.isEmpty ? 'dati non compilati' : details.join(' · ');
+
+    return _drylandSetMetaRow(context, 'Set ${setIndex + 1}', value);
+  }
+
+  String? _drylandSideLabel(String side) {
+    switch (side) {
+      case TrainingSide.right:
+        return 'dx';
+      case TrainingSide.left:
+        return 'sx';
+      case TrainingSide.both:
+        return 'entrambi';
+      default:
+        return null;
+    }
+  }
+
+  String? _drylandUnilateralModeLabel(String mode) {
+    switch (mode) {
+      case UnilateralMode.right:
+        return 'lato destro';
+      case UnilateralMode.left:
+        return 'lato sinistro';
+      case UnilateralMode.bilateral:
+        return null;
+      default:
+        return mode;
+    }
+  }
+
+  Widget _drylandSetMetaRow(
+    BuildContext context,
+    String label,
+    String value,
+  ) {
+    return Padding(
+      padding: const EdgeInsets.only(top: 8),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          SizedBox(
+            width: 52,
+            child: Text(
+              label,
+              style: TextStyle(
+                color: AppTheme.textLowEmphasis,
+                fontSize: 11,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+          ),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              value,
+              style: TextStyle(
+                color: AppTheme.textMediumEmphasis,
+                fontSize: 12,
+                height: 1.3,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _drylandSmallBadge(String label, Color color) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: AppTheme.isDark ? 0.14 : 0.10),
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Text(
+        label,
+        style: TextStyle(
+          color: color,
+          fontSize: 10,
+          fontWeight: FontWeight.w700,
+        ),
       ),
     );
   }

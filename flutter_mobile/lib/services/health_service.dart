@@ -842,10 +842,30 @@ class HealthService {
         return 'weightlifting';
       case 'HIGH_INTENSITY_INTERVAL_TRAINING':
       case 'CROSS_TRAINING':
+      case 'MIXED_CARDIO':
         return 'crossfit';
       case 'YOGA':
       case 'FLEXIBILITY':
+      case 'MIND_AND_BODY':
         return 'yoga';
+      case 'CORE_TRAINING':
+      case 'ELLIPTICAL':
+      case 'STAIR_CLIMBING':
+      case 'STAIRS':
+      case 'STEP_TRAINING':
+      case 'PREPARATION_AND_RECOVERY':
+      case 'HKWORKOUT_3000':
+      case 'OTHER':
+        return 'athletic_prep';
+      case 'PILATES':
+        return 'pilates';
+      case 'ROWING':
+      case 'ROWING_MACHINE':
+        return 'rowing';
+      case 'MARTIAL_ARTS':
+        return 'martial_arts';
+      case 'KICKBOXING':
+        return 'kickboxing';
       case 'DOWNHILL_SKIING':
       case 'DOWNHILL_SKI':
       case 'ALPINE_SKIING':

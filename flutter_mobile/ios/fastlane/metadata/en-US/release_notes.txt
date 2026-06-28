@@ -1,7 +1,7 @@
-TestFlight build focused on Health sleep scoring, trend charts, and strength PR accuracy.
+TestFlight build focused on Health workout import coverage, wearable metric persistence, and dryland session readability.
 
-- Assigns overnight sleep stages to the wake-up date so pre-midnight sleep is included.
-- Updates sleep regularity to consider both bedtime and wake time across the recent window.
-- Refreshes today's Health cache behavior so partial morning sleep data can be corrected.
-- Shows score trend bands as rolling variability instead of a single static deviation.
-- Uses the latest strength PR log as the current one-rep max across training screens.
+- Maps more Apple Health workout types, including core training, Pilates, mixed cardio, stairs, martial arts, and recovery sessions.
+- Keeps Health score cards populated from saved logs when viewing past days or when today's sleep data is still incomplete.
+- Syncs a longer wearable metric history and stores SpO2, respiratory rate, temperature, HRV, and weight logs remotely.
+- Improves dryland training summaries with expandable strength blocks, set details, badges, volume, max load, and 1RM percentages.
+- Refines the seasonal dashboard header layout on narrow screens.

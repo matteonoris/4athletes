@@ -113,10 +113,15 @@ class _DashboardViewState extends State<_DashboardView> {
     super.initState();
     _selectedSeason = _getCurrentSeason();
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      final appState = Provider.of<AppState>(context, listen: false);
-      appState.syncDailyHealthData(_currentDate);
-      appState.syncHealthWorkouts();
+      _syncInitialHealthData();
     });
+  }
+
+  Future<void> _syncInitialHealthData() async {
+    final appState = Provider.of<AppState>(context, listen: false);
+    await appState.syncHealthWorkouts();
+    if (!mounted) return;
+    await appState.syncDailyHealthData(_currentDate);
   }
 
   String _getCurrentSeason() {
@@ -402,15 +407,9 @@ class _DashboardViewState extends State<_DashboardView> {
               const SizedBox(height: 8),
 
               // Season Performance
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Expanded(
-                    child: Text('Andamento Stagionale',
-                        style: Theme.of(context).textTheme.titleLarge,
-                        overflow: TextOverflow.ellipsis),
-                  ),
-                  DropdownButton<String>(
+              LayoutBuilder(
+                builder: (context, constraints) {
+                  final seasonDropdown = DropdownButton<String>(
                     value: _selectedSeason,
                     dropdownColor: AppTheme.surface,
                     style: const TextStyle(
@@ -425,8 +424,40 @@ class _DashboardViewState extends State<_DashboardView> {
                     onChanged: (v) {
                       if (v != null) setState(() => _selectedSeason = v);
                     },
-                  ),
-                ],
+                  );
+
+                  if (constraints.maxWidth < 330) {
+                    return Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Andamento Stagionale',
+                          style: Theme.of(context).textTheme.titleLarge,
+                          maxLines: 2,
+                        ),
+                        Align(
+                          alignment: Alignment.centerRight,
+                          child: seasonDropdown,
+                        ),
+                      ],
+                    );
+                  }
+
+                  return Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Expanded(
+                        child: Text(
+                          'Andamento Stagionale',
+                          style: Theme.of(context).textTheme.titleLarge,
+                          maxLines: 2,
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      seasonDropdown,
+                    ],
+                  );
+                },
               ),
               const SizedBox(height: 16),
               Row(
@@ -1629,17 +1660,23 @@ class _DashboardViewState extends State<_DashboardView> {
       );
     }
 
-    bool isCalibration = appState.healthSyncError == "CALIBRATION_PHASE";
+    final sleepScore =
+        appState.currentSleepScore ?? appState.sleepScoreForDate(_currentDate);
+    final strainScore = appState.strainScoreForDate(_currentDate);
+    final recoveryScore = appState.currentRecoveryScore ??
+        appState.recoveryScoreForDate(_currentDate);
+    final isCalibration = appState.healthSyncError == "CALIBRATION_PHASE" &&
+        recoveryScore == null;
     if (appState.healthSyncCompleted &&
-        (appState.currentRecoveryScore != null || isCalibration)) {
-      final sleepScore = appState.currentSleepScore;
+        (sleepScore != null ||
+            strainScore != null ||
+            recoveryScore != null ||
+            isCalibration)) {
       final sleepScoreColor =
           sleepScore == null ? Colors.grey[700]! : const Color(0xFF4656E8);
-      final strainScore = appState.strainScoreForDate(_currentDate);
       final strainScoreColor = strainScore == null
           ? Colors.grey[700]!
           : _strainScoreColor(strainScore);
-      final recoveryScore = appState.currentRecoveryScore;
       final recoveryScoreColor = isCalibration
           ? Colors.grey[700]!
           : _recoveryScoreColor(recoveryScore);
@@ -1758,20 +1795,22 @@ class _DashboardViewState extends State<_DashboardView> {
                 secondaryColor: isCalibration
                     ? Colors.grey[500]!
                     : _recoveryScoreHighlight(recoveryScore),
-                onTap: () {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (_) => DailyReadinessDetailsScreen(
-                        title: 'Recovery',
-                        score: recoveryScore,
-                        dailyMetrics: appState.currentDailyMetrics ?? {},
-                        historicalMetrics:
-                            appState.currentHistoricalMetrics ?? {},
-                      ),
-                    ),
-                  );
-                },
+                onTap: recoveryScore == null
+                    ? null
+                    : () {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (_) => DailyReadinessDetailsScreen(
+                              title: 'Recovery',
+                              score: recoveryScore,
+                              dailyMetrics: appState.currentDailyMetrics ?? {},
+                              historicalMetrics:
+                                  appState.currentHistoricalMetrics ?? {},
+                            ),
+                          ),
+                        );
+                      },
               ),
             ],
           ),

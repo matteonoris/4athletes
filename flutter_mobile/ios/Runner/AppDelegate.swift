@@ -235,10 +235,34 @@ import HealthKit
           return "FUNCTIONAL_STRENGTH_TRAINING"
       case .highIntensityIntervalTraining:
           return "HIGH_INTENSITY_INTERVAL_TRAINING"
+      case .coreTraining:
+          return "CORE_TRAINING"
+      case .crossTraining:
+          return "CROSS_TRAINING"
+      case .mixedCardio:
+          return "MIXED_CARDIO"
       case .yoga:
           return "YOGA"
+      case .pilates:
+          return "PILATES"
+      case .flexibility:
+          return "FLEXIBILITY"
+      case .mindAndBody:
+          return "MIND_AND_BODY"
+      case .elliptical:
+          return "ELLIPTICAL"
+      case .stairClimbing:
+          return "STAIR_CLIMBING"
+      case .stairs:
+          return "STAIRS"
+      case .stepTraining:
+          return "STEP_TRAINING"
+      case .preparationAndRecovery:
+          return "PREPARATION_AND_RECOVERY"
       case .downhillSkiing:
           return "DOWNHILL_SKIING"
+      case .snowSports:
+          return "SNOW_SPORTS"
       case .crossCountrySkiing:
           return "CROSS_COUNTRY_SKIING"
       case .snowboarding:
@@ -251,8 +275,12 @@ import HealthKit
           return "BASKETBALL"
       case .tennis:
           return "TENNIS"
+      case .martialArts:
+          return "MARTIAL_ARTS"
+      case .kickboxing:
+          return "KICKBOXING"
       default:
-          return "OTHER"
+          return "HKWORKOUT_\(type.rawValue)"
       }
   }
 }
