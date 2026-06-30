@@ -1,3 +1,5 @@
+// ignore_for_file: unused_element
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
@@ -10,7 +12,6 @@ import '../models/training_activity_models.dart';
 import '../providers/app_state.dart';
 import '../services/training_activity_service.dart';
 import '../utils/coach_training_utils.dart';
-import '../utils/training_metrics_utils.dart';
 import '../widgets/custom_card.dart';
 
 class CoachEventDetailsScreen extends StatefulWidget {
@@ -136,7 +137,7 @@ class _CoachEventDetailsScreenState extends State<CoachEventDetailsScreen> {
   bool _isLoadingAthletes = false;
   bool _isSaving = false;
   String _searchQuery = '';
-  String _drylandCategory = ActivityCategory.strength;
+  String _drylandCategory = ActivityCategory.athleticPrep;
   String _exerciseSearch = '';
   String _equipmentFilter = 'all';
 
@@ -164,6 +165,9 @@ class _CoachEventDetailsScreenState extends State<CoachEventDetailsScreen> {
   bool get _isSpeed => _drylandCategory == ActivityCategory.speedAgility;
   bool get _isCircuit => _drylandCategory == ActivityCategory.circuit;
   bool get _isEndurance => _drylandCategory == ActivityCategory.endurance;
+  bool get _isAthleticPrep =>
+      _sportCategory == 'dryland' &&
+      _drylandCategory == ActivityCategory.athleticPrep;
   bool get _showTechnical =>
       _isSki && _eventStatus == CoachTrainingUtils.statusCompleted;
 
@@ -215,8 +219,9 @@ class _CoachEventDetailsScreenState extends State<CoachEventDetailsScreen> {
         TextEditingController(text: tech['snowCondition'] ?? 'Compatta');
     _weatherCtrl =
         TextEditingController(text: tech['weatherCondition'] ?? 'Sole');
-    _drylandSpecialtyCtrl =
-        TextEditingController(text: event?.drylandSpecialty ?? '');
+    _drylandSpecialtyCtrl = TextEditingController(
+      text: event?.drylandSpecialty ?? 'Preparazione atletica',
+    );
 
     final chrono = tech['chrono'];
     if (chrono is Map) {
@@ -320,10 +325,8 @@ class _CoachEventDetailsScreenState extends State<CoachEventDetailsScreen> {
 
     final category = planned['category']?.toString();
     if (category != null && category.isNotEmpty) {
-      _drylandCategory = category;
-      if (_drylandSpecialtyCtrl.text.trim().isEmpty) {
-        _drylandSpecialtyCtrl.text = _categoryLabel(category);
-      }
+      _drylandCategory = ActivityCategory.athleticPrep;
+      _drylandSpecialtyCtrl.text = _categoryLabel(_drylandCategory);
     }
 
     final blocks = planned['blocks'];
@@ -345,18 +348,51 @@ class _CoachEventDetailsScreenState extends State<CoachEventDetailsScreen> {
     _endurance.clear();
 
     for (final block in blocks) {
-      if (block.type == TrainingBlockType.strength ||
-          block.type == TrainingBlockType.mobility ||
-          block.type == TrainingBlockType.core) {
+      final phase = _phaseFromBlock(block);
+      if (block.exercises.isNotEmpty) {
         _strengthExercises.addAll(
-          block.exercises.map((entry) => entry.toJson()),
+          block.exercises.map((entry) => {
+                ...entry.toJson(),
+                'phase': phase,
+              }),
         );
       } else if (block.type == TrainingBlockType.plyometrics) {
-        _plyometricExercises.addAll(
-          block.plyometrics.map((entry) => entry.toJson()),
-        );
+        _strengthExercises.addAll(block.plyometrics.map((entry) => {
+              'exerciseId': entry.type,
+              'name': entry.exerciseName,
+              'equipment': null,
+              'unilateralMode': entry.unilateralMode,
+              'sets': entry.sets
+                  .map((set) => {
+                        'setNumber': set.setNumber,
+                        'reps': set.reps ?? set.contacts,
+                        'durationSeconds': null,
+                        'restSeconds': set.restSeconds,
+                        'notes': set.notes,
+                        'side': set.side,
+                      })
+                  .toList(),
+              'phase': phase,
+            }));
       } else if (block.type == TrainingBlockType.speedAgility) {
-        _speedDrills.addAll(block.drills.map((entry) => entry.toJson()));
+        _strengthExercises.addAll(block.drills.map((drill) => {
+              'exerciseId': drill.type,
+              'name': drill.name,
+              'equipment':
+                  drill.equipment.isEmpty ? null : drill.equipment.join(', '),
+              'unilateralMode': UnilateralMode.bilateral,
+              'sets': List.generate(
+                drill.sets ?? 1,
+                (index) => {
+                  'setNumber': index + 1,
+                  'reps': drill.reps,
+                  'durationSeconds': drill.timeSeconds?.round(),
+                  'restSeconds': drill.restSeconds,
+                  'side': TrainingSide.none,
+                },
+              ),
+              'phase': phase,
+            }));
       } else if (block.type == TrainingBlockType.circuit) {
         final circuits = block.metrics['circuits'];
         if (circuits is List) {
@@ -374,6 +410,41 @@ class _CoachEventDetailsScreenState extends State<CoachEventDetailsScreen> {
   }
 
   List<TrainingBlock> _buildDrylandBlocks() {
+    if (_isAthleticPrep) {
+      final blocks = <TrainingBlock>[];
+      for (final phase in TrainingPhase.ordered) {
+        final phaseExercises = _strengthExercises
+            .where((item) => _phaseFromExerciseMap(item) == phase)
+            .toList();
+        final grouped = <String, List<Map<String, dynamic>>>{};
+        for (final exercise in phaseExercises) {
+          final type = _exerciseBlockTypeForExercise(exercise);
+          grouped.putIfAbsent(type, () => []).add(exercise);
+        }
+        for (final entry in grouped.entries) {
+          blocks.add(TrainingBlock(
+            id: '${phase}_${entry.key}_${blocks.length + 1}',
+            type: entry.key,
+            name: TrainingPhase.label(phase),
+            exercises: entry.value
+                .map((item) => ExerciseEntry.fromJson(item))
+                .toList(),
+            metrics: {'phase': phase},
+          ));
+        }
+      }
+      if (blocks.isEmpty && _notesCtrl.text.trim().isNotEmpty) {
+        blocks.add(TrainingBlock(
+          id: 'note_1',
+          type: TrainingBlockType.note,
+          name: TrainingPhase.label(TrainingPhase.main),
+          metrics: const {'phase': TrainingPhase.main},
+          notes: _notesCtrl.text.trim(),
+        ));
+      }
+      return blocks;
+    }
+
     final blocks = <TrainingBlock>[];
     if (_strengthExercises.isNotEmpty) {
       blocks.add(TrainingBlock(
@@ -463,7 +534,9 @@ class _CoachEventDetailsScreenState extends State<CoachEventDetailsScreen> {
       source: source,
       status: status,
       category: _drylandCategory,
-      sportType: 'dryland_${_drylandCategory.replaceAll('_', '-')}',
+      sportType: _isAthleticPrep
+          ? 'athletic_prep'
+          : 'dryland_${_drylandCategory.replaceAll('_', '-')}',
       title: _titleCtrl.text.trim().isEmpty
           ? _categoryLabel(_drylandCategory)
           : _titleCtrl.text.trim(),
@@ -826,10 +899,6 @@ class _CoachEventDetailsScreenState extends State<CoachEventDetailsScreen> {
           ),
           const SizedBox(height: 14),
           _input('Luogo', _locationCtrl, icon: Icons.location_on_outlined),
-          if (!_isSki) ...[
-            const SizedBox(height: 14),
-            _input('Tipo allenamento', _drylandSpecialtyCtrl),
-          ],
         ],
       ),
     );
@@ -929,16 +998,7 @@ class _CoachEventDetailsScreenState extends State<CoachEventDetailsScreen> {
 
   Widget _buildDrylandPlanSection() {
     final blocks = _buildDrylandBlocks();
-    final activity = _buildDrylandActivity(
-      id: widget.event?.id ?? 'planned_dryland',
-      source: ActivitySource.coach,
-      status: ActivityStatus.planned,
-      blocks: blocks,
-    );
-    final strength = TrainingMetricsUtils.strengthSummary([activity]);
-    final plyo = TrainingMetricsUtils.plyometricSummary([activity]);
-    final speed = TrainingMetricsUtils.speedAgilitySummary([activity]);
-    final endurance = TrainingMetricsUtils.enduranceSummary([activity]);
+    final exerciseCount = _strengthExercises.length;
 
     return _sectionCard(
       title: 'Programma preparazione',
@@ -946,38 +1006,6 @@ class _CoachEventDetailsScreenState extends State<CoachEventDetailsScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Wrap(
-            spacing: 8,
-            runSpacing: 8,
-            children: const [
-              ActivityCategory.strength,
-              ActivityCategory.plyometrics,
-              ActivityCategory.speedAgility,
-              ActivityCategory.mobility,
-              ActivityCategory.core,
-              ActivityCategory.circuit,
-            ].map((category) {
-              final selected = _drylandCategory == category;
-              return ChoiceChip(
-                label: Text(_categoryLabel(category)),
-                selected: selected,
-                selectedColor: AppTheme.primary,
-                backgroundColor: AppTheme.background,
-                labelStyle: TextStyle(
-                  color: selected ? Colors.white : AppTheme.textMediumEmphasis,
-                  fontWeight: FontWeight.bold,
-                ),
-                side: BorderSide(
-                  color: selected ? AppTheme.primary : AppTheme.subtleFill,
-                ),
-                onSelected: (_) => setState(() {
-                  _drylandCategory = category;
-                  _drylandSpecialtyCtrl.text = _categoryLabel(category);
-                }),
-              );
-            }).toList(),
-          ),
-          const SizedBox(height: 16),
           _drylandTemplateRow(),
           const SizedBox(height: 16),
           if (blocks.isNotEmpty) ...[
@@ -985,49 +1013,102 @@ class _CoachEventDetailsScreenState extends State<CoachEventDetailsScreen> {
               spacing: 8,
               runSpacing: 8,
               children: [
-                if (strength.totalSets > 0)
-                  _drylandMetricBadge(
-                    'Forza',
-                    '${strength.totalSets} serie / ${strength.volumeKg.round()} kg',
-                  ),
-                if (plyo.totalContacts > 0)
-                  _drylandMetricBadge(
-                    'Pliometria',
-                    '${plyo.totalContacts} contatti',
-                  ),
-                if (speed.drillCount > 0)
-                  _drylandMetricBadge(
-                    'Vel./Ag.',
-                    '${speed.drillCount} drill',
-                  ),
-                if (endurance.durationSeconds > 0 || endurance.distanceKm > 0)
-                  _drylandMetricBadge(
-                    'Resistenza',
-                    '${(endurance.durationSeconds / 60).round()} min / ${endurance.distanceKm.toStringAsFixed(1)} km',
-                  ),
-                if (_circuits.isNotEmpty)
-                  _drylandMetricBadge(
-                    'Circuito',
-                    '${_circuits.length} blocchi',
-                  ),
+                _drylandMetricBadge('Esercizi', exerciseCount.toString()),
+                _drylandMetricBadge('Parti', '${blocks.length} blocchi'),
               ],
             ),
             const SizedBox(height: 16),
           ],
-          if (_isExerciseCategory)
-            _coachStrengthEditor()
-          else if (_isPlyometrics)
-            _coachPlyometricsEditor()
-          else if (_isSpeed)
-            _coachSpeedEditor()
-          else if (_isCircuit)
-            _coachCircuitEditor()
-          else if (_isEndurance)
-            _coachEnduranceEditor()
-          else
+          for (final phase in TrainingPhase.ordered) ...[
+            _athleticPrepPhaseEditor(phase),
+            if (phase != TrainingPhase.ordered.last) const SizedBox(height: 16),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Widget _athleticPrepPhaseEditor(String phase) {
+    final exercises = _strengthExercises
+        .asMap()
+        .entries
+        .where((entry) => _phaseFromExerciseMap(entry.value) == phase)
+        .toList();
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(12),
+      decoration: _drylandPanelDecoration(),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            TrainingPhase.label(phase),
+            style: TextStyle(
+              color: AppTheme.textHighEmphasis,
+              fontWeight: FontWeight.bold,
+              fontSize: 15,
+            ),
+          ),
+          const SizedBox(height: 10),
+          TextField(
+            onChanged: (value) => setState(() => _exerciseSearch = value),
+            style: TextStyle(color: AppTheme.textHighEmphasis),
+            decoration: InputDecoration(
+              hintText: 'Cerca esercizio',
+              prefixIcon: const Icon(Icons.search),
+              filled: true,
+              fillColor: AppTheme.background,
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(12),
+                borderSide: BorderSide.none,
+              ),
+            ),
+          ),
+          const SizedBox(height: 10),
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: const [
+              'all',
+              'barbell',
+              'dumbbell',
+              'machine',
+              'cable',
+              'bodyweight',
+              'kettlebell',
+              'band',
+            ].map((equipment) {
+              final selected = _equipmentFilter == equipment;
+              return ChoiceChip(
+                label: Text(equipment == 'all' ? 'Tutti' : equipment),
+                selected: selected,
+                onSelected: (_) => setState(() => _equipmentFilter = equipment),
+                selectedColor: AppTheme.primary,
+                backgroundColor: AppTheme.background,
+                labelStyle: TextStyle(
+                  color: selected ? Colors.white : AppTheme.textMediumEmphasis,
+                  fontWeight: FontWeight.bold,
+                ),
+              );
+            }).toList(),
+          ),
+          const SizedBox(height: 10),
+          _exercisePicker(phase),
+          const SizedBox(height: 10),
+          TextButton.icon(
+            onPressed: () => _createCustomStrengthExercise(phase: phase),
+            icon: const Icon(Icons.add_circle_outline),
+            label: const Text('Crea esercizio personalizzato'),
+          ),
+          if (exercises.isEmpty)
             Text(
-              'Usa le note coach per descrivere questa seduta.',
+              'Aggiungi esercizi dal database unico.',
               style: TextStyle(color: AppTheme.textMediumEmphasis),
+            )
+          else
+            ...exercises.map(
+              (entry) => _strengthExerciseCard(entry.key, entry.value),
             ),
         ],
       ),
@@ -1037,7 +1118,14 @@ class _CoachEventDetailsScreenState extends State<CoachEventDetailsScreen> {
   Widget _drylandTemplateRow() {
     return Selector<AppState, List<WorkoutTemplate>>(
       selector: (_, state) => state.workoutTemplates
-          .where((template) => template.category == _drylandCategory)
+          .where((template) =>
+              template.category == ActivityCategory.athleticPrep ||
+              template.category == ActivityCategory.strength ||
+              template.category == ActivityCategory.plyometrics ||
+              template.category == ActivityCategory.speedAgility ||
+              template.category == ActivityCategory.mobility ||
+              template.category == ActivityCategory.core ||
+              template.category == ActivityCategory.circuit)
           .toList(growable: false),
       builder: (context, templates, _) => Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -1177,7 +1265,7 @@ class _CoachEventDetailsScreenState extends State<CoachEventDetailsScreen> {
     );
   }
 
-  Widget _exercisePicker() {
+  Widget _exercisePicker([String phase = TrainingPhase.main]) {
     final query = _exerciseSearch.trim().toLowerCase();
     final filtered = exerciseDatabase.where((exercise) {
       final matchesQuery = query.isEmpty ||
@@ -1185,8 +1273,9 @@ class _CoachEventDetailsScreenState extends State<CoachEventDetailsScreen> {
           exercise.targetMuscle.toLowerCase().contains(query);
       final matchesEquipment =
           _equipmentFilter == 'all' || exercise.category == _equipmentFilter;
-      final matchesActivity =
-          exercise.resolvedActivityCategory == _exerciseActivityFilter();
+      final activityFilter = _exerciseActivityFilter();
+      final matchesActivity = activityFilter == 'all' ||
+          exercise.resolvedActivityCategory == activityFilter;
       return matchesQuery && matchesEquipment && matchesActivity;
     }).take(8);
 
@@ -1207,6 +1296,7 @@ class _CoachEventDetailsScreenState extends State<CoachEventDetailsScreen> {
               exercise.id,
               exercise.name,
               equipment: exercise.category,
+              phase: phase,
             ),
           ),
         );
@@ -1259,7 +1349,7 @@ class _CoachEventDetailsScreenState extends State<CoachEventDetailsScreen> {
                 'setNumber': sets.length + 1,
                 'kg': 0,
                 'reps': 0,
-                'durationSeconds': _usesDurationSets ? 30 : null,
+                'durationSeconds': null,
                 'percent1RM': null,
                 'rpe': null,
                 'rir': null,
@@ -1325,17 +1415,15 @@ class _CoachEventDetailsScreenState extends State<CoachEventDetailsScreen> {
           Expanded(
             child: _inlineNumber('reps', set['reps'], (v) => set['reps'] = v),
           ),
-          if (_usesDurationSets) ...[
-            const SizedBox(width: 6),
-            Expanded(
-              child: _inlineNumber('sec', set['durationSeconds'],
-                  (v) => set['durationSeconds'] = v),
-            ),
-          ],
+          const SizedBox(width: 6),
+          Expanded(
+            child: _inlineNumber('sec', set['durationSeconds'],
+                (v) => set['durationSeconds'] = v),
+          ),
           const SizedBox(width: 6),
           Expanded(
             child: _inlineNumber(
-                '%1RM', set['percent1RM'], (v) => set['percent1RM'] = v),
+                'rec', set['restSeconds'], (v) => set['restSeconds'] = v),
           ),
           IconButton(
             icon: const Icon(Icons.close, color: AppTheme.error, size: 18),
@@ -1784,6 +1872,8 @@ class _CoachEventDetailsScreenState extends State<CoachEventDetailsScreen> {
 
   String _categoryLabel(String category) {
     switch (category) {
+      case ActivityCategory.athleticPrep:
+        return 'Preparazione atletica';
       case ActivityCategory.strength:
         return 'Forza';
       case ActivityCategory.plyometrics:
@@ -1815,7 +1905,47 @@ class _CoachEventDetailsScreenState extends State<CoachEventDetailsScreen> {
     return TrainingBlockType.strength;
   }
 
+  String _phaseFromBlock(TrainingBlock block) {
+    return TrainingPhase.normalize(block.metrics['phase']);
+  }
+
+  String _phaseFromExerciseMap(Map<String, dynamic> exercise) {
+    return TrainingPhase.normalize(exercise['phase']);
+  }
+
+  String _exerciseBlockTypeForExercise(Map<String, dynamic> exercise) {
+    final exerciseId = exercise['exerciseId']?.toString();
+    final name = exercise['name']?.toString();
+    ExerciseDef? definition;
+    for (final item in exerciseDatabase) {
+      if ((exerciseId != null && item.id == exerciseId) ||
+          (name != null && item.name == name)) {
+        definition = item;
+        break;
+      }
+    }
+    final category = definition?.resolvedActivityCategory;
+    switch (category) {
+      case ActivityCategory.mobility:
+        return TrainingBlockType.mobility;
+      case ActivityCategory.core:
+        return TrainingBlockType.core;
+      case ActivityCategory.plyometrics:
+        return TrainingBlockType.plyometrics;
+      case ActivityCategory.speedAgility:
+        return TrainingBlockType.speedAgility;
+      default:
+        return TrainingBlockType.strength;
+    }
+  }
+
+  bool _usesDurationSetsForExercise(Map<String, dynamic> exercise) {
+    final type = _exerciseBlockTypeForExercise(exercise);
+    return type == TrainingBlockType.mobility || type == TrainingBlockType.core;
+  }
+
   String _exerciseActivityFilter() {
+    if (_isAthleticPrep) return 'all';
     if (_drylandCategory == ActivityCategory.mobility) {
       return ActivityCategory.mobility;
     }
@@ -1825,8 +1955,8 @@ class _CoachEventDetailsScreenState extends State<CoachEventDetailsScreen> {
 
   void _applyDrylandTemplate(WorkoutTemplate template) {
     setState(() {
-      _drylandCategory = template.category;
-      _drylandSpecialtyCtrl.text = _categoryLabel(template.category);
+      _drylandCategory = ActivityCategory.athleticPrep;
+      _drylandSpecialtyCtrl.text = _categoryLabel(_drylandCategory);
       _loadDrylandBlocks(template.blocks);
       if (_titleCtrl.text.trim().isEmpty ||
           _titleCtrl.text.trim() == 'Allenamento') {
@@ -1844,14 +1974,44 @@ class _CoachEventDetailsScreenState extends State<CoachEventDetailsScreen> {
       return;
     }
 
-    final nameCtrl = TextEditingController(
-      text: _titleCtrl.text.trim().isEmpty
-          ? _categoryLabel(_drylandCategory)
-          : _titleCtrl.text.trim(),
+    final fallbackName = _titleCtrl.text.trim().isEmpty
+        ? _categoryLabel(_drylandCategory)
+        : _titleCtrl.text.trim();
+    final templateName = await _askTemplateName(fallbackName);
+    if (templateName == null || !mounted) return;
+    await WidgetsBinding.instance.endOfFrame;
+    if (!mounted) return;
+
+    final appState = Provider.of<AppState>(context, listen: false);
+    final activity = _buildDrylandActivity(
+      id: 'template_source',
+      source: ActivitySource.coach,
+      status: ActivityStatus.planned,
+      blocks: blocks,
     );
-    final confirmed = await showDialog<bool>(
+    final template = _trainingActivityService.saveActivityAsTemplate(
+      activity,
+      templateId: DateTime.now().millisecondsSinceEpoch.toString(),
+      name: templateName,
+      ownerType: TemplateOwnerType.coach,
+      ownerId: appState.userId,
+      teamId: _selectedTeams.isEmpty
+          ? appState.userProfile?.teamId
+          : _selectedTeams.first.id,
+      createdBy: appState.userId,
+    );
+    await appState.saveWorkoutTemplate(template);
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('Template salvato.')),
+    );
+  }
+
+  Future<String?> _askTemplateName(String initialName) async {
+    final nameCtrl = TextEditingController(text: initialName);
+    final result = await showDialog<String>(
       context: context,
-      builder: (context) => AlertDialog(
+      builder: (dialogContext) => AlertDialog(
         backgroundColor: AppTheme.card,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
         title: Text(
@@ -1866,51 +2026,21 @@ class _CoachEventDetailsScreenState extends State<CoachEventDetailsScreen> {
         ),
         actions: [
           TextButton(
-            onPressed: () => Navigator.pop(context, false),
+            onPressed: () => Navigator.pop(dialogContext),
             child: const Text('Annulla'),
           ),
           ElevatedButton(
-            onPressed: () => Navigator.pop(context, true),
+            onPressed: () {
+              final name = nameCtrl.text.trim();
+              Navigator.pop(dialogContext, name.isEmpty ? initialName : name);
+            },
             child: const Text('Salva'),
           ),
         ],
       ),
     );
-    if (confirmed != true) {
-      nameCtrl.dispose();
-      return;
-    }
-    if (!mounted) {
-      nameCtrl.dispose();
-      return;
-    }
-
-    final appState = Provider.of<AppState>(context, listen: false);
-    final activity = _buildDrylandActivity(
-      id: 'template_source',
-      source: ActivitySource.coach,
-      status: ActivityStatus.planned,
-      blocks: blocks,
-    );
-    final template = _trainingActivityService.saveActivityAsTemplate(
-      activity,
-      templateId: DateTime.now().millisecondsSinceEpoch.toString(),
-      name: nameCtrl.text.trim().isEmpty
-          ? _categoryLabel(_drylandCategory)
-          : nameCtrl.text.trim(),
-      ownerType: TemplateOwnerType.coach,
-      ownerId: appState.userId,
-      teamId: _selectedTeams.isEmpty
-          ? appState.userProfile?.teamId
-          : _selectedTeams.first.id,
-      createdBy: appState.userId,
-    );
     nameCtrl.dispose();
-    await appState.saveWorkoutTemplate(template);
-    if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Template salvato.')),
-    );
+    return result;
   }
 
   void _addStrengthExercise(
@@ -1918,6 +2048,7 @@ class _CoachEventDetailsScreenState extends State<CoachEventDetailsScreen> {
     String name, {
     String? equipment,
     bool isCustom = false,
+    String phase = TrainingPhase.main,
   }) {
     setState(() {
       _strengthExercises.add({
@@ -1925,12 +2056,13 @@ class _CoachEventDetailsScreenState extends State<CoachEventDetailsScreen> {
         'name': name,
         'equipment': equipment,
         'unilateralMode': UnilateralMode.bilateral,
+        'phase': phase,
         'sets': [
           {
             'setNumber': 1,
             'kg': 0,
             'reps': 0,
-            'durationSeconds': _usesDurationSets ? 30 : null,
+            'durationSeconds': null,
             'percent1RM': null,
             'rpe': null,
             'rir': null,
@@ -1945,7 +2077,9 @@ class _CoachEventDetailsScreenState extends State<CoachEventDetailsScreen> {
     });
   }
 
-  Future<void> _createCustomStrengthExercise() async {
+  Future<void> _createCustomStrengthExercise({
+    String phase = TrainingPhase.main,
+  }) async {
     final nameCtrl = TextEditingController();
     final confirmed = await showDialog<bool>(
       context: context,
@@ -1980,6 +2114,7 @@ class _CoachEventDetailsScreenState extends State<CoachEventDetailsScreen> {
         nameCtrl.text.trim(),
         equipment: 'custom',
         isCustom: true,
+        phase: phase,
       );
     }
     nameCtrl.dispose();

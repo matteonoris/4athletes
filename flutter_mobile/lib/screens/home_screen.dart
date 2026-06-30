@@ -1748,6 +1748,8 @@ class _DashboardViewState extends State<_DashboardView> {
                               dailyMetrics: appState.currentDailyMetrics ?? {},
                               historicalMetrics:
                                   appState.currentHistoricalMetrics ?? {},
+                              localSleepHistory:
+                                  appState.currentLocalSleepHistory ?? const [],
                             ),
                           ),
                         );
@@ -1807,6 +1809,8 @@ class _DashboardViewState extends State<_DashboardView> {
                               dailyMetrics: appState.currentDailyMetrics ?? {},
                               historicalMetrics:
                                   appState.currentHistoricalMetrics ?? {},
+                              localSleepHistory:
+                                  appState.currentLocalSleepHistory ?? const [],
                             ),
                           ),
                         );
@@ -2257,7 +2261,7 @@ class _ScoreRingPainter extends CustomPainter {
       ..style = PaintingStyle.stroke
       ..strokeWidth = 9
       ..strokeCap = StrokeCap.round
-      ..color = AppTheme.surface;
+      ..color = AppTheme.isDark ? AppTheme.surface : AppTheme.subtleBorder;
     canvas.drawCircle(center, radius, trackPaint);
 
     final glowPaint = Paint()

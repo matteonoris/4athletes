@@ -1224,6 +1224,11 @@ class _AthleteEventScreenState extends State<AthleteEventScreen> {
   }
 
   String _drylandSportId() {
+    final planned = widget.event.technicalDetails?['plannedDrylandSession'];
+    if (planned is Map &&
+        planned['category']?.toString() == ActivityCategory.athleticPrep) {
+      return 'athletic_prep';
+    }
     final specialty = widget.event.drylandSpecialty?.trim();
     if (specialty == null || specialty.isEmpty) return 'dryland';
     return 'dryland_${specialty.toLowerCase().replaceAll(RegExp(r'[^a-z0-9]+'), '_')}';
@@ -1233,6 +1238,8 @@ class _AthleteEventScreenState extends State<AthleteEventScreen> {
     switch (category) {
       case ActivityCategory.strength:
         return 'Forza';
+      case ActivityCategory.athleticPrep:
+        return 'Preparazione atletica';
       case ActivityCategory.plyometrics:
         return 'Pliometria';
       case ActivityCategory.speedAgility:

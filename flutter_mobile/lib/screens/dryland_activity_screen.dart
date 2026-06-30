@@ -63,6 +63,9 @@ class _DrylandActivityScreenState extends State<DrylandActivityScreen> {
   bool get _isEndurance =>
       _category == ActivityCategory.endurance ||
       _category == ActivityCategory.sport;
+  bool get _isAthleticPrep => _category == ActivityCategory.athleticPrep;
+  bool get _canChangeExerciseStructure =>
+      widget.initialSession?.details?['from_calendar'] != true;
 
   @override
   void initState() {
@@ -113,18 +116,51 @@ class _DrylandActivityScreenState extends State<DrylandActivityScreen> {
     _circuits.clear();
     _endurance.clear();
     for (final block in blocks) {
-      if (block.type == TrainingBlockType.strength ||
-          block.type == TrainingBlockType.mobility ||
-          block.type == TrainingBlockType.core) {
+      final phase = TrainingPhase.normalize(block.metrics['phase']);
+      if (block.exercises.isNotEmpty) {
         _strengthExercises.addAll(
-          block.exercises.map((entry) => entry.toJson()),
+          block.exercises.map((entry) => {
+                ...entry.toJson(),
+                'phase': phase,
+              }),
         );
       } else if (block.type == TrainingBlockType.plyometrics) {
-        _plyometricExercises.addAll(
-          block.plyometrics.map((entry) => entry.toJson()),
-        );
+        _strengthExercises.addAll(block.plyometrics.map((entry) => {
+              'exerciseId': entry.type,
+              'name': entry.exerciseName,
+              'equipment': null,
+              'unilateralMode': entry.unilateralMode,
+              'sets': entry.sets
+                  .map((set) => {
+                        'setNumber': set.setNumber,
+                        'reps': set.reps ?? set.contacts,
+                        'durationSeconds': null,
+                        'restSeconds': set.restSeconds,
+                        'notes': set.notes,
+                        'side': set.side,
+                      })
+                  .toList(),
+              'phase': phase,
+            }));
       } else if (block.type == TrainingBlockType.speedAgility) {
-        _speedDrills.addAll(block.drills.map((entry) => entry.toJson()));
+        _strengthExercises.addAll(block.drills.map((drill) => {
+              'exerciseId': drill.type,
+              'name': drill.name,
+              'equipment':
+                  drill.equipment.isEmpty ? null : drill.equipment.join(', '),
+              'unilateralMode': UnilateralMode.bilateral,
+              'sets': List.generate(
+                drill.sets ?? 1,
+                (index) => {
+                  'setNumber': index + 1,
+                  'reps': drill.reps,
+                  'durationSeconds': drill.timeSeconds?.round(),
+                  'restSeconds': drill.restSeconds,
+                  'side': TrainingSide.none,
+                },
+              ),
+              'phase': phase,
+            }));
       } else if (block.type == TrainingBlockType.circuit) {
         final circuits = block.metrics['circuits'];
         if (circuits is List) {
@@ -229,6 +265,8 @@ class _DrylandActivityScreenState extends State<DrylandActivityScreen> {
     switch (_category) {
       case ActivityCategory.strength:
         return 'weightlifting';
+      case ActivityCategory.athleticPrep:
+        return 'athletic_prep';
       case ActivityCategory.plyometrics:
         return 'dryland_plyometrics';
       case ActivityCategory.speedAgility:
@@ -252,6 +290,8 @@ class _DrylandActivityScreenState extends State<DrylandActivityScreen> {
     switch (category) {
       case ActivityCategory.strength:
         return 'Forza';
+      case ActivityCategory.athleticPrep:
+        return 'Preparazione atletica';
       case ActivityCategory.plyometrics:
         return 'Pliometria';
       case ActivityCategory.speedAgility:
@@ -283,7 +323,33 @@ class _DrylandActivityScreenState extends State<DrylandActivityScreen> {
     return TrainingBlockType.strength;
   }
 
+  String _exerciseBlockTypeForExercise(Map<String, dynamic> exercise) {
+    final exerciseId = exercise['exerciseId']?.toString();
+    final name = exercise['name']?.toString();
+    ExerciseDef? definition;
+    for (final item in exerciseDatabase) {
+      if ((exerciseId != null && item.id == exerciseId) ||
+          (name != null && item.name == name)) {
+        definition = item;
+        break;
+      }
+    }
+    switch (definition?.resolvedActivityCategory) {
+      case ActivityCategory.mobility:
+        return TrainingBlockType.mobility;
+      case ActivityCategory.core:
+        return TrainingBlockType.core;
+      case ActivityCategory.plyometrics:
+        return TrainingBlockType.plyometrics;
+      case ActivityCategory.speedAgility:
+        return TrainingBlockType.speedAgility;
+      default:
+        return TrainingBlockType.strength;
+    }
+  }
+
   String _exerciseActivityFilter() {
+    if (_isAthleticPrep) return 'all';
     if (_category == ActivityCategory.mobility) {
       return ActivityCategory.mobility;
     }
@@ -308,7 +374,7 @@ class _DrylandActivityScreenState extends State<DrylandActivityScreen> {
         'setNumber': 1,
         'kg': null,
         'reps': null,
-        'durationSeconds': _usesDurationSets ? 30 : null,
+        'durationSeconds': (_usesDurationSets || _isAthleticPrep) ? 30 : null,
         'side': side,
       };
     }
@@ -323,7 +389,29 @@ class _DrylandActivityScreenState extends State<DrylandActivityScreen> {
     _syncAllPercent1RM(appState);
 
     final blocks = <TrainingBlock>[];
-    if (_strengthExercises.isNotEmpty) {
+    if (_isAthleticPrep) {
+      for (final phase in TrainingPhase.ordered) {
+        final phaseExercises = _strengthExercises
+            .where((item) => TrainingPhase.normalize(item['phase']) == phase)
+            .toList();
+        final grouped = <String, List<Map<String, dynamic>>>{};
+        for (final exercise in phaseExercises) {
+          final type = _exerciseBlockTypeForExercise(exercise);
+          grouped.putIfAbsent(type, () => []).add(exercise);
+        }
+        for (final entry in grouped.entries) {
+          blocks.add(TrainingBlock(
+            id: '${phase}_${entry.key}_${blocks.length + 1}',
+            type: entry.key,
+            name: TrainingPhase.label(phase),
+            exercises: entry.value
+                .map((item) => ExerciseEntry.fromJson(item))
+                .toList(),
+            metrics: {'phase': phase},
+          ));
+        }
+      }
+    } else if (_strengthExercises.isNotEmpty) {
       blocks.add(TrainingBlock(
         id: '${_exerciseBlockType()}_1',
         type: _exerciseBlockType(),
@@ -424,11 +512,35 @@ class _DrylandActivityScreenState extends State<DrylandActivityScreen> {
   }
 
   Future<void> _saveTemplate() async {
-    final nameCtrl = TextEditingController(text: _title);
+    final templateName = await _askTemplateName(_title);
+    if (templateName == null || !mounted) return;
+    await WidgetsBinding.instance.endOfFrame;
+    if (!mounted) return;
+
     final appState = Provider.of<AppState>(context, listen: false);
-    final confirmed = await showDialog<bool>(
+    final template = _activityService.saveActivityAsTemplate(
+      _buildActivity(id: 'template_source'),
+      templateId: DateTime.now().millisecondsSinceEpoch.toString(),
+      name: templateName,
+      ownerType: appState.userProfile?.role == 'coach'
+          ? TemplateOwnerType.coach
+          : TemplateOwnerType.athlete,
+      ownerId: appState.userId,
+      teamId: appState.userProfile?.teamId,
+      createdBy: appState.userId,
+    );
+    await appState.saveWorkoutTemplate(template);
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('Template salvato.')),
+    );
+  }
+
+  Future<String?> _askTemplateName(String initialName) async {
+    final nameCtrl = TextEditingController(text: initialName);
+    final result = await showDialog<String>(
       context: context,
-      builder: (context) => AlertDialog(
+      builder: (dialogContext) => AlertDialog(
         backgroundColor: AppTheme.card,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
         title: Text('Salva template',
@@ -441,37 +553,21 @@ class _DrylandActivityScreenState extends State<DrylandActivityScreen> {
         ),
         actions: [
           TextButton(
-            onPressed: () => Navigator.pop(context, false),
+            onPressed: () => Navigator.pop(dialogContext),
             child: const Text('Annulla'),
           ),
           ElevatedButton(
-            onPressed: () => Navigator.pop(context, true),
+            onPressed: () {
+              final name = nameCtrl.text.trim();
+              Navigator.pop(dialogContext, name.isEmpty ? initialName : name);
+            },
             child: const Text('Salva'),
           ),
         ],
       ),
     );
-    if (confirmed != true) {
-      nameCtrl.dispose();
-      return;
-    }
-    final template = _activityService.saveActivityAsTemplate(
-      _buildActivity(id: 'template_source'),
-      templateId: DateTime.now().millisecondsSinceEpoch.toString(),
-      name: nameCtrl.text.trim().isEmpty ? _title : nameCtrl.text.trim(),
-      ownerType: appState.userProfile?.role == 'coach'
-          ? TemplateOwnerType.coach
-          : TemplateOwnerType.athlete,
-      ownerId: appState.userId,
-      teamId: appState.userProfile?.teamId,
-      createdBy: appState.userId,
-    );
     nameCtrl.dispose();
-    await appState.saveWorkoutTemplate(template);
-    if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Template salvato.')),
-    );
+    return result;
   }
 
   @override
@@ -497,7 +593,9 @@ class _DrylandActivityScreenState extends State<DrylandActivityScreen> {
           const SizedBox(height: 16),
           _templateSection(),
           const SizedBox(height: 16),
-          if (_isExerciseCategory)
+          if (_isAthleticPrep)
+            _athleticPrepSection()
+          else if (_isExerciseCategory)
             _strengthSection()
           else if (_isPlyometrics)
             _plyometricsSection()
@@ -709,7 +807,88 @@ class _DrylandActivityScreenState extends State<DrylandActivityScreen> {
     );
   }
 
-  Widget _exercisePicker() {
+  Widget _athleticPrepSection() {
+    return Column(
+      children: [
+        for (final phase in TrainingPhase.ordered) ...[
+          _section(
+            title: TrainingPhase.label(phase),
+            icon: phase == TrainingPhase.warmup
+                ? Icons.local_fire_department_outlined
+                : phase == TrainingPhase.cooldown
+                    ? Icons.self_improvement
+                    : Icons.fitness_center,
+            child: Column(
+              children: [
+                if (_canChangeExerciseStructure) ...[
+                  Row(
+                    children: [
+                      Expanded(
+                        child: TextField(
+                          onChanged: (value) =>
+                              setState(() => _exerciseSearch = value),
+                          style: TextStyle(color: AppTheme.textHighEmphasis),
+                          decoration: const InputDecoration(
+                            hintText: 'Cerca esercizio',
+                            prefixIcon: Icon(Icons.search),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      DropdownButton<String>(
+                        value: _equipmentFilter,
+                        dropdownColor: AppTheme.card,
+                        underline: const SizedBox(),
+                        items: const [
+                          DropdownMenuItem(value: 'all', child: Text('Tutti')),
+                          DropdownMenuItem(
+                              value: 'barbell', child: Text('Bilanciere')),
+                          DropdownMenuItem(
+                              value: 'dumbbell', child: Text('Manubri')),
+                          DropdownMenuItem(value: 'cable', child: Text('Cavi')),
+                          DropdownMenuItem(
+                              value: 'machine', child: Text('Macchina')),
+                          DropdownMenuItem(
+                              value: 'bodyweight', child: Text('Corpo')),
+                          DropdownMenuItem(
+                              value: 'kettlebell', child: Text('Kettlebell')),
+                          DropdownMenuItem(
+                              value: 'band', child: Text('Elastico')),
+                        ],
+                        onChanged: (value) =>
+                            setState(() => _equipmentFilter = value ?? 'all'),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 12),
+                  _exercisePicker(phase),
+                  const SizedBox(height: 12),
+                ],
+                ..._strengthExercises.asMap().entries.where((entry) {
+                  return TrainingPhase.normalize(entry.value['phase']) == phase;
+                }).map(
+                    (entry) => _strengthExerciseCard(entry.key, entry.value)),
+                if (_strengthExercises.every(
+                    (item) => TrainingPhase.normalize(item['phase']) != phase))
+                  _empty(_canChangeExerciseStructure
+                      ? 'Aggiungi un esercizio.'
+                      : 'Nessun esercizio in questa parte.'),
+                if (_canChangeExerciseStructure)
+                  OutlinedButton.icon(
+                    onPressed: () => _createCustomExercise(phase: phase),
+                    icon: const Icon(Icons.add_circle_outline),
+                    label: const Text('Crea esercizio personalizzato'),
+                  ),
+              ],
+            ),
+          ),
+          if (phase != TrainingPhase.ordered.last) const SizedBox(height: 16),
+        ],
+      ],
+    );
+  }
+
+  Widget _exercisePicker([String phase = TrainingPhase.main]) {
     final query = _exerciseSearch.trim().toLowerCase();
     final filtered = exerciseDatabase
         .where((exercise) {
@@ -718,8 +897,9 @@ class _DrylandActivityScreenState extends State<DrylandActivityScreen> {
               exercise.targetMuscle.toLowerCase().contains(query);
           final equipmentMatch = _equipmentFilter == 'all' ||
               exercise.category == _equipmentFilter;
-          final activityMatch =
-              exercise.resolvedActivityCategory == _exerciseActivityFilter();
+          final activityFilter = _exerciseActivityFilter();
+          final activityMatch = activityFilter == 'all' ||
+              exercise.resolvedActivityCategory == activityFilter;
           return searchMatch && equipmentMatch && activityMatch;
         })
         .take(6)
@@ -742,6 +922,7 @@ class _DrylandActivityScreenState extends State<DrylandActivityScreen> {
             exercise.id,
             exercise.name,
             equipment: exercise.category,
+            phase: phase,
           ),
         );
       }).toList(),
@@ -753,6 +934,7 @@ class _DrylandActivityScreenState extends State<DrylandActivityScreen> {
     String name, {
     String? equipment,
     bool isCustom = false,
+    String phase = TrainingPhase.main,
   }) {
     setState(() {
       _strengthExercises.add({
@@ -760,6 +942,7 @@ class _DrylandActivityScreenState extends State<DrylandActivityScreen> {
         'name': name,
         'equipment': equipment,
         'unilateralMode': UnilateralMode.bilateral,
+        'phase': phase,
         'isCustom': isCustom,
         if (isCustom)
           'createdByAthleteId':
@@ -769,7 +952,9 @@ class _DrylandActivityScreenState extends State<DrylandActivityScreen> {
             'setNumber': 1,
             'kg': null,
             'reps': null,
-            'durationSeconds': _usesDurationSets ? 30 : null,
+            'durationSeconds':
+                (_usesDurationSets || _isAthleticPrep) ? 30 : null,
+            'restSeconds': 120,
             'side': TrainingSide.none,
           }
         ],
@@ -778,7 +963,9 @@ class _DrylandActivityScreenState extends State<DrylandActivityScreen> {
     });
   }
 
-  Future<void> _createCustomExercise() async {
+  Future<void> _createCustomExercise({
+    String phase = TrainingPhase.main,
+  }) async {
     final ctrl = TextEditingController();
     final name = await showDialog<String>(
       context: context,
@@ -810,6 +997,7 @@ class _DrylandActivityScreenState extends State<DrylandActivityScreen> {
       'custom_${DateTime.now().millisecondsSinceEpoch}',
       name,
       isCustom: true,
+      phase: phase,
     );
   }
 
@@ -830,11 +1018,12 @@ class _DrylandActivityScreenState extends State<DrylandActivityScreen> {
                         color: AppTheme.textHighEmphasis,
                         fontWeight: FontWeight.bold)),
               ),
-              IconButton(
-                icon: const Icon(Icons.delete_outline, color: AppTheme.error),
-                onPressed: () =>
-                    setState(() => _strengthExercises.removeAt(index)),
-              ),
+              if (_canChangeExerciseStructure)
+                IconButton(
+                  icon: const Icon(Icons.delete_outline, color: AppTheme.error),
+                  onPressed: () =>
+                      setState(() => _strengthExercises.removeAt(index)),
+                ),
             ],
           ),
           Wrap(
@@ -1076,7 +1265,7 @@ class _DrylandActivityScreenState extends State<DrylandActivityScreen> {
                       width: fieldWidth,
                       child: numberField('Reps', 'reps', decimal: false),
                     ),
-                    if (_usesDurationSets)
+                    if (_usesDurationSets || _isAthleticPrep)
                       SizedBox(
                         width: fieldWidth,
                         child: numberField('Tenuta', 'durationSeconds',

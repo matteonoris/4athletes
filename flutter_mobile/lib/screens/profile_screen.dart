@@ -264,6 +264,22 @@ class _ProfileScreenState extends State<ProfileScreen> {
     }
   }
 
+  String _themeModeLabel(String themeMode) {
+    return switch (AppTheme.normalizeThemeMode(themeMode)) {
+      AppTheme.darkMode => 'Scuro',
+      AppTheme.lightMode => 'Chiaro',
+      _ => 'Automatico',
+    };
+  }
+
+  IconData _themeModeIcon(String themeMode) {
+    return switch (AppTheme.normalizeThemeMode(themeMode)) {
+      AppTheme.darkMode => Icons.dark_mode,
+      AppTheme.lightMode => Icons.light_mode,
+      _ => Icons.brightness_auto,
+    };
+  }
+
   @override
   Widget build(BuildContext context) {
     final appState = Provider.of<AppState>(context);
@@ -545,9 +561,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                               color: AppTheme.secondary.withValues(alpha: 0.1),
                               shape: BoxShape.circle),
                           child: Icon(
-                              themeMode == AppTheme.darkMode
-                                  ? Icons.dark_mode
-                                  : Icons.light_mode,
+                              _themeModeIcon(themeMode),
                               color: AppTheme.secondary,
                               size: 16),
                         ),
@@ -558,9 +572,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                           mainAxisSize: MainAxisSize.min,
                           children: [
                             Text(
-                                themeMode == AppTheme.darkMode
-                                    ? 'Scuro'
-                                    : 'Chiaro',
+                                _themeModeLabel(themeMode),
                                 style: TextStyle(
                                     fontSize: 12,
                                     color: AppTheme.textMediumEmphasis)),
@@ -580,6 +592,12 @@ class _ProfileScreenState extends State<ProfileScreen> {
                           padding: const EdgeInsets.all(8),
                           child: Column(
                             children: [
+                              _buildRadioItem(AppTheme.systemMode,
+                                  'Automatico', themeMode, (val) {
+                                if (val != null) {
+                                  _setThemeMode(p, val);
+                                }
+                              }),
                               _buildRadioItem(
                                   AppTheme.lightMode, 'Chiaro', themeMode,
                                   (val) {

@@ -66,15 +66,31 @@ class FourAthletesApp extends StatefulWidget {
   State<FourAthletesApp> createState() => _FourAthletesAppState();
 }
 
-class _FourAthletesAppState extends State<FourAthletesApp> {
+class _FourAthletesAppState extends State<FourAthletesApp>
+    with WidgetsBindingObserver {
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addObserver(this);
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  @override
+  void didChangePlatformBrightness() {
+    setState(() {});
+  }
+
   @override
   Widget build(BuildContext context) {
     final isInitialized =
         context.select<AppState, bool>((state) => state.isInitialized);
     final isLoggedIn =
         context.select<AppState, bool>((state) => state.isLoggedIn);
-    final isDarkMode =
-        context.select<AppState, bool>((state) => state.isDarkMode);
     final userRole = context.select<AppState, String?>(
       (state) => state.userProfile?.role,
     );
@@ -82,7 +98,13 @@ class _FourAthletesAppState extends State<FourAthletesApp> {
       (state) => state.themeMode,
     );
 
-    AppTheme.setThemeMode(themeMode);
+    final platformBrightness =
+        WidgetsBinding.instance.platformDispatcher.platformBrightness;
+
+    AppTheme.setThemeMode(
+      themeMode,
+      platformBrightness: platformBrightness,
+    );
 
     if (!isInitialized) {
       return MaterialApp(
@@ -99,7 +121,7 @@ class _FourAthletesAppState extends State<FourAthletesApp> {
       debugShowCheckedModeBanner: false,
       theme: AppTheme.lightTheme,
       darkTheme: AppTheme.darkTheme,
-      themeMode: isDarkMode ? ThemeMode.dark : ThemeMode.light,
+      themeMode: AppTheme.toFlutterThemeMode(themeMode),
       home: kOnboardingPreviewMode
           ? const AuthScreen()
           : isLoggedIn

@@ -31,6 +31,7 @@ class _TeamDetailScreenState extends State<TeamDetailScreen> {
   final List<Map<String, dynamic>> _teamAthletes = [];
   bool _isLoading = true;
   List<Map<String, dynamic>> _rawTeammates = [];
+  List<Map<String, dynamic>> _teamCoaches = [];
   List<Map<String, dynamic>> _rawSessions = [];
 
   @override
@@ -48,12 +49,23 @@ class _TeamDetailScreenState extends State<TeamDetailScreen> {
       final supabase = Supabase.instance.client;
       final athletesResponse = await supabase
           .from('profiles')
-          .select()
+          .select(
+              'id, first_name, last_name, avatar_url, skill_level, ski_club')
           .eq('team_id', widget.team.id)
-          .eq('role', 'athlete');
+          .eq('role', 'athlete')
+          .order('last_name', ascending: true);
+
+      final coachesResponse = await supabase
+          .from('profiles')
+          .select('id, first_name, last_name, avatar_url, ski_club')
+          .eq('team_id', widget.team.id)
+          .eq('role', 'coach')
+          .order('last_name', ascending: true);
 
       final List<Map<String, dynamic>> athletes =
           List<Map<String, dynamic>>.from(athletesResponse);
+      final List<Map<String, dynamic>> coaches =
+          List<Map<String, dynamic>>.from(coachesResponse);
 
       List<Map<String, dynamic>> sessions = [];
       if (athletes.isNotEmpty) {
@@ -65,13 +77,16 @@ class _TeamDetailScreenState extends State<TeamDetailScreen> {
         sessions = List<Map<String, dynamic>>.from(sessionsResponse);
       }
 
+      if (!mounted) return;
       setState(() {
         _rawTeammates = athletes;
+        _teamCoaches = coaches;
         _rawSessions = sessions;
         _isLoading = false;
       });
     } catch (e) {
       debugPrint('Error loading leaderboard data: $e');
+      if (!mounted) return;
       setState(() {
         _isLoading = false;
       });
@@ -220,6 +235,197 @@ class _TeamDetailScreenState extends State<TeamDetailScreen> {
     return PhosphorIcons.trendUp();
   }
 
+  String _profileName(Map<String, dynamic> profile, String fallback) {
+    final name =
+        '${profile['first_name'] ?? ''} ${profile['last_name'] ?? ''}'.trim();
+    return name.isNotEmpty ? name : fallback;
+  }
+
+  String _coachSubtitle(Map<String, dynamic> coach) {
+    final club = coach['ski_club']?.toString().trim();
+    return club != null && club.isNotEmpty ? club : 'Allenatore';
+  }
+
+  String _profileInitial(String name) {
+    return name.isNotEmpty ? name[0].toUpperCase() : 'A';
+  }
+
+  Widget _buildProfileAvatar({
+    required String name,
+    required String avatarUrl,
+    required Color backgroundColor,
+    required Color textColor,
+    double size = 44,
+    double radius = 12,
+  }) {
+    final hasRemoteAvatar =
+        avatarUrl.isNotEmpty && avatarUrl.startsWith('http');
+
+    return Container(
+      width: size,
+      height: size,
+      decoration: BoxDecoration(
+        color: backgroundColor,
+        borderRadius: BorderRadius.circular(radius),
+        image: hasRemoteAvatar
+            ? DecorationImage(image: NetworkImage(avatarUrl), fit: BoxFit.cover)
+            : null,
+      ),
+      child: hasRemoteAvatar
+          ? null
+          : Center(
+              child: Text(
+                _profileInitial(name),
+                style: TextStyle(fontWeight: FontWeight.bold, color: textColor),
+              ),
+            ),
+    );
+  }
+
+  Widget _buildCoachesSection() {
+    if (!_isLoading && _teamCoaches.isEmpty) {
+      return const SizedBox.shrink();
+    }
+
+    return Container(
+      margin: const EdgeInsets.fromLTRB(16, 4, 16, 16),
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: AppTheme.card,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: AppTheme.subtleBorder),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                width: 32,
+                height: 32,
+                decoration: BoxDecoration(
+                  color: AppTheme.primary.withValues(alpha: 0.12),
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: Icon(
+                  PhosphorIcons.chalkboardTeacher(),
+                  color: AppTheme.primary,
+                  size: 18,
+                ),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Text(
+                  'ALLENATORI',
+                  style: TextStyle(
+                    color: AppTheme.textHighEmphasis,
+                    fontSize: 13,
+                    fontWeight: FontWeight.w900,
+                    letterSpacing: 1.1,
+                  ),
+                ),
+              ),
+              if (!_isLoading)
+                Text(
+                  '${_teamCoaches.length}',
+                  style: TextStyle(
+                    color: AppTheme.textMediumEmphasis,
+                    fontSize: 12,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+            ],
+          ),
+          const SizedBox(height: 14),
+          if (_isLoading)
+            const Center(
+              child: Padding(
+                padding: EdgeInsets.symmetric(vertical: 12),
+                child: SizedBox(
+                  width: 20,
+                  height: 20,
+                  child: CircularProgressIndicator(
+                    color: AppTheme.primary,
+                    strokeWidth: 2,
+                  ),
+                ),
+              ),
+            )
+          else
+            ..._teamCoaches.map((coach) {
+              final name = _profileName(coach, 'Allenatore');
+              final avatar = coach['avatar_url']?.toString() ?? '';
+
+              return Padding(
+                padding: EdgeInsets.only(
+                  bottom: coach == _teamCoaches.last ? 0 : 12,
+                ),
+                child: Row(
+                  children: [
+                    _buildProfileAvatar(
+                      name: name,
+                      avatarUrl: avatar,
+                      backgroundColor: AppTheme.primary.withValues(alpha: 0.10),
+                      textColor: AppTheme.primary,
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            name,
+                            style: TextStyle(
+                              color: AppTheme.textHighEmphasis,
+                              fontSize: 14,
+                              fontWeight: FontWeight.bold,
+                            ),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                          const SizedBox(height: 2),
+                          Text(
+                            _coachSubtitle(coach),
+                            style: TextStyle(
+                              color: AppTheme.textMediumEmphasis,
+                              fontSize: 11,
+                              fontWeight: FontWeight.w500,
+                            ),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ],
+                      ),
+                    ),
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 10, vertical: 5),
+                      decoration: BoxDecoration(
+                        color: AppTheme.secondary.withValues(alpha: 0.10),
+                        borderRadius: BorderRadius.circular(999),
+                        border: Border.all(
+                          color: AppTheme.secondary.withValues(alpha: 0.20),
+                        ),
+                      ),
+                      child: const Text(
+                        'COACH',
+                        style: TextStyle(
+                          color: AppTheme.secondary,
+                          fontSize: 10,
+                          fontWeight: FontWeight.w900,
+                          letterSpacing: 0.6,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              );
+            }),
+        ],
+      ),
+    );
+  }
+
   final GlobalKey _shareButtonKey = GlobalKey();
 
   void _shareCode() {
@@ -351,6 +557,9 @@ class _TeamDetailScreenState extends State<TeamDetailScreen> {
         ? 1
         : _getCategoryValue(sortedAthletes.first, _categoryFilter);
     if (maxValue <= 0) maxValue = 1;
+    final memberCount = _isLoading
+        ? widget.team.members
+        : sortedAthletes.length + _teamCoaches.length;
 
     return Scaffold(
       backgroundColor: AppTheme.background,
@@ -370,8 +579,7 @@ class _TeamDetailScreenState extends State<TeamDetailScreen> {
                     color: AppTheme.textHighEmphasis,
                     fontSize: 18)),
             const SizedBox(height: 2),
-            Text(
-                '${_isLoading ? widget.team.members : sortedAthletes.length} MEMBERS',
+            Text('$memberCount MEMBERS',
                 style: TextStyle(
                     color: AppTheme.primary,
                     fontWeight: FontWeight.bold,
@@ -455,6 +663,10 @@ class _TeamDetailScreenState extends State<TeamDetailScreen> {
                 ],
               ),
             ),
+          ),
+
+          SliverToBoxAdapter(
+            child: _buildCoachesSection(),
           ),
 
           // FILTRI Row 1 (Button, Dropdown, Total)
@@ -785,44 +997,14 @@ class _TeamDetailScreenState extends State<TeamDetailScreen> {
                                           ),
                                           const SizedBox(width: 12),
                                           // Avatar
-                                          Container(
-                                            width: 44,
-                                            height: 44,
-                                            decoration: BoxDecoration(
-                                              color: AppTheme.surface,
-                                              borderRadius:
-                                                  BorderRadius.circular(12),
-                                              image: athlete['avatar']
-                                                              ?.isNotEmpty ==
-                                                          true &&
-                                                      athlete['avatar']
-                                                          .toString()
-                                                          .startsWith('http')
-                                                  ? DecorationImage(
-                                                      image: NetworkImage(
-                                                          athlete['avatar']),
-                                                      fit: BoxFit.cover)
-                                                  : null,
-                                            ),
-                                            child: athlete['avatar']?.isEmpty ==
-                                                        true ||
-                                                    !athlete['avatar']
-                                                        .toString()
-                                                        .startsWith('http')
-                                                ? Center(
-                                                    child: Text(
-                                                        athlete['name'] !=
-                                                                    null &&
-                                                                athlete['name']
-                                                                    .isNotEmpty
-                                                            ? athlete['name'][0]
-                                                            : 'A',
-                                                        style: TextStyle(
-                                                            fontWeight:
-                                                                FontWeight.bold,
-                                                            color: AppTheme
-                                                                .textHighEmphasis)))
-                                                : null,
+                                          _buildProfileAvatar(
+                                            name: athlete['name'] ?? 'Atleta',
+                                            avatarUrl:
+                                                athlete['avatar']?.toString() ??
+                                                    '',
+                                            backgroundColor: AppTheme.surface,
+                                            textColor:
+                                                AppTheme.textHighEmphasis,
                                           ),
                                           const SizedBox(width: 16),
                                           // Profile Info and Progress Bar

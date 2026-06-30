@@ -1,7 +1,7 @@
-TestFlight build focused on Health workout import coverage, wearable metric persistence, and dryland session readability.
+TestFlight build focused on Health workout import coverage, sleep insights, workout templates, wearable metric persistence, and dryland session readability.
 
 - Maps more Apple Health workout types, including core training, Pilates, mixed cardio, stairs, martial arts, and recovery sessions.
-- Keeps Health score cards populated from saved logs when viewing past days or when today's sleep data is still incomplete.
+- Keeps Health score cards populated from saved logs when viewing past days or when today's sleep data is still incomplete, with expanded sleep trend charts.
 - Syncs a longer wearable metric history and stores SpO2, respiratory rate, temperature, HRV, and weight logs remotely.
-- Improves dryland training summaries with expandable strength blocks, set details, badges, volume, max load, and 1RM percentages.
+- Adds workout template storage support and improves dryland training summaries with expandable strength blocks, set details, badges, volume, max load, and 1RM percentages.
 - Refines the seasonal dashboard header layout on narrow screens.

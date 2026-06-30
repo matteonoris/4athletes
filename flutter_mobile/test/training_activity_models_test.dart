@@ -187,6 +187,84 @@ void main() {
     expect(generated.blocks.first.exercises.first.sets.length, 3);
   });
 
+  test('mantiene fasi preparazione atletica nel round-trip template', () {
+    const service = TrainingActivityService();
+    const activity = TrainingActivity(
+      id: 'prep_1',
+      athleteId: 'athlete_1',
+      source: ActivitySource.coach,
+      status: ActivityStatus.planned,
+      category: ActivityCategory.athleticPrep,
+      sportType: 'athletic_prep',
+      title: 'Preparazione atletica',
+      date: '2026-06-01',
+      startTime: '09:00',
+      endTime: '10:00',
+      duration: '60',
+      blocks: [
+        TrainingBlock(
+          id: 'warmup_strength_1',
+          type: TrainingBlockType.mobility,
+          name: 'Riscaldamento',
+          metrics: {'phase': TrainingPhase.warmup},
+          exercises: [
+            ExerciseEntry(
+              exerciseId: 'leg_swing',
+              name: 'Leg Swing',
+              sets: [StrengthSet(setNumber: 1, reps: 10)],
+            ),
+          ],
+        ),
+        TrainingBlock(
+          id: 'main_strength_1',
+          type: TrainingBlockType.strength,
+          name: 'Lavoro principale',
+          metrics: {'phase': TrainingPhase.main},
+          exercises: [
+            ExerciseEntry(
+              exerciseId: 'back_squat',
+              name: 'Back Squat',
+              sets: [StrengthSet(setNumber: 1, kg: 100, reps: 5)],
+            ),
+          ],
+        ),
+        TrainingBlock(
+          id: 'cooldown_core_1',
+          type: TrainingBlockType.core,
+          name: 'Defaticamento',
+          metrics: {'phase': TrainingPhase.cooldown},
+          exercises: [
+            ExerciseEntry(
+              exerciseId: 'plank',
+              name: 'Plank',
+              sets: [StrengthSet(setNumber: 1, durationSeconds: 30)],
+            ),
+          ],
+        ),
+      ],
+    );
+
+    final template = service.saveActivityAsTemplate(
+      activity,
+      templateId: 'template_phases',
+      name: 'Prep completa',
+      ownerType: TemplateOwnerType.coach,
+      ownerId: 'coach_1',
+      createdBy: 'coach_1',
+      now: DateTime(2026, 6, 1),
+    );
+    final restored = WorkoutTemplate.fromJson(template.toJson());
+
+    expect(restored.category, ActivityCategory.athleticPrep);
+    expect(restored.blocks.map((b) => b.metrics['phase']), [
+      TrainingPhase.warmup,
+      TrainingPhase.main,
+      TrainingPhase.cooldown,
+    ]);
+    expect(TrainingPhase.label(restored.blocks.first.metrics['phase']),
+        'Riscaldamento');
+  });
+
   test('marca attivita coach modificata dall atleta', () {
     const service = TrainingActivityService();
     final event = CalendarEvent(
@@ -220,6 +298,49 @@ void main() {
     expect(details['createdByCoach'], isTrue);
     expect(details['athleteModified'], isTrue);
     expect(details['blocks'], isA<List>());
+  });
+
+  test('legge sessione preparazione atletica strutturata', () {
+    final session = TrainingSession(
+      id: 'session_1',
+      sportId: 'athletic_prep',
+      date: '2026-06-01',
+      startTime: '09:00',
+      endTime: '10:00',
+      duration: '60',
+      effort: 5,
+      details: const {
+        'schemaVersion': 2,
+        'activityDomain': 'dryland',
+        'activityCategory': ActivityCategory.athleticPrep,
+        'source': ActivitySource.coach,
+        'status': ActivityStatus.completed,
+        'title': 'Preparazione atletica',
+        'blocks': [
+          {
+            'id': 'main_strength_1',
+            'type': TrainingBlockType.strength,
+            'name': 'Lavoro principale',
+            'metrics': {'phase': TrainingPhase.main},
+            'exercises': [
+              {
+                'exerciseId': 'back_squat',
+                'name': 'Back Squat',
+                'sets': [
+                  {'setNumber': 1, 'kg': 100, 'reps': 5}
+                ]
+              }
+            ]
+          }
+        ]
+      },
+    );
+
+    final activity = TrainingActivity.fromTrainingSession(session);
+
+    expect(activity.category, ActivityCategory.athleticPrep);
+    expect(activity.blocks.single.metrics['phase'], TrainingPhase.main);
+    expect(activity.blocks.single.exercises.single.name, 'Back Squat');
   });
 
   test('esclude attivita cancelled dalle statistiche', () {

@@ -1,7 +1,7 @@
-Build TestFlight dedicata a import Health, persistenza metriche wearable e leggibilita' delle sessioni dryland.
+Build TestFlight dedicata a import Health, insight sul sonno, template workout, persistenza metriche wearable e leggibilita' delle sessioni dryland.
 
 - Mappa piu' tipi di allenamento Apple Health, inclusi core training, Pilates, mixed cardio, scale, arti marziali e recupero.
-- Mantiene le card dei punteggi Health popolate dai log salvati quando si guardano giorni passati o il sonno di oggi e' ancora incompleto.
+- Mantiene le card dei punteggi Health popolate dai log salvati quando si guardano giorni passati o il sonno di oggi e' ancora incompleto, con grafici sonno piu' completi.
 - Sincronizza uno storico wearable piu' ampio e salva da remoto SpO2, frequenza respiratoria, temperatura, HRV e peso.
-- Migliora i riepiloghi dryland con blocchi forza espandibili, dettagli set, badge, volume, carico massimo e percentuali 1RM.
+- Aggiunge il supporto storage per template workout e migliora i riepiloghi dryland con blocchi forza espandibili, dettagli set, badge, volume, carico massimo e percentuali 1RM.
 - Rifinisce il layout dell'intestazione stagionale sugli schermi stretti.

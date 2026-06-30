@@ -55,7 +55,7 @@ class AppState extends ChangeNotifier {
   UserProfile? get userProfile => _userProfile;
   UserProfile? get profile => _userProfile;
 
-  String _themeMode = AppTheme.lightMode;
+  String _themeMode = AppTheme.systemMode;
   String get themeMode => _themeMode;
   bool get isDarkMode => _themeMode == AppTheme.darkMode;
 
@@ -478,7 +478,7 @@ class AppState extends ChangeNotifier {
     await _loadJumpLogs();
     await _loadCoachEvents();
     await _loadNotifications();
-    _loadWorkoutTemplates();
+    await _loadWorkoutTemplates();
     await TrainingReminderNotificationService.instance.syncForProfile(
       _userProfile,
       bodyLogs: _bodyLogs,
@@ -1082,7 +1082,24 @@ class AppState extends ChangeNotifier {
     }
   }
 
-  void _loadWorkoutTemplates() {
+  Future<void> _loadWorkoutTemplates() async {
+    try {
+      final data = await _supabase
+          .from('workout_templates')
+          .select()
+          .eq('is_archived', false)
+          .order('updated_at', ascending: false);
+      _workoutTemplates = (data as List)
+          .whereType<Map>()
+          .map((item) =>
+              WorkoutTemplate.fromSupabaseJson(Map<String, dynamic>.from(item)))
+          .where((template) => _canUseWorkoutTemplate(template))
+          .toList();
+      if (_workoutTemplates.isNotEmpty) return;
+    } catch (e) {
+      debugPrint('Error loading workout templates from Supabase: $e');
+    }
+
     try {
       final raw = _prefs?.getString('workoutTemplates');
       if (raw == null || raw.isEmpty) {
@@ -1106,31 +1123,49 @@ class AppState extends ChangeNotifier {
     }
   }
 
-  Future<void> _saveWorkoutTemplates() async {
-    try {
-      await _prefs?.setString(
-        'workoutTemplates',
-        jsonEncode(_workoutTemplates.map((t) => t.toJson()).toList()),
-      );
-    } catch (e) {
-      debugPrint('Error saving workout templates: $e');
+  bool _canUseWorkoutTemplate(WorkoutTemplate template) {
+    if (template.isArchived) return false;
+    if (template.ownerId == userId || template.createdBy == userId) {
+      return true;
     }
+    final teamId = template.teamId;
+    if (teamId == null || teamId.isEmpty) return false;
+    if (_userProfile?.teamId == teamId) return true;
+    return _teams.any((team) => team.id == teamId);
   }
 
   Future<void> saveWorkoutTemplate(WorkoutTemplate template) async {
-    final index = _workoutTemplates.indexWhere((t) => t.id == template.id);
-    if (index >= 0) {
-      _workoutTemplates[index] = template;
-    } else {
-      _workoutTemplates.insert(0, template);
+    try {
+      await _supabase
+          .from('workout_templates')
+          .upsert(template.toSupabaseJson(), onConflict: 'id');
+    } catch (e) {
+      debugPrint('Error saving workout template to Supabase: $e');
+      await _prefs?.setString(
+        'workoutTemplates',
+        jsonEncode([
+          template.toJson(),
+          ..._workoutTemplates
+              .where((t) => t.id != template.id)
+              .map((t) => t.toJson()),
+        ]),
+      );
     }
-    await _saveWorkoutTemplates();
+
+    _workoutTemplates.removeWhere((t) => t.id == template.id);
+    _workoutTemplates.insert(0, template);
     notifyListeners();
   }
 
   Future<void> archiveWorkoutTemplate(String templateId) async {
+    try {
+      await _supabase
+          .from('workout_templates')
+          .update({'is_archived': true}).eq('id', templateId);
+    } catch (e) {
+      debugPrint('Error archiving workout template: $e');
+    }
     _workoutTemplates.removeWhere((template) => template.id == templateId);
-    await _saveWorkoutTemplates();
     notifyListeners();
   }
 
@@ -2598,13 +2633,18 @@ class AppState extends ChangeNotifier {
               athlete,
             );
 
+      final plannedDryland = event.technicalDetails?['plannedDrylandSession'];
+      final plannedDrylandCategory =
+          plannedDryland is Map ? plannedDryland['category']?.toString() : null;
       final sessionPayload = {
         'user_id': resolvedAthleteId,
         'sport_id': isSkiing
             ? 'alpine_skiing'
-            : (event.drylandSpecialty?.isNotEmpty == true
-                ? 'dryland_${event.drylandSpecialty!.toLowerCase().replaceAll(RegExp(r'[^a-z0-9]+'), '_')}'
-                : 'dryland'),
+            : (plannedDrylandCategory == ActivityCategory.athleticPrep
+                ? 'athletic_prep'
+                : event.drylandSpecialty?.isNotEmpty == true
+                    ? 'dryland_${event.drylandSpecialty!.toLowerCase().replaceAll(RegExp(r'[^a-z0-9]+'), '_')}'
+                    : 'dryland'),
         'date': event.date,
         'start_time': event.startTime,
         'end_time': event.endTime,

@@ -1570,7 +1570,11 @@ class ActivityDetailsScreen extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
-            _drylandBlockLabel(block.type),
+            block.metrics.containsKey('phase')
+                ? TrainingPhase.label(
+                    TrainingPhase.normalize(block.metrics['phase']),
+                  )
+                : _drylandBlockLabel(block.type),
             style: TextStyle(
               color: AppTheme.textHighEmphasis,
               fontWeight: FontWeight.bold,
@@ -1863,6 +1867,8 @@ class ActivityDetailsScreen extends StatelessWidget {
     switch (category) {
       case ActivityCategory.strength:
         return 'Forza';
+      case ActivityCategory.athleticPrep:
+        return 'Preparazione atletica';
       case ActivityCategory.plyometrics:
         return 'Pliometria';
       case ActivityCategory.speedAgility:

@@ -1637,45 +1637,51 @@ class _CoachTrainingViewState extends State<_CoachTrainingView> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    Row(
-                      children: [
-                        Container(
-                          padding: const EdgeInsets.symmetric(
-                              horizontal: 8, vertical: 4),
-                          decoration: BoxDecoration(
-                              color: AppTheme.subtleFill,
-                              borderRadius: BorderRadius.circular(6)),
-                          child: Text(event.date,
-                              style: TextStyle(
-                                  color: AppTheme.textHighEmphasis,
-                                  fontWeight: FontWeight.bold,
-                                  fontSize: 12)),
-                        ),
-                        if (specialty != null && specialty.isNotEmpty) ...[
-                          const SizedBox(width: 8),
-                          Container(
-                            padding: const EdgeInsets.symmetric(
-                                horizontal: 6, vertical: 4),
-                            decoration: BoxDecoration(
-                                color: isSki
-                                    ? AppTheme.primary.withValues(alpha: 0.15)
-                                    : const Color(0xFFFF7A00)
-                                        .withValues(alpha: 0.15),
-                                borderRadius: BorderRadius.circular(6)),
-                            child: Text(specialty.toUpperCase(),
-                                style: TextStyle(
-                                    color: isSki
-                                        ? AppTheme.primary
-                                        : const Color(0xFFFF7A00),
-                                    fontWeight: FontWeight.bold,
-                                    fontSize: 12)),
-                          ),
-                        ],
-                      ],
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 8, vertical: 4),
+                      decoration: BoxDecoration(
+                          color: AppTheme.subtleFill,
+                          borderRadius: BorderRadius.circular(6)),
+                      child: Text(event.date,
+                          style: TextStyle(
+                              color: AppTheme.textHighEmphasis,
+                              fontWeight: FontWeight.bold,
+                              fontSize: 12)),
                     ),
+                    if (specialty != null && specialty.isNotEmpty) ...[
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 6, vertical: 4),
+                          decoration: BoxDecoration(
+                              color: isSki
+                                  ? AppTheme.primary.withValues(alpha: 0.15)
+                                  : const Color(0xFFFF7A00)
+                                      .withValues(alpha: 0.15),
+                              borderRadius: BorderRadius.circular(6)),
+                          child: Text(
+                            specialty.toUpperCase(),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            softWrap: false,
+                            style: TextStyle(
+                                color: isSki
+                                    ? AppTheme.primary
+                                    : const Color(0xFFFF7A00),
+                                fontWeight: FontWeight.bold,
+                                fontSize: 12),
+                          ),
+                        ),
+                      ),
+                    ] else
+                      const Spacer(),
+                    const SizedBox(width: 8),
                     Text(isPast ? 'COMPLETATO' : 'PIANIFICATO',
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
                         style: TextStyle(
                             color: isPast
                                 ? AppTheme.textMediumEmphasis

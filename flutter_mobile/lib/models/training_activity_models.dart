@@ -19,6 +19,7 @@ class AttendanceStatus {
 }
 
 class ActivityCategory {
+  static const athleticPrep = 'athletic_prep';
   static const strength = 'strength';
   static const plyometrics = 'plyometrics';
   static const speedAgility = 'speed_agility';
@@ -41,6 +42,32 @@ class TrainingBlockType {
   static const circuit = ActivityCategory.circuit;
   static const test = ActivityCategory.test;
   static const note = 'note';
+}
+
+class TrainingPhase {
+  static const warmup = 'warmup';
+  static const main = 'main';
+  static const cooldown = 'cooldown';
+
+  static const ordered = [warmup, main, cooldown];
+
+  static String label(String phase) {
+    switch (phase) {
+      case warmup:
+        return 'Riscaldamento';
+      case cooldown:
+        return 'Defaticamento';
+      case main:
+      default:
+        return 'Lavoro principale';
+    }
+  }
+
+  static String normalize(dynamic value) {
+    final text = value?.toString();
+    if (text == warmup || text == main || text == cooldown) return text!;
+    return main;
+  }
 }
 
 class UnilateralType {
@@ -928,6 +955,28 @@ class WorkoutTemplate {
     );
   }
 
+  factory WorkoutTemplate.fromSupabaseJson(Map<String, dynamic> json) {
+    return WorkoutTemplate(
+      id: json['id']?.toString() ?? '',
+      name: json['name']?.toString() ?? '',
+      description: _string(json['description']),
+      ownerType: json['owner_type']?.toString() ?? TemplateOwnerType.athlete,
+      ownerId: json['owner_id']?.toString() ?? '',
+      teamId: _string(json['team_id']),
+      category: json['category']?.toString() ?? ActivityCategory.other,
+      sportType: _string(json['sport_type']),
+      blocks: _mapList(json['blocks'])
+          .map((item) => TrainingBlock.fromJson(item))
+          .toList(),
+      createdBy: json['created_by']?.toString() ?? '',
+      createdAt: DateTime.tryParse(json['created_at']?.toString() ?? '') ??
+          DateTime.fromMillisecondsSinceEpoch(0),
+      updatedAt: DateTime.tryParse(json['updated_at']?.toString() ?? '') ??
+          DateTime.fromMillisecondsSinceEpoch(0),
+      isArchived: json['is_archived'] == true,
+    );
+  }
+
   factory WorkoutTemplate.fromActivity(
     TrainingActivity activity, {
     required String id,
@@ -1007,6 +1056,22 @@ class WorkoutTemplate {
         'updatedAt': updatedAt.toIso8601String(),
         'isArchived': isArchived,
       };
+
+  Map<String, dynamic> toSupabaseJson() => {
+        'id': id,
+        'name': name,
+        'description': description,
+        'owner_type': ownerType,
+        'owner_id': ownerId,
+        'team_id': teamId,
+        'category': category,
+        'sport_type': sportType,
+        'blocks': blocks.map((block) => block.toJson()).toList(),
+        'created_by': createdBy,
+        'created_at': createdAt.toIso8601String(),
+        'updated_at': updatedAt.toIso8601String(),
+        'is_archived': isArchived,
+      };
 }
 
 String _sourceFromDetails(Map<String, dynamic> details) {
@@ -1025,6 +1090,9 @@ String _sourceFromDetails(Map<String, dynamic> details) {
 
 String _categoryFromSportId(String sportId, Map<String, dynamic> details) {
   if (details['source'] == 'health_sync') return ActivityCategory.endurance;
+  if (sportId == ActivityCategory.athleticPrep || sportId == 'athletic_prep') {
+    return ActivityCategory.athleticPrep;
+  }
   if (['weightlifting', 'powerlifting', 'crossfit', 'bodybuilding']
       .contains(sportId)) {
     return ActivityCategory.strength;
@@ -1051,7 +1119,7 @@ String _categoryFromSportId(String sportId, Map<String, dynamic> details) {
   if (['stretching', 'yoga', 'pilates'].contains(sportId)) {
     return ActivityCategory.mobility;
   }
-  if (sportId == 'athletic_prep' || sportId == 'dryland') {
+  if (sportId == 'dryland') {
     return ActivityCategory.other;
   }
   return ActivityCategory.sport;

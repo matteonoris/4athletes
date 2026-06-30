@@ -17,6 +17,25 @@ class ExerciseDef {
   String get resolvedActivityCategory {
     if (activityCategory != 'strength') return activityCategory;
     final text = '$id $name $targetMuscle'.toLowerCase();
+    if (text.contains('jump') ||
+        text.contains('hop') ||
+        text.contains('bound') ||
+        text.contains('balzi') ||
+        text.contains('potenza') ||
+        id == 'box_jump' ||
+        id == 'broad_jump' ||
+        id == 'jump_squat' ||
+        id == 'lunge_jump') {
+      return 'plyometrics';
+    }
+    if (text.contains('sprint') ||
+        text.contains('scatti') ||
+        text.contains('accelerazioni') ||
+        text.contains('ladder') ||
+        text.contains('agility') ||
+        id == 'sprint') {
+      return 'speed_agility';
+    }
     if (text.contains('mobilit') ||
         text.contains('stretch') ||
         id == 'cat_cow' ||

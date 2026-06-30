@@ -180,6 +180,10 @@ class TrainingActivityService {
     }
     final specialty = event.drylandSpecialty?.toLowerCase().trim();
     switch (specialty) {
+      case 'athletic_prep':
+      case 'preparazione atletica':
+      case 'preparazione':
+        return ActivityCategory.athleticPrep;
       case 'strength':
       case 'forza':
         return ActivityCategory.strength;

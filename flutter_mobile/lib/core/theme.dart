@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 
 class AppTheme {
+  static const String systemMode = 'system';
   static const String lightMode = 'light';
   static const String darkMode = 'dark';
 
@@ -58,11 +59,29 @@ class AppTheme {
       : Colors.black.withValues(alpha: 0.08);
 
   static String normalizeThemeMode(String? mode) {
-    return mode == darkMode ? darkMode : lightMode;
+    return switch (mode) {
+      systemMode => systemMode,
+      darkMode => darkMode,
+      lightMode => lightMode,
+      _ => systemMode,
+    };
   }
 
-  static void setThemeMode(String mode) {
-    _isDark = normalizeThemeMode(mode) == darkMode;
+  static ThemeMode toFlutterThemeMode(String mode) {
+    return switch (normalizeThemeMode(mode)) {
+      darkMode => ThemeMode.dark,
+      lightMode => ThemeMode.light,
+      _ => ThemeMode.system,
+    };
+  }
+
+  static void setThemeMode(
+    String mode, {
+    Brightness platformBrightness = Brightness.light,
+  }) {
+    final normalized = normalizeThemeMode(mode);
+    _isDark = normalized == darkMode ||
+        (normalized == systemMode && platformBrightness == Brightness.dark);
   }
 
   static ThemeData get lightTheme {

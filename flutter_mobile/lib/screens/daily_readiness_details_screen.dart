@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../core/theme.dart';
+import '../utils/health_display_utils.dart';
+import '../widgets/sleep_detail_charts.dart';
 import 'metric_trend_screen.dart';
 
 class DailyReadinessDetailsScreen extends StatelessWidget {
@@ -8,14 +10,16 @@ class DailyReadinessDetailsScreen extends StatelessWidget {
   final double? score;
   final Map<String, double> dailyMetrics;
   final Map<String, List<double>> historicalMetrics;
+  final List<Map<String, dynamic>> localSleepHistory;
 
   const DailyReadinessDetailsScreen({
-    Key? key,
+    super.key,
     required this.title,
     this.score,
     required this.dailyMetrics,
     required this.historicalMetrics,
-  }) : super(key: key);
+    this.localSleepHistory = const [],
+  });
 
   Color _getScoreColor(double? score) {
     if (score == null) return Colors.grey;
@@ -35,22 +39,26 @@ class DailyReadinessDetailsScreen extends StatelessWidget {
             {
               'key': 'sleepRegularity',
               'label': 'Regolarità Sonno (/100)',
-              'icon': Icons.schedule
+              'icon': Icons.schedule,
+              'isDuration': false,
             },
             {
               'key': 'totalSleep',
-              'label': 'Tempo Totale (min)',
-              'icon': Icons.bedtime
+              'label': 'Tempo Totale',
+              'icon': Icons.bedtime,
+              'isDuration': true,
             },
             {
               'key': 'deepSleep',
-              'label': 'Sonno Profondo (min)',
-              'icon': Icons.nights_stay
+              'label': 'Sonno Profondo',
+              'icon': Icons.nights_stay,
+              'isDuration': true,
             },
             {
               'key': 'remSleep',
-              'label': 'Sonno REM (min)',
-              'icon': Icons.remove_red_eye
+              'label': 'Sonno REM',
+              'icon': Icons.remove_red_eye,
+              'isDuration': true,
             },
           ]
         : [
@@ -116,6 +124,11 @@ class DailyReadinessDetailsScreen extends StatelessWidget {
             String mKey = metric['key'];
             double? mVal = dailyMetrics[mKey];
             if (mVal == null) return const SizedBox();
+            final isDuration = metric['isDuration'] == true;
+            final displayValue = isDuration
+                ? formatMinutesAsHours(mVal)
+                : mVal.toStringAsFixed(1);
+            final metricHistory = _metricHistoryFor(mKey, isSleep);
 
             return Card(
               margin: const EdgeInsets.only(bottom: 12),
@@ -131,7 +144,7 @@ class DailyReadinessDetailsScreen extends StatelessWidget {
                 trailing: Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    Text(mVal.toStringAsFixed(1),
+                    Text(displayValue,
                         style: const TextStyle(
                             fontWeight: FontWeight.bold, fontSize: 16)),
                     Icon(Icons.chevron_right,
@@ -146,16 +159,85 @@ class DailyReadinessDetailsScreen extends StatelessWidget {
                       builder: (_) => MetricTrendScreen(
                         metricLabel: metric['label'],
                         metricKey: mKey,
-                        history: historicalMetrics[mKey] ?? [],
+                        history: metricHistory.values,
+                        historyDates: metricHistory.dates,
+                        formatAsDuration: isDuration,
                       ),
                     ),
                   );
                 },
               ),
             );
-          }).toList(),
+          }),
+          if (isSleep) ...[
+            const SizedBox(height: 20),
+            SleepDetailChartsSection(
+              history: localSleepHistory,
+              dailyMetrics: dailyMetrics,
+            ),
+          ],
         ],
       ),
     );
   }
+
+  _MetricHistory _metricHistoryFor(String metricKey, bool isSleep) {
+    final explicitHistory = historicalMetrics[metricKey] ?? const <double>[];
+    if (explicitHistory.isNotEmpty || !isSleep) {
+      return _MetricHistory(values: explicitHistory);
+    }
+
+    final sleepHistoryKey = switch (metricKey) {
+      'totalSleep' => 'totalSleepMinutes',
+      'deepSleep' => 'deepSleepMinutes',
+      'remSleep' => 'remSleepMinutes',
+      _ => null,
+    };
+    if (sleepHistoryKey == null) return const _MetricHistory(values: []);
+
+    final entries = <_MetricHistoryEntry>[];
+    for (final item in localSleepHistory) {
+      final dateValue = item['date'];
+      final metricValue = item[sleepHistoryKey];
+      if (dateValue is! String ||
+          metricValue is! num ||
+          !metricValue.isFinite) {
+        continue;
+      }
+      final date = DateTime.tryParse(dateValue);
+      if (date == null) continue;
+      entries.add(
+        _MetricHistoryEntry(
+          date: DateTime(date.year, date.month, date.day),
+          value: metricValue.toDouble(),
+        ),
+      );
+    }
+
+    entries.sort((a, b) => a.date.compareTo(b.date));
+    return _MetricHistory(
+      values: entries.map((entry) => entry.value).toList(growable: false),
+      dates: entries.map((entry) => entry.date).toList(growable: false),
+    );
+  }
+}
+
+class _MetricHistory {
+  final List<double> values;
+  final List<DateTime>? dates;
+
+  const _MetricHistory({
+    required this.values,
+    this.dates,
+  });
+}
+
+class _MetricHistoryEntry {
+  final DateTime date;
+  final double value;
+
+  const _MetricHistoryEntry({
+    required this.date,
+    required this.value,
+  });
 }
