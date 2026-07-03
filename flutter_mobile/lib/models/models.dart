@@ -44,6 +44,7 @@ class ConnectedDevice {
 }
 
 class UserProfile {
+  String? id;
   String firstName;
   String lastName;
   String email;
@@ -67,6 +68,7 @@ class UserProfile {
   List<Map<String, int>>? customHrZones;
 
   UserProfile({
+    this.id,
     required this.firstName,
     required this.lastName,
     required this.email,
@@ -91,6 +93,7 @@ class UserProfile {
   });
 
   UserProfile copyWith({
+    String? id,
     String? firstName,
     String? lastName,
     String? email,
@@ -114,6 +117,7 @@ class UserProfile {
     List<Map<String, int>>? customHrZones,
   }) {
     return UserProfile(
+      id: id ?? this.id,
       firstName: firstName ?? this.firstName,
       lastName: lastName ?? this.lastName,
       email: email ?? this.email,
@@ -156,6 +160,7 @@ class UserProfile {
 
   factory UserProfile.fromJson(Map<String, dynamic> json) {
     return UserProfile(
+      id: json['id'],
       firstName: json['firstName'],
       lastName: json['lastName'],
       email: json['email'],
@@ -191,6 +196,7 @@ class UserProfile {
   }
 
   Map<String, dynamic> toJson() => {
+        'id': id,
         'firstName': firstName,
         'lastName': lastName,
         'email': email,

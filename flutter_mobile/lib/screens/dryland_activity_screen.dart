@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 
 import '../core/theme.dart';
+import '../data/dryland_prep_types.dart';
 import '../data/exercises.dart';
 import '../models/models.dart';
 import '../models/training_activity_models.dart';
@@ -14,6 +15,8 @@ import '../widgets/custom_card.dart';
 class DrylandActivityScreen extends StatefulWidget {
   final String category;
   final String title;
+  final String? prepType;
+  final bool? usesPhases;
   final TrainingSession? initialSession;
   final WorkoutTemplate? initialTemplate;
 
@@ -21,6 +24,8 @@ class DrylandActivityScreen extends StatefulWidget {
     super.key,
     required this.category,
     required this.title,
+    this.prepType,
+    this.usesPhases,
     this.initialSession,
     this.initialTemplate,
   });
@@ -36,6 +41,9 @@ class _DrylandActivityScreenState extends State<DrylandActivityScreen> {
   late TimeOfDay _endTime;
   late String _category;
   late String _title;
+  String? _prepType;
+  bool _usesPhases = true;
+  String _activePhase = TrainingPhase.main;
 
   final _locationCtrl = TextEditingController();
   final _notesCtrl = TextEditingController();
@@ -50,6 +58,10 @@ class _DrylandActivityScreenState extends State<DrylandActivityScreen> {
   String _exerciseSearch = '';
   String _equipmentFilter = 'all';
 
+  DrylandPrepTypeOption? get _prepOption =>
+      DrylandPrepTypes.maybeById(_prepType);
+  bool get _isPrepFlow =>
+      _prepType != null || _category == ActivityCategory.athleticPrep;
   bool get _isExerciseCategory =>
       _category == ActivityCategory.strength ||
       _category == ActivityCategory.mobility ||
@@ -72,6 +84,8 @@ class _DrylandActivityScreenState extends State<DrylandActivityScreen> {
     super.initState();
     _category = widget.category;
     _title = widget.title;
+    _prepType = widget.prepType;
+    _usesPhases = widget.usesPhases ?? true;
     final initial = widget.initialSession;
     _date = initial != null ? DateTime.parse(initial.date) : DateTime.now();
     _startTime = initial != null
@@ -102,6 +116,13 @@ class _DrylandActivityScreenState extends State<DrylandActivityScreen> {
   void _loadFromActivity(TrainingActivity activity) {
     _category = activity.category;
     _title = activity.title;
+    _prepType = activity.prepType ??
+        DrylandPrepTypes.fromSportType(activity.sportType)?.id ??
+        (_category == ActivityCategory.athleticPrep
+            ? DrylandPrepType.mixedCircuit
+            : null);
+    _usesPhases = activity.usesPhases ??
+        activity.blocks.any((block) => block.metrics['phase'] != null);
     _locationCtrl.text = activity.location ?? '';
     _notesCtrl.text = activity.notes ?? '';
     _painCtrl.text = activity.pain ?? '';
@@ -183,6 +204,12 @@ class _DrylandActivityScreenState extends State<DrylandActivityScreen> {
     setState(() {
       _category = template.category;
       _title = template.name;
+      _prepType = DrylandPrepTypes.fromSportType(template.sportType)?.id ??
+          (_isPrepFlow
+              ? DrylandPrepTypes.fromCategory(template.category).id
+              : _prepType);
+      _usesPhases =
+          template.blocks.any((block) => block.metrics['phase'] != null);
       _loadBlocks(template.blocks);
     });
   }
@@ -262,6 +289,8 @@ class _DrylandActivityScreenState extends State<DrylandActivityScreen> {
   }
 
   String _sportIdForCategory() {
+    final prepSportType = _prepOption?.sportType;
+    if (prepSportType != null) return prepSportType;
     switch (_category) {
       case ActivityCategory.strength:
         return 'weightlifting';
@@ -287,6 +316,8 @@ class _DrylandActivityScreenState extends State<DrylandActivityScreen> {
   }
 
   String _categoryLabel(String category) {
+    final prepTitle = _prepOption?.title;
+    if (prepTitle != null && _isPrepFlow) return prepTitle;
     switch (category) {
       case ActivityCategory.strength:
         return 'Forza';
@@ -348,15 +379,20 @@ class _DrylandActivityScreenState extends State<DrylandActivityScreen> {
     }
   }
 
-  String _exerciseActivityFilter() {
-    if (_isAthleticPrep) return 'all';
+  bool _exerciseMatchesPrepFilter(ExerciseDef exercise) {
+    final filters = _prepOption?.exerciseFilters;
+    if (_isPrepFlow && (filters == null || filters.isEmpty)) return true;
+    if (_isPrepFlow && filters != null) {
+      return filters.contains(exercise.resolvedActivityCategory);
+    }
+    if (_isAthleticPrep) return true;
     if (_category == ActivityCategory.mobility) {
-      return ActivityCategory.mobility;
+      return exercise.resolvedActivityCategory == ActivityCategory.mobility;
     }
     if (_category == ActivityCategory.core) {
-      return ActivityCategory.core;
+      return exercise.resolvedActivityCategory == ActivityCategory.core;
     }
-    return ActivityCategory.strength;
+    return exercise.resolvedActivityCategory == ActivityCategory.strength;
   }
 
   Map<String, dynamic> _newStrengthSet(
@@ -384,33 +420,47 @@ class _DrylandActivityScreenState extends State<DrylandActivityScreen> {
       ..['side'] = side;
   }
 
+  List<TrainingBlock> _buildPrepExerciseBlocks() {
+    if (_strengthExercises.isEmpty) return const [];
+    final blocks = <TrainingBlock>[];
+    final phases = _usesPhases ? TrainingPhase.ordered : [TrainingPhase.main];
+
+    for (final phase in phases) {
+      final sourceExercises = _usesPhases
+          ? _strengthExercises
+              .where((item) => TrainingPhase.normalize(item['phase']) == phase)
+              .toList()
+          : List<Map<String, dynamic>>.from(_strengthExercises);
+      final grouped = <String, List<Map<String, dynamic>>>{};
+      for (final exercise in sourceExercises) {
+        final type = _exerciseBlockTypeForExercise(exercise);
+        grouped.putIfAbsent(type, () => []).add(exercise);
+      }
+      for (final entry in grouped.entries) {
+        blocks.add(TrainingBlock(
+          id: _usesPhases
+              ? '${phase}_${entry.key}_${blocks.length + 1}'
+              : '${entry.key}_${blocks.length + 1}',
+          type: entry.key,
+          name: _usesPhases
+              ? TrainingPhase.label(phase)
+              : _categoryLabel(_category),
+          exercises:
+              entry.value.map((item) => ExerciseEntry.fromJson(item)).toList(),
+          metrics: _usesPhases ? {'phase': phase} : const {},
+        ));
+      }
+    }
+    return blocks;
+  }
+
   TrainingActivity _buildActivity({String? id}) {
     final appState = Provider.of<AppState>(context, listen: false);
     _syncAllPercent1RM(appState);
 
     final blocks = <TrainingBlock>[];
-    if (_isAthleticPrep) {
-      for (final phase in TrainingPhase.ordered) {
-        final phaseExercises = _strengthExercises
-            .where((item) => TrainingPhase.normalize(item['phase']) == phase)
-            .toList();
-        final grouped = <String, List<Map<String, dynamic>>>{};
-        for (final exercise in phaseExercises) {
-          final type = _exerciseBlockTypeForExercise(exercise);
-          grouped.putIfAbsent(type, () => []).add(exercise);
-        }
-        for (final entry in grouped.entries) {
-          blocks.add(TrainingBlock(
-            id: '${phase}_${entry.key}_${blocks.length + 1}',
-            type: entry.key,
-            name: TrainingPhase.label(phase),
-            exercises: entry.value
-                .map((item) => ExerciseEntry.fromJson(item))
-                .toList(),
-            metrics: {'phase': phase},
-          ));
-        }
-      }
+    if (_isPrepFlow) {
+      blocks.addAll(_buildPrepExerciseBlocks());
     } else if (_strengthExercises.isNotEmpty) {
       blocks.add(TrainingBlock(
         id: '${_exerciseBlockType()}_1',
@@ -475,6 +525,8 @@ class _DrylandActivityScreenState extends State<DrylandActivityScreen> {
       source: ActivitySource.athlete,
       status: ActivityStatus.completed,
       category: _category,
+      prepType: _prepType,
+      usesPhases: _isPrepFlow ? _usesPhases : null,
       sportType: _sportIdForCategory(),
       title: _title,
       date: _date.toIso8601String().split('T').first,
@@ -593,9 +645,17 @@ class _DrylandActivityScreenState extends State<DrylandActivityScreen> {
           const SizedBox(height: 16),
           _templateSection(),
           const SizedBox(height: 16),
-          if (_isAthleticPrep)
-            _athleticPrepSection()
-          else if (_isExerciseCategory)
+          if (_isPrepFlow) ...[
+            _prepSection(),
+            if (_prepOption?.isEndurance == true) ...[
+              const SizedBox(height: 16),
+              _enduranceSection(),
+            ],
+            if (_prepOption?.isMixed == true) ...[
+              const SizedBox(height: 16),
+              _circuitSection(),
+            ],
+          ] else if (_isExerciseCategory)
             _strengthSection()
           else if (_isPlyometrics)
             _plyometricsSection()
@@ -807,84 +867,156 @@ class _DrylandActivityScreenState extends State<DrylandActivityScreen> {
     );
   }
 
-  Widget _athleticPrepSection() {
-    return Column(
-      children: [
-        for (final phase in TrainingPhase.ordered) ...[
-          _section(
-            title: TrainingPhase.label(phase),
-            icon: phase == TrainingPhase.warmup
-                ? Icons.local_fire_department_outlined
-                : phase == TrainingPhase.cooldown
-                    ? Icons.self_improvement
-                    : Icons.fitness_center,
-            child: Column(
+  Widget _prepSection() {
+    final phase = _usesPhases ? _activePhase : TrainingPhase.main;
+    final visibleExercises = _strengthExercises.asMap().entries.where((entry) {
+      if (!_usesPhases) return true;
+      return TrainingPhase.normalize(entry.value['phase']) == phase;
+    }).toList();
+
+    return _section(
+      title: _categoryLabel(_category),
+      icon: _prepOption?.icon ?? Icons.fitness_center,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          _phaseModeToggle(),
+          if (_usesPhases) ...[
+            const SizedBox(height: 12),
+            _phaseSelector(),
+          ],
+          const SizedBox(height: 14),
+          if (_canChangeExerciseStructure) ...[
+            Row(
               children: [
-                if (_canChangeExerciseStructure) ...[
-                  Row(
-                    children: [
-                      Expanded(
-                        child: TextField(
-                          onChanged: (value) =>
-                              setState(() => _exerciseSearch = value),
-                          style: TextStyle(color: AppTheme.textHighEmphasis),
-                          decoration: const InputDecoration(
-                            hintText: 'Cerca esercizio',
-                            prefixIcon: Icon(Icons.search),
-                          ),
-                        ),
-                      ),
-                      const SizedBox(width: 8),
-                      DropdownButton<String>(
-                        value: _equipmentFilter,
-                        dropdownColor: AppTheme.card,
-                        underline: const SizedBox(),
-                        items: const [
-                          DropdownMenuItem(value: 'all', child: Text('Tutti')),
-                          DropdownMenuItem(
-                              value: 'barbell', child: Text('Bilanciere')),
-                          DropdownMenuItem(
-                              value: 'dumbbell', child: Text('Manubri')),
-                          DropdownMenuItem(value: 'cable', child: Text('Cavi')),
-                          DropdownMenuItem(
-                              value: 'machine', child: Text('Macchina')),
-                          DropdownMenuItem(
-                              value: 'bodyweight', child: Text('Corpo')),
-                          DropdownMenuItem(
-                              value: 'kettlebell', child: Text('Kettlebell')),
-                          DropdownMenuItem(
-                              value: 'band', child: Text('Elastico')),
-                        ],
-                        onChanged: (value) =>
-                            setState(() => _equipmentFilter = value ?? 'all'),
-                      ),
-                    ],
+                Expanded(
+                  child: TextField(
+                    onChanged: (value) =>
+                        setState(() => _exerciseSearch = value),
+                    style: TextStyle(color: AppTheme.textHighEmphasis),
+                    decoration: const InputDecoration(
+                      hintText: 'Cerca esercizio',
+                      prefixIcon: Icon(Icons.search),
+                    ),
                   ),
-                  const SizedBox(height: 12),
-                  _exercisePicker(phase),
-                  const SizedBox(height: 12),
-                ],
-                ..._strengthExercises.asMap().entries.where((entry) {
-                  return TrainingPhase.normalize(entry.value['phase']) == phase;
-                }).map(
-                    (entry) => _strengthExerciseCard(entry.key, entry.value)),
-                if (_strengthExercises.every(
-                    (item) => TrainingPhase.normalize(item['phase']) != phase))
-                  _empty(_canChangeExerciseStructure
-                      ? 'Aggiungi un esercizio.'
-                      : 'Nessun esercizio in questa parte.'),
-                if (_canChangeExerciseStructure)
-                  OutlinedButton.icon(
-                    onPressed: () => _createCustomExercise(phase: phase),
-                    icon: const Icon(Icons.add_circle_outline),
-                    label: const Text('Crea esercizio personalizzato'),
-                  ),
+                ),
+                const SizedBox(width: 8),
+                DropdownButton<String>(
+                  value: _equipmentFilter,
+                  dropdownColor: AppTheme.card,
+                  underline: const SizedBox(),
+                  items: const [
+                    DropdownMenuItem(value: 'all', child: Text('Tutti')),
+                    DropdownMenuItem(
+                        value: 'barbell', child: Text('Bilanciere')),
+                    DropdownMenuItem(value: 'dumbbell', child: Text('Manubri')),
+                    DropdownMenuItem(value: 'cable', child: Text('Cavi')),
+                    DropdownMenuItem(value: 'machine', child: Text('Macchina')),
+                    DropdownMenuItem(value: 'bodyweight', child: Text('Corpo')),
+                    DropdownMenuItem(
+                        value: 'kettlebell', child: Text('Kettlebell')),
+                    DropdownMenuItem(value: 'band', child: Text('Elastico')),
+                  ],
+                  onChanged: (value) =>
+                      setState(() => _equipmentFilter = value ?? 'all'),
+                ),
               ],
             ),
+            const SizedBox(height: 12),
+            _exercisePicker(phase),
+            const SizedBox(height: 12),
+          ],
+          ...visibleExercises.map(
+            (entry) => _strengthExerciseCard(entry.key, entry.value),
           ),
-          if (phase != TrainingPhase.ordered.last) const SizedBox(height: 16),
+          if (visibleExercises.isEmpty)
+            _empty(_canChangeExerciseStructure
+                ? 'Aggiungi un esercizio.'
+                : 'Nessun esercizio in questa parte.'),
+          if (_canChangeExerciseStructure)
+            OutlinedButton.icon(
+              onPressed: () => _createCustomExercise(phase: phase),
+              icon: const Icon(Icons.add_circle_outline),
+              label: const Text('Crea esercizio personalizzato'),
+            ),
         ],
-      ],
+      ),
+    );
+  }
+
+  Widget _phaseModeToggle() {
+    return Container(
+      padding: const EdgeInsets.all(4),
+      decoration: BoxDecoration(
+        color: AppTheme.surface,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: AppTheme.subtleBorder),
+      ),
+      child: Row(
+        children: [
+          _modeSegment('3 fasi', _usesPhases, () {
+            setState(() => _usesPhases = true);
+          }),
+          _modeSegment('Scheda semplice', !_usesPhases, () {
+            setState(() => _usesPhases = false);
+          }),
+        ],
+      ),
+    );
+  }
+
+  Widget _modeSegment(String label, bool selected, VoidCallback onTap) {
+    return Expanded(
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(9),
+        child: Container(
+          padding: const EdgeInsets.symmetric(vertical: 10),
+          decoration: BoxDecoration(
+            color: selected ? AppTheme.primary : Colors.transparent,
+            borderRadius: BorderRadius.circular(9),
+          ),
+          child: Text(
+            label,
+            textAlign: TextAlign.center,
+            style: TextStyle(
+              color: selected ? Colors.white : AppTheme.textMediumEmphasis,
+              fontWeight: FontWeight.bold,
+              fontSize: 12,
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _phaseSelector() {
+    return Row(
+      children: TrainingPhase.ordered.map((phase) {
+        final selected = _activePhase == phase;
+        return Expanded(
+          child: Padding(
+            padding: EdgeInsets.only(
+              right: phase == TrainingPhase.ordered.last ? 0 : 8,
+            ),
+            child: ChoiceChip(
+              label: Text(TrainingPhase.label(phase)),
+              selected: selected,
+              onSelected: (_) => setState(() => _activePhase = phase),
+              selectedColor: AppTheme.primary,
+              backgroundColor: AppTheme.surface,
+              labelStyle: TextStyle(
+                color: selected ? Colors.white : AppTheme.textMediumEmphasis,
+                fontWeight: FontWeight.bold,
+                fontSize: 11,
+              ),
+              side: BorderSide(
+                color: selected ? AppTheme.primary : AppTheme.subtleBorder,
+              ),
+            ),
+          ),
+        );
+      }).toList(),
     );
   }
 
@@ -897,10 +1029,9 @@ class _DrylandActivityScreenState extends State<DrylandActivityScreen> {
               exercise.targetMuscle.toLowerCase().contains(query);
           final equipmentMatch = _equipmentFilter == 'all' ||
               exercise.category == _equipmentFilter;
-          final activityFilter = _exerciseActivityFilter();
-          final activityMatch = activityFilter == 'all' ||
-              exercise.resolvedActivityCategory == activityFilter;
-          return searchMatch && equipmentMatch && activityMatch;
+          return searchMatch &&
+              equipmentMatch &&
+              _exerciseMatchesPrepFilter(exercise);
         })
         .take(6)
         .toList();

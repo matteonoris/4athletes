@@ -32,6 +32,24 @@ class ActivityCategory {
   static const other = 'other';
 }
 
+class DrylandPrepType {
+  static const strength = 'strength';
+  static const plyometrics = 'plyometrics';
+  static const speedAgility = 'speed_agility';
+  static const endurance = 'endurance';
+  static const mobilityCore = 'mobility_core';
+  static const mixedCircuit = 'mixed_circuit';
+
+  static const ordered = [
+    strength,
+    plyometrics,
+    speedAgility,
+    endurance,
+    mobilityCore,
+    mixedCircuit,
+  ];
+}
+
 class TrainingBlockType {
   static const strength = ActivityCategory.strength;
   static const plyometrics = ActivityCategory.plyometrics;
@@ -688,6 +706,8 @@ class TrainingActivity {
   final String source;
   final String status;
   final String category;
+  final String? prepType;
+  final bool? usesPhases;
   final String? sportType;
   final String title;
   final String date;
@@ -712,6 +732,8 @@ class TrainingActivity {
     required this.source,
     required this.status,
     required this.category,
+    this.prepType,
+    this.usesPhases,
     this.sportType,
     required this.title,
     required this.date,
@@ -740,6 +762,9 @@ class TrainingActivity {
       source: json['source']?.toString() ?? ActivitySource.athlete,
       status: json['status']?.toString() ?? ActivityStatus.completed,
       category: json['category']?.toString() ?? ActivityCategory.other,
+      prepType: _string(json['prepType']),
+      usesPhases:
+          json['usesPhases'] is bool ? json['usesPhases'] as bool : null,
       sportType: _string(json['sportType']),
       title: json['title']?.toString() ?? '',
       date: json['date']?.toString() ?? '',
@@ -773,6 +798,8 @@ class TrainingActivity {
     final category = details['activityCategory']?.toString() ??
         _categoryFromSportId(session.sportId, details);
     final blocks = _blocksFromDetails(session, details, category);
+    final hasPhaseBlocks =
+        blocks.any((block) => block.metrics['phase'] != null);
 
     return TrainingActivity(
       id: session.id,
@@ -784,6 +811,13 @@ class TrainingActivity {
       status:
           status ?? details['status']?.toString() ?? ActivityStatus.completed,
       category: category,
+      prepType:
+          _string(details['prepType']) ?? _prepTypeFromSportId(session.sportId),
+      usesPhases: details['usesPhases'] is bool
+          ? details['usesPhases'] as bool
+          : hasPhaseBlocks
+              ? true
+              : null,
       sportType: session.sportId,
       title: title ?? details['title']?.toString() ?? session.sportId,
       date: session.date,
@@ -812,6 +846,8 @@ class TrainingActivity {
     String? source,
     String? status,
     String? category,
+    String? prepType,
+    bool? usesPhases,
     String? sportType,
     String? title,
     String? date,
@@ -836,6 +872,8 @@ class TrainingActivity {
       source: source ?? this.source,
       status: status ?? this.status,
       category: category ?? this.category,
+      prepType: prepType ?? this.prepType,
+      usesPhases: usesPhases ?? this.usesPhases,
       sportType: sportType ?? this.sportType,
       title: title ?? this.title,
       date: date ?? this.date,
@@ -860,6 +898,8 @@ class TrainingActivity {
       'activityDomain':
           category == ActivityCategory.sport ? 'sport' : 'dryland',
       'activityCategory': category,
+      'prepType': prepType,
+      'usesPhases': usesPhases,
       'source': source,
       'status': status,
       'title': title,
@@ -885,6 +925,8 @@ class TrainingActivity {
         'source': source,
         'status': status,
         'category': category,
+        'prepType': prepType,
+        'usesPhases': usesPhases,
         'sportType': sportType,
         'title': title,
         'date': date,
@@ -1093,6 +1135,16 @@ String _categoryFromSportId(String sportId, Map<String, dynamic> details) {
   if (sportId == ActivityCategory.athleticPrep || sportId == 'athletic_prep') {
     return ActivityCategory.athleticPrep;
   }
+  if (sportId == 'dryland_strength') return ActivityCategory.strength;
+  if (sportId == 'dryland_plyometrics') return ActivityCategory.plyometrics;
+  if (sportId == 'dryland_speed_agility') {
+    return ActivityCategory.speedAgility;
+  }
+  if (sportId == 'dryland_endurance') return ActivityCategory.endurance;
+  if (sportId == 'dryland_mobility_core') return ActivityCategory.mobility;
+  if (sportId == 'dryland_mixed_circuit') {
+    return ActivityCategory.athleticPrep;
+  }
   if (['weightlifting', 'powerlifting', 'crossfit', 'bodybuilding']
       .contains(sportId)) {
     return ActivityCategory.strength;
@@ -1123,6 +1175,26 @@ String _categoryFromSportId(String sportId, Map<String, dynamic> details) {
     return ActivityCategory.other;
   }
   return ActivityCategory.sport;
+}
+
+String? _prepTypeFromSportId(String sportId) {
+  switch (sportId) {
+    case 'dryland_strength':
+      return DrylandPrepType.strength;
+    case 'dryland_plyometrics':
+      return DrylandPrepType.plyometrics;
+    case 'dryland_speed_agility':
+      return DrylandPrepType.speedAgility;
+    case 'dryland_endurance':
+      return DrylandPrepType.endurance;
+    case 'dryland_mobility_core':
+      return DrylandPrepType.mobilityCore;
+    case 'dryland_mixed_circuit':
+    case 'athletic_prep':
+      return DrylandPrepType.mixedCircuit;
+    default:
+      return null;
+  }
 }
 
 List<TrainingBlock> _blocksFromDetails(

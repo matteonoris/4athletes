@@ -34,8 +34,39 @@ class AppState extends ChangeNotifier {
   SharedPreferences? _prefs;
   final _supabase = Supabase.instance.client;
 
-  String get userId =>
-      _supabase.auth.currentUser?.id ?? '00000000-0000-0000-0000-000000000000';
+  String? get _authUserId => _supabase.auth.currentUser?.id;
+  bool get _hasAuthSession => _authUserId?.isNotEmpty == true;
+
+  String get userId => _authUserId ?? '';
+
+  UserProfile? _profileForAuthUser(
+    UserProfile profile,
+    User authUser,
+    String action, {
+    bool allowMissingProfileId = false,
+  }) {
+    final profileId = profile.id;
+    if ((profileId == null || profileId.isEmpty) && !allowMissingProfileId) {
+      debugPrint(
+        'Blocked $action for profile without id while signed in as ${authUser.id}',
+      );
+      return null;
+    }
+
+    if (profileId != null && profileId.isNotEmpty && profileId != authUser.id) {
+      debugPrint(
+        'Blocked $action for profile $profileId while signed in as ${authUser.id}',
+      );
+      return null;
+    }
+
+    final authEmail = authUser.email;
+    return profile.copyWith(
+      id: authUser.id,
+      email:
+          authEmail != null && authEmail.isNotEmpty ? authEmail : profile.email,
+    );
+  }
 
   bool _isInitialized = false;
   bool get isInitialized => _isInitialized;
@@ -457,9 +488,13 @@ class AppState extends ChangeNotifier {
     _prefs = await SharedPreferences.getInstance();
     _applyThemeMode(_prefs!.getString(_themeModeKey));
 
-    _isLoggedIn = kOnboardingPreviewMode
-        ? false
-        : (_prefs!.getBool('isLoggedIn') ?? false);
+    final hasSavedLogin =
+        !kOnboardingPreviewMode && (_prefs!.getBool('isLoggedIn') ?? false);
+    _isLoggedIn = hasSavedLogin && _hasAuthSession;
+    if (hasSavedLogin && !_hasAuthSession) {
+      await _prefs!.remove('isLoggedIn');
+      debugPrint('Cleared stale login state without a Supabase auth session.');
+    }
 
     if (_isLoggedIn) {
       await _loadAllData();
@@ -470,6 +505,11 @@ class AppState extends ChangeNotifier {
   }
 
   Future<void> _loadAllData() async {
+    if (!_hasAuthSession) {
+      _clearRemoteBackedData();
+      return;
+    }
+
     await _loadUserProfile();
     await _loadSessions();
     await _loadTeams();
@@ -485,9 +525,30 @@ class AppState extends ChangeNotifier {
     );
   }
 
+  void _clearRemoteBackedData() {
+    _sessions.clear();
+    _teams.clear();
+    _bodyLogs.clear();
+    _prLogs.clear();
+    _jumpLogs.clear();
+    _coachEvents.clear();
+    _notifications.clear();
+    _workoutTemplates.clear();
+  }
+
   void login(UserProfile profile) async {
-    profile.themeMode = _themeMode;
-    _userProfile = profile;
+    final authUser = _supabase.auth.currentUser;
+    final ownedProfile = authUser == null
+        ? profile.copyWith(themeMode: _themeMode)
+        : _profileForAuthUser(
+            profile.copyWith(themeMode: _themeMode),
+            authUser,
+            'login',
+            allowMissingProfileId: true,
+          );
+    if (ownedProfile == null) return;
+
+    _userProfile = ownedProfile;
     _isLoggedIn = true;
     _prefs!.setBool('isLoggedIn', true);
     await _saveUserProfile();
@@ -552,7 +613,11 @@ class AppState extends ChangeNotifier {
       );
       if (response.user != null) {
         // Il nuovo utente non ha ancora un profilo su Supabase (viene creato via trigger, o salvato manualmente)
-        _userProfile = profile;
+        _userProfile = profile.copyWith(
+          id: response.user!.id,
+          email: response.user!.email ?? email,
+          themeMode: _themeMode,
+        );
         _isLoggedIn = true;
         _prefs!.setBool('isLoggedIn', true);
         await _saveUserProfile();
@@ -618,9 +683,10 @@ class AppState extends ChangeNotifier {
           _isNewGoogleUser = true;
           // Create a temp profile to be completed
           _userProfile = UserProfile(
+            id: userId,
             firstName: googleUser.displayName?.split(' ').first ?? 'New',
             lastName: googleUser.displayName?.split(' ').last ?? 'User',
-            email: googleUser.email,
+            email: response.user!.email ?? googleUser.email,
             birthDate: '', // Empty, so it can be requested
             role: 'athlete',
             weight: 0.0,
@@ -639,6 +705,7 @@ class AppState extends ChangeNotifier {
           _isNewGoogleUser = false;
           // Load existing profile
           _userProfile = UserProfile(
+            id: profileData['id']?.toString() ?? userId,
             firstName: profileData['first_name'] ?? '',
             lastName: profileData['last_name'] ?? '',
             email: profileData['email'] ?? '',
@@ -738,11 +805,12 @@ class AppState extends ChangeNotifier {
         if (profileData == null) {
           _isNewAppleUser = true;
           _userProfile = UserProfile(
+            id: userId,
             firstName: credential.givenName ??
                 (fallbackFirst.isNotEmpty ? fallbackFirst : 'Nuovo'),
             lastName: credential.familyName ??
                 (fallbackLast.isNotEmpty ? fallbackLast : 'Utente'),
-            email: credential.email ?? fallbackEmail,
+            email: response.user!.email ?? credential.email ?? fallbackEmail,
             birthDate: '',
             role: 'athlete',
             weight: 0.0,
@@ -761,6 +829,7 @@ class AppState extends ChangeNotifier {
         } else {
           _isNewAppleUser = false;
           _userProfile = UserProfile(
+            id: profileData['id']?.toString() ?? userId,
             firstName: profileData['first_name'] ?? '',
             lastName: profileData['last_name'] ?? '',
             email: profileData['email'] ?? '',
@@ -813,8 +882,14 @@ class AppState extends ChangeNotifier {
   }
 
   void updateProfile(UserProfile updatedProfile) {
-    _applyThemeMode(updatedProfile.themeMode);
-    _userProfile = updatedProfile;
+    final authUser = _supabase.auth.currentUser;
+    final ownedProfile = authUser == null
+        ? updatedProfile
+        : _profileForAuthUser(updatedProfile, authUser, 'updateProfile');
+    if (ownedProfile == null) return;
+
+    _userProfile = ownedProfile;
+    _applyThemeMode(ownedProfile.themeMode);
     _saveUserProfile();
     TrainingReminderNotificationService.instance.syncForProfile(
       _userProfile,
@@ -852,16 +927,20 @@ class AppState extends ChangeNotifier {
 
   Future<void> _loadUserProfile() async {
     try {
+      final authUser = _supabase.auth.currentUser;
+      if (authUser == null) return;
+
       final data = await _supabase
           .from('profiles')
           .select()
-          .eq('id', userId)
+          .eq('id', authUser.id)
           .maybeSingle();
       if (data != null) {
         _userProfile = UserProfile(
+          id: data['id']?.toString() ?? authUser.id,
           firstName: data['first_name'] ?? 'Utente',
           lastName: data['last_name'] ?? 'User',
-          email: data['email'] ?? '',
+          email: data['email'] ?? authUser.email ?? '',
           birthDate: data['birth_date'] ?? '2000-01-01',
           role: data['role'] ?? 'athlete',
           weight: (data['weight'] as num?)?.toDouble() ?? 70.0,
@@ -892,6 +971,9 @@ class AppState extends ChangeNotifier {
                   .toList()
               : null,
         );
+      } else if (_userProfile?.id != authUser.id) {
+        _userProfile = null;
+        debugPrint('No profile row found for signed-in user ${authUser.id}.');
       }
     } catch (e) {
       debugPrint('Error loading profile: $e');
@@ -930,23 +1012,50 @@ class AppState extends ChangeNotifier {
             .from('teams')
             .select()
             .eq('id', _userProfile!.teamId!);
-        _teams = (data as List)
-            .map((e) => Team(
-                  id: e['id'],
-                  name: e['name'],
-                  members: e['members'] ?? 0,
-                  category: e['category'],
-                  image: e['image'],
-                  inviteCode: e['invite_code'],
-                  description: e['description'],
-                  isPrivate: e['is_private'],
-                ))
-            .toList();
+        final teams = <Team>[];
+        for (final e in data as List) {
+          final teamData = Map<String, dynamic>.from(e as Map);
+          final teamId = teamData['id']?.toString() ?? '';
+          final fallbackMembers = (teamData['members'] as num?)?.toInt() ?? 0;
+          final memberCount = await _loadTeamMemberCount(
+            teamId,
+            fallback: fallbackMembers,
+          );
+
+          teams.add(Team(
+            id: teamId,
+            name: teamData['name'],
+            members: memberCount,
+            category: teamData['category'],
+            image: teamData['image'],
+            inviteCode: teamData['invite_code'],
+            description: teamData['description'],
+            isPrivate: teamData['is_private'],
+          ));
+        }
+        _teams = teams;
       } else {
         _teams = [];
       }
     } catch (e) {
       debugPrint('Error loading teams: $e');
+    }
+  }
+
+  Future<int> _loadTeamMemberCount(
+    String teamId, {
+    required int fallback,
+  }) async {
+    try {
+      final profiles = await _supabase
+          .from('profiles')
+          .select('id')
+          .eq('team_id', teamId)
+          .inFilter('role', ['athlete', 'coach']);
+      return (profiles as List).length;
+    } catch (e) {
+      debugPrint('Error loading team member count: $e');
+      return fallback;
     }
   }
 
@@ -1189,40 +1298,50 @@ class AppState extends ChangeNotifier {
   }
 
   Future<void> _saveUserProfile() async {
-    if (_userProfile != null) {
-      try {
-        await _supabase.from('profiles').upsert({
-          'id': userId,
-          'first_name': _userProfile!.firstName,
-          'last_name': _userProfile!.lastName,
-          'email': _userProfile!.email,
-          'birth_date': _userProfile!.birthDate,
-          'role': _userProfile!.role,
-          'weight': _userProfile!.weight,
-          'height': _userProfile!.height,
-          'max_hr': _userProfile!.maxHr,
-          'avatar_url': _userProfile!.avatarUrl,
-          'ski_club': _userProfile!.skiClub,
-          'gender': _userProfile!.gender,
-          'skill_level': _userProfile!.skillLevel,
-          'one_rep_max': _userProfile!.oneRepMax,
-          'connected_devices':
-              _userProfile!.connectedDevices.map((e) => e.toJson()).toList(),
-          'team_id': _userProfile!.teamId,
-          'hr_zone_mode': _userProfile!.hrZoneMode,
-          'custom_hr_zones': _userProfile!.customHrZones,
-        });
+    final profile = _userProfile;
+    if (profile == null) return;
 
-        // Save local settings
-        _prefs!.setString('unitSystem', _userProfile!.unitSystem);
-        _prefs!.setString('language', _userProfile!.language);
-        _applyThemeMode(_userProfile!.themeMode);
-        _prefs!.setString(_themeModeKey, _themeMode);
-        _prefs!.setBool(
-            'notificationsEnabled', _userProfile!.notificationsEnabled);
-      } catch (e) {
-        debugPrint('Error saving profile: $e');
+    try {
+      final authUser = _supabase.auth.currentUser;
+      final ownedProfile = authUser == null
+          ? profile
+          : _profileForAuthUser(profile, authUser, '_saveUserProfile');
+      if (ownedProfile == null) return;
+      _userProfile = ownedProfile;
+
+      if (authUser != null) {
+        await _supabase.from('profiles').upsert({
+          'id': authUser.id,
+          'first_name': ownedProfile.firstName,
+          'last_name': ownedProfile.lastName,
+          'email': ownedProfile.email,
+          'birth_date': ownedProfile.birthDate,
+          'role': ownedProfile.role,
+          'weight': ownedProfile.weight,
+          'height': ownedProfile.height,
+          'max_hr': ownedProfile.maxHr,
+          'avatar_url': ownedProfile.avatarUrl,
+          'ski_club': ownedProfile.skiClub,
+          'gender': ownedProfile.gender,
+          'skill_level': ownedProfile.skillLevel,
+          'one_rep_max': ownedProfile.oneRepMax,
+          'connected_devices':
+              ownedProfile.connectedDevices.map((e) => e.toJson()).toList(),
+          'team_id': ownedProfile.teamId,
+          'hr_zone_mode': ownedProfile.hrZoneMode,
+          'custom_hr_zones': ownedProfile.customHrZones,
+        }, onConflict: 'id');
       }
+
+      // Save local settings
+      _prefs!.setString('unitSystem', ownedProfile.unitSystem);
+      _prefs!.setString('language', ownedProfile.language);
+      _applyThemeMode(ownedProfile.themeMode);
+      _prefs!.setString(_themeModeKey, _themeMode);
+      _prefs!
+          .setBool('notificationsEnabled', ownedProfile.notificationsEnabled);
+    } catch (e) {
+      debugPrint('Error saving profile: $e');
     }
   }
 
@@ -1808,6 +1927,7 @@ class AppState extends ChangeNotifier {
           .maybeSingle();
       if (data == null) return null;
       return UserProfile(
+        id: data['id']?.toString() ?? athleteId,
         firstName: data['first_name'] ?? '',
         lastName: data['last_name'] ?? '',
         email: data['email'] ?? '',
@@ -1850,10 +1970,8 @@ class AppState extends ChangeNotifier {
           continue;
         }
 
-        final existingIndex = extId == null
-            ? -1
-            : _sessions.indexWhere(
-                (s) => s.details != null && s.details!['external_id'] == extId);
+        final existingIndex =
+            extId == null ? -1 : _existingHealthSessionIndexByExternalId(extId);
         final existingByExternalId =
             existingIndex >= 0 ? _sessions[existingIndex] : null;
 
@@ -2059,15 +2177,34 @@ class AppState extends ChangeNotifier {
     TrainingSession imported,
   ) {
     final sourcePartIds = imported.details?['merged_source_workout_ids'];
-    if (sourcePartIds is! List || sourcePartIds.isEmpty) return [];
+    final ids = <String>{};
+    final externalId = imported.details?['external_id']?.toString();
+    if (externalId != null && externalId.isNotEmpty) ids.add(externalId);
+    if (sourcePartIds is List) {
+      ids.addAll(sourcePartIds.map((id) => id.toString()));
+    }
+    if (ids.isEmpty) return [];
 
-    final ids = sourcePartIds.map((id) => id.toString()).toSet();
     return _sessions.where((session) {
       final details = session.details;
       if (details == null || details['source'] != 'health_sync') return false;
       final externalId = details['external_id']?.toString();
-      return externalId != null && ids.contains(externalId);
+      if (externalId != null && ids.contains(externalId)) return true;
+      final mergedIds = details['merged_source_workout_ids'];
+      return mergedIds is List &&
+          mergedIds.map((id) => id.toString()).any(ids.contains);
     }).toList();
+  }
+
+  int _existingHealthSessionIndexByExternalId(String externalId) {
+    return _sessions.indexWhere((session) {
+      final details = session.details;
+      if (details == null || details['source'] != 'health_sync') return false;
+      if (details['external_id']?.toString() == externalId) return true;
+      final mergedIds = details['merged_source_workout_ids'];
+      return mergedIds is List &&
+          mergedIds.map((id) => id.toString()).contains(externalId);
+    });
   }
 
   Future<void> refreshAllHealthData(DateTime targetDate) async {
@@ -2636,15 +2773,21 @@ class AppState extends ChangeNotifier {
       final plannedDryland = event.technicalDetails?['plannedDrylandSession'];
       final plannedDrylandCategory =
           plannedDryland is Map ? plannedDryland['category']?.toString() : null;
+      final plannedDrylandSportType = plannedDryland is Map
+          ? plannedDryland['sportType']?.toString()
+          : null;
       final sessionPayload = {
         'user_id': resolvedAthleteId,
         'sport_id': isSkiing
             ? 'alpine_skiing'
-            : (plannedDrylandCategory == ActivityCategory.athleticPrep
-                ? 'athletic_prep'
-                : event.drylandSpecialty?.isNotEmpty == true
-                    ? 'dryland_${event.drylandSpecialty!.toLowerCase().replaceAll(RegExp(r'[^a-z0-9]+'), '_')}'
-                    : 'dryland'),
+            : (plannedDrylandSportType != null &&
+                    plannedDrylandSportType.isNotEmpty
+                ? plannedDrylandSportType
+                : plannedDrylandCategory == ActivityCategory.athleticPrep
+                    ? 'athletic_prep'
+                    : event.drylandSpecialty?.isNotEmpty == true
+                        ? 'dryland_${event.drylandSpecialty!.toLowerCase().replaceAll(RegExp(r'[^a-z0-9]+'), '_')}'
+                        : 'dryland'),
         'date': event.date,
         'start_time': event.startTime,
         'end_time': event.endTime,

@@ -133,6 +133,18 @@ void main() {
         mapSportTypeToStrainCategory('padel'), StrainSportCategory.teamSport);
     expect(
         mapSportTypeToStrainCategory('dryland'), StrainSportCategory.strength);
+    expect(mapSportTypeToStrainCategory('dryland_strength'),
+        StrainSportCategory.strength);
+    expect(mapSportTypeToStrainCategory('dryland_plyometrics'),
+        StrainSportCategory.plyometrics);
+    expect(mapSportTypeToStrainCategory('dryland_speed_agility'),
+        StrainSportCategory.sprint);
+    expect(mapSportTypeToStrainCategory('dryland_endurance'),
+        StrainSportCategory.enduranceGeneric);
+    expect(mapSportTypeToStrainCategory('dryland_mobility_core'),
+        StrainSportCategory.mobility);
+    expect(mapSportTypeToStrainCategory('dryland_mixed_circuit'),
+        StrainSportCategory.strength);
     expect(
       mapSportTypeToStrainCategory('walking'),
       StrainSportCategory.enduranceGeneric,

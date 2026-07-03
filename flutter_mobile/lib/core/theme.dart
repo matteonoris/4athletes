@@ -77,11 +77,14 @@ class AppTheme {
 
   static void setThemeMode(
     String mode, {
-    Brightness platformBrightness = Brightness.light,
+    Brightness? platformBrightness,
   }) {
     final normalized = normalizeThemeMode(mode);
+    final effectivePlatformBrightness = platformBrightness ??
+        WidgetsBinding.instance.platformDispatcher.platformBrightness;
     _isDark = normalized == darkMode ||
-        (normalized == systemMode && platformBrightness == Brightness.dark);
+        (normalized == systemMode &&
+            effectivePlatformBrightness == Brightness.dark);
   }
 
   static ThemeData get lightTheme {

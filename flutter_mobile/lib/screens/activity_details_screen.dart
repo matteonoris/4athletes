@@ -4,6 +4,7 @@ import 'package:phosphor_flutter/phosphor_flutter.dart';
 import 'package:provider/provider.dart';
 
 import '../core/theme.dart';
+import '../data/dryland_prep_types.dart';
 import '../models/models.dart';
 import '../models/training_activity_models.dart';
 import '../utils/time_utils.dart';
@@ -1346,6 +1347,12 @@ class ActivityDetailsScreen extends StatelessWidget {
                 const SizedBox(height: 16),
                 _buildDetailRow(context, 'Categoria',
                     _drylandCategoryLabel(activity.category)),
+                if (activity.prepType != null)
+                  _buildDetailRow(
+                    context,
+                    'Tipo',
+                    DrylandPrepTypes.byId(activity.prepType).title,
+                  ),
                 _buildDetailRow(context, 'Data', session.date),
                 _buildDetailRow(context, 'Orario',
                     '${session.startTime} - ${session.endTime}'),

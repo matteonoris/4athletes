@@ -107,11 +107,20 @@ class TrainingActivityService {
     final actual = attendee['actualDrylandDetails'];
     final blocks = _blocksFromAny(actual) ?? _blocksFromAny(planned);
     final category = _categoryFromEvent(event, planned);
+    final plannedMap =
+        planned is Map ? Map<String, dynamic>.from(planned) : null;
+    final activityDomain =
+        category == ActivityCategory.sport ? 'sport' : 'dryland';
 
     final details = <String, dynamic>{
       'schemaVersion': 2,
-      'activityDomain': 'dryland',
+      'activityDomain': activityDomain,
       'activityCategory': category,
+      if (plannedMap?['prepType'] != null) 'prepType': plannedMap!['prepType'],
+      if (plannedMap?['usesPhases'] != null)
+        'usesPhases': plannedMap!['usesPhases'],
+      if (plannedMap?['sportType'] != null)
+        'sportType': plannedMap!['sportType'],
       'source': ActivitySource.coach,
       'from_calendar': true,
       'status': ActivityStatus.completed,
@@ -160,16 +169,18 @@ class TrainingActivityService {
 
   List<Map<String, dynamic>>? _blocksFromAny(dynamic value) {
     if (value is Map && value['blocks'] is List) {
-      return (value['blocks'] as List)
+      final blocks = (value['blocks'] as List)
           .whereType<Map>()
           .map((item) => Map<String, dynamic>.from(item))
           .toList();
+      return blocks.isEmpty ? null : blocks;
     }
     if (value is List) {
-      return value
+      final blocks = value
           .whereType<Map>()
           .map((item) => Map<String, dynamic>.from(item))
           .toList();
+      return blocks.isEmpty ? null : blocks;
     }
     return null;
   }

@@ -3,6 +3,7 @@ import 'package:phosphor_flutter/phosphor_flutter.dart';
 import 'package:provider/provider.dart';
 
 import '../core/theme.dart';
+import '../data/dryland_prep_types.dart';
 import '../models/training_activity_models.dart';
 import '../providers/app_state.dart';
 import '../services/health_service.dart';
@@ -18,6 +19,9 @@ class SportActivity {
 
   const SportActivity(this.id, this.name, this.category, this.icon);
 }
+
+List<SportActivity> get selectableSportActivities =>
+    _ActivitySelectScreenState.sportActivities;
 
 class ActivitySelectScreen extends StatefulWidget {
   final bool isPicker;
@@ -168,8 +172,27 @@ class _ActivitySelectScreenState extends State<ActivitySelectScreen> {
         'skateboarding', 'SKATEBOARDING', 'SKILL', Icons.snowboarding),
   ];
 
+  static final Set<String> _sportOnlyExcludedIds = {
+    'athletic_prep',
+    'weightlifting',
+    'crossfit',
+    'stretching',
+    'yoga',
+    'pilates',
+    'hyperarch',
+    'lattacidemia',
+    'tendon_isometrics',
+    'aerobics',
+  };
+
+  static List<SportActivity> get sportActivities => allActivities
+      .where((activity) =>
+          activity.category != 'FITNESS' &&
+          !_sportOnlyExcludedIds.contains(activity.id))
+      .toList();
+
   List<SportActivity> get _filteredActivities {
-    return allActivities.where((act) {
+    return sportActivities.where((act) {
       final matchesSearch =
           act.name.toLowerCase().contains(_searchQuery.toLowerCase());
       final matchesCat =
@@ -178,6 +201,7 @@ class _ActivitySelectScreenState extends State<ActivitySelectScreen> {
     }).toList();
   }
 
+  // ignore: unused_field
   static const List<_DrylandCategoryOption> _drylandCategories = [
     _DrylandCategoryOption(
       ActivityCategory.strength,
@@ -223,13 +247,15 @@ class _ActivitySelectScreenState extends State<ActivitySelectScreen> {
     ),
   ];
 
-  void _openDryland(_DrylandCategoryOption option) {
+  void _openDryland(DrylandPrepTypeOption option) {
     Navigator.push(
       context,
       MaterialPageRoute(
         builder: (_) => DrylandActivityScreen(
           category: option.category,
           title: option.title,
+          prepType: option.id,
+          usesPhases: true,
         ),
       ),
     );
@@ -305,7 +331,7 @@ class _ActivitySelectScreenState extends State<ActivitySelectScreen> {
   Widget build(BuildContext context) {
     final appState = Provider.of<AppState>(context);
     final query = _searchQuery.trim().toLowerCase();
-    final categoryResults = _drylandCategories.where((item) {
+    final categoryResults = DrylandPrepTypes.options.where((item) {
       if (query.isEmpty) return true;
       return item.title.toLowerCase().contains(query) ||
           item.subtitle.toLowerCase().contains(query);
@@ -319,19 +345,15 @@ class _ActivitySelectScreenState extends State<ActivitySelectScreen> {
         .map((session) => session.sportId)
         .toSet()
         .take(4)
-        .map((id) => allActivities.cast<SportActivity?>().firstWhere(
+        .map((id) => sportActivities.cast<SportActivity?>().firstWhere(
               (activity) => activity?.id == id,
               orElse: () => null,
             ))
         .whereType<SportActivity>()
         .toList();
-    final favoriteSports = allActivities
-        .where((activity) => [
-              'weightlifting',
-              'running',
-              'cycling',
-              'stretching'
-            ].contains(activity.id))
+    final favoriteSports = sportActivities
+        .where((activity) =>
+            ['running', 'cycling', 'hiking', 'calcio'].contains(activity.id))
         .toList();
 
     return Scaffold(
@@ -382,7 +404,7 @@ class _ActivitySelectScreenState extends State<ActivitySelectScreen> {
                 decoration: InputDecoration(
                   hintText: _showAllSports
                       ? 'Cerca sport...'
-                      : 'Cerca categorie, sport, template...',
+                      : 'Cerca sport o preparazione...',
                   hintStyle: TextStyle(
                       color: AppTheme.textMediumEmphasis, fontSize: 14),
                   prefixIcon: Icon(PhosphorIcons.magnifyingGlass(),
@@ -404,15 +426,18 @@ class _ActivitySelectScreenState extends State<ActivitySelectScreen> {
                         _healthImportTile(),
                         const SizedBox(height: 18),
                       ],
-                      if (recentSports.isNotEmpty) ...[
-                        _sectionTitle('Recenti'),
-                        _horizontalSports(recentSports),
+                      if (query.isEmpty) ...[
+                        _sectionTitle('Scegli area'),
+                        _macroTile(
+                          title: 'Sport',
+                          subtitle: 'Hiking, calcio, corsa, tennis, bici',
+                          icon: Icons.sports_outlined,
+                          color: AppTheme.primary,
+                          onTap: () => setState(() => _showAllSports = true),
+                        ),
                         const SizedBox(height: 18),
                       ],
-                      _sectionTitle('Preferiti'),
-                      _horizontalSports(favoriteSports),
-                      const SizedBox(height: 18),
-                      _sectionTitle('Categorie'),
+                      _sectionTitle('Preparazione atletica'),
                       GridView.count(
                         crossAxisCount: 2,
                         crossAxisSpacing: 10,
@@ -421,21 +446,28 @@ class _ActivitySelectScreenState extends State<ActivitySelectScreen> {
                         physics: const NeverScrollableScrollPhysics(),
                         childAspectRatio: 1.55,
                         children: categoryResults
-                            .map((option) => _categoryTile(option))
+                            .map((option) => _prepTile(option))
                             .toList(),
                       ),
                       const SizedBox(height: 18),
-                      _sectionTitle('Sport'),
-                      ...sportResults
-                          .take(query.isEmpty ? 5 : 20)
-                          .map(_sportTile),
-                      if (query.isEmpty)
+                      if (query.isNotEmpty) ...[
+                        _sectionTitle('Sport'),
+                        ...sportResults.take(20).map(_sportTile),
+                      ] else ...[
+                        if (recentSports.isNotEmpty) ...[
+                          _sectionTitle('Sport recenti'),
+                          _horizontalSports(recentSports),
+                          const SizedBox(height: 18),
+                        ],
+                        _sectionTitle('Sport preferiti'),
+                        _horizontalSports(favoriteSports),
                         TextButton.icon(
                           onPressed: () =>
                               setState(() => _showAllSports = true),
                           icon: const Icon(Icons.search),
                           label: const Text('Mostra tutti gli sport'),
                         ),
+                      ],
                     ],
                   ),
           ),
@@ -571,6 +603,7 @@ class _ActivitySelectScreenState extends State<ActivitySelectScreen> {
   }
 
   Widget _horizontalSports(List<SportActivity> sports) {
+    if (sports.isEmpty) return const SizedBox.shrink();
     return SizedBox(
       height: 90,
       child: ListView.separated(
@@ -614,7 +647,70 @@ class _ActivitySelectScreenState extends State<ActivitySelectScreen> {
     );
   }
 
-  Widget _categoryTile(_DrylandCategoryOption option) {
+  Widget _macroTile({
+    required String title,
+    required String subtitle,
+    required IconData icon,
+    required Color color,
+    required VoidCallback onTap,
+  }) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(12),
+      child: Container(
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: AppTheme.card,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: color.withValues(alpha: 0.24)),
+        ),
+        child: Row(
+          children: [
+            Container(
+              width: 46,
+              height: 46,
+              decoration: BoxDecoration(
+                color: color.withValues(alpha: 0.12),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Icon(icon, color: color),
+            ),
+            const SizedBox(width: 14),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    title,
+                    style: TextStyle(
+                      color: AppTheme.textHighEmphasis,
+                      fontWeight: FontWeight.bold,
+                      fontSize: 15,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    subtitle,
+                    style: TextStyle(
+                      color: AppTheme.textMediumEmphasis,
+                      fontSize: 12,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            Icon(
+              PhosphorIcons.caretRight(PhosphorIconsStyle.bold),
+              color: AppTheme.textMediumEmphasis,
+              size: 18,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _prepTile(DrylandPrepTypeOption option) {
     return InkWell(
       onTap: () => _openDryland(option),
       borderRadius: BorderRadius.circular(12),

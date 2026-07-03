@@ -71,6 +71,14 @@ class HealthWorkoutMergeUtils {
     final preservedDetails = Map<String, dynamic>.from(existing.details ?? {});
     preservedDetails.removeWhere((key, _) => _healthManagedKeys.contains(key));
     preservedDetails.addAll(imported.details ?? {});
+    final mergedExternalIds = _mergedExternalWorkoutIds(
+      existing.details,
+      imported.details,
+    );
+    if (mergedExternalIds.isNotEmpty) {
+      preservedDetails['merged_source_workout_ids'] = mergedExternalIds;
+      preservedDetails['source_part_count'] = mergedExternalIds.length;
+    }
 
     final merged = TrainingSession(
       id: existing.id,
@@ -199,6 +207,7 @@ class HealthWorkoutMergeUtils {
     if (normalized.contains('cycling') || normalized == 'spinning') {
       return 'cycling';
     }
+    if (_isDrylandSportId(normalized)) return 'dryland';
     if (normalized == 'walking' || normalized == 'hiking') return 'walking';
     if (normalized == 'swimming') return 'swimming';
     if (normalized == 'rowing' || normalized == 'rowing_machine') {
@@ -213,6 +222,28 @@ class HealthWorkoutMergeUtils {
       return 'snow';
     }
     return normalized;
+  }
+
+  static bool _isDrylandSportId(String sportId) {
+    if (sportId.startsWith('dryland')) return true;
+    return sportId == 'athletic_prep' ||
+        sportId == 'preparazione_atletica' ||
+        sportId == 'weightlifting' ||
+        sportId == 'strength' ||
+        sportId == 'strength_training' ||
+        sportId == 'functional_strength_training' ||
+        sportId == 'traditional_strength_training' ||
+        sportId == 'crossfit' ||
+        sportId == 'cross_training' ||
+        sportId == 'mixed_cardio' ||
+        sportId == 'hiit' ||
+        sportId == 'high_intensity_interval_training' ||
+        sportId == 'core' ||
+        sportId == 'core_training' ||
+        sportId == 'mobility' ||
+        sportId == 'flexibility' ||
+        sportId == 'yoga' ||
+        sportId == 'pilates';
   }
 
   static String _canonicalSnowSportId(String sportId) {
@@ -415,6 +446,35 @@ class HealthWorkoutMergeUtils {
       ));
     }
     return HealthImportNormalizer.cleanHeartRateSamples(samples);
+  }
+
+  static List<String> _mergedExternalWorkoutIds(
+    Map<String, dynamic>? existing,
+    Map<String, dynamic>? imported,
+  ) {
+    final ids = <String>[];
+
+    void add(dynamic value) {
+      final id = value?.toString().trim();
+      if (id != null && id.isNotEmpty && !ids.contains(id)) {
+        ids.add(id);
+      }
+    }
+
+    void addFrom(Map<String, dynamic>? details) {
+      if (details == null) return;
+      add(details['external_id']);
+      final sourcePartIds = details['merged_source_workout_ids'];
+      if (sourcePartIds is List) {
+        for (final id in sourcePartIds) {
+          add(id);
+        }
+      }
+    }
+
+    addFrom(existing);
+    addFrom(imported);
+    return ids;
   }
 
   static List<Map<String, int>> _parseZoneBoundaries(dynamic value) {

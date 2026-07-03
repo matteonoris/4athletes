@@ -1,7 +1,7 @@
-Build TestFlight dedicata a import Health, insight sul sonno, template workout, persistenza metriche wearable e leggibilita' delle sessioni dryland.
+Build TestFlight dedicata al logging dryland, ai dettagli coach, al matching degli allenamenti Apple Health e alla selezione attivita'.
 
-- Mappa piu' tipi di allenamento Apple Health, inclusi core training, Pilates, mixed cardio, scale, arti marziali e recupero.
-- Mantiene le card dei punteggi Health popolate dai log salvati quando si guardano giorni passati o il sonno di oggi e' ancora incompleto, con grafici sonno piu' completi.
-- Sincronizza uno storico wearable piu' ampio e salva da remoto SpO2, frequenza respiratoria, temperatura, HRV e peso.
-- Aggiunge il supporto storage per template workout e migliora i riepiloghi dryland con blocchi forza espandibili, dettagli set, badge, volume, carico massimo e percentuali 1RM.
-- Rifinisce il layout dell'intestazione stagionale sugli schermi stretti.
+- Aggiunge tipi strutturati per la preparazione dryland e riepiloghi forza piu' ricchi con dettagli set, volume, carico massimo e percentuali 1RM.
+- Migliora la review dei dettagli evento coach con contesto attivita' piu' chiaro e dati allenamento estesi.
+- Mappa piu' workout importati da Health nelle categorie sport e training corrette, inclusi dryland e recupero.
+- Rifinisce la selezione attivita' su mobile e nel prototype web locale per rendere le opzioni piu' facili da scansionare.
+- Allinea i test di modelli training, merge Health e strain score alla copertura aggiornata delle attivita'.

@@ -6,6 +6,7 @@ import 'package:provider/provider.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../core/theme.dart';
+import '../data/dryland_prep_types.dart';
 import '../data/exercises.dart';
 import '../models/models.dart';
 import '../models/training_activity_models.dart';
@@ -13,6 +14,7 @@ import '../providers/app_state.dart';
 import '../services/training_activity_service.dart';
 import '../utils/coach_training_utils.dart';
 import '../widgets/custom_card.dart';
+import 'activity_select.dart';
 
 class CoachEventDetailsScreen extends StatefulWidget {
   final CalendarEvent? event;
@@ -137,6 +139,11 @@ class _CoachEventDetailsScreenState extends State<CoachEventDetailsScreen> {
   bool _isLoadingAthletes = false;
   bool _isSaving = false;
   String _searchQuery = '';
+  String _drylandKind = 'prep';
+  String _drylandSportId = 'hiking';
+  String _drylandPrepType = DrylandPrepType.mixedCircuit;
+  bool _drylandUsesPhases = true;
+  String _drylandActivePhase = TrainingPhase.main;
   String _drylandCategory = ActivityCategory.athleticPrep;
   String _exerciseSearch = '';
   String _equipmentFilter = 'all';
@@ -154,6 +161,11 @@ class _CoachEventDetailsScreenState extends State<CoachEventDetailsScreen> {
       widget.event?.status == CoachTrainingUtils.statusCompleted;
 
   bool get _isSki => _sportCategory == 'ski';
+  bool get _isDrylandSportPlan =>
+      _sportCategory == 'dryland' && _drylandKind == 'sport';
+  bool get _isPrepPlan => _sportCategory == 'dryland' && _drylandKind == 'prep';
+  DrylandPrepTypeOption get _drylandPrepOption =>
+      DrylandPrepTypes.byId(_drylandPrepType);
   bool get _isExerciseCategory =>
       _drylandCategory == ActivityCategory.strength ||
       _drylandCategory == ActivityCategory.mobility ||
@@ -167,7 +179,8 @@ class _CoachEventDetailsScreenState extends State<CoachEventDetailsScreen> {
   bool get _isEndurance => _drylandCategory == ActivityCategory.endurance;
   bool get _isAthleticPrep =>
       _sportCategory == 'dryland' &&
-      _drylandCategory == ActivityCategory.athleticPrep;
+      _drylandKind == 'prep' &&
+      _drylandUsesPhases;
   bool get _showTechnical =>
       _isSki && _eventStatus == CoachTrainingUtils.statusCompleted;
 
@@ -323,14 +336,39 @@ class _CoachEventDetailsScreenState extends State<CoachEventDetailsScreen> {
     final planned = tech['plannedDrylandSession'];
     if (planned is! Map) return;
 
+    final plannedMap = Map<String, dynamic>.from(planned);
     final category = planned['category']?.toString();
     if (category != null && category.isNotEmpty) {
-      _drylandCategory = ActivityCategory.athleticPrep;
-      _drylandSpecialtyCtrl.text = _categoryLabel(_drylandCategory);
+      _drylandCategory = category;
+    }
+
+    final sportType = plannedMap['sportType']?.toString();
+    if (_drylandCategory == ActivityCategory.sport) {
+      _drylandKind = 'sport';
+      _drylandSportId = sportType?.isNotEmpty == true ? sportType! : 'hiking';
+      _drylandSpecialtyCtrl.text = _sportLabel(_drylandSportId);
+    } else {
+      _drylandKind = 'prep';
+      final option = DrylandPrepTypes.maybeById(
+            plannedMap['prepType']?.toString(),
+          ) ??
+          DrylandPrepTypes.fromSportType(sportType) ??
+          DrylandPrepTypes.fromCategory(_drylandCategory);
+      _drylandPrepType = option.id;
+      _drylandCategory = option.category;
+      _drylandSpecialtyCtrl.text = option.title;
+      _drylandUsesPhases = plannedMap['usesPhases'] is bool
+          ? plannedMap['usesPhases'] as bool
+          : true;
     }
 
     final blocks = planned['blocks'];
     if (blocks is! List) return;
+    if (plannedMap['usesPhases'] == null) {
+      _drylandUsesPhases = blocks.whereType<Map>().any((block) =>
+          (block['metrics'] is Map) &&
+          (block['metrics'] as Map)['phase'] != null);
+    }
     _loadDrylandBlocks(
       blocks
           .whereType<Map>()
@@ -410,12 +448,17 @@ class _CoachEventDetailsScreenState extends State<CoachEventDetailsScreen> {
   }
 
   List<TrainingBlock> _buildDrylandBlocks() {
-    if (_isAthleticPrep) {
+    if (_isDrylandSportPlan) return const [];
+    if (_isPrepPlan) {
       final blocks = <TrainingBlock>[];
-      for (final phase in TrainingPhase.ordered) {
-        final phaseExercises = _strengthExercises
-            .where((item) => _phaseFromExerciseMap(item) == phase)
-            .toList();
+      final phases =
+          _drylandUsesPhases ? TrainingPhase.ordered : [TrainingPhase.main];
+      for (final phase in phases) {
+        final phaseExercises = _drylandUsesPhases
+            ? _strengthExercises
+                .where((item) => _phaseFromExerciseMap(item) == phase)
+                .toList()
+            : List<Map<String, dynamic>>.from(_strengthExercises);
         final grouped = <String, List<Map<String, dynamic>>>{};
         for (final exercise in phaseExercises) {
           final type = _exerciseBlockTypeForExercise(exercise);
@@ -423,22 +466,49 @@ class _CoachEventDetailsScreenState extends State<CoachEventDetailsScreen> {
         }
         for (final entry in grouped.entries) {
           blocks.add(TrainingBlock(
-            id: '${phase}_${entry.key}_${blocks.length + 1}',
+            id: _drylandUsesPhases
+                ? '${phase}_${entry.key}_${blocks.length + 1}'
+                : '${entry.key}_${blocks.length + 1}',
             type: entry.key,
-            name: TrainingPhase.label(phase),
+            name: _drylandUsesPhases
+                ? TrainingPhase.label(phase)
+                : _categoryLabel(_drylandCategory),
             exercises: entry.value
                 .map((item) => ExerciseEntry.fromJson(item))
                 .toList(),
-            metrics: {'phase': phase},
+            metrics: _drylandUsesPhases ? {'phase': phase} : const {},
           ));
         }
+      }
+      if (_endurance.isNotEmpty) {
+        blocks.add(TrainingBlock(
+          id: 'endurance_1',
+          type: TrainingBlockType.endurance,
+          name: 'Resistenza',
+          endurance: EnduranceMetrics.fromJson({
+            ..._endurance,
+            'durationSeconds': _calculateEventDurationMinutes() * 60,
+          }),
+        ));
+      }
+      if (_circuits.isNotEmpty) {
+        blocks.add(TrainingBlock(
+          id: 'circuit_1',
+          type: TrainingBlockType.circuit,
+          name: 'Circuito',
+          metrics: {'circuits': _circuits},
+        ));
       }
       if (blocks.isEmpty && _notesCtrl.text.trim().isNotEmpty) {
         blocks.add(TrainingBlock(
           id: 'note_1',
           type: TrainingBlockType.note,
-          name: TrainingPhase.label(TrainingPhase.main),
-          metrics: const {'phase': TrainingPhase.main},
+          name: _drylandUsesPhases
+              ? TrainingPhase.label(TrainingPhase.main)
+              : _categoryLabel(_drylandCategory),
+          metrics: _drylandUsesPhases
+              ? const {'phase': TrainingPhase.main}
+              : const {},
           notes: _notesCtrl.text.trim(),
         ));
       }
@@ -526,6 +596,10 @@ class _CoachEventDetailsScreenState extends State<CoachEventDetailsScreen> {
     required List<TrainingBlock> blocks,
   }) {
     final appState = Provider.of<AppState>(context, listen: false);
+    final isSportPlan = _isDrylandSportPlan;
+    final category = isSportPlan ? ActivityCategory.sport : _drylandCategory;
+    final sportType =
+        isSportPlan ? _drylandSportId : _drylandPrepOption.sportType;
     return TrainingActivity(
       id: id,
       coachId: appState.userId,
@@ -533,12 +607,14 @@ class _CoachEventDetailsScreenState extends State<CoachEventDetailsScreen> {
       teamIds: _selectedTeams.map((team) => team.id).toList(),
       source: source,
       status: status,
-      category: _drylandCategory,
-      sportType: _isAthleticPrep
-          ? 'athletic_prep'
-          : 'dryland_${_drylandCategory.replaceAll('_', '-')}',
+      category: category,
+      prepType: isSportPlan ? null : _drylandPrepType,
+      usesPhases: isSportPlan ? null : _drylandUsesPhases,
+      sportType: sportType,
       title: _titleCtrl.text.trim().isEmpty
-          ? _categoryLabel(_drylandCategory)
+          ? isSportPlan
+              ? _sportLabel(_drylandSportId)
+              : _categoryLabel(_drylandCategory)
           : _titleCtrl.text.trim(),
       date: _dateCtrl.text,
       startTime: _startCtrl.text,
@@ -1001,29 +1077,166 @@ class _CoachEventDetailsScreenState extends State<CoachEventDetailsScreen> {
     final exerciseCount = _strengthExercises.length;
 
     return _sectionCard(
-      title: 'Programma preparazione',
-      icon: Icons.fitness_center,
+      title: _isDrylandSportPlan ? 'Sport' : 'Programma preparazione',
+      icon:
+          _isDrylandSportPlan ? Icons.sports_outlined : _drylandPrepOption.icon,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          _drylandTemplateRow(),
+          _drylandKindSelector(),
           const SizedBox(height: 16),
-          if (blocks.isNotEmpty) ...[
-            Wrap(
-              spacing: 8,
-              runSpacing: 8,
-              children: [
-                _drylandMetricBadge('Esercizi', exerciseCount.toString()),
-                _drylandMetricBadge('Parti', '${blocks.length} blocchi'),
-              ],
-            ),
+          if (_isDrylandSportPlan)
+            _drylandSportSelector()
+          else ...[
+            _drylandPrepTypeSelector(),
             const SizedBox(height: 16),
-          ],
-          for (final phase in TrainingPhase.ordered) ...[
-            _athleticPrepPhaseEditor(phase),
-            if (phase != TrainingPhase.ordered.last) const SizedBox(height: 16),
+            _drylandPhaseModeToggle(),
+            if (_drylandUsesPhases) ...[
+              const SizedBox(height: 12),
+              _drylandPhaseSelector(),
+            ],
+            const SizedBox(height: 16),
+            _drylandTemplateRow(),
+            const SizedBox(height: 16),
+            if (blocks.isNotEmpty) ...[
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: [
+                  _drylandMetricBadge('Esercizi', exerciseCount.toString()),
+                  _drylandMetricBadge('Parti', '${blocks.length} blocchi'),
+                ],
+              ),
+              const SizedBox(height: 16),
+            ],
+            _athleticPrepPhaseEditor(
+              _drylandUsesPhases ? _drylandActivePhase : TrainingPhase.main,
+            ),
+            if (_drylandPrepOption.isEndurance) ...[
+              const SizedBox(height: 16),
+              _coachEnduranceEditor(),
+            ],
+            if (_drylandPrepOption.isMixed) ...[
+              const SizedBox(height: 16),
+              _coachCircuitEditor(),
+            ],
           ],
         ],
+      ),
+    );
+  }
+
+  Widget _drylandKindSelector() {
+    return _segmentedControl(
+      values: const {'prep': 'Preparazione', 'sport': 'Sport'},
+      selected: _drylandKind,
+      onSelected: (value) => setState(() {
+        _drylandKind = value;
+        if (value == 'sport') {
+          _drylandCategory = ActivityCategory.sport;
+          _drylandSpecialtyCtrl.text = _sportLabel(_drylandSportId);
+        } else {
+          final option = _drylandPrepOption;
+          _drylandCategory = option.category;
+          _drylandSpecialtyCtrl.text = option.title;
+        }
+      }),
+    );
+  }
+
+  Widget _drylandSportSelector() {
+    return DropdownButtonFormField<String>(
+      initialValue: _drylandSportId,
+      dropdownColor: AppTheme.card,
+      decoration: const InputDecoration(
+        labelText: 'Sport',
+        prefixIcon: Icon(Icons.sports_outlined),
+      ),
+      items: selectableSportActivities
+          .map(
+            (sport) => DropdownMenuItem(
+              value: sport.id,
+              child: Text(sport.name),
+            ),
+          )
+          .toList(),
+      onChanged: (value) {
+        if (value == null) return;
+        setState(() {
+          _drylandSportId = value;
+          _drylandCategory = ActivityCategory.sport;
+          _drylandSpecialtyCtrl.text = _sportLabel(value);
+        });
+      },
+    );
+  }
+
+  Widget _drylandPrepTypeSelector() {
+    return Wrap(
+      spacing: 8,
+      runSpacing: 8,
+      children: DrylandPrepTypes.options.map((option) {
+        final selected = option.id == _drylandPrepType;
+        return ChoiceChip(
+          avatar: Icon(
+            option.icon,
+            size: 16,
+            color: selected ? Colors.white : option.color,
+          ),
+          label: Text(option.title),
+          selected: selected,
+          onSelected: (_) => setState(() {
+            _drylandPrepType = option.id;
+            _drylandCategory = option.category;
+            _drylandSpecialtyCtrl.text = option.title;
+          }),
+          selectedColor: option.color,
+          backgroundColor: AppTheme.background,
+          labelStyle: TextStyle(
+            color: selected ? Colors.white : AppTheme.textMediumEmphasis,
+            fontWeight: FontWeight.bold,
+          ),
+          side: BorderSide(
+            color: selected ? option.color : AppTheme.subtleBorder,
+          ),
+        );
+      }).toList(),
+    );
+  }
+
+  Widget _drylandPhaseModeToggle() {
+    return _segmentedControl(
+      values: const {'phases': '3 fasi', 'simple': 'Scheda semplice'},
+      selected: _drylandUsesPhases ? 'phases' : 'simple',
+      onSelected: (value) =>
+          setState(() => _drylandUsesPhases = value == 'phases'),
+    );
+  }
+
+  Widget _drylandPhaseSelector() {
+    return SingleChildScrollView(
+      scrollDirection: Axis.horizontal,
+      child: Row(
+        children: TrainingPhase.ordered.map((phase) {
+          final selected = _drylandActivePhase == phase;
+          return Padding(
+            padding: const EdgeInsets.only(right: 8),
+            child: ChoiceChip(
+              label: Text(TrainingPhase.label(phase)),
+              selected: selected,
+              onSelected: (_) => setState(() => _drylandActivePhase = phase),
+              selectedColor: AppTheme.primary,
+              backgroundColor: AppTheme.background,
+              labelStyle: TextStyle(
+                color: selected ? Colors.white : AppTheme.textMediumEmphasis,
+                fontWeight: FontWeight.bold,
+              ),
+              side: BorderSide(
+                color: selected ? AppTheme.primary : AppTheme.subtleBorder,
+              ),
+            ),
+          );
+        }).toList(),
       ),
     );
   }
@@ -1032,7 +1245,8 @@ class _CoachEventDetailsScreenState extends State<CoachEventDetailsScreen> {
     final exercises = _strengthExercises
         .asMap()
         .entries
-        .where((entry) => _phaseFromExerciseMap(entry.value) == phase)
+        .where((entry) =>
+            !_drylandUsesPhases || _phaseFromExerciseMap(entry.value) == phase)
         .toList();
 
     return Container(
@@ -1043,7 +1257,7 @@ class _CoachEventDetailsScreenState extends State<CoachEventDetailsScreen> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
-            TrainingPhase.label(phase),
+            _drylandUsesPhases ? TrainingPhase.label(phase) : 'Lavoro',
             style: TextStyle(
               color: AppTheme.textHighEmphasis,
               fontWeight: FontWeight.bold,
@@ -1273,10 +1487,9 @@ class _CoachEventDetailsScreenState extends State<CoachEventDetailsScreen> {
           exercise.targetMuscle.toLowerCase().contains(query);
       final matchesEquipment =
           _equipmentFilter == 'all' || exercise.category == _equipmentFilter;
-      final activityFilter = _exerciseActivityFilter();
-      final matchesActivity = activityFilter == 'all' ||
-          exercise.resolvedActivityCategory == activityFilter;
-      return matchesQuery && matchesEquipment && matchesActivity;
+      return matchesQuery &&
+          matchesEquipment &&
+          _exerciseMatchesPrepFilter(exercise);
     }).take(8);
 
     return Column(
@@ -1871,6 +2084,7 @@ class _CoachEventDetailsScreenState extends State<CoachEventDetailsScreen> {
   }
 
   String _categoryLabel(String category) {
+    if (_isPrepPlan) return _drylandPrepOption.title;
     switch (category) {
       case ActivityCategory.athleticPrep:
         return 'Preparazione atletica';
@@ -1893,6 +2107,13 @@ class _CoachEventDetailsScreenState extends State<CoachEventDetailsScreen> {
       default:
         return 'Altro';
     }
+  }
+
+  String _sportLabel(String sportId) {
+    for (final sport in selectableSportActivities) {
+      if (sport.id == sportId) return sport.name;
+    }
+    return sportId;
   }
 
   String _exerciseBlockType() {
@@ -1944,19 +2165,32 @@ class _CoachEventDetailsScreenState extends State<CoachEventDetailsScreen> {
     return type == TrainingBlockType.mobility || type == TrainingBlockType.core;
   }
 
-  String _exerciseActivityFilter() {
-    if (_isAthleticPrep) return 'all';
-    if (_drylandCategory == ActivityCategory.mobility) {
-      return ActivityCategory.mobility;
+  bool _exerciseMatchesPrepFilter(ExerciseDef exercise) {
+    final filters = _drylandPrepOption.exerciseFilters;
+    if (_isPrepPlan && filters.isEmpty) return true;
+    if (_isPrepPlan) {
+      return filters.contains(exercise.resolvedActivityCategory);
     }
-    if (_drylandCategory == ActivityCategory.core) return ActivityCategory.core;
-    return ActivityCategory.strength;
+    if (_isAthleticPrep) return true;
+    if (_drylandCategory == ActivityCategory.mobility) {
+      return exercise.resolvedActivityCategory == ActivityCategory.mobility;
+    }
+    if (_drylandCategory == ActivityCategory.core) {
+      return exercise.resolvedActivityCategory == ActivityCategory.core;
+    }
+    return exercise.resolvedActivityCategory == ActivityCategory.strength;
   }
 
   void _applyDrylandTemplate(WorkoutTemplate template) {
     setState(() {
-      _drylandCategory = ActivityCategory.athleticPrep;
-      _drylandSpecialtyCtrl.text = _categoryLabel(_drylandCategory);
+      _drylandKind = 'prep';
+      final option = DrylandPrepTypes.fromSportType(template.sportType) ??
+          DrylandPrepTypes.fromCategory(template.category);
+      _drylandPrepType = option.id;
+      _drylandCategory = option.category;
+      _drylandSpecialtyCtrl.text = option.title;
+      _drylandUsesPhases =
+          template.blocks.any((block) => block.metrics['phase'] != null);
       _loadDrylandBlocks(template.blocks);
       if (_titleCtrl.text.trim().isEmpty ||
           _titleCtrl.text.trim() == 'Allenamento') {

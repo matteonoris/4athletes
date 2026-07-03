@@ -41,6 +41,8 @@ void main() {
     String id = 'import_1',
     String startTime = '18:06:00',
     String endTime = '20:35:00',
+    String externalId = 'wearable-1',
+    String sourceName = 'com.thirdparty.watch',
   }) {
     return TrainingSession(
       id: id,
@@ -50,15 +52,55 @@ void main() {
       endTime: endTime,
       duration: '137',
       effort: 5,
-      details: const {
+      details: {
         'source': 'health_sync',
-        'external_id': 'wearable-1',
-        'source_name': 'com.thirdparty.watch',
+        'external_id': externalId,
+        'source_name': sourceName,
         'active_duration_seconds': 8220,
         'avg_hr': 90,
         'max_hr': 133,
         'hr_samples': [
           {'time': 1781280360000, 'bpm': 90}
+        ],
+      },
+    );
+  }
+
+  TrainingSession coachDrylandSession({
+    String id = 'coach_dryland_1',
+    String startTime = '18:00:00',
+    String endTime = '19:00:00',
+  }) {
+    return TrainingSession(
+      id: id,
+      sportId: 'athletic_prep',
+      date: '2026-06-12',
+      startTime: startTime,
+      endTime: endTime,
+      duration: '60',
+      effort: 6,
+      eventId: 'coach_event_dryland_1',
+      details: const {
+        'schemaVersion': 2,
+        'activityDomain': 'dryland',
+        'activityCategory': 'athletic_prep',
+        'source': 'coach',
+        'from_calendar': true,
+        'createdByCoach': true,
+        'title': 'Preparazione atletica',
+        'blocks': [
+          {
+            'type': 'strength',
+            'name': 'Circuito',
+            'exercises': [
+              {
+                'name': 'Squat',
+                'sets': [
+                  {'kg': 60, 'reps': 8}
+                ]
+              }
+            ]
+          }
         ],
       },
     );
@@ -165,6 +207,35 @@ void main() {
     expect(merged.endTime, '20:00:00');
   });
 
+  test('fonde preparazione coach e import forza con inizio entro dieci minuti',
+      () {
+    final existing = coachDrylandSession();
+    final imported = importedWeightlifting(
+      startTime: '18:09:00',
+      endTime: '19:20:00',
+    );
+
+    final candidate = HealthWorkoutMergeUtils.bestOverlapMergeCandidate(
+      [existing],
+      imported,
+    );
+    final merged = HealthWorkoutMergeUtils.mergeImportedSession(
+      candidate!,
+      imported,
+    );
+
+    expect(candidate.id, existing.id);
+    expect(merged.id, existing.id);
+    expect(merged.eventId, existing.eventId);
+    expect(merged.startTime, '18:09:00');
+    expect(merged.endTime, '19:20:00');
+    expect(merged.duration, '71');
+    expect(merged.details?['from_calendar'], isTrue);
+    expect(merged.details?['createdByCoach'], isTrue);
+    expect(merged.details?['blocks'], existing.details?['blocks']);
+    expect(merged.details?['source'], 'health_sync');
+  });
+
   test('mantiene la durata manuale modificata dopo un merge health', () {
     final existing = manualStrength(
       startTime: '18:00:00',
@@ -202,6 +273,33 @@ void main() {
     expect(resynced.duration, '60');
     expect(resynced.details?['duration_user_overridden'], isTrue);
     expect(resynced.details?['total_duration_minutes'], 60);
+  });
+
+  test('mantiene tutti gli external id quando fonde import da app diverse', () {
+    final firstImport = importedWeightlifting(
+      externalId: 'garmin-1',
+      sourceName: 'com.garmin.android.apps.connectmobile',
+      startTime: '18:00:00',
+      endTime: '19:00:00',
+    );
+    final secondImport = importedWeightlifting(
+      externalId: 'strava-1',
+      sourceName: 'com.strava',
+      startTime: '18:06:00',
+      endTime: '19:10:00',
+    );
+
+    final merged = HealthWorkoutMergeUtils.mergeImportedSession(
+      firstImport,
+      secondImport,
+    );
+
+    expect(merged.details?['external_id'], 'strava-1');
+    expect(
+      merged.details?['merged_source_workout_ids'],
+      containsAll(['garmin-1', 'strava-1']),
+    );
+    expect(merged.details?['source_part_count'], 2);
   });
 
   test('non fonde forza strutturata quando la sovrapposizione e debole', () {

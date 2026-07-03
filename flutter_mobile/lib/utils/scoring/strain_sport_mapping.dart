@@ -67,6 +67,7 @@ StrainSportCategory mapSportTypeToStrainCategory(
       normalized == 'bodybuilding' ||
       normalized == 'dryland' ||
       normalized == 'dryland_strength' ||
+      normalized == 'dryland_mixed_circuit' ||
       normalized == 'core' ||
       normalized == 'crossfit' ||
       normalized == 'hiit' ||
@@ -88,6 +89,7 @@ StrainSportCategory mapSportTypeToStrainCategory(
 
   if (normalized == 'mobility' ||
       normalized == 'stretching' ||
+      normalized == 'dryland_mobility_core' ||
       normalized == 'yoga' ||
       normalized == 'pilates' ||
       normalized == 'physiotherapy') {
@@ -102,6 +104,7 @@ StrainSportCategory mapSportTypeToStrainCategory(
       normalized == 'cross_country_skiing' ||
       normalized == 'triathlon' ||
       normalized == 'endurance' ||
+      normalized == 'dryland_endurance' ||
       normalized == 'athletic_prep') {
     return StrainSportCategory.enduranceGeneric;
   }

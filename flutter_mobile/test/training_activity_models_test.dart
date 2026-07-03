@@ -343,6 +343,101 @@ void main() {
     expect(activity.blocks.single.exercises.single.name, 'Back Squat');
   });
 
+  test('round-trip preparazione con prepType e scheda semplice', () {
+    const activity = TrainingActivity(
+      id: 'prep_strength_1',
+      athleteId: 'athlete_1',
+      source: ActivitySource.athlete,
+      status: ActivityStatus.completed,
+      category: ActivityCategory.strength,
+      prepType: DrylandPrepType.strength,
+      usesPhases: false,
+      sportType: 'dryland_strength',
+      title: 'Forza',
+      date: '2026-06-01',
+      startTime: '09:00',
+      endTime: '10:00',
+      duration: '60',
+      blocks: [
+        TrainingBlock(
+          id: 'strength_1',
+          type: TrainingBlockType.strength,
+          name: 'Forza',
+          exercises: [
+            ExerciseEntry(
+              exerciseId: 'back_squat',
+              name: 'Back Squat',
+              sets: [StrengthSet(setNumber: 1, kg: 100, reps: 5)],
+            ),
+          ],
+        ),
+      ],
+    );
+
+    final details = activity.toSessionDetails();
+    expect(details['prepType'], DrylandPrepType.strength);
+    expect(details['usesPhases'], isFalse);
+    expect((details['blocks'] as List).first['metrics'], isEmpty);
+
+    final restored = TrainingActivity.fromTrainingSession(
+      TrainingSession(
+        id: 'session_strength_1',
+        sportId: 'dryland_strength',
+        date: activity.date,
+        startTime: activity.startTime,
+        endTime: activity.endTime,
+        duration: activity.duration,
+        effort: 6,
+        details: details,
+      ),
+    );
+
+    expect(restored.category, ActivityCategory.strength);
+    expect(restored.prepType, DrylandPrepType.strength);
+    expect(restored.usesPhases, isFalse);
+    expect(restored.blocks.single.metrics.containsKey('phase'), isFalse);
+  });
+
+  test('coach sport non sci produce dettagli sport con sportType', () {
+    const service = TrainingActivityService();
+    const planned = TrainingActivity(
+      id: 'planned_hiking',
+      coachId: 'coach_1',
+      source: ActivitySource.coach,
+      status: ActivityStatus.planned,
+      category: ActivityCategory.sport,
+      sportType: 'hiking',
+      title: 'Camminata in montagna',
+      date: '2026-06-01',
+      startTime: '09:00',
+      endTime: '11:00',
+      duration: '120',
+    );
+    final event = CalendarEvent(
+      id: 'event_hiking',
+      teamId: 'team_1',
+      type: 'training',
+      title: 'Camminata in montagna',
+      date: '2026-06-01',
+      startTime: '09:00',
+      endTime: '11:00',
+      sportCategory: 'dryland',
+      drylandSpecialty: 'Hiking',
+      status: ActivityStatus.planned,
+      technicalDetails: {'plannedDrylandSession': planned.toJson()},
+    );
+
+    final details = service.buildCoachDrylandSessionDetails(event, {
+      'id': 'athlete_1',
+      'attendanceStatus': AttendanceStatus.present,
+    });
+
+    expect(details['activityDomain'], 'sport');
+    expect(details['activityCategory'], ActivityCategory.sport);
+    expect(details['sportType'], 'hiking');
+    expect(details['blocks'], isNull);
+  });
+
   test('esclude attivita cancelled dalle statistiche', () {
     final summary = TrainingMetricsUtils.strengthSummary([
       strengthActivity(status: ActivityStatus.completed),
