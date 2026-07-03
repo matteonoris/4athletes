@@ -40,6 +40,8 @@ jobs:
       APPLE_PROVISIONING_PROFILE_NAME: ${{ secrets.APPLE_PROVISIONING_PROFILE_NAME }}
       SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
       SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
+      GOOGLE_WEB_CLIENT_ID: ${{ secrets.GOOGLE_WEB_CLIENT_ID }}
+      GOOGLE_IOS_CLIENT_ID: ${{ secrets.GOOGLE_IOS_CLIENT_ID }}
 
     steps:
       - name: Checkout
@@ -60,7 +62,9 @@ jobs:
             APPLE_PROVISIONING_PROFILE_BASE64 \
             APPLE_PROVISIONING_PROFILE_NAME \
             SUPABASE_URL \
-            SUPABASE_ANON_KEY
+            SUPABASE_ANON_KEY \
+            GOOGLE_WEB_CLIENT_ID \
+            GOOGLE_IOS_CLIENT_ID
           do
             if [ -z "${!name:-}" ]; then
               echo "::error::Missing GitHub secret: ${name}"
@@ -121,9 +125,11 @@ jobs:
       - name: Create runtime environment file
         run: |
           set -euo pipefail
-          printf 'SUPABASE_URL=%s\nSUPABASE_ANON_KEY=%s\n' \
+          printf 'SUPABASE_URL=%s\nSUPABASE_ANON_KEY=%s\nGOOGLE_WEB_CLIENT_ID=%s\nGOOGLE_IOS_CLIENT_ID=%s\n' \
             "$SUPABASE_URL" \
             "$SUPABASE_ANON_KEY" \
+            "$GOOGLE_WEB_CLIENT_ID" \
+            "$GOOGLE_IOS_CLIENT_ID" \
             > .env
 
       - name: Import Apple signing assets

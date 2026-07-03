@@ -43,6 +43,8 @@ Configura questi secret nel repository o nell'organizzazione GitHub:
 | `APPLE_PROVISIONING_PROFILE_NAME` | Nome del profilo App Store contenuto nel `.mobileprovision`. |
 | `SUPABASE_URL` | URL Supabase usato per generare `.env` in CI. |
 | `SUPABASE_ANON_KEY` | Anon key Supabase usata per generare `.env` in CI. |
+| `GOOGLE_WEB_CLIENT_ID` | Client ID Web Google usato come `serverClientId` per Supabase Auth. |
+| `GOOGLE_IOS_CLIENT_ID` | Client ID iOS Google usato da Google Sign-In su iOS. |
 
 Su macOS puoi copiare un file in base64 cosi':
 

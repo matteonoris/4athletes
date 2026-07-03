@@ -20,7 +20,8 @@ the repository root in `.github/workflows/testflight.yml`.
   `ASC_KEY_ID`, `ASC_ISSUER_ID`, `APPSTORE_CONNECT_API_KEY_BASE64`,
   `APPLE_CERTIFICATE_P12_BASE64`, `APPLE_CERTIFICATE_PASSWORD`,
   `APPLE_PROVISIONING_PROFILE_BASE64`, `APPLE_PROVISIONING_PROFILE_NAME`,
-  `SUPABASE_URL`, `SUPABASE_ANON_KEY`.
+  `SUPABASE_URL`, `SUPABASE_ANON_KEY`, `GOOGLE_WEB_CLIENT_ID`,
+  `GOOGLE_IOS_CLIENT_ID`.
 - The TestFlight group `External Testers` must exist in App Store Connect.
 - The public TestFlight link, if needed, is managed in App Store Connect.
 
