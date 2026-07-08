@@ -179,15 +179,15 @@ class _ActivitySelectScreenState extends State<ActivitySelectScreen> {
     'stretching',
     'yoga',
     'pilates',
-    'hyperarch',
     'lattacidemia',
-    'tendon_isometrics',
     'aerobics',
   };
 
   static List<SportActivity> get sportActivities => allActivities
       .where((activity) =>
-          activity.category != 'FITNESS' &&
+          (activity.category != 'FITNESS' ||
+              activity.id == 'hyperarch' ||
+              activity.id == 'tendon_isometrics') &&
           !_sportOnlyExcludedIds.contains(activity.id))
       .toList();
 

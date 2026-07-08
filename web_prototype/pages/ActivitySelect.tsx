@@ -34,7 +34,9 @@ const ActivitySelect: React.FC<Props> = ({ setView, onSelectSport }) => {
   ];
 
   const filteredSports = useMemo(() => {
-    let filtered = sportsData.filter(s => s.category !== 'Fitness');
+    let filtered = sportsData.filter(
+      s => s.category !== 'Fitness' || s.id === 'hyperarch' || s.id === 'tendon_isometrics'
+    );
     
     // Filter by Tab
     if (activeTab !== 'All') {

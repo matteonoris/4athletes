@@ -1,7 +1,7 @@
-TestFlight build focused on dryland activity logging, coach review details, Apple Health workout matching, and activity selection polish.
+TestFlight build focused on monthly team reporting for coaches.
 
-- Adds structured dryland preparation types and richer strength session summaries with set details, volume, max load, and 1RM percentages.
-- Improves coach event detail review with clearer activity context and expanded training data.
-- Maps more imported Health workouts into the correct sport and training categories, including dryland and recovery sessions.
-- Refines activity selection across mobile and the local web prototype so common training options are easier to scan.
-- Keeps related training model, merge, and strain score tests aligned with the updated activity coverage.
+- Adds a monthly team report with attendance, ski volume, athletic workload, physical test metrics, alerts, and athlete comparisons.
+- Adds printable/shareable PDF export, with optional individual athlete sheets.
+- Exposes the report from the coach dashboard for authorized coach/admin users.
+- Adds calculator coverage for programmed vs out-of-program work, event fallbacks, deltas, alerts, and PDF generation.
+- Keeps Hyperarch and tendon isometrics available in sport selection on mobile and the local web prototype.

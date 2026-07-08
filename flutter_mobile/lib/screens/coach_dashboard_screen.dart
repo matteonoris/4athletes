@@ -11,6 +11,7 @@ import '../utils/time_utils.dart';
 import 'coach_event_details_screen.dart';
 import 'coach_athlete_detail_screen.dart';
 import 'coach_athletic_test_screen.dart';
+import 'monthly_team_report_screen.dart';
 import 'profile_screen.dart';
 import 'teams_screen.dart';
 
@@ -1146,6 +1147,7 @@ class _CoachReportViewState extends State<_CoachReportView> {
 
   @override
   Widget build(BuildContext context) {
+    final appState = Provider.of<AppState>(context);
     return SafeArea(
       child: ListView(
         padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 24),
@@ -1191,6 +1193,8 @@ class _CoachReportViewState extends State<_CoachReportView> {
               ],
             ),
           ),
+          const SizedBox(height: 24),
+          _buildMonthlyTeamReportEntry(appState),
           const SizedBox(height: 24),
           Row(
             children: [
@@ -1249,6 +1253,77 @@ class _CoachReportViewState extends State<_CoachReportView> {
           else
             ..._buildFilteredAthleteList(),
         ],
+      ),
+    );
+  }
+
+  Widget _buildMonthlyTeamReportEntry(AppState appState) {
+    final canOpen = appState.teams.isNotEmpty;
+    return InkWell(
+      borderRadius: BorderRadius.circular(16),
+      onTap: canOpen
+          ? () {
+              HapticFeedback.lightImpact();
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (_) => MonthlyTeamReportScreen(
+                    initialTeam: appState.teams.first,
+                  ),
+                ),
+              );
+            }
+          : null,
+      child: Container(
+        padding: const EdgeInsets.all(18),
+        decoration: BoxDecoration(
+          color: AppTheme.card,
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: AppTheme.subtleBorder),
+        ),
+        child: Row(
+          children: [
+            Container(
+              width: 44,
+              height: 44,
+              decoration: BoxDecoration(
+                color: AppTheme.primary.withValues(alpha: 0.12),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: const Icon(Icons.assessment_outlined,
+                  color: AppTheme.primary),
+            ),
+            const SizedBox(width: 14),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Report mensile team',
+                    style: TextStyle(
+                      color: AppTheme.textHighEmphasis,
+                      fontSize: 15,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    canOpen
+                        ? 'KPI, presenze, volumi e PDF stampabile'
+                        : 'Nessun team disponibile',
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      color: AppTheme.textMediumEmphasis,
+                      fontSize: 12,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            Icon(Icons.chevron_right, color: AppTheme.textMediumEmphasis),
+          ],
+        ),
       ),
     );
   }
