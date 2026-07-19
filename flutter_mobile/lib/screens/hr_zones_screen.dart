@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 
 import '../core/theme.dart';
 import '../providers/app_state.dart';
+import '../services/health_import_normalizer.dart';
 
 class HrZonesScreen extends StatefulWidget {
   const HrZonesScreen({super.key});
@@ -21,18 +22,18 @@ class _HrZonesScreenState extends State<HrZonesScreen> {
     final p = Provider.of<AppState>(context, listen: false).userProfile!;
     _mode = p.hrZoneMode;
 
-    if (p.customHrZones != null && p.customHrZones!.length == 5) {
-      _customZones =
-          List.from(p.customHrZones!.map((e) => Map<String, int>.from(e)));
-    } else {
-      // Default custom zones based on typical values (just as placeholders)
-      _customZones = [
-        {'min': 100, 'max': 120},
-        {'min': 120, 'max': 140},
-        {'min': 140, 'max': 160},
-        {'min': 160, 'max': 180},
-        {'min': 180, 'max': 200},
-      ];
+    _customZones = HealthImportNormalizer.resolveHeartRateZones(
+      mode: 'custom',
+      customZones: p.customHrZones,
+      maxHeartRate: p.maxHr,
+    );
+    _syncZoneMaximums();
+  }
+
+  void _syncZoneMaximums() {
+    for (var i = 0; i < _customZones.length; i++) {
+      _customZones[i]['max'] =
+          i < _customZones.length - 1 ? _customZones[i + 1]['min']! - 1 : 300;
     }
   }
 
@@ -40,21 +41,25 @@ class _HrZonesScreenState extends State<HrZonesScreen> {
     final state = Provider.of<AppState>(context, listen: false);
     final p = state.userProfile!;
 
-    // Ensure all values are valid
-    for (int i = 0; i < _customZones.length; i++) {
-      final zone = _customZones[i];
-      if (i < 4) {
-        if ((zone['min'] ?? 0) >= (zone['max'] ?? 0)) {
+    if (_mode == 'custom') {
+      for (int i = 0; i < _customZones.length; i++) {
+        final min = _customZones[i]['min'];
+        if (min == null || min < 35 || min > 250) {
           ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-            content: Text('I valori minimi devono essere minori dei massimi.'),
+            content: Text('Inserisci soglie comprese tra 35 e 250 bpm.'),
             backgroundColor: AppTheme.error,
           ));
           return;
         }
-      } else {
-        // Set max of Zone 5 to 300 (no upper boundary)
-        zone['max'] = 300;
+        if (i > 0 && min <= _customZones[i - 1]['min']!) {
+          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+            content: Text('Le soglie delle zone devono essere crescenti.'),
+            backgroundColor: AppTheme.error,
+          ));
+          return;
+        }
       }
+      _syncZoneMaximums();
     }
 
     final updated = p.copyWith(
@@ -113,8 +118,11 @@ class _HrZonesScreenState extends State<HrZonesScreen> {
                     contentPadding: EdgeInsets.symmetric(vertical: 8),
                   ),
                   onChanged: (val) {
+                    final parsed = int.tryParse(val);
+                    if (parsed == null) return;
                     setState(() {
-                      zone['min'] = int.tryParse(val) ?? zone['min']!;
+                      zone['min'] = parsed;
+                      _syncZoneMaximums();
                     });
                   },
                 ),
@@ -131,23 +139,14 @@ class _HrZonesScreenState extends State<HrZonesScreen> {
                     style: TextStyle(
                         fontSize: 10, color: AppTheme.textMediumEmphasis)),
                 if (index < 4)
-                  TextFormField(
-                    initialValue: zone['max'].toString(),
-                    keyboardType: TextInputType.number,
-                    style: const TextStyle(fontWeight: FontWeight.bold),
-                    decoration: const InputDecoration(
-                      isDense: true,
-                      contentPadding: EdgeInsets.symmetric(vertical: 8),
-                    ),
-                    onChanged: (val) {
-                      setState(() {
-                        zone['max'] = int.tryParse(val) ?? zone['max']!;
-                      });
-                    },
+                  Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 8),
+                    child: Text(zone['max'].toString(),
+                        style: const TextStyle(fontWeight: FontWeight.bold)),
                   )
                 else
                   Padding(
-                    padding: EdgeInsets.symmetric(vertical: 8),
+                    padding: const EdgeInsets.symmetric(vertical: 8),
                     child: Text('∞',
                         style: TextStyle(
                             fontWeight: FontWeight.bold,
@@ -196,34 +195,36 @@ class _HrZonesScreenState extends State<HrZonesScreen> {
               borderRadius: BorderRadius.circular(16),
             ),
             clipBehavior: Clip.antiAlias,
-            child: Column(
-              children: [
-                RadioListTile<String>(
-                  value: 'standard',
-                  groupValue: _mode,
-                  onChanged: (val) => setState(() => _mode = val!),
-                  activeColor: AppTheme.primary,
-                  title: const Text('Zone Standard (Karvonen)',
-                      style: TextStyle(fontWeight: FontWeight.bold)),
-                  subtitle: Text(
-                      'Calcolate in automatico in base alla tua Frequenza Cardiaca Massima e a Riposo.',
-                      style: TextStyle(
-                          fontSize: 12, color: AppTheme.textMediumEmphasis)),
-                ),
-                Divider(color: AppTheme.divider, height: 1),
-                RadioListTile<String>(
-                  value: 'custom',
-                  groupValue: _mode,
-                  onChanged: (val) => setState(() => _mode = val!),
-                  activeColor: AppTheme.primary,
-                  title: const Text('Zone Personalizzate',
-                      style: TextStyle(fontWeight: FontWeight.bold)),
-                  subtitle: Text(
-                      'Inserisci manualmente i valori per ogni zona, per allinearli ad altre app (es. Garmin).',
-                      style: TextStyle(
-                          fontSize: 12, color: AppTheme.textMediumEmphasis)),
-                ),
-              ],
+            child: RadioGroup<String>(
+              groupValue: _mode,
+              onChanged: (value) {
+                if (value != null) setState(() => _mode = value);
+              },
+              child: Column(
+                children: [
+                  RadioListTile<String>(
+                    value: 'standard',
+                    activeColor: AppTheme.primary,
+                    title: const Text('Zone Standard (Karvonen)',
+                        style: TextStyle(fontWeight: FontWeight.bold)),
+                    subtitle: Text(
+                        'Calcolate in automatico in base alla tua Frequenza Cardiaca Massima e a Riposo.',
+                        style: TextStyle(
+                            fontSize: 12, color: AppTheme.textMediumEmphasis)),
+                  ),
+                  Divider(color: AppTheme.divider, height: 1),
+                  RadioListTile<String>(
+                    value: 'custom',
+                    activeColor: AppTheme.primary,
+                    title: const Text('Zone Personalizzate',
+                        style: TextStyle(fontWeight: FontWeight.bold)),
+                    subtitle: Text(
+                        'Inserisci manualmente i valori per ogni zona, per allinearli ad altre app (es. Garmin).',
+                        style: TextStyle(
+                            fontSize: 12, color: AppTheme.textMediumEmphasis)),
+                  ),
+                ],
+              ),
             ),
           ),
 
@@ -235,6 +236,15 @@ class _HrZonesScreenState extends State<HrZonesScreen> {
                     fontWeight: FontWeight.bold,
                     color: AppTheme.textMediumEmphasis,
                     letterSpacing: 1.5)),
+            const SizedBox(height: 16),
+            Text(
+              'Imposta il valore iniziale di ogni zona. Il limite finale viene allineato automaticamente alla zona successiva, senza buchi o sovrapposizioni.',
+              style: TextStyle(
+                fontSize: 12,
+                color: AppTheme.textMediumEmphasis,
+                height: 1.4,
+              ),
+            ),
             const SizedBox(height: 16),
             _buildZoneInput(0, 'Zona 1 (Recupero)', Colors.grey),
             _buildZoneInput(1, 'Zona 2 (Fondo)', Colors.blue),

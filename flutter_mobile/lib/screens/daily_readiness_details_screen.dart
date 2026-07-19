@@ -32,6 +32,10 @@ class DailyReadinessDetailsScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     bool isSleep = title.toLowerCase().contains('sleep');
+    final confidence = dailyMetrics[
+        isSleep ? 'sleepScoreConfidence' : 'recoveryScoreConfidence'];
+    final temperatureIsDelta = dailyMetrics['tempIsDelta'] == 1;
+    final hrvIsSdnn = dailyMetrics['hrvIsSdnn'] == 1;
 
     // Lista di metriche da visualizzare in base al tipo
     List<Map<String, dynamic>> metricsToShow = isSleep
@@ -67,10 +71,16 @@ class DailyReadinessDetailsScreen extends StatelessWidget {
               'label': 'Battiti a Riposo (bpm)',
               'icon': Icons.favorite
             },
-            {'key': 'hrv', 'label': 'HRV (ms)', 'icon': Icons.monitor_heart},
+            {
+              'key': 'hrv',
+              'label': hrvIsSdnn ? 'HRV SDNN (ms)' : 'HRV RMSSD (ms)',
+              'icon': Icons.monitor_heart
+            },
             {
               'key': 'temp',
-              'label': 'Temperatura (°C)',
+              'label': temperatureIsDelta
+                  ? 'Deviazione temperatura cutanea (°C)'
+                  : 'Temperatura notturna al polso (°C)',
               'icon': Icons.thermostat
             },
             {
@@ -111,6 +121,25 @@ class DailyReadinessDetailsScreen extends StatelessWidget {
                     ),
               ),
             ),
+          ),
+          if (confidence != null) ...[
+            const SizedBox(height: 14),
+            Text(
+              'Affidabilità dati ${(confidence * 100).round()}%',
+              textAlign: TextAlign.center,
+              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                    color: Theme.of(context).colorScheme.onSurfaceVariant,
+                    fontWeight: FontWeight.w600,
+                  ),
+            ),
+          ],
+          const SizedBox(height: 8),
+          Text(
+            'Indice informativo: va interpretato insieme a sensazioni, sintomi e piano del team.',
+            textAlign: TextAlign.center,
+            style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                  color: Theme.of(context).colorScheme.onSurfaceVariant,
+                ),
           ),
           const SizedBox(height: 32),
           Text('Metriche di oggi',

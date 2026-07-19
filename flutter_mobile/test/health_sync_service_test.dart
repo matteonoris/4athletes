@@ -57,6 +57,33 @@ void main() {
       expect(result['deepSleepMinutes'], 1);
       expect(result['totalSleepMinutes'], 1);
     });
+
+    test('unions overlapping records instead of double counting sources', () {
+      final service = HealthSyncService();
+      final from = DateTime(2026, 6, 20, 23);
+      final points = [
+        _sleepPoint(
+          type: HealthDataType.SLEEP_DEEP,
+          from: from,
+          to: from.add(const Duration(hours: 1)),
+          sourceId: 'watch',
+        ),
+        _sleepPoint(
+          type: HealthDataType.SLEEP_DEEP,
+          from: from.add(const Duration(minutes: 15)),
+          to: from.add(const Duration(hours: 1, minutes: 15)),
+          sourceId: 'phone',
+        ),
+      ];
+
+      final result = service.aggregateSleepForTesting(
+        points,
+        DateTime(2026, 6, 21),
+      );
+
+      expect(result['deepSleepMinutes'], 75);
+      expect(result['totalSleepMinutes'], 75);
+    });
   });
 }
 
@@ -64,6 +91,7 @@ HealthDataPoint _sleepPoint({
   required HealthDataType type,
   required DateTime from,
   required DateTime to,
+  String sourceId = 'test-source',
 }) {
   return HealthDataPoint(
     uuid: '${type.name}-${from.toIso8601String()}',
@@ -74,7 +102,7 @@ HealthDataPoint _sleepPoint({
     dateTo: to,
     sourcePlatform: HealthPlatformType.googleHealthConnect,
     sourceDeviceId: 'test-device',
-    sourceId: 'test-source',
-    sourceName: 'test-source',
+    sourceId: sourceId,
+    sourceName: sourceId,
   );
 }

@@ -5,6 +5,7 @@ import 'package:phosphor_flutter/phosphor_flutter.dart';
 
 import '../core/theme.dart';
 import '../models/models.dart';
+import '../models/training_activity_models.dart';
 import '../providers/app_state.dart';
 // sports.dart removed
 import '../data/exercises.dart';
@@ -117,6 +118,9 @@ class _AddTrainingScreenState extends State<AddTrainingScreen> {
   final List<Map<String, dynamic>> _wlExercises = [];
   final List<Map<String, dynamic>> _stretchExercises = [];
   final List<Map<String, dynamic>> _athleticExercises = [];
+  final List<Map<String, dynamic>> _sportPhaseExercises = [];
+  bool _sportUsesPhases = false;
+  String _sportActivePhase = TrainingPhase.warmup;
 
   bool _showExercisePicker = false;
   String _exerciseSearch = '';
@@ -147,6 +151,25 @@ class _AddTrainingScreenState extends State<AddTrainingScreen> {
 
     if (init?.details != null) {
       final d = init!.details!;
+      _sportUsesPhases = d['usesPhases'] == true;
+      final structuredBlocks = d['blocks'];
+      if (structuredBlocks is List) {
+        for (final rawBlock in structuredBlocks.whereType<Map>()) {
+          final phase = TrainingPhase.normalize(
+            rawBlock['metrics'] is Map
+                ? (rawBlock['metrics'] as Map)['phase']
+                : null,
+          );
+          final exercises = rawBlock['exercises'];
+          if (exercises is! List) continue;
+          _sportPhaseExercises.addAll(exercises.whereType<Map>().map(
+                (exercise) => {
+                  ...Map<String, dynamic>.from(exercise),
+                  'phase': phase,
+                },
+              ));
+        }
+      }
       _enduranceDistance =
           d['distance']?.toString().replaceAll(' km', '') ?? '';
       _endurancePace = d['pace']
@@ -410,10 +433,17 @@ class _AddTrainingScreenState extends State<AddTrainingScreen> {
         'exercises': _athleticExercises,
       if (isStretching && _stretchExercises.isNotEmpty)
         'exercises': _stretchExercises,
+      if (_sportUsesPhases) 'usesPhases': true,
+      if (_sportUsesPhases) 'activityCategory': ActivityCategory.sport,
+      if (_sportUsesPhases) 'blocks': _sportPhaseBlocks(),
     };
 
     // Remove null values so we don't accidentally overwrite with nulls
     details.removeWhere((key, value) => value == null);
+    if (!_sportUsesPhases) {
+      details.remove('usesPhases');
+      details.remove('blocks');
+    }
     if (isSkiing) {
       if (tracks.isEmpty) {
         details.remove('tracks');
@@ -486,6 +516,230 @@ class _AddTrainingScreenState extends State<AddTrainingScreen> {
       default:
         return cat;
     }
+  }
+
+  List<Map<String, dynamic>> _sportPhaseBlocks() {
+    return TrainingPhase.ordered.map((phase) {
+      final exercises = _sportPhaseExercises
+          .where((item) => TrainingPhase.normalize(item['phase']) == phase)
+          .map((item) {
+        final copy = Map<String, dynamic>.from(item)..remove('phase');
+        return copy;
+      }).toList();
+      return <String, dynamic>{
+        'id': 'sport_$phase',
+        'type': ActivityCategory.sport,
+        'name': TrainingPhase.label(phase),
+        'exercises': exercises,
+        'metrics': {'phase': phase},
+      };
+    }).toList();
+  }
+
+  void _addSportPhaseExercise(ExerciseDef exercise, String phase) {
+    setState(() {
+      _sportPhaseExercises.add({
+        'exerciseId': exercise.id,
+        'name': exercise.name,
+        'equipment': exercise.category,
+        'unilateralMode': UnilateralMode.bilateral,
+        'phase': phase,
+        'sets': [
+          {
+            'setNumber': 1,
+            'reps': null,
+            'durationSeconds': 300,
+            'restSeconds': null,
+            'side': TrainingSide.none,
+          }
+        ],
+      });
+    });
+  }
+
+  Future<void> _showSportExerciseCatalog(String phase) async {
+    var query = '';
+    var activityFilter = 'all';
+    final filters = <(String, String)>[
+      ('all', 'Tutti'),
+      (ActivityCategory.endurance, 'Cardio'),
+      (ActivityCategory.core, 'Core'),
+      (ActivityCategory.plyometrics, 'Salti'),
+      (ActivityCategory.mobility, 'Mobilita'),
+      (ActivityCategory.speedAgility, 'Velocita'),
+      (ActivityCategory.strength, 'Forza'),
+    ];
+
+    await showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: AppTheme.card,
+      builder: (sheetContext) => StatefulBuilder(
+        builder: (context, setSheetState) {
+          final matches = exerciseDatabase.where((exercise) {
+            final normalizedQuery = query.trim().toLowerCase();
+            final matchesQuery = normalizedQuery.isEmpty ||
+                exercise.name.toLowerCase().contains(normalizedQuery) ||
+                exercise.targetMuscle.toLowerCase().contains(normalizedQuery);
+            return matchesQuery &&
+                (activityFilter == 'all' ||
+                    exercise.resolvedActivityCategory == activityFilter);
+          }).toList();
+
+          return SafeArea(
+            child: FractionallySizedBox(
+              heightFactor: 0.9,
+              child: Padding(
+                padding: EdgeInsets.fromLTRB(
+                  16,
+                  16,
+                  16,
+                  MediaQuery.viewInsetsOf(context).bottom + 12,
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Expanded(
+                          child: Text(
+                            TrainingPhase.label(phase),
+                            style: const TextStyle(
+                              fontSize: 20,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ),
+                        IconButton(
+                          onPressed: () => Navigator.pop(sheetContext),
+                          icon: const Icon(Icons.close),
+                        ),
+                      ],
+                    ),
+                    TextField(
+                      autofocus: true,
+                      onChanged: (value) => setSheetState(() => query = value),
+                      decoration: const InputDecoration(
+                        hintText: 'Cerca esercizio o gruppo muscolare',
+                        prefixIcon: Icon(Icons.search),
+                      ),
+                    ),
+                    const SizedBox(height: 10),
+                    SingleChildScrollView(
+                      scrollDirection: Axis.horizontal,
+                      child: Row(
+                        children: filters.map((filter) {
+                          final selected = activityFilter == filter.$1;
+                          return Padding(
+                            padding: const EdgeInsets.only(right: 8),
+                            child: ChoiceChip(
+                              label: Text(filter.$2),
+                              selected: selected,
+                              selectedColor: AppTheme.primary,
+                              onSelected: (_) => setSheetState(
+                                () => activityFilter = filter.$1,
+                              ),
+                            ),
+                          );
+                        }).toList(),
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      '${matches.length} esercizi',
+                      style: TextStyle(color: AppTheme.textMediumEmphasis),
+                    ),
+                    Expanded(
+                      child: ListView.builder(
+                        itemCount: matches.length,
+                        itemBuilder: (context, index) {
+                          final exercise = matches[index];
+                          return ListTile(
+                            title: Text(exercise.name),
+                            subtitle: Text(exercise.targetMuscle),
+                            trailing: const Icon(
+                              Icons.add_circle_outline,
+                              color: AppTheme.primary,
+                            ),
+                            onTap: () =>
+                                _addSportPhaseExercise(exercise, phase),
+                          );
+                        },
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          );
+        },
+      ),
+    );
+  }
+
+  Widget _sportPhaseSection() {
+    final visibleExercises = _sportPhaseExercises.asMap().entries.where(
+          (entry) =>
+              TrainingPhase.normalize(entry.value['phase']) ==
+              _sportActivePhase,
+        );
+    return CustomCard(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          const Text(
+            'STRUTTURA ALLENAMENTO',
+            style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold),
+          ),
+          const SizedBox(height: 12),
+          SegmentedButton<bool>(
+            segments: const [
+              ButtonSegment(value: true, label: Text('3 fasi')),
+              ButtonSegment(value: false, label: Text('Scheda semplice')),
+            ],
+            selected: {_sportUsesPhases},
+            onSelectionChanged: (selection) =>
+                setState(() => _sportUsesPhases = selection.first),
+          ),
+          if (_sportUsesPhases) ...[
+            const SizedBox(height: 12),
+            Wrap(
+              spacing: 8,
+              children: TrainingPhase.ordered.map((phase) {
+                return ChoiceChip(
+                  label: Text(TrainingPhase.label(phase)),
+                  selected: _sportActivePhase == phase,
+                  selectedColor: AppTheme.primary,
+                  onSelected: (_) => setState(() => _sportActivePhase = phase),
+                );
+              }).toList(),
+            ),
+            const SizedBox(height: 12),
+            OutlinedButton.icon(
+              onPressed: () => _showSportExerciseCatalog(_sportActivePhase),
+              icon: const Icon(Icons.menu_book_outlined),
+              label: const Text('Sfoglia tutto il catalogo'),
+            ),
+            const SizedBox(height: 8),
+            ...visibleExercises.map((entry) => ListTile(
+                  contentPadding: EdgeInsets.zero,
+                  title: Text(entry.value['name']?.toString() ?? ''),
+                  subtitle: Text(
+                    entry.value['equipment']?.toString() ?? '',
+                    style: TextStyle(color: AppTheme.textMediumEmphasis),
+                  ),
+                  trailing: IconButton(
+                    icon:
+                        const Icon(Icons.delete_outline, color: AppTheme.error),
+                    onPressed: () => setState(
+                      () => _sportPhaseExercises.removeAt(entry.key),
+                    ),
+                  ),
+                )),
+          ],
+        ],
+      ),
+    );
   }
 
   void _prefillWithLastSession() {
@@ -1614,6 +1868,9 @@ class _AddTrainingScreenState extends State<AddTrainingScreen> {
               ],
 
               // ================= PAIN & RPE SECTIONS ================= //
+
+              _sportPhaseSection(),
+              const SizedBox(height: 24),
 
               const Text('Monitoraggio Dolore',
                   style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),

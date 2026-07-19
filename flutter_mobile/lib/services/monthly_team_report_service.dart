@@ -19,7 +19,7 @@ class MonthlyTeamReportService {
     required DateTime month,
   }) async {
     final targetMonth = DateTime(month.year, month.month);
-    final previousMonth = DateTime(month.year, month.month - 1);
+    final historyStart = DateTime(month.year, month.month - 6);
     final endExclusive = DateTime(month.year, month.month + 1);
 
     final teamData =
@@ -46,11 +46,12 @@ class MonthlyTeamReportService {
         ? <TeamReportSession>[]
         : await _loadSessions(
             athleteIds,
-            startInclusive: previousMonth,
+            startInclusive: historyStart,
             endExclusive: endExclusive,
           );
     final events = await _loadEvents(
-      startInclusive: previousMonth,
+      teamId: teamId,
+      startInclusive: historyStart,
       endExclusive: endExclusive,
     );
     final jumpLogs = athleteIds.isEmpty
@@ -58,7 +59,7 @@ class MonthlyTeamReportService {
         : await _loadMetricLogs(
             table: 'jump_logs',
             athleteIds: athleteIds,
-            startInclusive: previousMonth,
+            startInclusive: historyStart,
             endExclusive: endExclusive,
           );
     final bodyLogs = athleteIds.isEmpty
@@ -66,14 +67,14 @@ class MonthlyTeamReportService {
         : await _loadMetricLogs(
             table: 'body_metric_logs',
             athleteIds: athleteIds,
-            startInclusive: previousMonth,
+            startInclusive: historyStart,
             endExclusive: endExclusive,
           );
     final prLogs = athleteIds.isEmpty
         ? <TeamReportPrLog>[]
         : await _loadPrLogs(
             athleteIds,
-            startInclusive: previousMonth,
+            startInclusive: historyStart,
             endExclusive: endExclusive,
           );
 
@@ -122,12 +123,14 @@ class MonthlyTeamReportService {
   }
 
   Future<List<CalendarEvent>> _loadEvents({
+    required String teamId,
     required DateTime startInclusive,
     required DateTime endExclusive,
   }) async {
     final data = await _supabase
         .from('calendar_events')
         .select()
+        .eq('team_id', teamId)
         .gte('date', _dateKey(startInclusive))
         .lt('date', _dateKey(endExclusive))
         .order('date', ascending: true);

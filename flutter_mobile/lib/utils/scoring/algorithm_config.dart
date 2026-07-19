@@ -65,12 +65,14 @@ class ConfidenceConfig {
 class HistoryConfig {
   final int rollingWindowDays;
   final int minCalibrationDays;
+  final int fullCalibrationDays;
   final int sleepDebtWindowDays;
   final int sleepScoreBaselineMinDays;
 
   const HistoryConfig({
     required this.rollingWindowDays,
     required this.minCalibrationDays,
+    required this.fullCalibrationDays,
     required this.sleepDebtWindowDays,
     required this.sleepScoreBaselineMinDays,
   });
@@ -108,6 +110,10 @@ class MinStdDevConfig {
 
 class SleepNeedConfig {
   final double defaultSleepBaselineMinutes;
+  final double adultAthleteTargetMinutes;
+  final double adolescentAthleteTargetMinutes;
+  final int adolescentMaxAgeYears;
+  final double personalBaselinePercentile;
   final MetricRange validBaselineSleepMinutes;
   final int minValidBaselineNights;
   final int partialBaselineMinNights;
@@ -120,6 +126,10 @@ class SleepNeedConfig {
 
   const SleepNeedConfig({
     required this.defaultSleepBaselineMinutes,
+    required this.adultAthleteTargetMinutes,
+    required this.adolescentAthleteTargetMinutes,
+    required this.adolescentMaxAgeYears,
+    required this.personalBaselinePercentile,
     required this.validBaselineSleepMinutes,
     required this.minValidBaselineNights,
     required this.partialBaselineMinNights,
@@ -135,6 +145,10 @@ class SleepNeedConfig {
 class SleepScoreConfig {
   final SleepScoreWeights weights;
   final double restorativeRatioTarget;
+  final int recentAdequacyWindowDays;
+  final int recentAdequacyMinDays;
+  final double efficiencyTarget;
+  final double efficiencyFloor;
   final int circadianWindowDays;
   final double circadianToleranceMinutes;
   final double circadianPenaltyStepMinutes;
@@ -143,6 +157,10 @@ class SleepScoreConfig {
   const SleepScoreConfig({
     required this.weights,
     required this.restorativeRatioTarget,
+    required this.recentAdequacyWindowDays,
+    required this.recentAdequacyMinDays,
+    required this.efficiencyTarget,
+    required this.efficiencyFloor,
     required this.circadianWindowDays,
     required this.circadianToleranceMinutes,
     required this.circadianPenaltyStepMinutes,
@@ -153,12 +171,14 @@ class SleepScoreConfig {
 class SleepScoreWeights {
   final double duration;
   final double architecture;
+  final double recentAdequacy;
   final double circadianRegularity;
   final double efficiency;
 
   const SleepScoreWeights({
     required this.duration,
     required this.architecture,
+    required this.recentAdequacy,
     required this.circadianRegularity,
     required this.efficiency,
   });
@@ -168,12 +188,24 @@ class RecoveryScoreConfig {
   final RecoveryScoreWeights weights;
   final double sigmoidK;
   final double sigmoidBias;
+  final double minAvailableWeight;
+  final int minAutonomicComponents;
+  final double favorableContributionClip;
+  final double anomalyDeadbandZ;
+  final double sleepNeutralScore;
+  final double sleepZScale;
   final LutealPhaseAdjustment lutealPhaseAdjustment;
 
   const RecoveryScoreConfig({
     required this.weights,
     required this.sigmoidK,
     required this.sigmoidBias,
+    required this.minAvailableWeight,
+    required this.minAutonomicComponents,
+    required this.favorableContributionClip,
+    required this.anomalyDeadbandZ,
+    required this.sleepNeutralScore,
+    required this.sleepZScale,
     required this.lutealPhaseAdjustment,
   });
 }
@@ -197,11 +229,13 @@ class RecoveryScoreWeights {
 }
 
 class LutealPhaseAdjustment {
+  final bool enabled;
   final double restingHeartRateSubtractBpm;
   final double skinTemperatureSubtractCelsius;
   final double hrvMultiplier;
 
   const LutealPhaseAdjustment({
+    required this.enabled,
     required this.restingHeartRateSubtractBpm,
     required this.skinTemperatureSubtractCelsius,
     required this.hrvMultiplier,
@@ -221,6 +255,7 @@ class StrainScoreConfig {
   final double minPercentileGapRatio;
   final double missingComponentConfidenceMultiplier;
   final double partialHrConfidenceMultiplier;
+  final double maxPartialHrExtrapolationFactor;
   final double lowHrQualityScore;
   final double partialBaselineConfidence;
   final double coldStartBaselineConfidence;
@@ -245,6 +280,7 @@ class StrainScoreConfig {
     required this.minPercentileGapRatio,
     required this.missingComponentConfidenceMultiplier,
     required this.partialHrConfidenceMultiplier,
+    required this.maxPartialHrExtrapolationFactor,
     required this.lowHrQualityScore,
     required this.partialBaselineConfidence,
     required this.coldStartBaselineConfidence,
@@ -349,7 +385,7 @@ class TimeConfig {
 }
 
 const defaultAlgorithmConfig = AlgorithmConfig(
-  version: 'wellness-scoring-v1.1.0',
+  version: 'wellness-scoring-v2.0.0',
   score: ScoreConfig(
     min: 0,
     max: 100,
@@ -367,60 +403,77 @@ const defaultAlgorithmConfig = AlgorithmConfig(
     fallbackSleepBaselineMultiplier: 0.8,
   ),
   history: HistoryConfig(
-    rollingWindowDays: 30,
-    minCalibrationDays: 4,
-    sleepDebtWindowDays: 14,
-    sleepScoreBaselineMinDays: 4,
+    rollingWindowDays: 28,
+    minCalibrationDays: 7,
+    fullCalibrationDays: 28,
+    sleepDebtWindowDays: 7,
+    sleepScoreBaselineMinDays: 7,
   ),
   zScore: ZScoreConfig(
     lowerClip: -3,
     upperClip: 3,
     minStdDev: MinStdDevConfig(
-      restingHeartRateBpm: 0.5,
-      respiratoryRate: 0.2,
-      spo2Percent: 0.2,
-      skinTemperatureCelsius: 0.05,
-      lnHrvRmssd: 0.05,
-      sleepScore: 3,
+      restingHeartRateBpm: 1.5,
+      respiratoryRate: 0.5,
+      spo2Percent: 0.5,
+      skinTemperatureCelsius: 0.15,
+      lnHrvRmssd: 0.08,
+      sleepScore: 5,
     ),
   ),
   sleepNeed: SleepNeedConfig(
-    defaultSleepBaselineMinutes: 480,
-    validBaselineSleepMinutes: MetricRange(min: 180, max: 720),
-    minValidBaselineNights: 7,
-    partialBaselineMinNights: 4,
+    defaultSleepBaselineMinutes: 500,
+    adultAthleteTargetMinutes: 500,
+    adolescentAthleteTargetMinutes: 540,
+    adolescentMaxAgeYears: 17,
+    personalBaselinePercentile: 0.75,
+    validBaselineSleepMinutes: MetricRange(min: 120, max: 720),
+    minValidBaselineNights: 14,
+    partialBaselineMinNights: 7,
     sleepDebtDecayLambda: 0.25,
     maxSleepDebtMinutes: 90,
-    maxStrainSleepNeedMinutes: 45,
+    maxStrainSleepNeedMinutes: 0,
     maxNapsDeductionMinutes: 120,
     minDailySleepNeedMinutes: 360,
     maxDailySleepNeedMinutes: 660,
   ),
   sleepScore: SleepScoreConfig(
     weights: SleepScoreWeights(
-      duration: 0.40,
-      architecture: 0.20,
-      circadianRegularity: 0.25,
-      efficiency: 0.15,
+      duration: 0.50,
+      architecture: 0,
+      recentAdequacy: 0.20,
+      circadianRegularity: 0.10,
+      efficiency: 0.20,
     ),
     restorativeRatioTarget: 0.40,
-    circadianWindowDays: 4,
-    circadianToleranceMinutes: 0,
-    circadianPenaltyStepMinutes: 15,
-    circadianPenaltyPerStep: 15,
+    recentAdequacyWindowDays: 7,
+    recentAdequacyMinDays: 3,
+    efficiencyTarget: 0.85,
+    efficiencyFloor: 0.60,
+    circadianWindowDays: 14,
+    circadianToleranceMinutes: 30,
+    circadianPenaltyStepMinutes: 30,
+    circadianPenaltyPerStep: 20,
   ),
   recoveryScore: RecoveryScoreConfig(
     weights: RecoveryScoreWeights(
-      hrv: 0.35,
+      hrv: 0.30,
       restingHeartRate: 0.20,
-      skinTemperature: 0.15,
-      sleep: 0.15,
+      skinTemperature: 0.10,
+      sleep: 0.25,
       respiratoryRate: 0.10,
       spo2: 0.05,
     ),
     sigmoidK: 0.8,
     sigmoidBias: 1.06,
+    minAvailableWeight: 0.45,
+    minAutonomicComponents: 1,
+    favorableContributionClip: 1.5,
+    anomalyDeadbandZ: 0.5,
+    sleepNeutralScore: 75,
+    sleepZScale: 15,
     lutealPhaseAdjustment: LutealPhaseAdjustment(
+      enabled: false,
       restingHeartRateSubtractBpm: 2,
       skinTemperatureSubtractCelsius: 0.4,
       hrvMultiplier: 1.10,
@@ -428,8 +481,8 @@ const defaultAlgorithmConfig = AlgorithmConfig(
   ),
   strainScore: StrainScoreConfig(
     historyWindowDays: 42,
-    minPersonalBaselineDays: 7,
-    fullPersonalBaselineDays: 21,
+    minPersonalBaselineDays: 14,
+    fullPersonalBaselineDays: 28,
     cardioExponent: 1.92,
     minHrCoverageForFullConfidence: 0.70,
     minHrCoverageToUseSamples: 0.30,
@@ -439,6 +492,7 @@ const defaultAlgorithmConfig = AlgorithmConfig(
     minPercentileGapRatio: 0.15,
     missingComponentConfidenceMultiplier: 0.85,
     partialHrConfidenceMultiplier: 0.80,
+    maxPartialHrExtrapolationFactor: 2.0,
     lowHrQualityScore: 0.35,
     partialBaselineConfidence: 0.75,
     coldStartBaselineConfidence: 0.50,
@@ -448,8 +502,8 @@ const defaultAlgorithmConfig = AlgorithmConfig(
       'z1': 1,
       'z2': 2,
       'z3': 3,
-      'z4': 5,
-      'z5': 8,
+      'z4': 4,
+      'z5': 5,
     },
     sportCardioFallbackMultipliers: {
       'mobility': 0.8,
@@ -530,11 +584,11 @@ const defaultAlgorithmConfig = AlgorithmConfig(
     ),
   ),
   physiology: PhysiologyConfig(
-    totalSleepTimeMinutes: MetricRange(min: 0, max: 1440, minExclusive: true),
+    totalSleepTimeMinutes: MetricRange(min: 120, max: 1440, minExclusive: true),
     sleepStageMinutes: MetricRange(min: 0, max: 1440),
     timeInBedMinutes: MetricRange(min: 0, max: 1440, minExclusive: true),
     restingHeartRateBpm: MetricRange(min: 25, max: 220),
-    hrvRmssdMs: MetricRange(min: 0, max: 300, minExclusive: true),
+    hrvRmssdMs: MetricRange(min: 0, max: 500, minExclusive: true),
     skinTemperatureCelsius: MetricRange(min: 25, max: 45),
     respiratoryRate: MetricRange(min: 5, max: 60),
     spo2Percent: MetricRange(min: 50, max: 100),

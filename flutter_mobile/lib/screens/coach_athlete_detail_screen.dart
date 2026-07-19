@@ -10,9 +10,10 @@ import '../providers/app_state.dart';
 import '../utils/coach_training_utils.dart';
 import '../utils/training_metrics_utils.dart';
 import '../utils/time_utils.dart';
-import 'analytics_details_screen.dart';
-import 'coach_body_metric_detail_screen.dart';
 import 'activity_details_screen.dart';
+import 'analytics_details_screen.dart';
+import 'coach_athlete_activity_history_screen.dart';
+import 'coach_body_metric_detail_screen.dart';
 import 'cambi_chart_screen.dart';
 
 class CoachAthleteDetailScreen extends StatefulWidget {
@@ -222,59 +223,6 @@ class _CoachAthleteDetailScreenState extends State<CoachAthleteDetailScreen> {
       .toList()
     ..sort((a, b) => DateTime.parse(a.date).compareTo(DateTime.parse(b.date)));
 
-  // ─── Sport helpers ───────────────────────────────────────────
-  String _sportLabel(String id) {
-    const map = {
-      'alpine_skiing': 'Alpine Skiing',
-      'weightlifting': 'Weightlifting',
-      'powerlifting': 'Powerlifting',
-      'crossfit': 'CrossFit',
-      'bodybuilding': 'Bodybuilding',
-      'running': 'Running Road',
-      'trail_running': 'Trail Running',
-      'cycling': 'Cycling',
-      'swimming': 'Swimming',
-      'athletic_prep': 'Preparazione Atletica',
-      'stretching': 'Stretching',
-      'yoga': 'Yoga',
-      'pilates': 'Pilates',
-      'other': 'Altro',
-    };
-    return map[id] ?? id;
-  }
-
-  IconData _sportIcon(String id) {
-    if (id == 'alpine_skiing') return Icons.ac_unit;
-    if ([
-      'weightlifting',
-      'powerlifting',
-      'crossfit',
-      'bodybuilding',
-      'athletic_prep'
-    ].contains(id)) {
-      return Icons.fitness_center;
-    }
-    if (id.contains('running')) return Icons.directions_run;
-    if (id.contains('cycling')) return Icons.directions_bike;
-    if (id == 'swimming') return Icons.pool;
-    return Icons.sports;
-  }
-
-  Color _sportColor(String id) {
-    if (id == 'alpine_skiing') return AppTheme.primary;
-    if ([
-      'weightlifting',
-      'powerlifting',
-      'crossfit',
-      'bodybuilding',
-      'athletic_prep'
-    ].contains(id)) {
-      return const Color(0xFFFF7A00);
-    }
-    if (id.contains('running')) return Colors.greenAccent;
-    return AppTheme.secondary;
-  }
-
   String _formatDuration(int minutes) {
     return TimeUtils.formatDuration(minutes);
   }
@@ -312,6 +260,11 @@ class _CoachAthleteDetailScreenState extends State<CoachAthleteDetailScreen> {
   Widget _buildContent() {
     final weightLogs = _logsOf('weight');
     final heightLogs = _logsOf('height');
+    final completedSessions = _sessions
+        .where((session) =>
+            TrainingActivity.fromTrainingSession(session).status ==
+            ActivityStatus.completed)
+        .toList();
     final showHeight =
         heightLogs.isNotEmpty && (_profile == null || _profile!.age < 18);
 
@@ -475,19 +428,39 @@ class _CoachAthleteDetailScreenState extends State<CoachAthleteDetailScreen> {
                 _buildSectionTitle(
                     Icons.history, 'Storico Attività', AppTheme.primary),
                 const SizedBox(height: 12),
-                if (_sessions.isEmpty)
+                if (completedSessions.isEmpty)
                   Container(
                     padding: const EdgeInsets.all(32),
                     decoration: BoxDecoration(
                         color: AppTheme.card,
                         borderRadius: BorderRadius.circular(16)),
                     child: Center(
-                        child: Text('Nessuna sessione registrata',
+                        child: Text('Nessun allenamento svolto',
                             style:
                                 TextStyle(color: AppTheme.textMediumEmphasis))),
                   )
                 else
-                  ..._sessions.take(10).map((s) => _buildSessionRow(s)),
+                  ...completedSessions.take(4).map((s) => _buildSessionRow(s)),
+                if (completedSessions.length > 4) ...[
+                  const SizedBox(height: 2),
+                  SizedBox(
+                    width: double.infinity,
+                    child: TextButton.icon(
+                      key: const ValueKey('coach-athlete-see-all-activities'),
+                      onPressed: _openActivityHistory,
+                      icon: const Icon(Icons.list_alt, size: 18),
+                      label: Text('Vedi tutti (${completedSessions.length})'),
+                      style: TextButton.styleFrom(
+                        foregroundColor: AppTheme.primary,
+                        padding: const EdgeInsets.symmetric(vertical: 14),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                          side: BorderSide(color: AppTheme.subtleBorder),
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
               ],
             ),
           ),
@@ -1145,54 +1118,34 @@ class _CoachAthleteDetailScreenState extends State<CoachAthleteDetailScreen> {
 
   // ─── Session row ───────────────────────────────────────────────
   Widget _buildSessionRow(TrainingSession session) {
-    final color = _sportColor(session.sportId);
-    return GestureDetector(
+    return CoachActivitySessionTile(
+      key: ValueKey('coach-activity-preview-${session.id}'),
+      session: session,
       onTap: () => Navigator.push(
           context,
           MaterialPageRoute(
-              builder: (_) =>
-                  ActivityDetailsScreen(session: session, prLogs: _prLogs))),
-      child: Container(
-        margin: const EdgeInsets.only(bottom: 10),
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
-        decoration: BoxDecoration(
-            color: AppTheme.card, borderRadius: BorderRadius.circular(14)),
-        child: Row(children: [
-          Container(
-            padding: const EdgeInsets.all(10),
-            decoration: BoxDecoration(
-              color: color.withValues(alpha: 0.15),
-              borderRadius: BorderRadius.circular(10),
-            ),
-            child: Icon(_sportIcon(session.sportId), color: color, size: 20),
-          ),
-          const SizedBox(width: 14),
-          Expanded(
-            child:
-                Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Text(_sportLabel(session.sportId),
-                  style: TextStyle(
-                      color: AppTheme.textHighEmphasis,
-                      fontWeight: FontWeight.bold,
-                      fontSize: 14)),
-              const SizedBox(height: 3),
-              Row(children: [
-                Text(session.date,
-                    style: TextStyle(
-                        color: AppTheme.textMediumEmphasis, fontSize: 11)),
-                const SizedBox(width: 8),
-                Icon(Icons.access_time,
-                    color: AppTheme.textMediumEmphasis, size: 11),
-                const SizedBox(width: 3),
-                Text(TimeUtils.formatDuration(session.duration),
-                    style: TextStyle(
-                        color: AppTheme.textMediumEmphasis, fontSize: 11)),
-              ]),
-            ]),
-          ),
-          Icon(Icons.chevron_right,
-              color: AppTheme.textMediumEmphasis, size: 18),
-        ]),
+              builder: (_) => ActivityDetailsScreen(
+                    session: session,
+                    prLogs: _prLogs,
+                    readOnly: true,
+                  ))),
+    );
+  }
+
+  void _openActivityHistory() {
+    final completedSessions = _sessions
+        .where((session) =>
+            TrainingActivity.fromTrainingSession(session).status ==
+            ActivityStatus.completed)
+        .toList();
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => CoachAthleteActivityHistoryScreen(
+          athleteName: widget.athleteName,
+          sessions: completedSessions,
+          prLogs: _prLogs,
+        ),
       ),
     );
   }

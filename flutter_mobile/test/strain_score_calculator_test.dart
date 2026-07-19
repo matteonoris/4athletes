@@ -47,7 +47,7 @@ void main() {
     expect(result.warnings, contains('heart_rate_coverage_low'));
   });
 
-  test('HR time-series non interpola gap lunghi tra campioni', () {
+  test('HR time-series non interpola gap lunghi né inventa cardio da RPE', () {
     final start = DateTime(2026, 6, 12, 8);
     final session = _session(
       heartRateSamples: [
@@ -62,9 +62,10 @@ void main() {
 
     final result = calculateSessionStrain(session, profile);
 
-    expect(result.cardioMethod, 'rpe_fallback');
+    expect(result.cardioMethod, isNull);
+    expect(result.cardioLoadAU, isNull);
     expect(result.heartRateCoverage, 0);
-    expect(result.warnings, contains('cardio_load_estimated_from_rpe'));
+    expect(result.warnings, contains('cardio_load_unavailable'));
   });
 
   test('HR zones fallback calcola cardio load da zone', () {
@@ -81,7 +82,7 @@ void main() {
     final result = calculateSessionStrain(session, profile);
 
     expect(result.cardioMethod, 'hr_zones');
-    expect(result.cardioLoadAU, 195);
+    expect(result.cardioLoadAU, 170);
   });
 
   test('RPE mancante esclude componente RPE', () {
@@ -225,7 +226,7 @@ void main() {
     expect(anchors.p95 - anchors.p90, greaterThanOrEqualTo(minGap));
   });
 
-  test('cold start sotto 7 giorni usa calibration phase', () {
+  test('cold start sotto 14 giorni usa calibration phase', () {
     final result = calculateDailyStrain(
       '2026-06-12',
       [_session()],
@@ -237,11 +238,11 @@ void main() {
     expect(result.warnings, contains('strain_baseline_calibration_phase'));
   });
 
-  test('7-20 giorni usa blend personale e anchor', () {
+  test('14-27 giorni usa blend personale e anchor', () {
     final anchors = calculateStrainAnchors(
-      List<num>.filled(10, 1000),
+      List<num>.filled(20, 1000),
       const StrainComponentAnchors(p50: 100, p90: 200, p95: 300),
-      validDays: 10,
+      validDays: 20,
       config: defaultAlgorithmConfig,
     );
 
@@ -282,8 +283,7 @@ void main() {
     expect(result.score, inInclusiveRange(0, 100));
   });
 
-  test('Daily Sleep Need usa strain del giorno precedente con esponente 1.2',
-      () {
+  test('Daily Sleep Need non converte strain in minuti senza validazione', () {
     const today = DailyWearableData(
       date: '2026-06-12',
       totalSleepTimeMinutes: 480,
@@ -292,8 +292,8 @@ void main() {
 
     final adjustment = calculateDailyStrainAdjustment(today);
 
-    expect(
-        adjustment, defaultAlgorithmConfig.sleepNeed.maxStrainSleepNeedMinutes);
+    expect(adjustment, 0);
+    expect(defaultAlgorithmConfig.sleepNeed.maxStrainSleepNeedMinutes, 0);
   });
 }
 

@@ -11,6 +11,7 @@ import 'package:phosphor_flutter/phosphor_flutter.dart';
 import 'package:intl/intl.dart';
 
 import '../core/theme.dart';
+import '../data/workout_catalog.dart';
 import '../providers/app_state.dart';
 import '../models/models.dart';
 import '../utils/health_display_utils.dart';
@@ -19,6 +20,8 @@ import '../utils/training_metrics_utils.dart';
 import '../utils/time_utils.dart';
 import '../widgets/bottom_nav.dart';
 import '../widgets/custom_card.dart';
+import '../widgets/workout_source_badges.dart';
+import '../models/workout_creation_models.dart';
 
 import 'analytics_details_screen.dart';
 import 'analytics_screen.dart';
@@ -119,8 +122,6 @@ class _DashboardViewState extends State<_DashboardView> {
 
   Future<void> _syncInitialHealthData() async {
     final appState = Provider.of<AppState>(context, listen: false);
-    await appState.syncHealthWorkouts();
-    if (!mounted) return;
     await appState.syncDailyHealthData(_currentDate);
   }
 
@@ -291,29 +292,36 @@ class _DashboardViewState extends State<_DashboardView> {
             padding: const EdgeInsets.all(24),
             children: [
               Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        'Ciao, ${user.firstName}',
-                        style: Theme.of(context)
-                            .textTheme
-                            .headlineMedium
-                            ?.copyWith(
-                              color: AppTheme.textHighEmphasis,
-                              fontWeight: FontWeight.bold,
-                            ),
-                      ),
-                      const SizedBox(height: 4),
-                      Text(
-                        _homeMotivationPrompt(),
-                        style: Theme.of(context).textTheme.bodyMedium,
-                      ),
-                    ],
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Ciao, ${user.firstName}',
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: Theme.of(context)
+                              .textTheme
+                              .headlineMedium
+                              ?.copyWith(
+                                color: AppTheme.textHighEmphasis,
+                                fontWeight: FontWeight.bold,
+                              ),
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          _homeMotivationPrompt(),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: Theme.of(context).textTheme.bodyMedium,
+                        ),
+                      ],
+                    ),
                   ),
+                  const SizedBox(width: 12),
                   Row(
+                    mainAxisSize: MainAxisSize.min,
                     children: [
                       Stack(
                         children: [
@@ -836,6 +844,14 @@ class _DashboardViewState extends State<_DashboardView> {
                                         ),
                                     ],
                                   ),
+                                  const SizedBox(height: 6),
+                                  WorkoutSourceBadges(
+                                    coachCreated: true,
+                                    merged: matchingSession != null &&
+                                        WorkoutProvenance.isMerged(
+                                          matchingSession,
+                                        ),
+                                  ),
                                   const SizedBox(height: 4),
                                   Row(
                                     children: [
@@ -877,10 +893,7 @@ class _DashboardViewState extends State<_DashboardView> {
                     .where(
                         (s) => !dailyCoachEvents.any((e) => e.id == s.eventId))
                     .map((session) {
-                  String sName = session.sportId == 'alpine_skiing'
-                      ? 'Alpine Skiing'
-                      : session.sportId[0].toUpperCase() +
-                          session.sportId.substring(1).replaceAll('_', ' ');
+                  final sName = WorkoutCatalog.displayName(session.sportId);
                   IconData sIcon = Icons.fitness_center;
                   if (session.sportId == 'alpine_skiing')
                     sIcon = PhosphorIcons.snowflake();
@@ -945,6 +958,12 @@ class _DashboardViewState extends State<_DashboardView> {
                                       ),
                                     ],
                                   ),
+                                  if (WorkoutProvenance.isCoachCreated(
+                                          session) ||
+                                      WorkoutProvenance.isMerged(session)) ...[
+                                    const SizedBox(height: 6),
+                                    WorkoutSourceBadges.forSession(session),
+                                  ],
                                   if (session.details != null &&
                                       session.details!['specialties'] != null &&
                                       (session.details!['specialties'] as List)
@@ -1660,13 +1679,35 @@ class _DashboardViewState extends State<_DashboardView> {
       );
     }
 
-    final sleepScore =
-        appState.currentSleepScore ?? appState.sleepScoreForDate(_currentDate);
+    final sleepScore = appState.sleepScoreForDate(_currentDate);
     final strainScore = appState.strainScoreForDate(_currentDate);
-    final recoveryScore = appState.currentRecoveryScore ??
-        appState.recoveryScoreForDate(_currentDate);
-    final isCalibration = appState.healthSyncError == "CALIBRATION_PHASE" &&
-        recoveryScore == null;
+    final recoveryScore = appState.recoveryScoreForDate(_currentDate);
+    final sleepStatus = appState.sleepStatusForDate(_currentDate);
+    final recoveryStatus = appState.recoveryStatusForDate(_currentDate);
+    final dailyMetrics =
+        appState.dailyMetricsForDate(_currentDate) ?? const <String, double>{};
+    final historicalMetrics = appState.historicalMetricsForDate(_currentDate) ??
+        const <String, List<double>>{};
+    final localSleepHistory = appState.localSleepHistoryForDate(_currentDate) ??
+        const <Map<String, dynamic>>[];
+    final isCalibration = recoveryStatus == 'CALIBRATION_PHASE' ||
+        (appState.healthSyncError == "CALIBRATION_PHASE" &&
+            recoveryScore == null);
+    final hasInsufficientData = recoveryStatus == 'INSUFFICIENT_DATA';
+    final hasPartialData =
+        sleepStatus == 'PARTIAL_DATA' || recoveryStatus == 'PARTIAL_DATA';
+    final syncLabel = isCalibration
+        ? 'In calibrazione'
+        : hasInsufficientData
+            ? 'Dati insufficienti'
+            : hasPartialData
+                ? 'Dati parziali'
+                : 'Sincronizzato';
+    final syncColor = isCalibration || hasInsufficientData
+        ? Colors.grey
+        : hasPartialData
+            ? const Color(0xFFFF8C42)
+            : AppTheme.primary;
     if (appState.healthSyncCompleted &&
         (sleepScore != null ||
             strainScore != null ||
@@ -1696,21 +1737,22 @@ class _DashboardViewState extends State<_DashboardView> {
                       color: AppTheme.textMediumEmphasis)),
               Row(
                 children: [
-                  const Icon(Icons.check_circle,
-                      color: AppTheme.primary, size: 16),
+                  Icon(
+                    hasPartialData || isCalibration || hasInsufficientData
+                        ? Icons.info_outline
+                        : Icons.check_circle,
+                    color: syncColor,
+                    size: 16,
+                  ),
                   const SizedBox(width: 4),
-                  if (isCalibration)
-                    const Text('In Calibrazione',
-                        style: TextStyle(
-                            color: Colors.grey,
-                            fontSize: 12,
-                            fontWeight: FontWeight.bold))
-                  else
-                    const Text('Sincronizzato',
-                        style: TextStyle(
-                            color: AppTheme.primary,
-                            fontSize: 12,
-                            fontWeight: FontWeight.bold)),
+                  Text(
+                    syncLabel,
+                    style: TextStyle(
+                      color: syncColor,
+                      fontSize: 12,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
                 ],
               ),
             ],
@@ -1745,11 +1787,9 @@ class _DashboardViewState extends State<_DashboardView> {
                             builder: (_) => DailyReadinessDetailsScreen(
                               title: 'Sleep Score',
                               score: sleepScore,
-                              dailyMetrics: appState.currentDailyMetrics ?? {},
-                              historicalMetrics:
-                                  appState.currentHistoricalMetrics ?? {},
-                              localSleepHistory:
-                                  appState.currentLocalSleepHistory ?? const [],
+                              dailyMetrics: dailyMetrics,
+                              historicalMetrics: historicalMetrics,
+                              localSleepHistory: localSleepHistory,
                             ),
                           ),
                         );
@@ -1806,11 +1846,9 @@ class _DashboardViewState extends State<_DashboardView> {
                             builder: (_) => DailyReadinessDetailsScreen(
                               title: 'Recovery',
                               score: recoveryScore,
-                              dailyMetrics: appState.currentDailyMetrics ?? {},
-                              historicalMetrics:
-                                  appState.currentHistoricalMetrics ?? {},
-                              localSleepHistory:
-                                  appState.currentLocalSleepHistory ?? const [],
+                              dailyMetrics: dailyMetrics,
+                              historicalMetrics: historicalMetrics,
+                              localSleepHistory: localSleepHistory,
                             ),
                           ),
                         );
@@ -1997,15 +2035,15 @@ class _DashboardViewState extends State<_DashboardView> {
     final recovery = _recoveryScoreStatus(recoveryScore).toLowerCase();
 
     if (recoveryScore < 40) {
-      return '$sleep, $strain, $recovery: meglio tenere la seduta molto controllata.';
+      return '$sleep, $strain, $recovery: segnali fisiologici sfavorevoli. Confrontali con sintomi, percezione e staff prima di adattare la seduta.';
     }
     if (recoveryScore < 55) {
-      return '$sleep, $strain, $recovery: oggi conviene gestire intensità e volume.';
+      return '$sleep, $strain, $recovery: segnali sotto il riferimento personale. Verifica fatica, soreness e piano con lo staff.';
     }
     if (recoveryScore < 70) {
-      return '$sleep, $strain, $recovery: puoi lavorare, restando attento ai segnali.';
+      return '$sleep, $strain, $recovery: quadro intermedio. Usa il trend, non il singolo numero, insieme alle sensazioni.';
     }
-    return '$sleep, $strain, $recovery: buona finestra per una seduta di qualità.';
+    return '$sleep, $strain, $recovery: segnali favorevoli, da confermare con percezione e piano. Non è un via libera automatico.';
   }
 }
 

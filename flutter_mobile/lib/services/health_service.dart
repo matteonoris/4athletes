@@ -30,7 +30,7 @@ class HealthService {
   HealthService._internal();
 
   final Health _health = Health();
-  static const int _healthImportVersion = 3;
+  static const int _healthImportVersion = 6;
 
   final List<HealthDataType> _dataTypes = Platform.isIOS
       ? [
@@ -50,10 +50,11 @@ class HealthService {
           HealthDataType.HEIGHT,
           HealthDataType.DISTANCE_WALKING_RUNNING,
           HealthDataType.DISTANCE_CYCLING,
+          HealthDataType.SPEED,
           HealthDataType.FLIGHTS_CLIMBED,
           HealthDataType.BLOOD_OXYGEN,
           HealthDataType.RESPIRATORY_RATE,
-          HealthDataType.BODY_TEMPERATURE,
+          HealthDataType.SLEEP_WRIST_TEMPERATURE,
           HealthDataType.MENSTRUATION_FLOW,
         ]
       : [
@@ -72,18 +73,16 @@ class HealthService {
           HealthDataType.ACTIVE_ENERGY_BURNED,
           HealthDataType.TOTAL_CALORIES_BURNED,
           HealthDataType.DISTANCE_DELTA,
+          HealthDataType.SPEED,
           HealthDataType.RESTING_HEART_RATE,
           HealthDataType.HEART_RATE_VARIABILITY_RMSSD,
           HealthDataType.WEIGHT,
           HealthDataType.HEIGHT,
           HealthDataType.BLOOD_OXYGEN,
           HealthDataType.RESPIRATORY_RATE,
-          HealthDataType.BODY_TEMPERATURE,
+          HealthDataType.SKIN_TEMPERATURE,
           HealthDataType.MENSTRUATION_FLOW,
         ];
-
-  late final List<HealthDataAccess> _permissions =
-      _dataTypes.map((e) => HealthDataAccess.READ).toList();
 
   Future<bool> requestPermissions() async {
     final result = await requestPermissionsDetailed();
@@ -129,14 +128,35 @@ class HealthService {
         }
       }
 
-      // Request permissions from Health Connect / Apple Health
-      bool hasPermissions =
-          await _health.hasPermissions(_dataTypes, permissions: _permissions) ??
-              false;
+      // Request permissions from Health Connect / Apple Health. Skin
+      // temperature is optional on Android and must be removed on devices
+      // that do not expose the Health Connect feature.
+      final requestTypes =
+          _dataTypes.where(_health.isDataTypeAvailable).toList();
+      if (Platform.isAndroid &&
+          requestTypes.contains(HealthDataType.SKIN_TEMPERATURE)) {
+        try {
+          if (!await _health.isSkinTemperatureAvailable()) {
+            requestTypes.remove(HealthDataType.SKIN_TEMPERATURE);
+          }
+        } catch (e) {
+          requestTypes.remove(HealthDataType.SKIN_TEMPERATURE);
+          debugPrint('Skin temperature availability check failed: $e');
+        }
+      }
+      final requestPermissions =
+          requestTypes.map((_) => HealthDataAccess.READ).toList();
+      bool hasPermissions = await _health.hasPermissions(
+            requestTypes,
+            permissions: requestPermissions,
+          ) ??
+          false;
 
       if (!hasPermissions) {
-        hasPermissions = await _health.requestAuthorization(_dataTypes,
-            permissions: _permissions);
+        hasPermissions = await _health.requestAuthorization(
+          requestTypes,
+          permissions: requestPermissions,
+        );
       }
 
       if (hasPermissions) {
@@ -222,6 +242,27 @@ class HealthService {
               _sumNumericValues(caloriePoints, point.dateFrom, point.dateTo);
         }
 
+        final speedPoints = _isRunningSport(sportId)
+            ? await _fetchScopedPoints(
+                workout: point,
+                types: [HealthDataType.SPEED],
+                debugLabel: 'speed',
+                preferDenseSamples: true,
+              )
+            : <HealthDataPoint>[];
+        final averageSpeedKmh = _averageNumericValue(speedPoints) == null
+            ? null
+            : _averageNumericValue(speedPoints)! * 3.6;
+        final stepPoints = _isRunningSport(sportId)
+            ? await _fetchScopedPoints(
+                workout: point,
+                types: [HealthDataType.STEPS],
+                debugLabel: 'steps',
+              )
+            : <HealthDataPoint>[];
+        final importedSteps =
+            _sumNumericValues(stepPoints, point.dateFrom, point.dateTo);
+
         final hrPoints = await _fetchScopedPoints(
           workout: point,
           types: [HealthDataType.HEART_RATE],
@@ -253,9 +294,13 @@ class HealthService {
         final details = <String, dynamic>{
           'source': 'health_sync',
           'health_import_version': _healthImportVersion,
+          'hr_zone_calculation_version':
+              HealthImportNormalizer.heartRateZoneCalculationVersion,
           'source_name': point.sourceName,
           'source_id': point.sourceId,
           'external_id': _externalWorkoutId(point, sportId),
+          'workout_start_ms': point.dateFrom.millisecondsSinceEpoch,
+          'workout_end_ms': point.dateTo.millisecondsSinceEpoch,
           'total_duration_seconds': totalDurationSeconds,
           'active_duration_seconds': activeDurationSeconds,
           'moving_duration_seconds': movingDurationSeconds,
@@ -265,6 +310,11 @@ class HealthService {
           'active_duration_minutes': activeDurationMinutes,
           'duration_source': 'source',
         };
+        if (hrPoints.isNotEmpty) {
+          details['hr_source_id'] = hrPoints.first.sourceId;
+          details['hr_source_sample_count'] = hrPoints.length;
+          details['hr_source_max_bpm'] = hrMetrics.maxHeartRate;
+        }
 
         if (distanceMeters > 0) {
           final distanceKm = distanceMeters / 1000;
@@ -275,12 +325,34 @@ class HealthService {
             final paceSecondsPerKm = activeDurationSeconds / distanceKm;
             details['pace'] = '${_formatPace(paceSecondsPerKm)} min/km';
             details['avg_pace_sec_per_km'] = paceSecondsPerKm.round();
+            final derivedSpeed = distanceKm / (activeDurationSeconds / 3600);
+            final speed = averageSpeedKmh != null && averageSpeedKmh > 0
+                ? averageSpeedKmh
+                : derivedSpeed;
+            details['speed'] = '${speed.toStringAsFixed(2)} km/h';
+            details['avg_speed_kmh'] = double.parse(speed.toStringAsFixed(2));
           } else if (_isCyclingSport(sportId)) {
             final speedKmh = distanceKm / (activeDurationSeconds / 3600);
             details['speed'] = '${speedKmh.toStringAsFixed(1)} km/h';
             details['avg_speed_kmh'] =
                 double.parse(speedKmh.toStringAsFixed(1));
           }
+        }
+        if (_isRunningSport(sportId) &&
+            distanceMeters <= 0 &&
+            averageSpeedKmh != null &&
+            averageSpeedKmh > 0) {
+          details['speed'] = '${averageSpeedKmh.toStringAsFixed(2)} km/h';
+          details['avg_speed_kmh'] =
+              double.parse(averageSpeedKmh.toStringAsFixed(2));
+        }
+        if (_isRunningSport(sportId) &&
+            importedSteps > 0 &&
+            activeDurationSeconds > 0) {
+          final cadence = importedSteps / (activeDurationSeconds / 60);
+          details['cadence'] = cadence.round();
+          details['avg_cadence_spm'] = double.parse(cadence.toStringAsFixed(1));
+          details['cadence_source'] = 'steps_and_active_duration';
         }
 
         if (calories > 0) {
@@ -292,6 +364,7 @@ class HealthService {
             await _fetchEstimatedElevationMeters(point, sportId);
         if (estimatedElevationMeters != null) {
           details['elevation'] = '${estimatedElevationMeters.round()} m';
+          details['elevation_meters'] = estimatedElevationMeters.round();
           details['elevation_source'] = 'flights_climbed_estimate';
         }
 
@@ -309,9 +382,11 @@ class HealthService {
           details['hr_coverage_minutes'] =
               _secondsToRoundedMinutes(hrMetrics.coverageSeconds);
           if (hrMetrics.zoneSeconds.any((seconds) => seconds > 0)) {
-            details['hr_zones_seconds'] = hrMetrics.zoneSeconds
-                .map((seconds) => seconds.round())
-                .toList();
+            details['hr_zones_seconds'] =
+                HealthImportNormalizer.roundedZoneSeconds(
+              hrMetrics.zoneSeconds,
+              targetSeconds: hrMetrics.coverageSeconds,
+            );
             details['hr_zones'] = _zoneMinutesFromSeconds(
               zoneSeconds: hrMetrics.zoneSeconds,
               activeDurationSeconds: activeDurationSeconds,
@@ -514,10 +589,14 @@ class HealthService {
     final details = <String, dynamic>{
       'source': 'health_sync',
       'health_import_version': _healthImportVersion,
+      'hr_zone_calculation_version':
+          HealthImportNormalizer.heartRateZoneCalculationVersion,
       'source_name': raw['sourceName'],
       'source_id': raw['sourceId'],
       'external_id': raw['id']?.toString() ??
           '${raw['sourceId'] ?? raw['sourceName'] ?? 'native'}-$startMs-$endMs',
+      'workout_start_ms': startMs,
+      'workout_end_ms': endMs,
       'total_duration_seconds': totalDurationSeconds,
       'active_duration_seconds': activeDurationSeconds,
       'moving_duration_seconds': movingDurationSeconds,
@@ -530,6 +609,17 @@ class HealthService {
           _secondsToRoundedMinutes(activeDurationSeconds),
       'duration_source': 'source',
     };
+    if (raw['hrSourceId'] != null) {
+      details['hr_source_id'] = raw['hrSourceId'].toString();
+    }
+    final sourceSampleCount = _asInt(raw['hrSampleCount']);
+    if (sourceSampleCount != null) {
+      details['hr_source_sample_count'] = sourceSampleCount;
+    }
+    final sourceMaxBpm = _asDouble(raw['hrMaxBpm']);
+    if (sourceMaxBpm != null) {
+      details['hr_source_max_bpm'] = sourceMaxBpm;
+    }
     if (raw['mergedSourceWorkoutIds'] is List) {
       details['merged_source_workout_ids'] = raw['mergedSourceWorkoutIds'];
       details['source_part_count'] = _asInt(raw['sourcePartCount']) ??
@@ -544,11 +634,43 @@ class HealthService {
         final paceSecondsPerKm = activeDurationSeconds / distanceKm;
         details['pace'] = '${_formatPace(paceSecondsPerKm)} min/km';
         details['avg_pace_sec_per_km'] = paceSecondsPerKm.round();
+        final importedSpeed = _asDouble(raw['avgSpeedKmh']);
+        final speedKmh = importedSpeed != null && importedSpeed > 0
+            ? importedSpeed
+            : distanceKm / (activeDurationSeconds / 3600);
+        details['speed'] = '${speedKmh.toStringAsFixed(2)} km/h';
+        details['avg_speed_kmh'] = double.parse(speedKmh.toStringAsFixed(2));
       } else if (_isCyclingSport(sportId)) {
         final speedKmh = distanceKm / (activeDurationSeconds / 3600);
         details['speed'] = '${speedKmh.toStringAsFixed(1)} km/h';
         details['avg_speed_kmh'] = double.parse(speedKmh.toStringAsFixed(1));
       }
+    }
+
+    final importedSpeedKmh = _asDouble(raw['avgSpeedKmh']);
+    if (_isRunningSport(sportId) &&
+        distanceMeters <= 0 &&
+        importedSpeedKmh != null &&
+        importedSpeedKmh > 0) {
+      details['speed'] = '${importedSpeedKmh.toStringAsFixed(2)} km/h';
+      details['avg_speed_kmh'] =
+          double.parse(importedSpeedKmh.toStringAsFixed(2));
+    }
+
+    final cadenceSpm = _asDouble(raw['avgCadenceSpm']);
+    if (_isRunningSport(sportId) && cadenceSpm != null && cadenceSpm > 0) {
+      details['cadence'] = cadenceSpm.round();
+      details['avg_cadence_spm'] = double.parse(cadenceSpm.toStringAsFixed(1));
+      details['cadence_source'] = 'source';
+    }
+
+    final importedLaps = raw['importedLaps'];
+    if (importedLaps is List && importedLaps.isNotEmpty) {
+      details['imported_laps'] = importedLaps;
+    }
+    final importedSegments = raw['segments'];
+    if (importedSegments is List && importedSegments.isNotEmpty) {
+      details['imported_segments'] = importedSegments;
     }
 
     if (energyKcal > 0) {
@@ -571,8 +693,10 @@ class HealthService {
       details['hr_coverage_seconds'] = hrMetrics.coverageSeconds;
       details['hr_coverage_minutes'] =
           _secondsToRoundedMinutes(hrMetrics.coverageSeconds);
-      details['hr_zones_seconds'] =
-          hrMetrics.zoneSeconds.map((seconds) => seconds.round()).toList();
+      details['hr_zones_seconds'] = HealthImportNormalizer.roundedZoneSeconds(
+        hrMetrics.zoneSeconds,
+        targetSeconds: hrMetrics.coverageSeconds,
+      );
       details['hr_zones'] = _zoneMinutesFromSeconds(
         zoneSeconds: hrMetrics.zoneSeconds,
         activeDurationSeconds: activeDurationSeconds,
@@ -671,20 +795,14 @@ class HealthService {
     if (points.isEmpty) return points;
 
     final exact = _exactWorkoutSourcePoints(points, workout);
+    // The workout provider's own series is the only one that can match the
+    // graph shown by that provider. Mirrored streams may be denser but can be
+    // bucketed, averaged or delayed differently.
+    if (exact.isNotEmpty) return exact;
+
     final trusted = points.where(_isTrustedWorkoutSource).toList();
     final pool = trusted.isNotEmpty ? trusted : points;
-    final best = _densestHealthPointGroup(pool);
-    if (exact.isEmpty) return best.points;
-
-    final exactStats = _sampleSourceStats(exact);
-    final bestStats = best;
-    if (exactStats.count >= bestStats.count * 0.80) return exact;
-    if (exactStats.coverageSeconds >= bestStats.coverageSeconds * 0.95 &&
-        exactStats.count >= bestStats.count * 0.50) {
-      return exact;
-    }
-
-    return bestStats.count > exactStats.count ? bestStats.points : exact;
+    return _densestHealthPointGroup(pool).points;
   }
 
   List<HealthDataPoint> _exactWorkoutSourcePoints(
@@ -782,7 +900,9 @@ class HealthService {
   }
 
   String _formatClock(DateTime time) {
-    return '${time.hour.toString().padLeft(2, '0')}:${time.minute.toString().padLeft(2, '0')}';
+    return '${time.hour.toString().padLeft(2, '0')}:'
+        '${time.minute.toString().padLeft(2, '0')}:'
+        '${time.second.toString().padLeft(2, '0')}';
   }
 
   String _formatPace(double secondsPerKm) {
@@ -912,6 +1032,19 @@ class HealthService {
       }
     }
     return total;
+  }
+
+  double? _averageNumericValue(List<HealthDataPoint> points) {
+    final values = points
+        .where((point) => point.value is NumericHealthValue)
+        .map(
+          (point) =>
+              (point.value as NumericHealthValue).numericValue.toDouble(),
+        )
+        .where((value) => value > 0)
+        .toList();
+    if (values.isEmpty) return null;
+    return values.reduce((left, right) => left + right) / values.length;
   }
 
   int _durationCoveredByPositiveSamples(
@@ -1075,36 +1208,11 @@ class HealthService {
   }
 
   List<Map<String, int>> _heartRateZones(UserProfile profile) {
-    if (profile.hrZoneMode == 'custom' &&
-        profile.customHrZones != null &&
-        profile.customHrZones!.length == 5) {
-      return profile.customHrZones!
-          .map((zone) => Map<String, int>.from(zone))
-          .toList();
-    }
-
-    const restingHr = 50;
-    final maxHr = profile.maxHr > restingHr ? profile.maxHr : 190;
-    final reserve = maxHr - restingHr;
-    return [
-      {
-        'min': (reserve * 0.50 + restingHr).round(),
-        'max': (reserve * 0.60 + restingHr).round()
-      },
-      {
-        'min': (reserve * 0.60 + restingHr).round(),
-        'max': (reserve * 0.70 + restingHr).round()
-      },
-      {
-        'min': (reserve * 0.70 + restingHr).round(),
-        'max': (reserve * 0.80 + restingHr).round()
-      },
-      {
-        'min': (reserve * 0.80 + restingHr).round(),
-        'max': (reserve * 0.90 + restingHr).round()
-      },
-      {'min': (reserve * 0.90 + restingHr).round(), 'max': maxHr},
-    ];
+    return HealthImportNormalizer.resolveHeartRateZones(
+      mode: profile.hrZoneMode,
+      customZones: profile.customHrZones,
+      maxHeartRate: profile.maxHr,
+    );
   }
 
   List<int> _zoneMinutesFromSeconds({
@@ -1172,17 +1280,25 @@ class HealthService {
       {int days = 7}) async {
     Map<String, List<BodyMetricLog>> results = {
       'resting_hr': [],
-      'hrv': [],
+      'hrv_sdnn': [],
+      'hrv_rmssd': [],
       'weight': [],
       'spo2': [],
       'resp': [],
-      'temp': []
+      'wrist_temp_c': [],
+      'skin_temp_delta_c': [],
     };
     try {
       await _health.configure();
       final now = DateTime.now();
       final startDate = now.subtract(Duration(days: days));
-      await _ensureDailyMetricPermissions();
+      try {
+        await _ensureDailyMetricPermissions();
+      } catch (e) {
+        // Reads below are isolated per stream; one optional permission must
+        // not suppress RHR/HRV or the other recovery inputs.
+        debugPrint('Daily metric permission check was partial: $e');
+      }
 
       // Fetch Resting Heart Rate
       List<HealthDataPoint> rhrData = [];
@@ -1242,11 +1358,14 @@ class HealthService {
         type: HealthDataType.RESPIRATORY_RATE,
         label: 'Respiratory Rate',
       );
+      final skinTemperatureType = Platform.isIOS
+          ? HealthDataType.SLEEP_WRIST_TEMPERATURE
+          : HealthDataType.SKIN_TEMPERATURE;
       final tempData = await _fetchDailyMetricPoints(
         startDate: startDate,
         endDate: now,
-        type: HealthDataType.BODY_TEMPERATURE,
-        label: 'Body Temperature',
+        type: skinTemperatureType,
+        label: 'Night skin/wrist temperature',
       );
 
       // Helper function to process daily averages
@@ -1276,7 +1395,34 @@ class HealthService {
       processAverages(weightData, [HealthDataType.WEIGHT], 'weight');
       processAverages(spo2Data, [HealthDataType.BLOOD_OXYGEN], 'spo2');
       processAverages(respData, [HealthDataType.RESPIRATORY_RATE], 'resp');
-      processAverages(tempData, [HealthDataType.BODY_TEMPERATURE], 'temp');
+      if (Platform.isIOS) {
+        processAverages(
+          tempData,
+          [HealthDataType.SLEEP_WRIST_TEMPERATURE],
+          'wrist_temp_c',
+        );
+      } else {
+        final dailySkinTemperature = <String, List<double>>{};
+        for (final point in tempData) {
+          final value = point.value;
+          final delta = value is SkinTemperatureHealthValue
+              ? value.temperatureDelta
+              : value is NumericHealthValue
+                  ? value.numericValue.toDouble()
+                  : null;
+          if (delta == null || !delta.isFinite) continue;
+          final dateStr = point.dateFrom.toIso8601String().split('T')[0];
+          dailySkinTemperature.putIfAbsent(dateStr, () => []).add(delta);
+        }
+        dailySkinTemperature.forEach((dateStr, values) {
+          results['skin_temp_delta_c']!.add(BodyMetricLog(
+            id: 'skin_temp_delta_c_$dateStr',
+            date: dateStr,
+            type: 'skin_temp_delta_c',
+            value: values.reduce((a, b) => a + b) / values.length,
+          ));
+        });
+      }
 
       // Process HRV (Only nighttime/morning: 00:00 to 08:00)
       Map<String, List<double>> dailyHrv = {};
@@ -1293,10 +1439,11 @@ class HealthService {
 
       dailyHrv.forEach((dateStr, values) {
         final avg = values.reduce((a, b) => a + b) / values.length;
-        results['hrv']!.add(BodyMetricLog(
-          id: 'hrv_$dateStr', // Temp ID
+        final metricKey = Platform.isIOS ? 'hrv_sdnn' : 'hrv_rmssd';
+        results[metricKey]!.add(BodyMetricLog(
+          id: '${metricKey}_$dateStr',
           date: dateStr,
-          type: 'hrv',
+          type: metricKey,
           value: avg,
         ));
       });
@@ -1317,8 +1464,22 @@ class HealthService {
       HealthDataType.WEIGHT,
       HealthDataType.BLOOD_OXYGEN,
       HealthDataType.RESPIRATORY_RATE,
-      HealthDataType.BODY_TEMPERATURE,
-    ];
+      Platform.isIOS
+          ? HealthDataType.SLEEP_WRIST_TEMPERATURE
+          : HealthDataType.SKIN_TEMPERATURE,
+    ].where(_health.isDataTypeAvailable).toList();
+    if (Platform.isAndroid &&
+        metricTypes.contains(HealthDataType.SKIN_TEMPERATURE)) {
+      try {
+        if (!await _health.isSkinTemperatureAvailable()) {
+          metricTypes.remove(HealthDataType.SKIN_TEMPERATURE);
+        }
+      } catch (e) {
+        metricTypes.remove(HealthDataType.SKIN_TEMPERATURE);
+        debugPrint('Skin temperature availability check failed: $e');
+      }
+    }
+    if (metricTypes.isEmpty) return;
     final permissions = metricTypes.map((_) => HealthDataAccess.READ).toList();
 
     final hasPermissions =

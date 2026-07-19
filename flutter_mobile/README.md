@@ -12,6 +12,11 @@ Vedi [docs/testflight-github-actions.md](docs/testflight-github-actions.md).
 Per un agente AI che deve eseguire il rilascio end-to-end, vedi
 [docs/ai-release-runbook.md](docs/ai-release-runbook.md).
 
+## Scoring wellness
+
+Formule, assunzioni, limiti e piano di validazione di sleep, strain e recovery
+sono documentati in [docs/scoring-science-v2.md](docs/scoring-science-v2.md).
+
 ## Getting Started
 
 This project is a starting point for a Flutter application.

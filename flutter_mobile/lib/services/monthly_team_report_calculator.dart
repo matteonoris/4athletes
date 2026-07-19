@@ -5,6 +5,7 @@ import '../utils/coach_training_utils.dart';
 import '../utils/time_utils.dart';
 import '../utils/training_metrics_utils.dart';
 import 'training_activity_service.dart';
+import 'monthly_training_classifier.dart';
 
 class MonthlyTeamReportAlertThresholds {
   final double lowPresenceRatio;
@@ -43,38 +44,56 @@ class MonthlyTeamReportCalculator {
     DateTime? generatedAt,
   }) {
     final currentMonth = DateTime(month.year, month.month);
-    final previousMonth = DateTime(month.year, month.month - 1);
-
-    final currentEvents = _eventsForMonth(events, team.id, currentMonth);
-    final previousEvents = _eventsForMonth(events, team.id, previousMonth);
-    final currentEventIds = currentEvents.map((event) => event.id).toSet();
-    final previousEventIds = previousEvents.map((event) => event.id).toSet();
+    final reportNow = generatedAt ?? DateTime.now();
+    final isCurrentMonth = currentMonth.year == reportNow.year &&
+        currentMonth.month == reportNow.month;
+    final throughDay = isCurrentMonth ? reportNow.day : null;
+    final historyMonths = List<DateTime>.generate(
+      7,
+      (index) => DateTime(
+        currentMonth.year,
+        currentMonth.month - (6 - index),
+      ),
+    );
+    final eventsByMonth = <String, List<CalendarEvent>>{
+      for (final historyMonth in historyMonths)
+        _monthKey(historyMonth): _eventsForMonth(
+          events,
+          team.id,
+          historyMonth,
+          throughDay: throughDay,
+        ),
+    };
+    final currentEvents = eventsByMonth[_monthKey(currentMonth)] ?? const [];
 
     final athleteReports = <MonthlyTeamAthleteReport>[];
-    final previousByAthlete = <String, _AthleteMonthMetrics>{};
 
     for (final athlete in athletes) {
-      final currentMetrics = _metricsForAthleteMonth(
-        athlete: athlete,
-        month: currentMonth,
-        sessions: sessions,
-        eventIds: currentEventIds,
-        events: currentEvents,
-        jumpLogs: jumpLogs,
-        bodyMetricLogs: bodyMetricLogs,
-        prLogs: prLogs,
-      );
-      final previousMetrics = _metricsForAthleteMonth(
-        athlete: athlete,
-        month: previousMonth,
-        sessions: sessions,
-        eventIds: previousEventIds,
-        events: previousEvents,
-        jumpLogs: jumpLogs,
-        bodyMetricLogs: bodyMetricLogs,
-        prLogs: prLogs,
-      );
-      previousByAthlete[athlete.id] = previousMetrics;
+      final monthlyMetrics = historyMonths.map((historyMonth) {
+        final monthEvents =
+            eventsByMonth[_monthKey(historyMonth)] ?? const <CalendarEvent>[];
+        return _metricsForAthleteMonth(
+          athlete: athlete,
+          month: historyMonth,
+          throughDay: throughDay,
+          sessions: sessions,
+          eventIds: monthEvents.map((event) => event.id).toSet(),
+          events: monthEvents,
+          jumpLogs: jumpLogs,
+          bodyMetricLogs: bodyMetricLogs,
+          prLogs: prLogs,
+        );
+      }).toList();
+      final currentMetrics = monthlyMetrics.last;
+      final previousMetrics = monthlyMetrics[monthlyMetrics.length - 2];
+      final trend = <MonthlyAthleteTrendPoint>[
+        for (var index = 0; index < historyMonths.length; index++)
+          _trendPoint(
+            historyMonths[index],
+            throughDay,
+            monthlyMetrics[index],
+          ),
+      ];
 
       athleteReports.add(
         MonthlyTeamAthleteReport(
@@ -98,6 +117,9 @@ class MonthlyTeamReportCalculator {
           clDirectionChanges: currentMetrics.clDirectionChanges,
           slDirectionChanges: currentMetrics.slDirectionChanges,
           gsDirectionChanges: currentMetrics.gsDirectionChanges,
+          sgDirectionChanges: currentMetrics.sgDirectionChanges,
+          dhDirectionChanges: currentMetrics.dhDirectionChanges,
+          sxDirectionChanges: currentMetrics.sxDirectionChanges,
           addestramentoDirectionChanges:
               currentMetrics.addestramentoDirectionChanges,
           strengthVolumeKg: currentMetrics.strengthVolumeKg,
@@ -115,6 +137,11 @@ class MonthlyTeamReportCalculator {
           incompleteDataCount: currentMetrics.incompleteDataCount,
           alerts: const [],
           deltas: _buildDeltas(currentMetrics, previousMetrics),
+          sessionCount: currentMetrics.sessionCount,
+          hoursByMacro: currentMetrics.hoursByMacroHours,
+          preparationHoursByType: currentMetrics.preparationHoursByTypeHours,
+          trend: trend,
+          trendSummary: _athleteTrendSummary(trend),
         ),
       );
     }
@@ -126,30 +153,39 @@ class MonthlyTeamReportCalculator {
     final ski = _buildSkiReport(reportsWithAlerts);
     final athletic = _buildAthleticReport(reportsWithAlerts);
     final tests = _buildTestsReport(reportsWithAlerts);
+    final coachWorkload = _buildCoachWorkload(currentEvents);
 
     return MonthlyTeamReport(
       team: team,
       month: _monthKey(currentMonth),
-      generatedAt: generatedAt ?? DateTime.now(),
+      generatedAt: reportNow,
       summary: summary,
+      coachWorkload: coachWorkload,
       athletes: reportsWithAlerts,
       ski: ski,
       athletic: athletic,
       tests: tests,
       alerts: alerts,
-      automaticSummary: _automaticSummary(summary, reportsWithAlerts),
+      automaticSummary: _automaticSummary(
+        summary,
+        coachWorkload,
+        ski,
+        reportsWithAlerts,
+      ),
     );
   }
 
   List<CalendarEvent> _eventsForMonth(
     List<CalendarEvent> events,
     String teamId,
-    DateTime month,
-  ) {
+    DateTime month, {
+    int? throughDay,
+  }) {
     return events.where((event) {
-      if (event.status == CoachTrainingUtils.statusCancelled) return false;
+      if (event.status != CoachTrainingUtils.statusCompleted) return false;
       final date = DateTime.tryParse(event.date);
       if (date == null || !_isInMonth(date, month)) return false;
+      if (throughDay != null && date.day > throughDay) return false;
       return CoachTrainingUtils.teamIdsForEvent(event).contains(teamId);
     }).toList();
   }
@@ -157,6 +193,7 @@ class MonthlyTeamReportCalculator {
   _AthleteMonthMetrics _metricsForAthleteMonth({
     required TeamReportAthleteProfile athlete,
     required DateTime month,
+    required int? throughDay,
     required List<TeamReportSession> sessions,
     required Set<String> eventIds,
     required List<CalendarEvent> events,
@@ -165,11 +202,18 @@ class MonthlyTeamReportCalculator {
     required List<TeamReportPrLog> prLogs,
   }) {
     final metrics = _AthleteMonthMetrics();
-    final athleteSessions = sessions.where((item) {
-      if (item.athleteId != athlete.id) return false;
-      final date = DateTime.tryParse(item.session.date);
-      return date != null && _isInMonth(date, month);
-    }).toList();
+    final athleteSessions = _canonicalSessions(
+      sessions.where((item) {
+        if (item.athleteId != athlete.id ||
+            !_isCompletedSession(item.session)) {
+          return false;
+        }
+        final date = DateTime.tryParse(item.session.date);
+        return date != null &&
+            _isInMonth(date, month) &&
+            (throughDay == null || date.day <= throughDay);
+      }),
+    );
 
     final sessionEventIds = athleteSessions
         .map((item) => item.session.eventId)
@@ -181,7 +225,9 @@ class MonthlyTeamReportCalculator {
         .where((event) => event.sportCategory == 'ski')
         .toList(growable: false);
     final athleticEvents = events
-        .where((event) => event.sportCategory != 'ski')
+        .where(
+          (event) => _macroForEvent(event) == MonthlyTrainingMacro.preparation,
+        )
         .toList(growable: false);
 
     metrics.skiPresence = _presenceRatio(
@@ -200,8 +246,11 @@ class MonthlyTeamReportCalculator {
 
     for (final item in athleteSessions) {
       metrics.hasAnyData = true;
+      metrics.sessionCount++;
       final session = item.session;
-      final isSki = _isSkiSport(session.sportId);
+      final classification =
+          const MonthlyTrainingClassifier().classify(session);
+      final isSki = classification.macroId == MonthlyTrainingMacro.ski;
       final durationMinutes =
           TimeUtils.parseDurationToMinutes(session.duration);
       final isProgrammed =
@@ -210,6 +259,7 @@ class MonthlyTeamReportCalculator {
       if (durationMinutes <= 0) {
         metrics.incompleteDataCount++;
       }
+      metrics.addMacroMinutes(classification.macroId, durationMinutes);
 
       if (isSki) {
         if (isProgrammed) {
@@ -218,13 +268,18 @@ class MonthlyTeamReportCalculator {
           metrics.outOfProgramSkiMinutes += durationMinutes;
         }
         _addSkiVolume(metrics, session);
-      } else {
+      } else if (classification.macroId == MonthlyTrainingMacro.preparation) {
+        metrics.hasPreparationData = true;
         if (isProgrammed) {
           metrics.scheduledAthleticMinutes += durationMinutes;
         } else {
           metrics.outOfProgramAthleticMinutes += durationMinutes;
         }
         _addAthleticVolume(metrics, session);
+        metrics.addPreparationMinutes(
+          classification.detailId,
+          durationMinutes,
+        );
       }
 
       if (!isProgrammed) {
@@ -272,15 +327,95 @@ class MonthlyTeamReportCalculator {
     if (events.isEmpty) return null;
 
     var score = 0.0;
+    var invitedEventCount = 0;
     for (final event in events) {
       final attendee = _attendeeForAthlete(event, athlete);
       if (attendee == null) {
-        if (linkedSessionEventIds.contains(event.id)) score += 1;
+        if (linkedSessionEventIds.contains(event.id)) {
+          invitedEventCount++;
+          score += 1;
+        }
         continue;
       }
+      invitedEventCount++;
       score += _attendanceScore(attendee);
     }
-    return score / events.length;
+    return invitedEventCount == 0 ? null : score / invitedEventCount;
+  }
+
+  List<TeamReportSession> _canonicalSessions(
+    Iterable<TeamReportSession> candidates,
+  ) {
+    final source = candidates.toList(growable: false);
+    final mergedExternalIds = <String>{};
+    final mergedSessionIds = <String>{};
+
+    for (final item in source) {
+      final session = item.session;
+      final details = session.details ?? const <String, dynamic>{};
+      if (details['workoutSource']?.toString() != 'merged') continue;
+      final sourceIds = details['merged_source_workout_ids'];
+      if (sourceIds is List) {
+        mergedExternalIds.addAll(sourceIds.map((id) => id.toString()));
+      }
+      final externalLink = details['externalLink'];
+      if (externalLink is Map) {
+        final sourceSessionId = externalLink['sourceSessionId']?.toString();
+        if (sourceSessionId != null && sourceSessionId != session.id) {
+          mergedSessionIds.add(sourceSessionId);
+        }
+      }
+    }
+
+    final byId = <String, TeamReportSession>{};
+    for (var index = 0; index < source.length; index++) {
+      final item = source[index];
+      final session = item.session;
+      final details = session.details ?? const <String, dynamic>{};
+      final isMerged = details['workoutSource']?.toString() == 'merged';
+      final externalId = details['external_id']?.toString();
+      if (!isMerged &&
+          (mergedSessionIds.contains(session.id) ||
+              (externalId != null && mergedExternalIds.contains(externalId)))) {
+        continue;
+      }
+      final key = session.id.trim().isEmpty ? 'row_$index' : session.id;
+      final existing = byId[key];
+      if (existing == null || _preferSession(session, existing.session)) {
+        byId[key] = item;
+      }
+    }
+
+    final byEvent = <String, TeamReportSession>{};
+    final withoutEvent = <TeamReportSession>[];
+    for (final item in byId.values) {
+      final eventId = item.session.eventId?.trim();
+      if (eventId == null || eventId.isEmpty) {
+        withoutEvent.add(item);
+        continue;
+      }
+      final existing = byEvent[eventId];
+      if (existing == null || _preferSession(item.session, existing.session)) {
+        byEvent[eventId] = item;
+      }
+    }
+    return [...withoutEvent, ...byEvent.values];
+  }
+
+  bool _isCompletedSession(TrainingSession session) {
+    final status = TrainingActivity.fromTrainingSession(session).status;
+    return status != ActivityStatus.planned &&
+        status != ActivityStatus.cancelled;
+  }
+
+  bool _preferSession(TrainingSession candidate, TrainingSession existing) {
+    final candidateMerged =
+        candidate.details?['workoutSource']?.toString() == 'merged';
+    final existingMerged =
+        existing.details?['workoutSource']?.toString() == 'merged';
+    if (candidateMerged != existingMerged) return candidateMerged;
+    return TimeUtils.parseDurationToMinutes(candidate.duration) >
+        TimeUtils.parseDurationToMinutes(existing.duration);
   }
 
   Map<String, MonthlyMetricDelta> _buildDeltas(
@@ -290,6 +425,14 @@ class MonthlyTeamReportCalculator {
     double? previousOrNull(double value) => value == 0 ? null : value;
 
     return {
+      'total_hours': MonthlyMetricDelta(
+        current: current.totalHours,
+        previous: previousOrNull(previous.totalHours),
+      ),
+      'session_count': MonthlyMetricDelta(
+        current: current.sessionCount.toDouble(),
+        previous: previousOrNull(previous.sessionCount.toDouble()),
+      ),
       'ski_hours': MonthlyMetricDelta(
         current:
             (current.scheduledSkiMinutes + current.outOfProgramSkiMinutes) / 60,
@@ -329,18 +472,20 @@ class MonthlyTeamReportCalculator {
   List<MonthlyTeamAthleteReport> _withAlerts(
     List<MonthlyTeamAthleteReport> athletes,
   ) {
-    final activeDirectionAverage = _activeAverage(
-      athletes.map((athlete) => athlete.totalDirectionChanges.toDouble()),
-    );
-    final activeKgAverage =
-        _activeAverage(athletes.map((athlete) => athlete.strengthVolumeKg));
-    final activeAthleticHoursAverage =
-        _activeAverage(athletes.map((athlete) => athlete.totalAthleticHours));
-    final activeTotalHoursAverage =
-        _activeAverage(athletes.map((athlete) => athlete.totalHours));
-
     return athletes.map((athlete) {
       final alerts = <MonthlyTeamAlert>[];
+      final directionBaseline = _trendAverage(
+        athlete.trend,
+        (point) => point.skiDirectionChanges.toDouble(),
+      );
+      final preparationBaseline = _trendAverage(
+        athlete.trend,
+        (point) => point.hoursFor(MonthlyTrainingMacro.preparation),
+      );
+      final totalHoursBaseline = _trendAverage(
+        athlete.trend,
+        (point) => point.totalHours,
+      );
 
       void add(String type, String label, {String severity = 'warning'}) {
         alerts.add(MonthlyTeamAlert(
@@ -364,25 +509,20 @@ class MonthlyTeamReportCalculator {
           athlete.outOfProgramHours > 0) {
         add('high_out_of_program', 'Alto volume fuori programma');
       }
-      if (activeDirectionAverage != null &&
+      if (directionBaseline != null &&
           athlete.totalDirectionChanges > 0 &&
           athlete.totalDirectionChanges <
-              activeDirectionAverage * thresholds.lowVolumeAverageRatio) {
+              directionBaseline * thresholds.lowVolumeAverageRatio) {
         add('low_ski_volume', 'Volume sci basso');
       }
-      if (activeKgAverage != null &&
-          athlete.strengthVolumeKg > 0 &&
-          athlete.strengthVolumeKg <
-              activeKgAverage * thresholds.lowVolumeAverageRatio) {
-        add('low_athletic_volume', 'Volume atletico basso');
-      } else if (activeAthleticHoursAverage != null &&
+      if (preparationBaseline != null &&
           athlete.totalAthleticHours > 0 &&
           athlete.totalAthleticHours <
-              activeAthleticHoursAverage * thresholds.lowVolumeAverageRatio) {
+              preparationBaseline * thresholds.lowVolumeAverageRatio) {
         add('low_athletic_volume', 'Volume atletico basso');
       }
       if (_hasDominantSkiDiscipline(athlete)) {
-        add('ski_imbalance', 'Squilibrio SL/GS/CL');
+        add('ski_imbalance', 'Squilibrio volume tecnico sci');
       }
       if ((athlete.asymmetryPercent ?? 0) > thresholds.jumpAsymmetryPercent) {
         add('jump_asymmetry', 'Asimmetria salto');
@@ -390,9 +530,9 @@ class MonthlyTeamReportCalculator {
       if (athlete.incompleteDataCount > 0 || !athlete.hasAnyData) {
         add('incomplete_data', 'Dati incompleti', severity: 'info');
       }
-      if (activeTotalHoursAverage != null &&
+      if (totalHoursBaseline != null &&
           athlete.totalHours >
-              activeTotalHoursAverage * thresholds.highVolumeAverageRatio) {
+              totalHoursBaseline * thresholds.highVolumeAverageRatio) {
         add('high_volume_recovery', 'Volume alto, controllare recupero');
       }
 
@@ -416,6 +556,9 @@ class MonthlyTeamReportCalculator {
         clDirectionChanges: athlete.clDirectionChanges,
         slDirectionChanges: athlete.slDirectionChanges,
         gsDirectionChanges: athlete.gsDirectionChanges,
+        sgDirectionChanges: athlete.sgDirectionChanges,
+        dhDirectionChanges: athlete.dhDirectionChanges,
+        sxDirectionChanges: athlete.sxDirectionChanges,
         addestramentoDirectionChanges: athlete.addestramentoDirectionChanges,
         strengthVolumeKg: athlete.strengthVolumeKg,
         strengthSets: athlete.strengthSets,
@@ -432,6 +575,11 @@ class MonthlyTeamReportCalculator {
         incompleteDataCount: athlete.incompleteDataCount,
         alerts: alerts,
         deltas: athlete.deltas,
+        sessionCount: athlete.sessionCount,
+        hoursByMacro: athlete.hoursByMacro,
+        preparationHoursByType: athlete.preparationHoursByType,
+        trend: athlete.trend,
+        trendSummary: athlete.trendSummary,
       );
     }).toList();
   }
@@ -439,7 +587,9 @@ class MonthlyTeamReportCalculator {
   MonthlyTeamReportSummary _buildSummary(
     List<MonthlyTeamAthleteReport> athletes,
   ) {
-    final active = athletes.where((athlete) => athlete.hasAnyData).length;
+    final activeAthletes =
+        athletes.where((athlete) => athlete.hasAnyData).toList();
+    final active = activeAthletes.length;
     return MonthlyTeamReportSummary(
       totalAthletes: athletes.length,
       athletesWithActivity: active,
@@ -450,21 +600,14 @@ class MonthlyTeamReportCalculator {
       averageAthleticPresence: _averageNullable(
         athletes.map((athlete) => athlete.athleticPresence),
       ),
-      totalSkiHours: athletes.fold(0, (sum, item) => sum + item.totalSkiHours),
-      totalAthleticHours:
-          athletes.fold(0, (sum, item) => sum + item.totalAthleticHours),
-      totalOutOfProgramHours:
-          athletes.fold(0, (sum, item) => sum + item.outOfProgramHours),
-      totalDirectionChanges: athletes.fold(
-        0,
-        (sum, item) => sum + item.totalDirectionChanges,
-      ),
-      totalStrengthVolumeKg:
-          athletes.fold(0, (sum, item) => sum + item.strengthVolumeKg),
-      totalStrengthSets:
-          athletes.fold(0, (sum, item) => sum + item.strengthSets),
-      totalEnduranceMeters:
-          athletes.fold(0, (sum, item) => sum + item.enduranceMeters),
+      averageAthleteHours: active == 0
+          ? 0
+          : activeAthletes.fold<double>(
+                0,
+                (sum, item) => sum + item.totalHours,
+              ) /
+              active,
+      athleteHoursCoverage: active,
       testSessionCount:
           athletes.fold(0, (sum, item) => sum + item.testSessionCount),
       incompleteDataCount: athletes.fold(
@@ -478,25 +621,34 @@ class MonthlyTeamReportCalculator {
   MonthlyTeamSkiReport _buildSkiReport(
     List<MonthlyTeamAthleteReport> athletes,
   ) {
-    final cl = athletes.fold(0, (sum, item) => sum + item.clDirectionChanges);
-    final sl = athletes.fold(0, (sum, item) => sum + item.slDirectionChanges);
-    final gs = athletes.fold(0, (sum, item) => sum + item.gsDirectionChanges);
-    final add = athletes.fold(
-      0,
-      (sum, item) => sum + item.addestramentoDirectionChanges,
-    );
+    final skiActive =
+        athletes.where((athlete) => athlete.totalSkiHours > 0).toList();
+    final valid = skiActive
+        .where((athlete) => athlete.totalDirectionChanges > 0)
+        .toList();
+
+    double average(int Function(MonthlyTeamAthleteReport athlete) value) =>
+        valid.isEmpty
+            ? 0
+            : valid.fold<double>(0, (sum, athlete) => sum + value(athlete)) /
+                valid.length;
+
     return MonthlyTeamSkiReport(
-      totalDirectionChanges:
-          athletes.fold(0, (sum, item) => sum + item.totalDirectionChanges),
-      clDirectionChanges: cl,
-      slDirectionChanges: sl,
-      gsDirectionChanges: gs,
-      addestramentoDirectionChanges: add,
-      directionChangesByDiscipline: {
-        'CL': cl,
-        'SL': sl,
-        'GS': gs,
-        'ADD': add,
+      averageDirectionChanges: average(
+        (athlete) => athlete.totalDirectionChanges,
+      ),
+      validAthleteCount: valid.length,
+      skiActiveAthleteCount: skiActive.length,
+      averageDirectionChangesByDiscipline: {
+        'CL': average((athlete) => athlete.clDirectionChanges),
+        'SL': average((athlete) => athlete.slDirectionChanges),
+        'GS': average((athlete) => athlete.gsDirectionChanges),
+        'SG': average((athlete) => athlete.sgDirectionChanges),
+        'DH': average((athlete) => athlete.dhDirectionChanges),
+        'SX': average((athlete) => athlete.sxDirectionChanges),
+        'ADD': average(
+          (athlete) => athlete.addestramentoDirectionChanges,
+        ),
       },
     );
   }
@@ -504,17 +656,64 @@ class MonthlyTeamReportCalculator {
   MonthlyTeamAthleticReport _buildAthleticReport(
     List<MonthlyTeamAthleteReport> athletes,
   ) {
+    final preparationActive =
+        athletes.where((athlete) => athlete.totalAthleticHours > 0).toList();
+    final strengthVolumeValid = preparationActive
+        .where((athlete) => athlete.strengthVolumeKg > 0)
+        .toList();
+    final strengthSetsValid =
+        preparationActive.where((athlete) => athlete.strengthSets > 0).toList();
+    final drillsValid =
+        preparationActive.where((athlete) => athlete.drillCount > 0).toList();
+    final enduranceValid = preparationActive
+        .where((athlete) => athlete.enduranceMeters > 0)
+        .toList();
+
+    double average(
+      List<MonthlyTeamAthleteReport> valid,
+      double Function(MonthlyTeamAthleteReport athlete) value,
+    ) =>
+        valid.isEmpty
+            ? 0
+            : valid.fold<double>(0, (sum, athlete) => sum + value(athlete)) /
+                valid.length;
+    final categories = preparationActive
+        .expand((athlete) => athlete.preparationHoursByType.keys)
+        .toSet();
+
     return MonthlyTeamAthleticReport(
-      totalHours:
-          athletes.fold(0, (sum, item) => sum + item.totalAthleticHours),
-      totalStrengthVolumeKg:
-          athletes.fold(0, (sum, item) => sum + item.strengthVolumeKg),
-      totalStrengthSets:
-          athletes.fold(0, (sum, item) => sum + item.strengthSets),
-      totalDrills: athletes.fold(0, (sum, item) => sum + item.drillCount),
-      totalEnduranceMeters:
-          athletes.fold(0, (sum, item) => sum + item.enduranceMeters),
-      hoursByCategory: const {},
+      averageAthleteHours: average(
+        preparationActive,
+        (athlete) => athlete.totalAthleticHours,
+      ),
+      averageStrengthVolumeKg: average(
+        strengthVolumeValid,
+        (athlete) => athlete.strengthVolumeKg,
+      ),
+      averageStrengthSets: average(
+        strengthSetsValid,
+        (athlete) => athlete.strengthSets.toDouble(),
+      ),
+      averageDrills: average(
+        drillsValid,
+        (athlete) => athlete.drillCount.toDouble(),
+      ),
+      averageEnduranceMeters: average(
+        enduranceValid,
+        (athlete) => athlete.enduranceMeters,
+      ),
+      validAthleteCount: preparationActive.length,
+      strengthVolumeCoverage: strengthVolumeValid.length,
+      strengthSetsCoverage: strengthSetsValid.length,
+      drillCoverage: drillsValid.length,
+      enduranceCoverage: enduranceValid.length,
+      averageHoursByCategory: {
+        for (final category in categories)
+          category: average(
+            preparationActive,
+            (athlete) => athlete.preparationHoursByType[category] ?? 0,
+          ),
+      },
     );
   }
 
@@ -539,6 +738,8 @@ class MonthlyTeamReportCalculator {
 
   String _automaticSummary(
     MonthlyTeamReportSummary summary,
+    MonthlyTeamCoachWorkload workload,
+    MonthlyTeamSkiReport skiReport,
     List<MonthlyTeamAthleteReport> athletes,
   ) {
     if (summary.totalAthletes == 0 || summary.athletesWithActivity == 0) {
@@ -547,7 +748,9 @@ class MonthlyTeamReportCalculator {
 
     final ski = summary.averageSkiPresence;
     final athletic = summary.averageAthleticPresence;
-    if (ski == null && athletic == null && summary.totalDirectionChanges == 0) {
+    if (ski == null &&
+        athletic == null &&
+        workload.completedSessionCount == 0) {
       return 'Dati insufficienti per generare una sintesi affidabile.';
     }
 
@@ -559,7 +762,7 @@ class MonthlyTeamReportCalculator {
     }
     if (athletic != null) {
       parts.add(
-        'presenza atletica del ${(athletic * 100).round()}%',
+        'presenza preparazione del ${(athletic * 100).round()}%',
       );
     }
 
@@ -577,6 +780,15 @@ class MonthlyTeamReportCalculator {
         : parts.join(' e ');
     text += '.';
 
+    if (workload.completedSessionCount > 0) {
+      text +=
+          ' Gli allenatori hanno completato ${workload.completedSessionCount} sedute per ${workload.completedHours.toStringAsFixed(1)} ore complessive.';
+    }
+    if (skiReport.validAthleteCount > 0) {
+      text +=
+          ' Il volume sci medio è ${skiReport.averageDirectionChanges.round()} passaggi/cambi per atleta con dati validi.';
+    }
+
     if (highOutOfProgram > 0) {
       text +=
           ' Alcuni atleti mostrano un volume fuori programma superiore alle sedute supervisionate.';
@@ -585,6 +797,184 @@ class MonthlyTeamReportCalculator {
       text += ' Da monitorare gli atleti con alert automatici.';
     }
     return text;
+  }
+
+  MonthlyTeamCoachWorkload _buildCoachWorkload(
+    List<CalendarEvent> events,
+  ) {
+    final uniqueEvents = <String, CalendarEvent>{
+      for (final event in events) event.id: event,
+    }.values;
+    var skiSessions = 0;
+    var skiMinutes = 0;
+    var preparationSessions = 0;
+    var preparationMinutes = 0;
+    var otherSportSessions = 0;
+    var otherSportMinutes = 0;
+    final preparationMinutesByType = <String, int>{};
+
+    for (final event in uniqueEvents) {
+      final minutes = _eventDurationMinutes(event);
+      switch (_macroForEvent(event)) {
+        case MonthlyTrainingMacro.ski:
+          skiSessions++;
+          skiMinutes += minutes;
+          break;
+        case MonthlyTrainingMacro.preparation:
+          preparationSessions++;
+          preparationMinutes += minutes;
+          final type = _preparationTypeForEvent(event);
+          preparationMinutesByType[type] =
+              (preparationMinutesByType[type] ?? 0) + minutes;
+          break;
+        case MonthlyTrainingMacro.otherSports:
+        case MonthlyTrainingMacro.recoveryOther:
+          otherSportSessions++;
+          otherSportMinutes += minutes;
+          break;
+      }
+    }
+
+    return MonthlyTeamCoachWorkload(
+      completedSkiSessions: skiSessions,
+      completedSkiHours: skiMinutes / 60,
+      completedPreparationSessions: preparationSessions,
+      completedPreparationHours: preparationMinutes / 60,
+      completedOtherSportSessions: otherSportSessions,
+      completedOtherSportHours: otherSportMinutes / 60,
+      preparationHoursByType: {
+        for (final entry in preparationMinutesByType.entries)
+          entry.key: entry.value / 60,
+      },
+    );
+  }
+
+  MonthlyAthleteTrendPoint _trendPoint(
+    DateTime month,
+    int? throughDay,
+    _AthleteMonthMetrics metrics,
+  ) {
+    return MonthlyAthleteTrendPoint(
+      month: _monthKey(month),
+      throughDay: throughDay,
+      sessionCount: metrics.sessionCount,
+      totalHours: metrics.totalHours,
+      hoursByMacro: metrics.hoursByMacroHours,
+      preparationHoursByType: metrics.preparationHoursByTypeHours,
+      skiDirectionChanges: metrics.totalDirectionChanges,
+      skiPresence: metrics.skiPresence,
+      athleticPresence: metrics.athleticPresence,
+      incompleteDataCount: metrics.incompleteDataCount,
+    );
+  }
+
+  String _athleteTrendSummary(List<MonthlyAthleteTrendPoint> trend) {
+    if (trend.isEmpty || !trend.last.hasActivity) {
+      return 'Nessuna attività completata nel mese selezionato.';
+    }
+    final previous = trend
+        .take(trend.length - 1)
+        .where((point) => point.hasActivity)
+        .toList();
+    final dominant = MonthlyTrainingMacro.ordered.reduce(
+      (current, candidate) =>
+          trend.last.hoursFor(candidate) > trend.last.hoursFor(current)
+              ? candidate
+              : current,
+    );
+    if (previous.length < 2) {
+      return 'Tipologia prevalente: ${MonthlyTrainingMacro.label(dominant)}. Storico ancora insufficiente per un confronto stabile.';
+    }
+    final average = previous.fold<double>(
+          0,
+          (sum, point) => sum + point.totalHours,
+        ) /
+        previous.length;
+    if (average <= 0) {
+      return 'Tipologia prevalente: ${MonthlyTrainingMacro.label(dominant)}. Storico ancora insufficiente per un confronto stabile.';
+    }
+    final delta = ((trend.last.totalHours - average) / average) * 100;
+    final direction = delta.abs() < 10
+        ? 'in linea'
+        : delta > 0
+            ? 'in aumento del ${delta.round()}%'
+            : 'in calo del ${delta.abs().round()}%';
+    return 'Carico $direction rispetto alla media dei ${previous.length} mesi validi. Tipologia prevalente: ${MonthlyTrainingMacro.label(dominant)}.';
+  }
+
+  double? _trendAverage(
+    List<MonthlyAthleteTrendPoint> trend,
+    double Function(MonthlyAthleteTrendPoint point) value,
+  ) {
+    if (trend.length < 3) return null;
+    final valid = trend
+        .take(trend.length - 1)
+        .map(value)
+        .where((item) => item > 0)
+        .toList();
+    if (valid.length < 2) return null;
+    return valid.reduce((a, b) => a + b) / valid.length;
+  }
+
+  String _macroForEvent(CalendarEvent event) {
+    return _classificationForEvent(event).macroId;
+  }
+
+  String _preparationTypeForEvent(CalendarEvent event) {
+    return _classificationForEvent(event).detailId;
+  }
+
+  MonthlyTrainingClassification _classificationForEvent(
+    CalendarEvent event,
+  ) {
+    if (event.sportCategory == 'ski') {
+      return const MonthlyTrainingClassification(
+        macroId: MonthlyTrainingMacro.ski,
+        detailId: 'alpine_skiing',
+        detailLabel: 'Sci alpino',
+      );
+    }
+
+    final planned = event.technicalDetails?['plannedDrylandSession'];
+    TrainingActivity? activity;
+    Map<String, dynamic> details = const {};
+    if (planned is Map) {
+      activity = TrainingActivity.fromJson(
+        Map<String, dynamic>.from(planned),
+      );
+      details = activity.toSessionDetails();
+    } else if (event.drylandSpecialty?.trim().isNotEmpty == true) {
+      details = {
+        'activityDomain': 'dryland',
+        'activityCategory': event.drylandSpecialty,
+      };
+    }
+
+    final activitySportType = activity?.sportType?.trim();
+    final drylandSpecialty = event.drylandSpecialty?.trim();
+    final String sportId;
+    if (activitySportType != null && activitySportType.isNotEmpty) {
+      sportId = activitySportType;
+    } else if (drylandSpecialty != null && drylandSpecialty.isNotEmpty) {
+      sportId = drylandSpecialty;
+    } else {
+      sportId = event.sportCategory?.trim().isNotEmpty == true
+          ? event.sportCategory!
+          : 'athletic_prep';
+    }
+    return const MonthlyTrainingClassifier().classify(
+      TrainingSession(
+        id: 'event_${event.id}',
+        sportId: sportId,
+        date: event.date,
+        startTime: event.startTime,
+        endTime: event.endTime,
+        duration: _durationStringFromMinutes(_eventDurationMinutes(event)),
+        effort: 0,
+        eventId: event.id,
+        details: details,
+      ),
+    );
   }
 
   void _addSkiVolume(_AthleteMonthMetrics metrics, TrainingSession session) {
@@ -603,6 +993,9 @@ class MonthlyTeamReportCalculator {
     metrics.clDirectionChanges += summary.freeDirectionChanges;
     metrics.slDirectionChanges += summary.polePassesBySpecialty['SL'] ?? 0;
     metrics.gsDirectionChanges += summary.polePassesBySpecialty['GS'] ?? 0;
+    metrics.sgDirectionChanges += summary.polePassesBySpecialty['SG'] ?? 0;
+    metrics.dhDirectionChanges += summary.polePassesBySpecialty['DH'] ?? 0;
+    metrics.sxDirectionChanges += summary.polePassesBySpecialty['SX'] ?? 0;
     metrics.addestramentoDirectionChanges += summary.trainingDirectionChanges;
 
     if (!hasDetails || summary.totalSkiDirectionChanges == 0) {
@@ -627,8 +1020,11 @@ class MonthlyTeamReportCalculator {
 
       final durationMinutes = _eventDurationMinutes(event);
       metrics.hasAnyData = true;
+      metrics.sessionCount++;
+      if (durationMinutes <= 0) metrics.incompleteDataCount++;
 
       if (event.sportCategory == 'ski') {
+        metrics.addMacroMinutes(MonthlyTrainingMacro.ski, durationMinutes);
         metrics.scheduledSkiMinutes += durationMinutes;
         _addSkiSummary(
           metrics,
@@ -636,7 +1032,6 @@ class MonthlyTeamReportCalculator {
           hasDetails: event.technicalDetails?.isNotEmpty == true,
         );
       } else {
-        metrics.scheduledAthleticMinutes += durationMinutes;
         final details = activityService.buildCoachDrylandSessionDetails(
           event,
           attendee,
@@ -652,7 +1047,18 @@ class MonthlyTeamReportCalculator {
           eventId: event.id,
           details: details,
         );
-        _addAthleticVolume(metrics, session);
+        final classification =
+            const MonthlyTrainingClassifier().classify(session);
+        metrics.addMacroMinutes(classification.macroId, durationMinutes);
+        if (classification.macroId == MonthlyTrainingMacro.preparation) {
+          metrics.hasPreparationData = true;
+          metrics.scheduledAthleticMinutes += durationMinutes;
+          metrics.addPreparationMinutes(
+            classification.detailId,
+            durationMinutes,
+          );
+          _addAthleticVolume(metrics, session);
+        }
       }
     }
   }
@@ -765,6 +1171,9 @@ class MonthlyTeamReportCalculator {
       athlete.clDirectionChanges,
       athlete.slDirectionChanges,
       athlete.gsDirectionChanges,
+      athlete.sgDirectionChanges,
+      athlete.dhDirectionChanges,
+      athlete.sxDirectionChanges,
       athlete.addestramentoDirectionChanges,
     ];
     final maxBucket = buckets.reduce((a, b) => a > b ? a : b);
@@ -821,13 +1230,6 @@ class MonthlyTeamReportCalculator {
     return '${h.toString().padLeft(2, '0')}:${m.toString().padLeft(2, '0')}:00';
   }
 
-  bool _isSkiSport(String sportId) {
-    return sportId == 'alpine_skiing' ||
-        sportId == 'ski' ||
-        sportId == 'skiing' ||
-        sportId == 'snowboarding';
-  }
-
   static bool _isInMonth(DateTime? date, DateTime month) {
     if (date == null) return false;
     return date.year == month.year && date.month == month.month;
@@ -842,18 +1244,14 @@ class MonthlyTeamReportCalculator {
     if (valid.isEmpty) return null;
     return valid.reduce((a, b) => a + b) / valid.length;
   }
-
-  double? _activeAverage(Iterable<double> values) {
-    final valid = values.where((value) => value > 0).toList();
-    if (valid.length < 2) return null;
-    return valid.reduce((a, b) => a + b) / valid.length;
-  }
 }
 
 class _AthleteMonthMetrics {
   bool hasAnyData = false;
+  bool hasPreparationData = false;
   double? skiPresence;
   double? athleticPresence;
+  int sessionCount = 0;
   int scheduledSkiMinutes = 0;
   int outOfProgramSkiMinutes = 0;
   int scheduledAthleticMinutes = 0;
@@ -865,6 +1263,9 @@ class _AthleteMonthMetrics {
   int clDirectionChanges = 0;
   int slDirectionChanges = 0;
   int gsDirectionChanges = 0;
+  int sgDirectionChanges = 0;
+  int dhDirectionChanges = 0;
+  int sxDirectionChanges = 0;
   int addestramentoDirectionChanges = 0;
   double strengthVolumeKg = 0;
   int strengthSets = 0;
@@ -879,6 +1280,34 @@ class _AthleteMonthMetrics {
   double? singleLegRightCm;
   double? asymmetryPercent;
   int incompleteDataCount = 0;
+  final Map<String, int> hoursByMacroMinutes = {
+    for (final macro in MonthlyTrainingMacro.ordered) macro: 0,
+  };
+  final Map<String, int> preparationHoursByTypeMinutes = {};
+
+  void addMacroMinutes(String macro, int minutes) {
+    if (minutes <= 0) return;
+    hoursByMacroMinutes[macro] = (hoursByMacroMinutes[macro] ?? 0) + minutes;
+  }
+
+  void addPreparationMinutes(String type, int minutes) {
+    if (minutes <= 0) return;
+    preparationHoursByTypeMinutes[type] =
+        (preparationHoursByTypeMinutes[type] ?? 0) + minutes;
+  }
+
+  Map<String, double> get hoursByMacroHours => {
+        for (final entry in hoursByMacroMinutes.entries)
+          entry.key: entry.value / 60,
+      };
+
+  Map<String, double> get preparationHoursByTypeHours => {
+        for (final entry in preparationHoursByTypeMinutes.entries)
+          entry.key: entry.value / 60,
+      };
+
+  double get totalHours =>
+      hoursByMacroMinutes.values.fold<int>(0, (sum, value) => sum + value) / 60;
 }
 
 enum _ActivityClassification {

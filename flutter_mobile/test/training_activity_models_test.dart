@@ -187,6 +187,34 @@ void main() {
     expect(generated.blocks.first.exercises.first.sets.length, 3);
   });
 
+  test('salva un allenamento personale come template atleta senza team', () {
+    const service = TrainingActivityService();
+    const activity = TrainingActivity(
+      id: 'activity_1',
+      athleteId: 'dual_role_user',
+      source: ActivitySource.athlete,
+      status: ActivityStatus.completed,
+      category: ActivityCategory.strength,
+      title: 'Forza personale',
+      date: '2026-07-13',
+      startTime: '18:00',
+      endTime: '19:00',
+      duration: '60',
+    );
+
+    final template = service.savePersonalActivityAsTemplate(
+      activity,
+      templateId: 'template_personal',
+      name: 'La mia forza',
+      ownerId: 'dual_role_user',
+    );
+
+    expect(template.ownerType, TemplateOwnerType.athlete);
+    expect(template.ownerId, 'dual_role_user');
+    expect(template.createdBy, 'dual_role_user');
+    expect(template.teamId, isNull);
+  });
+
   test('mantiene fasi preparazione atletica nel round-trip template', () {
     const service = TrainingActivityService();
     const activity = TrainingActivity(

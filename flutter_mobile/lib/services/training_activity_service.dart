@@ -5,6 +5,26 @@ import '../utils/coach_training_utils.dart';
 class TrainingActivityService {
   const TrainingActivityService();
 
+  WorkoutTemplate savePersonalActivityAsTemplate(
+    TrainingActivity activity, {
+    required String templateId,
+    required String name,
+    String? description,
+    required String ownerId,
+    DateTime? now,
+  }) {
+    return WorkoutTemplate.fromActivity(
+      activity,
+      id: templateId,
+      name: name,
+      description: description,
+      ownerType: TemplateOwnerType.athlete,
+      ownerId: ownerId,
+      createdBy: ownerId,
+      now: now,
+    );
+  }
+
   TrainingActivity activityFromSession(
     TrainingSession session, {
     String? athleteId,
@@ -26,6 +46,11 @@ class TrainingActivityService {
     required String ownerId,
     String? teamId,
     required String createdBy,
+    String? activityMode,
+    String? protocolId,
+    String? structureMode,
+    int? plannedDurationMinutes,
+    String visibility = 'private',
     DateTime? now,
   }) {
     return WorkoutTemplate.fromActivity(
@@ -37,6 +62,11 @@ class TrainingActivityService {
       ownerId: ownerId,
       teamId: teamId,
       createdBy: createdBy,
+      activityMode: activityMode,
+      protocolId: protocolId,
+      structureMode: structureMode,
+      plannedDurationMinutes: plannedDurationMinutes,
+      visibility: visibility,
       now: now,
     );
   }
@@ -109,15 +139,31 @@ class TrainingActivityService {
     final category = _categoryFromEvent(event, planned);
     final plannedMap =
         planned is Map ? Map<String, dynamic>.from(planned) : null;
+    final rawWorkoutDraft = technicalDetails['workoutDraft'];
+    final workoutDraft = rawWorkoutDraft is Map
+        ? Map<String, dynamic>.from(rawWorkoutDraft)
+        : null;
     final activityDomain =
         category == ActivityCategory.sport ? 'sport' : 'dryland';
 
     final details = <String, dynamic>{
-      'schemaVersion': 2,
+      'schemaVersion': workoutDraft == null ? 2 : 3,
       'activityDomain': activityDomain,
       'activityCategory': category,
+      if (workoutDraft != null) 'workoutDraft': workoutDraft,
+      if (workoutDraft?['activityMode'] != null)
+        'activityMode': workoutDraft!['activityMode'],
+      if (workoutDraft?['protocolId'] != null)
+        'protocolId': workoutDraft!['protocolId'],
+      if (workoutDraft?['protocolName'] != null)
+        'protocolName': workoutDraft!['protocolName'],
+      if (workoutDraft?['structureMode'] != null)
+        'structureMode': workoutDraft!['structureMode'],
+      if (workoutDraft?['structureMode'] != null)
+        'usesPhases': workoutDraft!['structureMode'] == 'phased',
       if (plannedMap?['prepType'] != null) 'prepType': plannedMap!['prepType'],
-      if (plannedMap?['usesPhases'] != null)
+      if (workoutDraft?['structureMode'] == null &&
+          plannedMap?['usesPhases'] != null)
         'usesPhases': plannedMap!['usesPhases'],
       if (plannedMap?['sportType'] != null)
         'sportType': plannedMap!['sportType'],
@@ -130,6 +176,13 @@ class TrainingActivityService {
       'plannedDrylandSession': planned,
       if (actual != null) 'actualDrylandDetails': actual,
       if (blocks != null) 'blocks': blocks,
+      if (workoutDraft?['phases'] is List)
+        'prescription': {
+          'startTime': workoutDraft!['plannedStartTime'],
+          'endTime': workoutDraft['plannedEndTime'],
+          'durationMinutes': workoutDraft['plannedDurationMinutes'],
+          'phases': workoutDraft['phases'],
+        },
       'athleteModified': attendee['modifiedByAthlete'] == true ||
           attendee['athleteModified'] == true ||
           actual != null,

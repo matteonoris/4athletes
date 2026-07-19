@@ -33,7 +33,7 @@ class _MonthlyTeamReportScreenState extends State<MonthlyTeamReportScreen> {
   bool _didInit = false;
   bool _isLoading = false;
   bool _isGeneratingPdf = false;
-  bool _includeIndividualSheets = false;
+  bool _includeIndividualSheets = true;
   String? _error;
 
   @override
@@ -468,18 +468,34 @@ class _MonthlyTeamReportScreenState extends State<MonthlyTeamReportScreen> {
       _KpiData('Presenza media sci',
           _formatPresence(report.summary.averageSkiPresence), Icons.ac_unit),
       _KpiData(
-        'Presenza media atletica',
+        'Presenza media preparazione',
         _formatPresence(report.summary.averageAthleticPresence),
         Icons.fitness_center,
       ),
-      _KpiData('Ore sci totali', _formatHours(report.summary.totalSkiHours),
-          Icons.timer_outlined),
-      _KpiData('Ore atletica totali',
-          _formatHours(report.summary.totalAthleticHours), Icons.timer),
-      _KpiData('Cambi direzione totali',
-          '${report.summary.totalDirectionChanges}', Icons.swap_calls),
-      _KpiData('Volume kg totale',
-          _formatNumber(report.summary.totalStrengthVolumeKg), Icons.scale),
+      _KpiData(
+        'Sedute coach completate',
+        '${report.coachWorkload.completedSessionCount}',
+        Icons.event_available_outlined,
+      ),
+      _KpiData(
+        'Ore sci coach',
+        _formatHours(report.coachWorkload.completedSkiHours),
+        Icons.timer_outlined,
+      ),
+      _KpiData(
+        'Ore preparazione coach',
+        _formatHours(report.coachWorkload.completedPreparationHours),
+        Icons.timer,
+      ),
+      _KpiData(
+        'Volume sci medio atleta',
+        report.ski.validAthleteCount == 0
+            ? 'N/D'
+            : '${_formatNumber(report.ski.averageDirectionChanges)} · '
+                '${report.ski.validAthleteCount}/'
+                '${report.ski.skiActiveAthleteCount}',
+        Icons.swap_calls,
+      ),
       _KpiData('Dati incompleti', '${report.summary.incompleteDataCount}',
           Icons.info_outline),
     ];
@@ -748,7 +764,17 @@ class _MonthlyTeamReportScreenState extends State<MonthlyTeamReportScreen> {
                 _miniMetric('Sci', _formatHours(athlete.totalSkiHours)),
                 _miniMetric(
                     'Atletica', _formatHours(athlete.totalAthleticHours)),
-                _miniMetric('Cambi', '${athlete.totalDirectionChanges}'),
+                _miniMetric('Volume sci', '${athlete.totalDirectionChanges}'),
+                if (athlete.slDirectionChanges > 0)
+                  _miniMetric('SL', '${athlete.slDirectionChanges}'),
+                if (athlete.gsDirectionChanges > 0)
+                  _miniMetric('GS', '${athlete.gsDirectionChanges}'),
+                if (athlete.sgDirectionChanges > 0)
+                  _miniMetric('SG', '${athlete.sgDirectionChanges}'),
+                if (athlete.dhDirectionChanges > 0)
+                  _miniMetric('DH', '${athlete.dhDirectionChanges}'),
+                if (athlete.sxDirectionChanges > 0)
+                  _miniMetric('SX', '${athlete.sxDirectionChanges}'),
                 _miniMetric('Kg', _formatNumber(athlete.strengthVolumeKg)),
               ],
             ),
@@ -802,6 +828,22 @@ class _MonthlyTeamReportScreenState extends State<MonthlyTeamReportScreen> {
         _sectionTitle(Icons.bar_chart, 'Grafici'),
         const SizedBox(height: 12),
         _barChartCard(
+          title: 'Ore coach per tipologia',
+          values: [
+            _ChartValue('Sci', report.coachWorkload.completedSkiHours),
+            _ChartValue(
+              'Prep',
+              report.coachWorkload.completedPreparationHours,
+            ),
+            _ChartValue(
+              'Sport',
+              report.coachWorkload.completedOtherSportHours,
+            ),
+          ],
+          color: Colors.tealAccent,
+        ),
+        const SizedBox(height: 12),
+        _barChartCard(
           title: 'Volume sci per atleta',
           values: report.athletes
               .map((athlete) => _ChartValue(
@@ -813,8 +855,8 @@ class _MonthlyTeamReportScreenState extends State<MonthlyTeamReportScreen> {
         ),
         const SizedBox(height: 12),
         _barChartCard(
-          title: 'Cambi di direzione per disciplina',
-          values: report.ski.directionChangesByDiscipline.entries
+          title: 'Volume tecnico medio per specialità',
+          values: report.ski.averageDirectionChangesByDiscipline.entries
               .map((entry) => _ChartValue(entry.key, entry.value.toDouble()))
               .toList(),
           color: AppTheme.secondary,
@@ -832,7 +874,7 @@ class _MonthlyTeamReportScreenState extends State<MonthlyTeamReportScreen> {
         ),
         const SizedBox(height: 12),
         _barChartCard(
-          title: 'Presenza atletica per atleta',
+          title: 'Presenza preparazione per atleta',
           values: report.athletes
               .map((athlete) => _ChartValue(
                     athlete.initial,

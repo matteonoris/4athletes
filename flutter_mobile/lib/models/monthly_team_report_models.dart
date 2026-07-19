@@ -1,5 +1,28 @@
 import 'models.dart';
 
+class MonthlyTrainingMacro {
+  static const ski = 'ski';
+  static const preparation = 'preparation';
+  static const otherSports = 'other_sports';
+  static const recoveryOther = 'recovery_other';
+
+  static const ordered = [ski, preparation, otherSports, recoveryOther];
+
+  static String label(String id) {
+    switch (id) {
+      case ski:
+        return 'Sci alpino';
+      case preparation:
+        return 'Preparazione atletica';
+      case otherSports:
+        return 'Altri sport';
+      case recoveryOther:
+      default:
+        return 'Recupero / altro';
+    }
+  }
+}
+
 class TeamReportSession {
   final String athleteId;
   final TrainingSession session;
@@ -103,13 +126,8 @@ class MonthlyTeamReportSummary {
   final int athletesWithoutData;
   final double? averageSkiPresence;
   final double? averageAthleticPresence;
-  final double totalSkiHours;
-  final double totalAthleticHours;
-  final double totalOutOfProgramHours;
-  final int totalDirectionChanges;
-  final double totalStrengthVolumeKg;
-  final int totalStrengthSets;
-  final double totalEnduranceMeters;
+  final double averageAthleteHours;
+  final int athleteHoursCoverage;
   final int testSessionCount;
   final int incompleteDataCount;
 
@@ -119,52 +137,111 @@ class MonthlyTeamReportSummary {
     required this.athletesWithoutData,
     required this.averageSkiPresence,
     required this.averageAthleticPresence,
-    required this.totalSkiHours,
-    required this.totalAthleticHours,
-    required this.totalOutOfProgramHours,
-    required this.totalDirectionChanges,
-    required this.totalStrengthVolumeKg,
-    required this.totalStrengthSets,
-    required this.totalEnduranceMeters,
+    required this.averageAthleteHours,
+    required this.athleteHoursCoverage,
     required this.testSessionCount,
     required this.incompleteDataCount,
   });
 }
 
+class MonthlyTeamCoachWorkload {
+  final int completedSkiSessions;
+  final double completedSkiHours;
+  final int completedPreparationSessions;
+  final double completedPreparationHours;
+  final int completedOtherSportSessions;
+  final double completedOtherSportHours;
+  final Map<String, double> preparationHoursByType;
+
+  const MonthlyTeamCoachWorkload({
+    required this.completedSkiSessions,
+    required this.completedSkiHours,
+    required this.completedPreparationSessions,
+    required this.completedPreparationHours,
+    required this.completedOtherSportSessions,
+    required this.completedOtherSportHours,
+    required this.preparationHoursByType,
+  });
+
+  int get completedSessionCount =>
+      completedSkiSessions +
+      completedPreparationSessions +
+      completedOtherSportSessions;
+
+  double get completedHours =>
+      completedSkiHours + completedPreparationHours + completedOtherSportHours;
+}
+
 class MonthlyTeamSkiReport {
-  final int totalDirectionChanges;
-  final int clDirectionChanges;
-  final int slDirectionChanges;
-  final int gsDirectionChanges;
-  final int addestramentoDirectionChanges;
-  final Map<String, int> directionChangesByDiscipline;
+  final double averageDirectionChanges;
+  final int validAthleteCount;
+  final int skiActiveAthleteCount;
+  final Map<String, double> averageDirectionChangesByDiscipline;
 
   const MonthlyTeamSkiReport({
-    required this.totalDirectionChanges,
-    required this.clDirectionChanges,
-    required this.slDirectionChanges,
-    required this.gsDirectionChanges,
-    required this.addestramentoDirectionChanges,
-    required this.directionChangesByDiscipline,
+    required this.averageDirectionChanges,
+    required this.validAthleteCount,
+    required this.skiActiveAthleteCount,
+    required this.averageDirectionChangesByDiscipline,
   });
 }
 
 class MonthlyTeamAthleticReport {
-  final double totalHours;
-  final double totalStrengthVolumeKg;
-  final int totalStrengthSets;
-  final int totalDrills;
-  final double totalEnduranceMeters;
-  final Map<String, double> hoursByCategory;
+  final double averageAthleteHours;
+  final double averageStrengthVolumeKg;
+  final double averageStrengthSets;
+  final double averageDrills;
+  final double averageEnduranceMeters;
+  final int validAthleteCount;
+  final int strengthVolumeCoverage;
+  final int strengthSetsCoverage;
+  final int drillCoverage;
+  final int enduranceCoverage;
+  final Map<String, double> averageHoursByCategory;
 
   const MonthlyTeamAthleticReport({
-    required this.totalHours,
-    required this.totalStrengthVolumeKg,
-    required this.totalStrengthSets,
-    required this.totalDrills,
-    required this.totalEnduranceMeters,
-    required this.hoursByCategory,
+    required this.averageAthleteHours,
+    required this.averageStrengthVolumeKg,
+    required this.averageStrengthSets,
+    required this.averageDrills,
+    required this.averageEnduranceMeters,
+    required this.validAthleteCount,
+    required this.strengthVolumeCoverage,
+    required this.strengthSetsCoverage,
+    required this.drillCoverage,
+    required this.enduranceCoverage,
+    required this.averageHoursByCategory,
   });
+}
+
+class MonthlyAthleteTrendPoint {
+  final String month;
+  final int? throughDay;
+  final int sessionCount;
+  final double totalHours;
+  final Map<String, double> hoursByMacro;
+  final Map<String, double> preparationHoursByType;
+  final int skiDirectionChanges;
+  final double? skiPresence;
+  final double? athleticPresence;
+  final int incompleteDataCount;
+
+  const MonthlyAthleteTrendPoint({
+    required this.month,
+    required this.throughDay,
+    required this.sessionCount,
+    required this.totalHours,
+    required this.hoursByMacro,
+    required this.preparationHoursByType,
+    required this.skiDirectionChanges,
+    required this.skiPresence,
+    required this.athleticPresence,
+    required this.incompleteDataCount,
+  });
+
+  double hoursFor(String macro) => hoursByMacro[macro] ?? 0;
+
+  bool get hasActivity => sessionCount > 0 || totalHours > 0;
 }
 
 class MonthlyTeamTestsReport {
@@ -207,6 +284,9 @@ class MonthlyTeamAthleteReport {
   final int clDirectionChanges;
   final int slDirectionChanges;
   final int gsDirectionChanges;
+  final int sgDirectionChanges;
+  final int dhDirectionChanges;
+  final int sxDirectionChanges;
   final int addestramentoDirectionChanges;
   final double strengthVolumeKg;
   final int strengthSets;
@@ -223,6 +303,11 @@ class MonthlyTeamAthleteReport {
   final int incompleteDataCount;
   final List<MonthlyTeamAlert> alerts;
   final Map<String, MonthlyMetricDelta> deltas;
+  final int sessionCount;
+  final Map<String, double> hoursByMacro;
+  final Map<String, double> preparationHoursByType;
+  final List<MonthlyAthleteTrendPoint> trend;
+  final String trendSummary;
 
   const MonthlyTeamAthleteReport({
     required this.athleteId,
@@ -244,6 +329,9 @@ class MonthlyTeamAthleteReport {
     required this.clDirectionChanges,
     required this.slDirectionChanges,
     required this.gsDirectionChanges,
+    required this.sgDirectionChanges,
+    required this.dhDirectionChanges,
+    required this.sxDirectionChanges,
     required this.addestramentoDirectionChanges,
     required this.strengthVolumeKg,
     required this.strengthSets,
@@ -260,6 +348,11 @@ class MonthlyTeamAthleteReport {
     required this.incompleteDataCount,
     required this.alerts,
     required this.deltas,
+    required this.sessionCount,
+    required this.hoursByMacro,
+    required this.preparationHoursByType,
+    required this.trend,
+    required this.trendSummary,
   });
 
   double get scheduledHours => scheduledSkiHours + scheduledAthleticHours;
@@ -272,7 +365,27 @@ class MonthlyTeamAthleteReport {
   double get totalAthleticHours =>
       scheduledAthleticHours + outOfProgramAthleticHours;
 
-  double get totalHours => totalSkiHours + totalAthleticHours;
+  double get otherSportHours =>
+      hoursByMacro[MonthlyTrainingMacro.otherSports] ?? 0;
+
+  double get recoveryOtherHours =>
+      hoursByMacro[MonthlyTrainingMacro.recoveryOther] ?? 0;
+
+  double get totalHours =>
+      hoursByMacro.values.fold(0, (sum, value) => sum + value);
+
+  MonthlyAthleteTrendPoint? get previousTrend =>
+      trend.length < 2 ? null : trend[trend.length - 2];
+
+  List<MonthlyAthleteTrendPoint> get previousSixTrend =>
+      trend.length < 2 ? const [] : trend.take(trend.length - 1).toList();
+
+  double? get previousSixAverageHours {
+    final valid = previousSixTrend.where((point) => point.hasActivity).toList();
+    if (valid.isEmpty) return null;
+    return valid.fold<double>(0, (sum, point) => sum + point.totalHours) /
+        valid.length;
+  }
 }
 
 class MonthlyTeamReport {
@@ -280,6 +393,7 @@ class MonthlyTeamReport {
   final String month;
   final DateTime generatedAt;
   final MonthlyTeamReportSummary summary;
+  final MonthlyTeamCoachWorkload coachWorkload;
   final List<MonthlyTeamAthleteReport> athletes;
   final MonthlyTeamSkiReport ski;
   final MonthlyTeamAthleticReport athletic;
@@ -292,6 +406,7 @@ class MonthlyTeamReport {
     required this.month,
     required this.generatedAt,
     required this.summary,
+    required this.coachWorkload,
     required this.athletes,
     required this.ski,
     required this.athletic,

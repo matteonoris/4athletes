@@ -14,6 +14,20 @@ class Stats {
   });
 }
 
+class RobustStats {
+  final double median;
+  final double medianAbsoluteDeviation;
+  final double robustStandardDeviation;
+  final int count;
+
+  const RobustStats({
+    required this.median,
+    required this.medianAbsoluteDeviation,
+    required this.robustStandardDeviation,
+    required this.count,
+  });
+}
+
 class WeightedValue {
   final String key;
   final double? value;
@@ -100,6 +114,43 @@ double? percentile(List<num?> values, double percentile) {
 
   final fraction = rank - lower;
   return finite[lower] + (finite[upper] - finite[lower]) * fraction;
+}
+
+double? median(List<num?> values) => percentile(values, 0.5);
+
+/// Returns robust location and scale estimates.
+///
+/// The raw median absolute deviation is multiplied by 1.4826 so the resulting
+/// scale is comparable with a standard deviation for approximately normal
+/// data. A metric-specific floor keeps a stable personal baseline from
+/// amplifying measurement noise into a large readiness swing.
+RobustStats? medianAndRobustStandardDeviation(
+  List<num?> values,
+  double minStandardDeviation,
+) {
+  final finite = values
+      .where(isFiniteNumber)
+      .map((value) => value!.toDouble())
+      .toList(growable: false);
+  if (finite.isEmpty ||
+      !minStandardDeviation.isFinite ||
+      minStandardDeviation <= 0) {
+    return null;
+  }
+
+  final center = median(finite);
+  if (center == null) return null;
+  final absoluteDeviations =
+      finite.map((value) => (value - center).abs()).toList(growable: false);
+  final rawMad = median(absoluteDeviations);
+  if (rawMad == null) return null;
+
+  return RobustStats(
+    median: center,
+    medianAbsoluteDeviation: rawMad,
+    robustStandardDeviation: math.max(rawMad * 1.4826, minStandardDeviation),
+    count: finite.length,
+  );
 }
 
 double? zScore({

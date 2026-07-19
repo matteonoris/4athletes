@@ -100,26 +100,35 @@ List<HeartRateSample>? _heartRateSamples(dynamic value) {
 }
 
 HeartRateZones? _heartRateZones(dynamic value) {
-  if (value is! List || value.isEmpty) return null;
-  final zones = value.map(_asDouble).toList();
-  return HeartRateZones(
-    z1Minutes: zones.isNotEmpty && zones[0] != null ? zones[0]! / 60 : null,
-    z2Minutes: zones.length > 1 && zones[1] != null ? zones[1]! / 60 : null,
-    z3Minutes: zones.length > 2 && zones[2] != null ? zones[2]! / 60 : null,
-    z4Minutes: zones.length > 3 && zones[3] != null ? zones[3]! / 60 : null,
-    z5Minutes: zones.length > 4 && zones[4] != null ? zones[4]! / 60 : null,
-  );
+  return _heartRateZonesFromValues(value, divisor: 60);
 }
 
 HeartRateZones? _heartRateZonesFromMinutes(dynamic value) {
+  return _heartRateZonesFromValues(value, divisor: 1);
+}
+
+HeartRateZones? _heartRateZonesFromValues(
+  dynamic value, {
+  required double divisor,
+}) {
   if (value is! List || value.isEmpty) return null;
   final zones = value.map(_asDouble).toList();
+  double? minutesAt(int index) {
+    if (index < 0 || index >= zones.length || zones[index] == null) return null;
+    return zones[index]! / divisor;
+  }
+
+  // Health imports store six buckets (Z0 below the first threshold, then
+  // Z1-Z5). Older/manual records contain five buckets and start at Z1.
+  final hasBelowZone1Bucket = zones.length >= 6;
+  final firstTrainingZone = hasBelowZone1Bucket ? 1 : 0;
   return HeartRateZones(
-    z1Minutes: zones.isNotEmpty ? zones[0] : null,
-    z2Minutes: zones.length > 1 ? zones[1] : null,
-    z3Minutes: zones.length > 2 ? zones[2] : null,
-    z4Minutes: zones.length > 3 ? zones[3] : null,
-    z5Minutes: zones.length > 4 ? zones[4] : null,
+    belowZone1Minutes: hasBelowZone1Bucket ? minutesAt(0) : null,
+    z1Minutes: minutesAt(firstTrainingZone),
+    z2Minutes: minutesAt(firstTrainingZone + 1),
+    z3Minutes: minutesAt(firstTrainingZone + 2),
+    z4Minutes: minutesAt(firstTrainingZone + 3),
+    z5Minutes: minutesAt(firstTrainingZone + 4),
   );
 }
 

@@ -97,9 +97,9 @@ class _HealthScreenState extends State<HealthScreen> {
       days: _ranges['recovery_score']!,
     );
 
-    final sleepValue = appState.currentSleepScore ??
+    final sleepValue = appState.sleepScoreForDate(now) ??
         _latestLogValue(appState.bodyLogs, 'sleep_score');
-    final recoveryValue = appState.currentRecoveryScore ??
+    final recoveryValue = appState.recoveryScoreForDate(now) ??
         _latestLogValue(appState.bodyLogs, 'recovery_score');
 
     return Column(
@@ -146,8 +146,12 @@ class _HealthScreenState extends State<HealthScreen> {
   }
 
   Widget _buildSleepSection(AppState appState) {
-    final metrics = appState.currentDailyMetrics ?? const <String, double>{};
-    final todaySleep = _todaySleepEntry(appState.currentLocalSleepHistory);
+    final today = DateTime.now();
+    final metrics =
+        appState.dailyMetricsForDate(today) ?? const <String, double>{};
+    final sleepHistory = appState.localSleepHistoryForDate(today) ??
+        const <Map<String, dynamic>>[];
+    final todaySleep = _todaySleepEntry(sleepHistory);
     final totalSleep =
         metrics['totalSleep'] ?? _numFromMap(todaySleep, 'totalSleepMinutes');
     final need = metrics['dailySleepNeed'];
@@ -197,7 +201,7 @@ class _HealthScreenState extends State<HealthScreen> {
           title: 'Sonno vs fabbisogno',
           days: _ranges['sleep_need']!,
           onDaysChanged: (days) => _setRange('sleep_need', days),
-          history: appState.currentLocalSleepHistory ?? const [],
+          history: sleepHistory,
           dailyNeedMinutes: need,
         ),
         const SizedBox(height: 12),
@@ -205,7 +209,7 @@ class _HealthScreenState extends State<HealthScreen> {
           title: 'Debito di sonno',
           days: _ranges['sleep_debt']!,
           onDaysChanged: (days) => _setRange('sleep_debt', days),
-          history: appState.currentLocalSleepHistory ?? const [],
+          history: sleepHistory,
           dailyNeedMinutes: need,
           todaySleepMinutes: totalSleep,
         ),
@@ -214,36 +218,46 @@ class _HealthScreenState extends State<HealthScreen> {
           title: 'Architettura del sonno',
           days: _ranges['sleep_architecture']!,
           onDaysChanged: (days) => _setRange('sleep_architecture', days),
-          history: appState.currentLocalSleepHistory ?? const [],
+          history: sleepHistory,
         ),
         const SizedBox(height: 12),
         _SleepRegularityChartCard(
           title: 'Regolarità del sonno',
           days: _ranges['sleep_regularity']!,
           onDaysChanged: (days) => _setRange('sleep_regularity', days),
-          history: appState.currentLocalSleepHistory ?? const [],
+          history: sleepHistory,
         ),
         const SizedBox(height: 12),
         _SleepEfficiencyChartCard(
           title: 'Efficienza del sonno',
           days: _ranges['sleep_efficiency']!,
           onDaysChanged: (days) => _setRange('sleep_efficiency', days),
-          history: appState.currentLocalSleepHistory ?? const [],
+          history: sleepHistory,
         ),
       ],
     );
   }
 
   Widget _buildVitalsSection(AppState appState) {
-    final metrics = appState.currentDailyMetrics ?? const <String, double>{};
+    final metrics = appState.dailyMetricsForDate(DateTime.now()) ??
+        const <String, double>{};
+    final hrvIsSdnn = metrics.containsKey('hrvIsSdnn')
+        ? metrics['hrvIsSdnn'] == 1
+        : appState.bodyLogs.any((log) => log.type == 'hrv_sdnn');
+    final temperatureIsDelta = metrics.containsKey('tempIsDelta')
+        ? metrics['tempIsDelta'] == 1
+        : appState.bodyLogs.any((log) => log.type == 'skin_temp_delta_c');
+    final hrvLogType = hrvIsSdnn ? 'hrv_sdnn' : 'hrv_rmssd';
+    final temperatureLogType =
+        temperatureIsDelta ? 'skin_temp_delta_c' : 'wrist_temp_c';
     return Column(
       children: [
         _VitalMetricCard(
           chartKeyName: 'hrv',
-          title: 'HRV',
+          title: hrvIsSdnn ? 'HRV SDNN' : 'HRV RMSSD',
           todayValue: metrics['hrv'],
           logs: appState.bodyLogs,
-          type: 'hrv',
+          type: hrvLogType,
           unit: 'ms',
           decimals: 0,
           days: _ranges['hrv']!,
@@ -264,10 +278,12 @@ class _HealthScreenState extends State<HealthScreen> {
         const SizedBox(height: 12),
         _VitalMetricCard(
           chartKeyName: 'temp',
-          title: 'Temperatura cutanea',
+          title: temperatureIsDelta
+              ? 'Deviazione temperatura cutanea'
+              : 'Temperatura notturna al polso',
           todayValue: metrics['temp'],
           logs: appState.bodyLogs,
-          type: 'temp',
+          type: temperatureLogType,
           unit: '\u00B0C',
           decimals: 1,
           days: _ranges['temp']!,

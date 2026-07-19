@@ -39,6 +39,9 @@ class _ComponentScores {
   final double? externalMechanical;
   final double baselineConfidence;
   final int baselineValidDays;
+  final int cardioBaselineValidDays;
+  final int rpeBaselineValidDays;
+  final int externalMechanicalBaselineValidDays;
 
   const _ComponentScores({
     this.cardio,
@@ -46,6 +49,9 @@ class _ComponentScores {
     this.externalMechanical,
     required this.baselineConfidence,
     required this.baselineValidDays,
+    required this.cardioBaselineValidDays,
+    required this.rpeBaselineValidDays,
+    required this.externalMechanicalBaselineValidDays,
   });
 }
 
@@ -66,6 +72,7 @@ SessionStrainResult calculateSessionStrain(
     return SessionStrainResult(
       sessionId: session.id,
       sportCategory: category,
+      durationMinutes: duration,
       heartRateCoverage: config.confidence.min,
       confidence: config.confidence.min,
       warnings: const ['invalid_session_duration'],
@@ -74,9 +81,14 @@ SessionStrainResult calculateSessionStrain(
 
   final maxHr = _maxHeartRate(profile, strainConfig);
   final restingHr = _restingHeartRate(profile, maxHr, strainConfig);
+  final profileMaxHr = profile.maxHeartRateBpm;
+  if (isFiniteNumber(profileMaxHr) &&
+      isFiniteNumber(session.maxHeartRateBpm) &&
+      session.maxHeartRateBpm! > profileMaxHr! + 3) {
+    warnings.add('profile_max_heart_rate_outdated');
+  }
   final cardio = _calculateCardioLoad(
     session,
-    category,
     duration,
     maxHr,
     restingHr,
@@ -88,8 +100,6 @@ SessionStrainResult calculateSessionStrain(
     session,
     category,
     duration,
-    maxHr,
-    restingHr,
     config,
     warnings,
   );
@@ -122,6 +132,7 @@ SessionStrainResult calculateSessionStrain(
   return SessionStrainResult(
     sessionId: session.id,
     sportCategory: category,
+    durationMinutes: duration,
     cardioLoadAU: cardio.value,
     rpeLoadAU: rpe.value,
     externalMechanicalLoadAU: external.value,
@@ -355,31 +366,52 @@ _ComponentScores _normalizeDailyLoads(
   List<String> warnings,
 ) {
   final window = history.takeLast(config.strainScore.historyWindowDays);
-  final validDays = window.where((day) => day.sessionCount > 0).length;
-  if (validDays < config.strainScore.minPersonalBaselineDays) {
+  final cardioValidDays =
+      window.where((day) => isFiniteNumber(day.cardioLoadAU)).length;
+  final rpeValidDays =
+      window.where((day) => isFiniteNumber(day.rpeLoadAU)).length;
+  final externalMechanicalValidDays = window
+      .where((day) => isFiniteNumber(day.externalMechanicalLoadAU))
+      .length;
+  final availableValidDays = <int>[
+    if (isFiniteNumber(loads.cardio)) cardioValidDays,
+    if (isFiniteNumber(loads.rpe)) rpeValidDays,
+    if (isFiniteNumber(loads.externalMechanical)) externalMechanicalValidDays,
+  ];
+  final baselineValidDays =
+      availableValidDays.isEmpty ? 0 : availableValidDays.reduce(math.min);
+  if (availableValidDays.isNotEmpty &&
+      baselineValidDays < config.strainScore.minPersonalBaselineDays) {
     warnings.add('strain_baseline_calibration_phase');
-  } else if (validDays < config.strainScore.fullPersonalBaselineDays) {
+  } else if (availableValidDays.isNotEmpty &&
+      baselineValidDays < config.strainScore.fullPersonalBaselineDays) {
     warnings.add('strain_baseline_partial');
   }
 
   final cardioAnchors = calculateStrainAnchors(
     window.map((day) => day.cardioLoadAU).toList(),
     config.strainScore.absoluteAnchors.cardio,
-    validDays: validDays,
+    validDays: cardioValidDays,
     config: config,
   );
   final rpeAnchors = calculateStrainAnchors(
     window.map((day) => day.rpeLoadAU).toList(),
     config.strainScore.absoluteAnchors.rpe,
-    validDays: validDays,
+    validDays: rpeValidDays,
     config: config,
   );
   final externalAnchors = calculateStrainAnchors(
     window.map((day) => day.externalMechanicalLoadAU).toList(),
     config.strainScore.absoluteAnchors.externalMechanical,
-    validDays: validDays,
+    validDays: externalMechanicalValidDays,
     config: config,
   );
+  final availableBaselineConfidences = <double>[
+    if (isFiniteNumber(loads.cardio)) cardioAnchors.baselineConfidence,
+    if (isFiniteNumber(loads.rpe)) rpeAnchors.baselineConfidence,
+    if (isFiniteNumber(loads.externalMechanical))
+      externalAnchors.baselineConfidence,
+  ];
 
   return _ComponentScores(
     cardio: isFiniteNumber(loads.cardio)
@@ -391,12 +423,13 @@ _ComponentScores _normalizeDailyLoads(
     externalMechanical: isFiniteNumber(loads.externalMechanical)
         ? normalizeLoadToScore(loads.externalMechanical, externalAnchors)
         : null,
-    baselineConfidence: [
-      cardioAnchors.baselineConfidence,
-      rpeAnchors.baselineConfidence,
-      externalAnchors.baselineConfidence,
-    ].reduce(math.min),
-    baselineValidDays: validDays,
+    baselineConfidence: availableBaselineConfidences.isEmpty
+        ? config.strainScore.coldStartBaselineConfidence
+        : availableBaselineConfidences.reduce(math.min),
+    baselineValidDays: baselineValidDays,
+    cardioBaselineValidDays: cardioValidDays,
+    rpeBaselineValidDays: rpeValidDays,
+    externalMechanicalBaselineValidDays: externalMechanicalValidDays,
   );
 }
 
@@ -468,7 +501,10 @@ double? _combineSessionWeightedScores(
     }
 
     final durationWeight = math.max(
-        1, session.heartRateCoverage > 0 ? session.heartRateCoverage : 1);
+      config.confidence.min,
+      session.durationMinutes,
+    );
+    if (durationWeight <= config.confidence.min) continue;
     total += sessionScore * durationWeight;
     totalDuration += durationWeight;
   }
@@ -504,7 +540,6 @@ StrainComponentWeights _weightsForCategory(
 
 _CardioLoad _calculateCardioLoad(
   WorkoutSessionInput session,
-  StrainSportCategory category,
   double duration,
   double maxHr,
   double restingHr,
@@ -518,32 +553,51 @@ _CardioLoad _calculateCardioLoad(
     restingHr,
     config,
   );
-  if (sampleLoad.heartRateCoverage >=
-      config.strainScore.minHrCoverageForFullConfidence) {
-    return sampleLoad;
+  final zones = session.heartRateZones;
+  if (zones != null && zones.hasAny) {
+    final coverage = _zoneCoverage(zones, duration);
+    if (coverage >= config.strainScore.minHrCoverageToUseSamples) {
+      if ((session.heartRateSamples ?? const []).isNotEmpty &&
+          sampleLoad.heartRateCoverage <
+              config.strainScore.minHrCoverageToUseSamples) {
+        warnings.add('heart_rate_coverage_low');
+      }
+      if (coverage < config.strainScore.minHrCoverageForFullConfidence) {
+        warnings.add('heart_rate_coverage_partial');
+      }
+      final multipliers = config.strainScore.cardioZoneMultipliers;
+      final observedLoad = _nonNegative(zones.z1Minutes) * multipliers['z1']! +
+          _nonNegative(zones.z2Minutes) * multipliers['z2']! +
+          _nonNegative(zones.z3Minutes) * multipliers['z3']! +
+          _nonNegative(zones.z4Minutes) * multipliers['z4']! +
+          _nonNegative(zones.z5Minutes) * multipliers['z5']!;
+      return _extrapolatePartialHeartRateLoad(
+        _CardioLoad(
+          value: observedLoad,
+          method: 'hr_zones',
+          heartRateCoverage: coverage,
+        ),
+        config,
+        warnings,
+      );
+    }
+    if (coverage > 0) warnings.add('heart_rate_zones_coverage_low');
   }
+
   if (sampleLoad.heartRateCoverage >=
       config.strainScore.minHrCoverageToUseSamples) {
-    warnings.add('heart_rate_coverage_partial');
-    return sampleLoad;
+    if (sampleLoad.heartRateCoverage <
+        config.strainScore.minHrCoverageForFullConfidence) {
+      warnings.add('heart_rate_coverage_partial');
+    }
+    return _extrapolatePartialHeartRateLoad(
+      sampleLoad,
+      config,
+      warnings,
+    );
   }
   if ((session.heartRateSamples ?? const []).isNotEmpty) {
     warnings.add('heart_rate_coverage_low');
-  }
-
-  final zones = session.heartRateZones;
-  if (zones != null && zones.hasAny) {
-    final multipliers = config.strainScore.cardioZoneMultipliers;
-    final load = (zones.z1Minutes ?? 0) * multipliers['z1']! +
-        (zones.z2Minutes ?? 0) * multipliers['z2']! +
-        (zones.z3Minutes ?? 0) * multipliers['z3']! +
-        (zones.z4Minutes ?? 0) * multipliers['z4']! +
-        (zones.z5Minutes ?? 0) * multipliers['z5']!;
-    return _CardioLoad(
-      value: load,
-      method: 'hr_zones',
-      heartRateCoverage: _zoneCoverage(zones, duration),
-    );
   }
 
   if (isFiniteNumber(session.avgHeartRateBpm)) {
@@ -556,23 +610,38 @@ _CardioLoad _calculateCardioLoad(
     );
   }
 
-  final rpe = _clampedRpe(session.rpe);
-  if (isFiniteNumber(rpe)) {
-    warnings.add('cardio_load_estimated_from_rpe');
-    return _CardioLoad(
-      value: duration * math.pow(rpe! / 10, 2) * 8,
-      method: 'rpe_fallback',
-      heartRateCoverage: config.confidence.min,
-    );
-  }
-
-  warnings.add('cardio_load_estimated_from_duration');
+  warnings.add('cardio_load_unavailable');
   return _CardioLoad(
-    value: duration *
-        (config.strainScore.sportCardioFallbackMultipliers[category.code] ??
-            config.strainScore.sportCardioFallbackMultipliers['unknown']!),
-    method: 'duration_sport_fallback',
+    value: null,
+    method: null,
     heartRateCoverage: config.confidence.min,
+  );
+}
+
+_CardioLoad _extrapolatePartialHeartRateLoad(
+  _CardioLoad load,
+  AlgorithmConfig config,
+  List<String> warnings,
+) {
+  final value = load.value;
+  final coverage = load.heartRateCoverage;
+  if (!isFiniteNumber(value) || coverage <= 0 || coverage >= 1) return load;
+
+  final uncappedFactor = 1 / coverage;
+  final factor = math.min(
+    uncappedFactor,
+    config.strainScore.maxPartialHrExtrapolationFactor,
+  );
+  if (factor <= 1) return load;
+
+  warnings.add('heart_rate_load_extrapolated');
+  if (factor < uncappedFactor) {
+    warnings.add('heart_rate_load_extrapolation_capped');
+  }
+  return _CardioLoad(
+    value: value! * factor,
+    method: load.method,
+    heartRateCoverage: coverage,
   );
 }
 
@@ -645,135 +714,131 @@ _ExternalLoad _calculateExternalMechanicalLoad(
   WorkoutSessionInput session,
   StrainSportCategory category,
   double duration,
-  double maxHr,
-  double restingHr,
   AlgorithmConfig config,
   List<String> warnings,
 ) {
-  final intensity = _externalIntensityProxy(
-    session,
-    maxHr,
-    restingHr,
-    warnings,
-  );
-  final volume = _sportSpecificVolume(
-    session,
-    category,
-    duration,
-    intensity.proxy,
-    warnings,
-  );
   final multiplier = config.strainScore.sportImpactMultipliers[category.code] ??
       config.strainScore.sportImpactMultipliers['unknown']!;
-  var value = volume * multiplier * intensity.proxy;
+  final distanceKm = _nonNegative(session.distanceMeters) / 1000;
+  final elevationGain = _nonNegative(session.elevationGainMeters);
+  final elevationLoss = _nonNegative(session.elevationLossMeters);
+  final steps = _nonNegative(session.steps);
+  final runCount = _nonNegative(session.runCount);
 
-  if (category == StrainSportCategory.mobility) {
-    value = math.min(value, 20);
+  _ExternalLoad measured(double value, String method) => _ExternalLoad(
+        value: value,
+        method: method,
+        usedEstimatedIntensity: false,
+      );
+
+  _ExternalLoad estimatedFromDuration() {
+    warnings.add('external_load_estimated_from_duration');
+    if (category == StrainSportCategory.alpineSkiingTraining ||
+        category == StrainSportCategory.alpineSkiingRace) {
+      warnings.add('ski_external_load_estimated_from_duration');
+    }
+    var value = duration * multiplier;
+    if (category == StrainSportCategory.mobility) {
+      value = math.min(value, 20);
+    }
+    return _ExternalLoad(
+      value: value,
+      method: '${category.code}_duration_exposure_estimate',
+      usedEstimatedIntensity: true,
+    );
   }
-
-  return _ExternalLoad(
-    value: value,
-    method: '${category.code}_volume',
-    usedEstimatedIntensity: intensity.estimated,
-  );
-}
-
-double _sportSpecificVolume(
-  WorkoutSessionInput session,
-  StrainSportCategory category,
-  double duration,
-  double intensityProxy,
-  List<String> warnings,
-) {
-  final distanceKm = (session.distanceMeters ?? 0) / 1000;
-  final elevationGain = session.elevationGainMeters ?? 0;
-  final elevationLoss = session.elevationLossMeters ?? 0;
-  final steps = session.steps ?? 0;
-  final runCount = session.runCount ?? 0;
-  final rpe = _clampedRpe(session.rpe);
-  final rpeRatio = isFiniteNumber(rpe) ? rpe! / 10 : null;
 
   switch (category) {
     case StrainSportCategory.running:
-      if (distanceKm > 0 || elevationGain > 0 || steps > 0) {
-        return distanceKm * 10 + elevationGain * 0.03 + steps * 0.001;
+      if (distanceKm > 0 || elevationGain > 0) {
+        return measured(
+          (distanceKm * 10 + elevationGain * 0.03) * multiplier,
+          'running_distance_elevation',
+        );
       }
-      return duration;
+      if (steps > 0) {
+        return measured(steps * 0.001 * multiplier, 'running_steps');
+      }
+      return estimatedFromDuration();
     case StrainSportCategory.cycling:
-      if (isFiniteNumber(session.normalizedPowerWatts) ||
-          isFiniteNumber(session.powerWattsAvg)) {
-        return intensityProxy * duration;
+      if (isFiniteNumber(session.powerWattsAvg) && session.powerWattsAvg! > 0) {
+        final workKj = session.powerWattsAvg! * duration * 60 / 1000;
+        return measured(workKj, 'cycling_work_kj');
       }
-      return duration + elevationGain * 0.02 + distanceKm * 0.5;
+      if (distanceKm > 0 || elevationGain > 0) {
+        return measured(
+          (distanceKm * 0.5 + elevationGain * 0.02) * multiplier,
+          'cycling_distance_elevation',
+        );
+      }
+      return estimatedFromDuration();
     case StrainSportCategory.swimming:
-      return duration + distanceKm * 5;
+      if (distanceKm > 0) {
+        return measured(
+          distanceKm * 5 * multiplier,
+          'swimming_distance',
+        );
+      }
+      return estimatedFromDuration();
     case StrainSportCategory.strength:
-      return duration * math.max(rpeRatio ?? 0.5, 0.5);
+      return estimatedFromDuration();
     case StrainSportCategory.sprint:
     case StrainSportCategory.plyometrics:
-      return duration * math.max(rpeRatio ?? 0.6, 0.6);
+      if (distanceKm > 0) {
+        return measured(
+          distanceKm * 10 * multiplier,
+          '${category.code}_distance',
+        );
+      }
+      if (steps > 0) {
+        return measured(
+          steps * 0.001 * multiplier,
+          '${category.code}_steps',
+        );
+      }
+      return estimatedFromDuration();
     case StrainSportCategory.football:
     case StrainSportCategory.teamSport:
-      return duration * 0.5 + distanceKm * 8 + steps * 0.001;
+      if (distanceKm > 0) {
+        return measured(
+          distanceKm * 8 * multiplier,
+          '${category.code}_distance',
+        );
+      }
+      if (steps > 0) {
+        return measured(
+          steps * 0.001 * multiplier,
+          '${category.code}_steps',
+        );
+      }
+      return estimatedFromDuration();
     case StrainSportCategory.alpineSkiingTraining:
     case StrainSportCategory.alpineSkiingRace:
       if (elevationLoss > 0 || runCount > 0) {
-        return duration * 0.5 + elevationLoss * 0.04 + runCount * 8;
+        return measured(
+          (elevationLoss * 0.04 + runCount * 8) * multiplier,
+          '${category.code}_vertical_runs',
+        );
       }
-      warnings.add('ski_external_load_estimated_from_duration');
-      return duration;
+      return estimatedFromDuration();
     case StrainSportCategory.mobility:
-      return duration * math.max(rpeRatio ?? 0.3, 0.3);
+      return estimatedFromDuration();
     case StrainSportCategory.enduranceGeneric:
     case StrainSportCategory.unknown:
-      return duration + distanceKm * 2 + elevationGain * 0.01;
+      if (distanceKm > 0 || elevationGain > 0) {
+        return measured(
+          (distanceKm * 2 + elevationGain * 0.01) * multiplier,
+          '${category.code}_distance_elevation',
+        );
+      }
+      if (steps > 0) {
+        return measured(
+          steps * 0.001 * multiplier,
+          '${category.code}_steps',
+        );
+      }
+      return estimatedFromDuration();
   }
-}
-
-_IntensityProxy _externalIntensityProxy(
-  WorkoutSessionInput session,
-  double maxHr,
-  double restingHr,
-  List<String> warnings,
-) {
-  final proxies = <double>[];
-  final rpe = _clampedRpe(session.rpe);
-  if (isFiniteNumber(rpe)) proxies.add(rpe! / 10);
-  if (isFiniteNumber(session.avgHeartRateBpm)) {
-    proxies.add(_hrr(session.avgHeartRateBpm!, maxHr, restingHr));
-  }
-  if (isFiniteNumber(session.normalizedPowerWatts) &&
-      isFiniteNumber(session.powerWattsAvg) &&
-      session.powerWattsAvg! > 0) {
-    proxies.add(clampDouble(
-      session.normalizedPowerWatts! / session.powerWattsAvg!,
-      0,
-      1.5,
-    ));
-  } else if (isFiniteNumber(session.powerWattsAvg)) {
-    proxies.add(clampDouble(session.powerWattsAvg! / 300, 0, 1.5));
-  }
-  if (isFiniteNumber(session.distanceMeters) &&
-      session.durationMinutes > 0 &&
-      session.distanceMeters! > 0) {
-    final speedMetersPerMinute =
-        session.distanceMeters! / session.durationMinutes;
-    proxies.add(clampDouble(speedMetersPerMinute / 250, 0, 1.2));
-  }
-
-  if (proxies.isEmpty) {
-    warnings.add('external_intensity_estimated');
-    return const _IntensityProxy(proxy: 0.5, estimated: true);
-  }
-
-  return _IntensityProxy(
-    proxy: clampDouble(
-      proxies.reduce((a, b) => a + b) / proxies.length,
-      0,
-      1.5,
-    ),
-    estimated: false,
-  );
 }
 
 Map<String, dynamic> _dailyComponents({
@@ -822,6 +887,11 @@ Map<String, dynamic> _dailyComponents({
               ) /
               sessionResults.length,
       'baselineValidDays': scores.baselineValidDays,
+      'baselineValidDaysByComponent': {
+        'cardio': scores.cardioBaselineValidDays,
+        'rpe': scores.rpeBaselineValidDays,
+        'externalMechanical': scores.externalMechanicalBaselineValidDays,
+      },
     },
   };
 }
@@ -902,12 +972,18 @@ double? _clampedRpe(double? rpe) {
 
 double _zoneCoverage(HeartRateZones zones, double duration) {
   if (duration <= 0) return 0;
-  final zoneMinutes = (zones.z1Minutes ?? 0) +
-      (zones.z2Minutes ?? 0) +
-      (zones.z3Minutes ?? 0) +
-      (zones.z4Minutes ?? 0) +
-      (zones.z5Minutes ?? 0);
+  final zoneMinutes = _nonNegative(zones.belowZone1Minutes) +
+      _nonNegative(zones.z1Minutes) +
+      _nonNegative(zones.z2Minutes) +
+      _nonNegative(zones.z3Minutes) +
+      _nonNegative(zones.z4Minutes) +
+      _nonNegative(zones.z5Minutes);
   return clampDouble(zoneMinutes / duration, 0, 1);
+}
+
+double _nonNegative(double? value) {
+  if (!isFiniteNumber(value)) return 0;
+  return math.max(0, value!);
 }
 
 class _CardioLoad {
@@ -941,16 +1017,6 @@ class _ExternalLoad {
     required this.value,
     required this.method,
     required this.usedEstimatedIntensity,
-  });
-}
-
-class _IntensityProxy {
-  final double proxy;
-  final bool estimated;
-
-  const _IntensityProxy({
-    required this.proxy,
-    required this.estimated,
   });
 }
 

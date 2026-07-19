@@ -1,7 +1,7 @@
-TestFlight build focused on monthly team reporting for coaches.
+This TestFlight build expands workout creation, athlete insights, and wellness analytics.
 
-- Adds a monthly team report with attendance, ski volume, athletic workload, physical test metrics, alerts, and athlete comparisons.
-- Adds printable/shareable PDF export, with optional individual athlete sheets.
-- Exposes the report from the coach dashboard for authorized coach/admin users.
-- Adds calculator coverage for programmed vs out-of-program work, event fallbacks, deltas, alerts, and PDF generation.
-- Keeps Hyperarch and tendon isometrics available in sport selection on mobile and the local web prototype.
+- Adds guided workout creation for strength, running, speed, agility, and phased sessions.
+- Adds athlete monthly recaps and coach access to athlete activity history.
+- Improves monthly team reports, including ski-volume breakdowns and PDF export.
+- Updates sleep, strain, and recovery scoring with clearer science-based calculations.
+- Improves Apple Health imports, heart-rate insights, and maximum-load analytics.

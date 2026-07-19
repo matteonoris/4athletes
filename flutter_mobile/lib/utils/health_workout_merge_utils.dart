@@ -6,6 +6,45 @@ import '../services/health_import_normalizer.dart';
 class HealthWorkoutMergeUtils {
   static const Duration startTimeMergeTolerance = Duration(minutes: 10);
 
+  static List<TrainingSession> likelyDuplicateHealthImports(
+    List<TrainingSession> sessions,
+    TrainingSession imported,
+  ) {
+    final importedRange = _sessionDateTimeRange(imported);
+    if (importedRange == null) return const [];
+    final importedIds = _externalWorkoutIds(imported.details);
+
+    return sessions.where((existing) {
+      if (existing.id == imported.id) return false;
+      final details = existing.details;
+      if (details == null || details['source'] != 'health_sync') return false;
+
+      final existingIds = _externalWorkoutIds(details);
+      if (importedIds.intersection(existingIds).isNotEmpty) return true;
+      if (!_sameSportFamily(existing.sportId, imported.sportId)) return false;
+
+      final existingRange = _sessionDateTimeRange(existing);
+      if (existingRange == null) return false;
+      final startDeltaSeconds = _startDeltaSeconds(
+        importedRange,
+        existingRange,
+      );
+      if (startDeltaSeconds > startTimeMergeTolerance.inSeconds) return false;
+
+      final overlapSeconds = _overlapSeconds(importedRange, existingRange);
+      final shorterSeconds = min(
+        importedRange.durationSeconds,
+        existingRange.durationSeconds,
+      );
+      if (shorterSeconds <= 0) return false;
+
+      // Mirrored records from Garmin/Strava/HealthKit can have different IDs
+      // and a few minutes of edge drift. Requiring 90% overlap avoids treating
+      // two merely adjacent workouts as duplicates.
+      return overlapSeconds >= (shorterSeconds * 0.90).round();
+    }).toList();
+  }
+
   static TrainingSession? bestOverlapMergeCandidate(
     List<TrainingSession> sessions,
     TrainingSession imported,
@@ -79,6 +118,7 @@ class HealthWorkoutMergeUtils {
       preservedDetails['merged_source_workout_ids'] = mergedExternalIds;
       preservedDetails['source_part_count'] = mergedExternalIds.length;
     }
+    preservedDetails['workoutSource'] = 'merged';
 
     final merged = TrainingSession(
       id: existing.id,
@@ -126,6 +166,72 @@ class HealthWorkoutMergeUtils {
       effort: session.effort,
       eventId: session.eventId,
       details: normalizedDetails,
+    );
+  }
+
+  static TrainingSession recalculateHeartRateZones(
+    TrainingSession session,
+    List<Map<String, int>> zones,
+  ) {
+    final details = session.details;
+    final range = _sessionDateTimeRange(session);
+    if (details == null || range == null) return session;
+    if (details['hr_samples'] is! List && details['hr_samples_full'] is! List) {
+      return session;
+    }
+
+    final normalizedDetails = Map<String, dynamic>.from(details);
+    normalizedDetails['hr_zone_calculation_version'] =
+        HealthImportNormalizer.heartRateZoneCalculationVersion;
+    normalizedDetails['hr_zone_boundaries'] = zones
+        .map((zone) => Map<String, int>.from(zone))
+        .toList(growable: false);
+    _syncHeartRateDetailsToRange(
+      normalizedDetails,
+      range,
+      forceRecalculation: true,
+    );
+
+    return TrainingSession(
+      id: session.id,
+      sportId: session.sportId,
+      date: session.date,
+      startTime: session.startTime,
+      endTime: session.endTime,
+      duration: session.duration,
+      effort: session.effort,
+      eventId: session.eventId,
+      details: normalizedDetails,
+    );
+  }
+
+  static TrainingSession unlinkImportedData(TrainingSession session) {
+    final details = Map<String, dynamic>.from(session.details ?? {});
+    details.removeWhere((key, _) => _healthManagedKeys.contains(key));
+    details.remove('externalLink');
+    details['source'] = 'manual';
+    details['workoutSource'] = 'manual';
+
+    final rawDraft = details['workoutDraft'];
+    if (rawDraft is Map) {
+      final draft = rawDraft.map(
+        (key, value) => MapEntry(key.toString(), value),
+      );
+      draft.remove('externalLink');
+      draft['source'] = 'manual';
+      details['workoutDraft'] = draft;
+    }
+
+    return TrainingSession(
+      id: session.id,
+      sportId: session.sportId,
+      date: session.date,
+      startTime: session.startTime,
+      endTime: session.endTime,
+      duration: session.duration,
+      effort: session.effort,
+      eventId: session.eventId,
+      details: details,
     );
   }
 
@@ -178,6 +284,8 @@ class HealthWorkoutMergeUtils {
   static bool _sameSportFamily(String a, String b) {
     return _sportFamily(a) == _sportFamily(b);
   }
+
+  static String sportFamily(String sportId) => _sportFamily(sportId);
 
   static String _mergedSportId(String existingSportId, String importedSportId) {
     if (_sportFamily(existingSportId) != _sportFamily(importedSportId)) {
@@ -355,8 +463,9 @@ class HealthWorkoutMergeUtils {
 
   static void _syncHeartRateDetailsToRange(
     Map<String, dynamic> details,
-    _SessionDateTimeRange range,
-  ) {
+    _SessionDateTimeRange range, {
+    bool forceRecalculation = false,
+  }) {
     final sourceSamples = _parseHeartRateSamples(
       details['hr_samples_full'] ?? details['hr_samples'],
     );
@@ -368,7 +477,8 @@ class HealthWorkoutMergeUtils {
             !sample.time.isAfter(range.end))
         .toList();
 
-    if (rangedSamples.length == sourceSamples.length &&
+    if (!forceRecalculation &&
+        rangedSamples.length == sourceSamples.length &&
         details['hr_samples_full'] == null) {
       return;
     }
@@ -419,8 +529,10 @@ class HealthWorkoutMergeUtils {
       details['max_hr'] = metrics.maxHeartRate;
     }
     if (metrics.zoneSeconds.any((seconds) => seconds > 0)) {
-      details['hr_zones_seconds'] =
-          metrics.zoneSeconds.map((seconds) => seconds.round()).toList();
+      details['hr_zones_seconds'] = HealthImportNormalizer.roundedZoneSeconds(
+        metrics.zoneSeconds,
+        targetSeconds: metrics.coverageSeconds,
+      );
       details['hr_zones'] = HealthImportNormalizer.zoneMinutesFromSeconds(
         zoneSeconds: metrics.zoneSeconds,
         activeDurationSeconds: activeSeconds,
@@ -477,6 +589,25 @@ class HealthWorkoutMergeUtils {
     return ids;
   }
 
+  static Set<String> _externalWorkoutIds(Map<String, dynamic>? details) {
+    if (details == null) return const {};
+    final ids = <String>{};
+
+    void add(dynamic value) {
+      final id = value?.toString().trim();
+      if (id != null && id.isNotEmpty) ids.add(id);
+    }
+
+    add(details['external_id']);
+    final mergedIds = details['merged_source_workout_ids'];
+    if (mergedIds is List) {
+      for (final id in mergedIds) {
+        add(id);
+      }
+    }
+    return ids;
+  }
+
   static List<Map<String, int>> _parseZoneBoundaries(dynamic value) {
     if (value is! List) return const [];
     return value
@@ -508,9 +639,15 @@ class HealthWorkoutMergeUtils {
   static const Set<String> _healthManagedKeys = {
     'source',
     'health_import_version',
+    'hr_zone_calculation_version',
     'source_name',
     'source_id',
     'external_id',
+    'workout_start_ms',
+    'workout_end_ms',
+    'hr_source_id',
+    'hr_source_sample_count',
+    'hr_source_max_bpm',
     'total_duration',
     'total_duration_minutes',
     'total_duration_seconds',
@@ -530,6 +667,11 @@ class HealthWorkoutMergeUtils {
     'elevation',
     'elevation_meters',
     'elevation_source',
+    'cadence',
+    'avg_cadence_spm',
+    'cadence_source',
+    'imported_laps',
+    'imported_segments',
     'avg_hr',
     'avgHeartRate',
     'max_hr',

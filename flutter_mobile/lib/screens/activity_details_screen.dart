@@ -5,19 +5,22 @@ import 'package:provider/provider.dart';
 
 import '../core/theme.dart';
 import '../data/dryland_prep_types.dart';
+import '../data/workout_catalog.dart';
 import '../models/models.dart';
 import '../models/training_activity_models.dart';
+import '../models/workout_creation_models.dart';
 import '../utils/time_utils.dart';
 import '../utils/coach_training_utils.dart';
 import '../utils/strength_pr_utils.dart';
 import '../utils/training_metrics_utils.dart';
 import '../services/health_import_normalizer.dart';
+import '../services/workout_draft_service.dart';
 import '../providers/app_state.dart';
 import '../widgets/custom_card.dart';
-import 'add_training_screen.dart';
+import '../widgets/workout_source_badges.dart';
 import 'athlete_event_screen.dart';
-import 'dryland_activity_screen.dart';
 import 'ski_activity_screen.dart';
+import 'workout_flow_screen.dart';
 
 class _HrChartPoint {
   final int time;
@@ -33,9 +36,66 @@ class ActivityDetailsScreen extends StatelessWidget {
   /// If not provided it is derived from sportId.
   final String? sportName;
   final List<PRLog>? prLogs;
+  final bool readOnly;
 
-  const ActivityDetailsScreen(
-      {super.key, required this.session, this.sportName, this.prLogs});
+  const ActivityDetailsScreen({
+    super.key,
+    required this.session,
+    this.sportName,
+    this.prLogs,
+    this.readOnly = false,
+  });
+
+  bool get _hasExternalLink =>
+      session.details?['external_id'] != null ||
+      session.details?['externalLink'] != null ||
+      session.details?['source'] == 'health_sync';
+
+  Widget _unlinkExternalAction(BuildContext context) {
+    return IconButton(
+      icon: const Icon(Icons.link_off),
+      tooltip: 'Scollega dati esterni',
+      onPressed: () async {
+        final confirmed = await showDialog<bool>(
+          context: context,
+          builder: (dialogContext) => AlertDialog(
+            title: const Text('Scollegare i dati esterni?'),
+            content: const Text(
+              'Fasi, esercizi e note manuali resteranno invariati. Verranno rimossi solo cardio, GPS e metriche del provider.',
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(dialogContext, false),
+                child: const Text('Annulla'),
+              ),
+              ElevatedButton(
+                onPressed: () => Navigator.pop(dialogContext, true),
+                child: const Text('Scollega'),
+              ),
+            ],
+          ),
+        );
+        if (confirmed != true || !context.mounted) return;
+        final unlinked = WorkoutExternalMergeService.unlink(session);
+        await context.read<AppState>().addSession(unlinked);
+        if (!context.mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Dati esterni scollegati.')),
+        );
+      },
+    );
+  }
+
+  Widget _sourceBadgesHeader() {
+    if (!WorkoutProvenance.isCoachCreated(session) &&
+        !WorkoutProvenance.isMerged(session)) {
+      return const SizedBox.shrink();
+    }
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 12),
+      child: WorkoutSourceBadges.forSession(session),
+    );
+  }
 
   Widget _buildMetric(BuildContext context, IconData icon, Color color,
       String value, String label) {
@@ -200,7 +260,13 @@ class ActivityDetailsScreen extends StatelessWidget {
             const SizedBox(height: 18),
             SizedBox(
               height: 190,
-              child: LineChart(_buildHrChartData(samples, zones, colors)),
+              child: LineChart(_buildHrChartData(
+                samples,
+                zones,
+                colors,
+                workoutStartMs: _asInt(details['workout_start_ms']),
+                workoutEndMs: _asInt(details['workout_end_ms']),
+              )),
             ),
             const SizedBox(height: 18),
             _buildHrZoneLegend(zones, colors),
@@ -215,52 +281,76 @@ class ActivityDetailsScreen extends StatelessWidget {
   LineChartData _buildHrChartData(
     List<_HrChartPoint> samples,
     List<Map<String, int>> zones,
-    List<Color> colors,
-  ) {
-    final start = samples.first.time;
-    final end = samples.last.time;
+    List<Color> colors, {
+    int? workoutStartMs,
+    int? workoutEndMs,
+  }) {
+    final firstSampleTime = samples.first.time;
+    final lastSampleTime = samples.last.time;
+    final start = workoutStartMs != null && workoutStartMs <= firstSampleTime
+        ? workoutStartMs
+        : firstSampleTime;
+    final end = workoutEndMs != null && workoutEndMs >= lastSampleTime
+        ? workoutEndMs
+        : lastSampleTime;
     final minHr = samples.map((s) => s.bpm).reduce((a, b) => a < b ? a : b);
     final maxHr = samples.map((s) => s.bpm).reduce((a, b) => a > b ? a : b);
-    final chartMin = (minHr - 12).clamp(40, 220).toDouble();
-    final chartMax = (maxHr + 12).clamp(chartMin + 20, 240).toDouble();
+    // Match the source workout chart's physiological scale: a 40 bpm baseline
+    // and a top rounded to the next 10 bpm. Dynamic +/- padding made identical
+    // samples look materially different between the two apps.
+    final chartMin = minHr < 40 ? (minHr / 10).floor() * 10.0 : 40.0;
+    final roundedMax = (maxHr / 10).ceil() * 10.0;
+    final chartMax = roundedMax < chartMin + 20 ? chartMin + 20 : roundedMax;
+    final durationMinutes = (end - start) / 60000.0;
+    final horizontalInterval = (chartMax - chartMin) / 4;
 
     final bars = <LineChartBarData>[];
     for (var i = 0; i < samples.length - 1; i++) {
       final current = samples[i];
       final next = samples[i + 1];
-      final gapSeconds = (next.time - current.time) ~/ 1000;
+      final intervalMillis = next.time - current.time;
+      final gapSeconds = intervalMillis ~/ 1000;
       if (gapSeconds <= 0 ||
           gapSeconds > HealthImportNormalizer.maxContinuousHrGapSeconds) {
         continue;
       }
 
-      final zone = _zoneIndexForHr(current.bpm, zones);
-      bars.add(LineChartBarData(
-        spots: [
-          FlSpot((current.time - start) / 60000.0, current.bpm),
-          FlSpot((next.time - start) / 60000.0, next.bpm),
-        ],
-        isCurved: false,
-        barWidth: 3,
-        isStrokeCapRound: true,
-        dotData: const FlDotData(show: false),
-        belowBarData: BarAreaData(
-          show: true,
-          color: colors[zone].withValues(alpha: 0.05),
-        ),
-        color: colors[zone],
-      ));
+      final segments = HealthImportNormalizer.splitHeartRateInterval(
+        startBpm: current.bpm,
+        endBpm: next.bpm,
+        zones: zones,
+      );
+      for (final segment in segments) {
+        final segmentStart =
+            current.time + intervalMillis * segment.startFraction;
+        final segmentEnd = current.time + intervalMillis * segment.endFraction;
+        bars.add(LineChartBarData(
+          spots: [
+            FlSpot((segmentStart - start) / 60000.0, segment.startBpm),
+            FlSpot((segmentEnd - start) / 60000.0, segment.endBpm),
+          ],
+          isCurved: false,
+          barWidth: 3,
+          isStrokeCapRound: false,
+          dotData: const FlDotData(show: false),
+          belowBarData: BarAreaData(
+            show: true,
+            color: colors[segment.zoneIndex].withValues(alpha: 0.05),
+          ),
+          color: colors[segment.zoneIndex],
+        ));
+      }
     }
 
     return LineChartData(
       minX: 0,
-      maxX: (end - start) / 60000.0,
+      maxX: durationMinutes,
       minY: chartMin,
       maxY: chartMax,
       gridData: FlGridData(
         show: true,
         drawVerticalLine: false,
-        horizontalInterval: ((chartMax - chartMin) / 2).clamp(10, 50),
+        horizontalInterval: horizontalInterval,
         getDrawingHorizontalLine: (_) =>
             FlLine(color: AppTheme.chartGrid, strokeWidth: 1),
       ),
@@ -271,7 +361,7 @@ class ActivityDetailsScreen extends StatelessWidget {
           sideTitles: SideTitles(
             showTitles: true,
             reservedSize: 34,
-            interval: chartMax - chartMin,
+            interval: horizontalInterval,
             getTitlesWidget: (value, meta) => Text(
               value.round().toString(),
               style:
@@ -284,11 +374,16 @@ class ActivityDetailsScreen extends StatelessWidget {
           sideTitles: SideTitles(
             showTitles: true,
             reservedSize: 26,
-            interval: ((end - start) / 60000.0) / 2,
+            interval: durationMinutes / 4,
             getTitlesWidget: (value, meta) {
-              final t = DateTime.fromMillisecondsSinceEpoch(
-                  start + (value * 60000).round());
-              return Text(_formatTimeLabel(t),
+              final elapsedSeconds = (value * 60)
+                  .round()
+                  .clamp(
+                    0,
+                    ((end - start) / 1000).round(),
+                  )
+                  .toInt();
+              return Text(_formatElapsedLabel(elapsedSeconds),
                   style: TextStyle(
                       color: AppTheme.textMediumEmphasis, fontSize: 11));
             },
@@ -493,17 +588,6 @@ class ActivityDetailsScreen extends StatelessWidget {
     ];
   }
 
-  int _zoneIndexForHr(double bpm, List<Map<String, int>> zones) {
-    if (bpm < (zones.first['min'] ?? 0)) return 0;
-    for (var i = zones.length - 1; i >= 0; i--) {
-      final min = zones[i]['min'] ?? 0;
-      final max = zones[i]['max'] ?? 300;
-      final isLast = i == zones.length - 1;
-      if (bpm >= min && (isLast || bpm < max)) return i + 1;
-    }
-    return 5;
-  }
-
   int _averageHr(List<_HrChartPoint> samples) {
     if (samples.isEmpty) return 0;
     return (samples.fold<double>(0, (sum, sample) => sum + sample.bpm) /
@@ -541,8 +625,17 @@ class ActivityDetailsScreen extends StatelessWidget {
     return '$h:${m.toString().padLeft(2, '0')}:${s.toString().padLeft(2, '0')}';
   }
 
-  String _formatTimeLabel(DateTime time) {
-    return '${time.hour.toString().padLeft(2, '0')}:${time.minute.toString().padLeft(2, '0')}';
+  String _formatElapsedLabel(int totalSeconds) {
+    final hours = totalSeconds ~/ 3600;
+    final minutes = (totalSeconds % 3600) ~/ 60;
+    final seconds = totalSeconds % 60;
+    if (hours > 0) {
+      return '${hours.toString().padLeft(2, '0')}:'
+          '${minutes.toString().padLeft(2, '0')}:'
+          '${seconds.toString().padLeft(2, '0')}';
+    }
+    return '${minutes.toString().padLeft(2, '0')}:'
+        '${seconds.toString().padLeft(2, '0')}';
   }
 
   String? _getMetricValue(Map<String, dynamic>? details, List<String> keys,
@@ -573,18 +666,29 @@ class ActivityDetailsScreen extends StatelessWidget {
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 6.0),
       child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          Text(label,
+          Expanded(
+            child: Text(
+              label,
               style: Theme.of(context)
                   .textTheme
                   .bodyMedium
-                  ?.copyWith(color: AppTheme.textMediumEmphasis)),
-          Text(value,
+                  ?.copyWith(color: AppTheme.textMediumEmphasis),
+            ),
+          ),
+          const SizedBox(width: 12),
+          Flexible(
+            child: Text(
+              value,
+              textAlign: TextAlign.end,
+              overflow: TextOverflow.ellipsis,
+              maxLines: 2,
               style: Theme.of(context)
                   .textTheme
                   .bodyMedium
-                  ?.copyWith(fontWeight: FontWeight.bold)),
+                  ?.copyWith(fontWeight: FontWeight.bold),
+            ),
+          ),
         ],
       ),
     );
@@ -791,13 +895,145 @@ class ActivityDetailsScreen extends StatelessWidget {
     );
   }
 
-  bool get _isCoachSkiSession {
-    final details = session.details;
-    return session.sportId == 'alpine_skiing' &&
-        details != null &&
-        (details['from_calendar'] == true ||
-            session.eventId != null ||
-            details['skiSchemaVersion'] == 2);
+  bool get _isAlpineSkiSession => session.sportId == 'alpine_skiing';
+
+  WorkoutDraft? get _workoutDraft {
+    final rawDraft = session.details?['workoutDraft'];
+    if (rawDraft is! Map) return null;
+    try {
+      return WorkoutDraft.fromJson(
+        rawDraft.map((key, value) => MapEntry(key.toString(), value)),
+      );
+    } catch (_) {
+      return null;
+    }
+  }
+
+  Widget _buildWorkoutPlanCard(BuildContext context, WorkoutDraft draft) {
+    final phases = draft.phases
+        .where((phase) => phase.isEnabled && phase.blocks.isNotEmpty)
+        .toList();
+    final location = draft.location?.trim() ?? '';
+    final notes = draft.notes?.trim() ?? '';
+    if (phases.isEmpty && location.isEmpty && notes.isEmpty) {
+      return const SizedBox.shrink();
+    }
+
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 24),
+      child: CustomCard(
+        padding: const EdgeInsets.all(20),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Row(
+              children: [
+                Icon(PhosphorIconsRegular.listChecks,
+                    color: AppTheme.primary, size: 20),
+                SizedBox(width: 8),
+                Text(
+                  'Allenamento',
+                  style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+                ),
+              ],
+            ),
+            if (location.isNotEmpty) ...[
+              const SizedBox(height: 16),
+              _buildDetailRow(context, 'Luogo', location),
+            ],
+            for (final phase in phases) ...[
+              const SizedBox(height: 16),
+              Text(
+                phase.title?.trim().isNotEmpty == true
+                    ? phase.title!.trim()
+                    : TrainingPhase.label(phase.type),
+                style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                      color: AppTheme.primary,
+                      fontWeight: FontWeight.w700,
+                    ),
+              ),
+              const SizedBox(height: 8),
+              for (final block in phase.blocks)
+                _buildWorkoutBlock(context, block),
+            ],
+            if (notes.isNotEmpty) ...[
+              const SizedBox(height: 16),
+              Text('Note',
+                  style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                        fontWeight: FontWeight.w700,
+                      )),
+              const SizedBox(height: 6),
+              Text(notes, style: Theme.of(context).textTheme.bodyMedium),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildWorkoutBlock(
+    BuildContext context,
+    WorkoutBlockDraft block,
+  ) {
+    final values = <String>[];
+    void addValue(String key, String suffix) {
+      final value = block.fields[key];
+      if (value != null && value.toString().trim().isNotEmpty) {
+        values.add('${value.toString().trim()}$suffix');
+      }
+    }
+
+    addValue('rounds', ' serie');
+    addValue('durationMinutes', ' min');
+    addValue('durationSeconds', ' s');
+    addValue('workSeconds', ' s lavoro');
+    addValue('recoverySeconds', ' s recupero');
+    addValue('distanceMeters', ' m');
+    addValue('reps', ' rip.');
+
+    final blockNotes = block.fields['notes']?.toString().trim() ?? '';
+    return Container(
+      width: double.infinity,
+      margin: const EdgeInsets.only(bottom: 8),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      decoration: BoxDecoration(
+        color: AppTheme.subtleFill,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: AppTheme.subtleBorder),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            block.title.trim().isEmpty
+                ? WorkoutBlockKind.label(block.kind)
+                : block.title.trim(),
+            style: Theme.of(context)
+                .textTheme
+                .bodyMedium
+                ?.copyWith(fontWeight: FontWeight.w700),
+          ),
+          if (values.isNotEmpty) ...[
+            const SizedBox(height: 4),
+            Text(
+              values.join(' · '),
+              style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                    color: AppTheme.textMediumEmphasis,
+                  ),
+            ),
+          ],
+          if (blockNotes.isNotEmpty) ...[
+            const SizedBox(height: 4),
+            Text(
+              blockNotes,
+              style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                    color: AppTheme.textMediumEmphasis,
+                  ),
+            ),
+          ],
+        ],
+      ),
+    );
   }
 
   bool get _isStructuredDrylandSession {
@@ -815,6 +1051,48 @@ class ActivityDetailsScreen extends StatelessWidget {
     return null;
   }
 
+  void _openUnifiedWorkoutEditor(
+    BuildContext context, {
+    required String displayName,
+  }) {
+    final appState = context.read<AppState>();
+    final rawDraft = session.details?['workoutDraft'];
+    WorkoutDraft? draft;
+    if (session.details?['schemaVersion'] == WorkoutDraft.schemaVersion &&
+        rawDraft is Map) {
+      try {
+        draft = WorkoutDraft.fromJson(
+          rawDraft.map(
+            (key, value) => MapEntry(key.toString(), value),
+          ),
+        );
+      } catch (_) {
+        draft = null;
+      }
+    }
+    final activity = WorkoutCatalog.editableDefinition(
+      draft?.activityId ?? session.sportId,
+      displayName: draft?.activityName ?? displayName,
+    );
+    draft ??= WorkoutDraftFactory.fromTrainingSession(
+      session: session,
+      activity: activity,
+      userId: appState.userId,
+      creatorRole: appState.userProfile?.role ?? 'athlete',
+    );
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => WorkoutFlowScreen(
+          activity: activity,
+          initialDraft: draft,
+          existingSessionId: session.id,
+          initialSession: session,
+        ),
+      ),
+    );
+  }
+
   Widget _buildCoachSkiSession(BuildContext context, String displayName) {
     final details = session.details ?? {};
     final summary = CoachTrainingUtils.volumeFromDetails(details);
@@ -830,87 +1108,96 @@ class ActivityDetailsScreen extends StatelessWidget {
     return Scaffold(
       appBar: AppBar(
         title: const Text('Dettaglio Attività'),
-        actions: [
-          IconButton(
-            icon: const Icon(PhosphorIconsRegular.pencilSimple,
-                color: AppTheme.primary),
-            tooltip: isCoachSession
-                ? 'Personalizza allenamento'
-                : 'Modifica allenamento',
-            onPressed: () {
-              if (sourceEvent != null) {
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (_) => AthleteEventScreen(event: sourceEvent),
-                  ),
-                );
-                return;
-              }
-              Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (_) => SkiActivityScreen(initialSession: session),
+        actions: readOnly
+            ? null
+            : [
+                IconButton(
+                  icon: const Icon(PhosphorIconsRegular.pencilSimple,
+                      color: AppTheme.primary),
+                  tooltip: isCoachSession
+                      ? 'Personalizza allenamento'
+                      : 'Modifica allenamento',
+                  onPressed: () {
+                    if (sourceEvent != null) {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) =>
+                              AthleteEventScreen(event: sourceEvent),
+                        ),
+                      );
+                      return;
+                    }
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) =>
+                            SkiActivityScreen(initialSession: session),
+                      ),
+                    );
+                  },
                 ),
-              );
-            },
-          ),
-          if (!isCoachSession)
-            IconButton(
-              icon: const Icon(Icons.delete_outline, color: AppTheme.error),
-              tooltip: 'Elimina allenamento',
-              onPressed: () {
-                showDialog(
-                  context: context,
-                  builder: (ctx) => AlertDialog(
-                    backgroundColor: AppTheme.card,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(16),
-                    ),
-                    title: Text(
-                      'Elimina Allenamento',
-                      style: TextStyle(
-                        color: AppTheme.textHighEmphasis,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                    content: Text(
-                      'Sei sicuro di voler eliminare questo allenamento?',
-                      style: TextStyle(color: AppTheme.textMediumEmphasis),
-                    ),
-                    actions: [
-                      TextButton(
-                        onPressed: () => Navigator.pop(ctx),
-                        child: Text(
-                          'Annulla',
-                          style: TextStyle(color: AppTheme.textMediumEmphasis),
-                        ),
-                      ),
-                      TextButton(
-                        onPressed: () {
-                          Provider.of<AppState>(context, listen: false)
-                              .deleteSession(session.id);
-                          Navigator.pop(ctx);
-                          Navigator.pop(context);
-                        },
-                        child: const Text(
-                          'Elimina',
-                          style: TextStyle(
-                            color: AppTheme.error,
-                            fontWeight: FontWeight.bold,
+                if (_hasExternalLink) _unlinkExternalAction(context),
+                if (!isCoachSession)
+                  IconButton(
+                    icon:
+                        const Icon(Icons.delete_outline, color: AppTheme.error),
+                    tooltip: 'Elimina allenamento',
+                    onPressed: () {
+                      showDialog(
+                        context: context,
+                        builder: (ctx) => AlertDialog(
+                          backgroundColor: AppTheme.card,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(16),
                           ),
+                          title: Text(
+                            'Elimina Allenamento',
+                            style: TextStyle(
+                              color: AppTheme.textHighEmphasis,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                          content: Text(
+                            'Sei sicuro di voler eliminare questo allenamento?',
+                            style:
+                                TextStyle(color: AppTheme.textMediumEmphasis),
+                          ),
+                          actions: [
+                            TextButton(
+                              onPressed: () => Navigator.pop(ctx),
+                              child: Text(
+                                'Annulla',
+                                style: TextStyle(
+                                    color: AppTheme.textMediumEmphasis),
+                              ),
+                            ),
+                            TextButton(
+                              onPressed: () {
+                                Provider.of<AppState>(context, listen: false)
+                                    .deleteSession(session.id);
+                                Navigator.pop(ctx);
+                                Navigator.pop(context);
+                              },
+                              child: const Text(
+                                'Elimina',
+                                style: TextStyle(
+                                  color: AppTheme.error,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                            ),
+                          ],
                         ),
-                      ),
-                    ],
+                      );
+                    },
                   ),
-                );
-              },
-            ),
-        ],
+              ],
       ),
       body: ListView(
         padding: const EdgeInsets.all(24),
         children: [
+          _sourceBadgesHeader(),
           CustomCard(
             padding: const EdgeInsets.all(24),
             child: Column(
@@ -1027,11 +1314,19 @@ class ActivityDetailsScreen extends StatelessWidget {
                     color: AppTheme.textMediumEmphasis,
                     fontWeight: FontWeight.bold)),
           ),
-          Text(value,
+          const SizedBox(width: 12),
+          Flexible(
+            child: Text(
+              value,
+              textAlign: TextAlign.end,
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
               style: Theme.of(context)
                   .textTheme
                   .bodyMedium
-                  ?.copyWith(fontWeight: FontWeight.bold)),
+                  ?.copyWith(fontWeight: FontWeight.bold),
+            ),
+          ),
         ],
       ),
     );
@@ -1229,80 +1524,77 @@ class ActivityDetailsScreen extends StatelessWidget {
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Dettaglio Attività'),
-        actions: [
-          IconButton(
-            icon: const Icon(PhosphorIconsRegular.pencilSimple,
-                color: AppTheme.primary),
-            tooltip: 'Modifica allenamento',
-            onPressed: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (_) => DrylandActivityScreen(
-                    category: activity.category,
-                    title: activity.title,
-                    initialSession: session,
+        title: const Text('Riepilogo allenamento'),
+        actions: readOnly
+            ? null
+            : [
+                IconButton(
+                  icon: const Icon(PhosphorIconsRegular.pencilSimple,
+                      color: AppTheme.primary),
+                  tooltip: 'Modifica allenamento',
+                  onPressed: () => _openUnifiedWorkoutEditor(
+                    context,
+                    displayName: displayName,
                   ),
                 ),
-              );
-            },
-          ),
-          IconButton(
-            icon: const Icon(Icons.delete_outline, color: AppTheme.error),
-            tooltip: 'Elimina allenamento',
-            onPressed: () {
-              showDialog(
-                context: context,
-                builder: (ctx) => AlertDialog(
-                  backgroundColor: AppTheme.card,
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(16),
-                  ),
-                  title: Text(
-                    'Elimina Allenamento',
-                    style: TextStyle(
-                      color: AppTheme.textHighEmphasis,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                  content: Text(
-                    'Sei sicuro di voler eliminare questo allenamento?',
-                    style: TextStyle(color: AppTheme.textMediumEmphasis),
-                  ),
-                  actions: [
-                    TextButton(
-                      onPressed: () => Navigator.pop(ctx),
-                      child: Text(
-                        'Annulla',
-                        style: TextStyle(color: AppTheme.textMediumEmphasis),
-                      ),
-                    ),
-                    TextButton(
-                      onPressed: () {
-                        Provider.of<AppState>(context, listen: false)
-                            .deleteSession(session.id);
-                        Navigator.pop(ctx);
-                        Navigator.pop(context);
-                      },
-                      child: const Text(
-                        'Elimina',
-                        style: TextStyle(
-                          color: AppTheme.error,
-                          fontWeight: FontWeight.bold,
+                if (_hasExternalLink) _unlinkExternalAction(context),
+                IconButton(
+                  icon: const Icon(Icons.delete_outline, color: AppTheme.error),
+                  tooltip: 'Elimina allenamento',
+                  onPressed: () {
+                    showDialog(
+                      context: context,
+                      builder: (ctx) => AlertDialog(
+                        backgroundColor: AppTheme.card,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(16),
                         ),
+                        title: Text(
+                          'Elimina Allenamento',
+                          style: TextStyle(
+                            color: AppTheme.textHighEmphasis,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                        content: Text(
+                          'Sei sicuro di voler eliminare questo allenamento?',
+                          style: TextStyle(color: AppTheme.textMediumEmphasis),
+                        ),
+                        actions: [
+                          TextButton(
+                            onPressed: () => Navigator.pop(ctx),
+                            child: Text(
+                              'Annulla',
+                              style:
+                                  TextStyle(color: AppTheme.textMediumEmphasis),
+                            ),
+                          ),
+                          TextButton(
+                            onPressed: () {
+                              Provider.of<AppState>(context, listen: false)
+                                  .deleteSession(session.id);
+                              Navigator.pop(ctx);
+                              Navigator.pop(context);
+                            },
+                            child: const Text(
+                              'Elimina',
+                              style: TextStyle(
+                                color: AppTheme.error,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                          ),
+                        ],
                       ),
-                    ),
-                  ],
+                    );
+                  },
                 ),
-              );
-            },
-          ),
-        ],
+              ],
       ),
       body: ListView(
         padding: const EdgeInsets.all(24),
         children: [
+          _sourceBadgesHeader(),
           CustomCard(
             padding: const EdgeInsets.all(24),
             child: Column(
@@ -1527,11 +1819,18 @@ class ActivityDetailsScreen extends StatelessWidget {
       ));
     }
     for (final drill in block.drills) {
+      final detailParts = <String>[];
+      if (drill.totalDistanceM > 0) {
+        detailParts.add('${drill.totalDistanceM.toStringAsFixed(0)} m totali');
+      }
+      if (drill.bestTimeSeconds != null) {
+        detailParts.add('${drill.bestTimeSeconds!.toStringAsFixed(2)} s best');
+      }
       rows.add(_drylandCompactLine(
         context,
         drill.name,
-        '${drill.sets ?? 0} serie',
-        null,
+        '${drill.trials.isNotEmpty ? drill.trials.length : drill.sets ?? 0} prove',
+        detailParts.isEmpty ? null : detailParts.join(' · '),
       ));
     }
     final circuits = block.metrics['circuits'];
@@ -1913,6 +2212,7 @@ class ActivityDetailsScreen extends StatelessWidget {
         session: latestSession,
         sportName: sportName,
         prLogs: prLogs,
+        readOnly: readOnly,
       );
     }
 
@@ -1920,11 +2220,16 @@ class ActivityDetailsScreen extends StatelessWidget {
         session.details!['painZones'] != null &&
         (session.details!['painZones'] as List).isNotEmpty;
 
+    final storedTitle = session.details?['title']?.toString().trim();
     final displayName = sportName ??
-        (session.sportId[0].toUpperCase() +
-            session.sportId.substring(1).replaceAll('_', ' '));
+        (storedTitle != null && storedTitle.isNotEmpty
+            ? (WorkoutCatalog.maybeById(storedTitle) != null ||
+                    storedTitle == session.sportId
+                ? WorkoutCatalog.displayName(storedTitle)
+                : storedTitle)
+            : WorkoutCatalog.displayName(session.sportId));
 
-    if (_isCoachSkiSession) {
+    if (_isAlpineSkiSession) {
       return _buildCoachSkiSession(context, displayName);
     }
     if (_isStructuredDrylandSession) {
@@ -1934,74 +2239,72 @@ class ActivityDetailsScreen extends StatelessWidget {
     return Scaffold(
       appBar: AppBar(
         title: const Text('Dettaglio Attività'),
-        actions: [
-          IconButton(
-            icon: const Icon(PhosphorIconsRegular.pencilSimple,
-                color: AppTheme.primary),
-            tooltip: 'Modifica allenamento',
-            onPressed: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (_) => AddTrainingScreen(
-                    sportId: session.sportId,
-                    sportName: displayName.toUpperCase(),
-                    initialSession: session,
+        actions: readOnly
+            ? null
+            : [
+                IconButton(
+                  icon: const Icon(PhosphorIconsRegular.pencilSimple,
+                      color: AppTheme.primary),
+                  tooltip: 'Modifica allenamento',
+                  onPressed: () => _openUnifiedWorkoutEditor(
+                    context,
+                    displayName: displayName,
                   ),
                 ),
-              );
-            },
-          ),
-          IconButton(
-            icon: const Icon(Icons.delete_outline, color: AppTheme.error),
-            tooltip: 'Elimina allenamento',
-            onPressed: () {
-              showDialog(
-                context: context,
-                builder: (ctx) => AlertDialog(
-                  backgroundColor: AppTheme.card,
-                  shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(16)),
-                  title: Text('Elimina Allenamento',
-                      style: TextStyle(
-                          color: AppTheme.textHighEmphasis,
-                          fontWeight: FontWeight.bold)),
-                  content: Text(
-                      'Sei sicuro di voler eliminare questo allenamento?',
-                      style: TextStyle(color: AppTheme.textMediumEmphasis)),
-                  actions: [
-                    TextButton(
-                      onPressed: () => Navigator.pop(ctx),
-                      child: Text('Annulla',
-                          style: TextStyle(color: AppTheme.textMediumEmphasis)),
-                    ),
-                    TextButton(
-                      onPressed: () {
-                        Provider.of<AppState>(context, listen: false)
-                            .deleteSession(session.id);
-                        Navigator.pop(ctx);
-                        Navigator.pop(context);
-                        ScaffoldMessenger.of(context)
-                            .showSnackBar(const SnackBar(
-                          content: Text('Allenamento eliminato'),
-                          backgroundColor: AppTheme.primary,
-                        ));
-                      },
-                      child: const Text('Elimina',
-                          style: TextStyle(
-                              color: AppTheme.error,
-                              fontWeight: FontWeight.bold)),
-                    ),
-                  ],
+                if (_hasExternalLink) _unlinkExternalAction(context),
+                IconButton(
+                  icon: const Icon(Icons.delete_outline, color: AppTheme.error),
+                  tooltip: 'Elimina allenamento',
+                  onPressed: () {
+                    showDialog(
+                      context: context,
+                      builder: (ctx) => AlertDialog(
+                        backgroundColor: AppTheme.card,
+                        shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(16)),
+                        title: Text('Elimina Allenamento',
+                            style: TextStyle(
+                                color: AppTheme.textHighEmphasis,
+                                fontWeight: FontWeight.bold)),
+                        content: Text(
+                            'Sei sicuro di voler eliminare questo allenamento?',
+                            style:
+                                TextStyle(color: AppTheme.textMediumEmphasis)),
+                        actions: [
+                          TextButton(
+                            onPressed: () => Navigator.pop(ctx),
+                            child: Text('Annulla',
+                                style: TextStyle(
+                                    color: AppTheme.textMediumEmphasis)),
+                          ),
+                          TextButton(
+                            onPressed: () {
+                              Provider.of<AppState>(context, listen: false)
+                                  .deleteSession(session.id);
+                              Navigator.pop(ctx);
+                              Navigator.pop(context);
+                              ScaffoldMessenger.of(context)
+                                  .showSnackBar(const SnackBar(
+                                content: Text('Allenamento eliminato'),
+                                backgroundColor: AppTheme.primary,
+                              ));
+                            },
+                            child: const Text('Elimina',
+                                style: TextStyle(
+                                    color: AppTheme.error,
+                                    fontWeight: FontWeight.bold)),
+                          ),
+                        ],
+                      ),
+                    );
+                  },
                 ),
-              );
-            },
-          ),
-        ],
+              ],
       ),
       body: ListView(
         padding: const EdgeInsets.all(24),
         children: [
+          _sourceBadgesHeader(),
           // Header Card
           CustomCard(
             padding: const EdgeInsets.all(24),
@@ -2024,9 +2327,7 @@ class ActivityDetailsScreen extends StatelessWidget {
                           const SizedBox(width: 8),
                           Expanded(
                             child: Text(
-                              session.sportId
-                                  .toUpperCase()
-                                  .replaceAll('_', ' '),
+                              displayName,
                               style: Theme.of(context)
                                   .textTheme
                                   .titleLarge
@@ -2086,6 +2387,9 @@ class ActivityDetailsScreen extends StatelessWidget {
           ),
 
           const SizedBox(height: 24),
+
+          if (_workoutDraft case final draft?)
+            _buildWorkoutPlanCard(context, draft),
 
           // Import & Manual Metrics
           if (session.details != null) ...[
@@ -2260,6 +2564,32 @@ class ActivityDetailsScreen extends StatelessWidget {
               Map<String, dynamic> filteredDetails = Map.from(session.details!)
                 ..removeWhere((k, v) => [
                       'painZones',
+                      'schemaVersion',
+                      'workoutDraft',
+                      'activityDomain',
+                      'activityCategory',
+                      'activityMode',
+                      'protocolId',
+                      'protocolName',
+                      'structureMode',
+                      'usesPhases',
+                      'status',
+                      'workoutSource',
+                      'title',
+                      'location',
+                      'notes',
+                      'plannedDurationMinutes',
+                      'actualDurationMinutes',
+                      'plannedStartTime',
+                      'plannedEndTime',
+                      'actualStartTime',
+                      'actualEndTime',
+                      'participants',
+                      'externalLink',
+                      'legacyActivityType',
+                      'blocks',
+                      'prescription',
+                      'actual',
                       'source',
                       'external_id',
                       'hr_zones',
@@ -2295,6 +2625,12 @@ class ActivityDetailsScreen extends StatelessWidget {
                       'hr_zone_boundaries',
                       'elevation_source',
                       'health_import_version',
+                      'hr_zone_calculation_version',
+                      'workout_start_ms',
+                      'workout_end_ms',
+                      'hr_source_id',
+                      'hr_source_sample_count',
+                      'hr_source_max_bpm',
                       'total_duration_seconds',
                       'active_duration_seconds',
                       'moving_duration_seconds',

@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../core/theme.dart';
+import '../data/workout_catalog.dart';
 import '../providers/app_state.dart';
 import '../models/models.dart';
 import '../utils/coach_training_utils.dart';
@@ -11,6 +12,7 @@ import '../utils/time_utils.dart';
 import 'coach_event_details_screen.dart';
 import 'coach_athlete_detail_screen.dart';
 import 'coach_athletic_test_screen.dart';
+import 'activity_select.dart';
 import 'monthly_team_report_screen.dart';
 import 'profile_screen.dart';
 import 'teams_screen.dart';
@@ -49,6 +51,16 @@ class _CoachDashboardScreenState extends State<CoachDashboardScreen> {
   void _showTeamSelectionIfNeeded(BuildContext context,
       {required bool isSkiWorkout}) {
     final appState = Provider.of<AppState>(context, listen: false);
+    Widget destinationFor(Team team) => isSkiWorkout
+        ? CoachEventDetailsScreen(
+            selectedTeam: team,
+            initialDate: _selectedDay,
+            isSkiWorkout: true,
+          )
+        : ActivitySelectScreen(
+            coachTeam: team,
+            initialDate: _selectedDay,
+          );
     if (appState.teams.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
@@ -79,10 +91,7 @@ class _CoachDashboardScreenState extends State<CoachDashboardScreen> {
                     onTap: () {
                       HapticFeedback.lightImpact();
                       Navigator.pop(ctx);
-                      Widget dest = CoachEventDetailsScreen(
-                          selectedTeam: t,
-                          initialDate: _selectedDay,
-                          isSkiWorkout: isSkiWorkout);
+                      final dest = destinationFor(t);
                       Navigator.push(
                           context, MaterialPageRoute(builder: (_) => dest));
                     }))
@@ -91,10 +100,7 @@ class _CoachDashboardScreenState extends State<CoachDashboardScreen> {
         ),
       );
     } else {
-      Widget dest = CoachEventDetailsScreen(
-          selectedTeam: appState.teams.first,
-          initialDate: _selectedDay,
-          isSkiWorkout: isSkiWorkout);
+      final dest = destinationFor(appState.teams.first);
       Navigator.push(context, MaterialPageRoute(builder: (_) => dest));
     }
   }
@@ -459,7 +465,6 @@ class _CoachHomeView extends StatefulWidget {
   final VoidCallback onProfileTap;
 
   const _CoachHomeView({
-    super.key,
     required this.selectedDay,
     required this.onDaySelected,
     required this.onProfileTap,
@@ -1738,7 +1743,10 @@ class _CoachTrainingViewState extends State<_CoachTrainingView> {
                                       .withValues(alpha: 0.15),
                               borderRadius: BorderRadius.circular(6)),
                           child: Text(
-                            specialty.toUpperCase(),
+                            (isSki
+                                    ? specialty
+                                    : WorkoutCatalog.displayName(specialty))
+                                .toUpperCase(),
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
                             softWrap: false,

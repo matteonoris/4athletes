@@ -31,7 +31,7 @@ class HealthSyncService {
   static const int _napEndHour = 20;
 
   Future<HealthSyncResult> fetchAndCalculateScores(
-      bool isLutealPhase, List<BodyMetricLog> bodyLogs,
+      UserProfile userProfile, List<BodyMetricLog> bodyLogs,
       [DateTime? targetDate]) async {
     await _health.configure();
 
@@ -52,6 +52,13 @@ class HealthSyncService {
     }
 
     final target = targetDate ?? DateTime.now();
+    final hrvLogType = Platform.isIOS ? 'hrv_sdnn' : 'hrv_rmssd';
+    final temperatureLogType =
+        Platform.isIOS ? 'wrist_temp_c' : 'skin_temp_delta_c';
+    final hrvMetric = Platform.isIOS ? 'sdnn' : 'rmssd';
+    final temperatureMetric = Platform.isIOS
+        ? 'wrist_temperature_celsius'
+        : 'skin_temperature_delta_celsius';
     final now = DateTime(target.year, target.month, target.day, 23, 59, 59);
     final sleepHistoryStart = now.subtract(const Duration(days: 90));
     final monthAgo = now.subtract(const Duration(days: 30));
@@ -102,15 +109,15 @@ class HealthSyncService {
 
     // --- AGGREGAZIONE DATI STORICI ---
     List<double> rhrHistory = extractHistory('resting_hr');
-    List<double> tempHistory = extractHistory('temp');
-    List<double> hrvHistory = extractHistory('hrv');
+    List<double> tempHistory = extractHistory(temperatureLogType);
+    List<double> hrvHistory = extractHistory(hrvLogType);
     List<double> respHistory = extractHistory('resp');
     List<double> spo2History = extractHistory('spo2');
 
     // --- AGGREGAZIONE DATI ODIERNI ---
     double? rhrToday = getTodayVal('resting_hr');
-    double? tempToday = getTodayVal('temp');
-    double? hrvToday = getTodayVal('hrv');
+    double? tempToday = getTodayVal(temperatureLogType);
+    double? hrvToday = getTodayVal(hrvLogType);
     double? respToday = getTodayVal('resp');
     double? spo2Today = getTodayVal('spo2');
 
@@ -132,10 +139,18 @@ class HealthSyncService {
           timeInBedMinutes: sleep.timeInBedMinutes,
           sleepOnsetTimestamp: sleep.sleepOnset,
           sleepWakeTimestamp: sleep.wakeTime,
-          naps: _napsForDate(healthData, day),
+          // The sleep day is assigned to wake date. Credit naps taken on the
+          // preceding calendar day so readiness never improves retroactively
+          // because of a nap taken after this night's wake-up.
+          naps: _napsForDate(
+            healthData,
+            day.subtract(const Duration(days: 1)),
+          ),
           restingHeartRateBpm: getValueForDate('resting_hr', day),
-          skinTemperatureCelsius: getValueForDate('temp', day),
-          hrvRmssdMs: getValueForDate('hrv', day),
+          skinTemperatureCelsius: getValueForDate(temperatureLogType, day),
+          temperatureMetric: temperatureMetric,
+          hrvRmssdMs: getValueForDate(hrvLogType, day),
+          hrvMetric: hrvMetric,
           respiratoryRate: getValueForDate('resp', day),
           spo2Percent: getValueForDate('spo2', day),
           previousDayStrainScore: getValueForDate(
@@ -147,9 +162,9 @@ class HealthSyncService {
     }
 
     final profile = AthleteProfile(
-      athleteId: 'local-athlete',
-      sex: isLutealPhase ? Sex.female : Sex.unknown,
-      isLutealPhase: isLutealPhase,
+      athleteId: userProfile.id ?? 'local-athlete',
+      sex: _sexFromProfile(userProfile.gender),
+      ageYears: userProfile.age > 0 ? userProfile.age : null,
       timezone: DateTime.now().timeZoneName,
     );
     final todayWearableData = DailyWearableData(
@@ -160,10 +175,15 @@ class HealthSyncService {
       timeInBedMinutes: todaySleep.timeInBedMinutes,
       sleepOnsetTimestamp: todaySleep.sleepOnset,
       sleepWakeTimestamp: todaySleep.wakeTime,
-      naps: _napsForDate(healthData, target),
+      naps: _napsForDate(
+        healthData,
+        target.subtract(const Duration(days: 1)),
+      ),
       restingHeartRateBpm: rhrToday,
       skinTemperatureCelsius: tempToday,
+      temperatureMetric: temperatureMetric,
       hrvRmssdMs: hrvToday,
+      hrvMetric: hrvMetric,
       respiratoryRate: respToday,
       spo2Percent: spo2Today,
       previousDayStrainScore: getValueForDate(
@@ -192,7 +212,9 @@ class HealthSyncService {
     Map<String, double> dailyMetrics = {
       if (rhrToday != null) 'rhr': rhrToday,
       if (tempToday != null) 'temp': tempToday,
+      'tempIsDelta': Platform.isAndroid ? 1 : 0,
       if (hrvToday != null) 'hrv': hrvToday,
+      'hrvIsSdnn': Platform.isIOS ? 1 : 0,
       if (respToday != null) 'resp': respToday,
       if (spo2Today != null) 'spo2': spo2Today,
       'totalSleep': todaySleep.totalSleepMinutes!,
@@ -209,6 +231,8 @@ class HealthSyncService {
       'dailySleepNeed': scoringResult.dailySleepNeed.valueMinutes,
       'sleepDebt': scoringResult.dailySleepNeed.sleepDebtMinutes,
       'naps': scoringResult.dailySleepNeed.napsDeductionMinutes,
+      'sleepScoreConfidence': scoringResult.sleepScore.confidence,
+      'recoveryScoreConfidence': scoringResult.recoveryScore.confidence,
     };
 
     Map<String, List<double>> historicalMetrics = {
@@ -265,15 +289,28 @@ class HealthSyncService {
 
   double _sumSleepMinutes(
       List<HealthDataPoint> data, List<HealthDataType> types) {
-    var filtered = data.where((d) => types.contains(d.type)).toList();
-    if (filtered.isEmpty) return 0.0;
+    final intervals = data
+        .where((point) =>
+            types.contains(point.type) && point.dateTo.isAfter(point.dateFrom))
+        .map((point) => (start: point.dateFrom, end: point.dateTo))
+        .toList()
+      ..sort((a, b) => a.start.compareTo(b.start));
+    if (intervals.isEmpty) return 0;
 
-    double totalMinutes = 0.0;
-    for (var point in filtered) {
-      totalMinutes += point.dateTo.difference(point.dateFrom).inMicroseconds /
-          Duration.microsecondsPerMinute;
+    var currentStart = intervals.first.start;
+    var currentEnd = intervals.first.end;
+    var totalMicroseconds = 0;
+    for (final interval in intervals.skip(1)) {
+      if (!interval.start.isAfter(currentEnd)) {
+        if (interval.end.isAfter(currentEnd)) currentEnd = interval.end;
+        continue;
+      }
+      totalMicroseconds += currentEnd.difference(currentStart).inMicroseconds;
+      currentStart = interval.start;
+      currentEnd = interval.end;
     }
-    return totalMinutes;
+    totalMicroseconds += currentEnd.difference(currentStart).inMicroseconds;
+    return totalMicroseconds / Duration.microsecondsPerMinute;
   }
 
   _SleepDayAggregate _aggregateSleepForDate(
@@ -347,12 +384,30 @@ class HealthSyncService {
       lightSleepMinutes: lightSleep > 0 ? lightSleep : null,
       awakeMinutes: awake > 0 ? awake : null,
       timeInBedMinutes: timeInBed > 0 ? timeInBed : null,
-      sleepOnset: _firstPointStart(dayPoints),
-      wakeTime: _lastPointEnd(dayPoints),
+      sleepOnset: _sleepOnset(dayPoints),
+      wakeTime: _sleepWake(dayPoints),
     );
   }
 
   String _dateKey(DateTime date) => date.toIso8601String().split('T')[0];
+
+  Sex _sexFromProfile(String? value) {
+    switch (value?.trim().toLowerCase()) {
+      case 'female':
+      case 'f':
+      case 'donna':
+        return Sex.female;
+      case 'male':
+      case 'm':
+      case 'uomo':
+        return Sex.male;
+      case 'other':
+      case 'altro':
+        return Sex.other;
+      default:
+        return Sex.unknown;
+    }
+  }
 
   List<Map<String, dynamic>> _extractLocalSleepHistory(
       List<HealthDataPoint> data, DateTime target) {
@@ -373,8 +428,8 @@ class HealthSyncService {
         dayEnd: end,
       );
       if (dayPoints.isNotEmpty) {
-        DateTime onset = _firstPointStart(dayPoints);
-        DateTime wakeTime = _lastPointEnd(dayPoints);
+        DateTime onset = _sleepOnset(dayPoints);
+        DateTime wakeTime = _sleepWake(dayPoints);
 
         double totalSleepTime =
             _sumSleepMinutes(dayPoints, [HealthDataType.SLEEP_ASLEEP]);
@@ -462,7 +517,7 @@ class HealthSyncService {
     for (final block in blocks) {
       if (identical(block, mainBlock)) continue;
 
-      final start = _firstPointStart(block).toLocal();
+      final start = _sleepOnset(block).toLocal();
       if (start.year != day.year ||
           start.month != day.month ||
           start.day != day.day) {
@@ -477,8 +532,8 @@ class HealthSyncService {
 
       naps.add(
         Nap(
-          startTimestamp: _firstPointStart(block),
-          endTimestamp: _lastPointEnd(block),
+          startTimestamp: _sleepOnset(block),
+          endTimestamp: _sleepWake(block),
           durationMinutes: duration,
         ),
       );
@@ -575,6 +630,28 @@ class HealthSyncService {
         .map((point) => point.dateTo)
         .reduce((a, b) => a.isAfter(b) ? a : b);
   }
+
+  DateTime _sleepOnset(List<HealthDataPoint> points) {
+    final asleep = points
+        .where((point) => _actualSleepTypes.contains(point.type))
+        .toList(growable: false);
+    return _firstPointStart(asleep.isEmpty ? points : asleep);
+  }
+
+  DateTime _sleepWake(List<HealthDataPoint> points) {
+    final asleep = points
+        .where((point) => _actualSleepTypes.contains(point.type))
+        .toList(growable: false);
+    return _lastPointEnd(asleep.isEmpty ? points : asleep);
+  }
+
+  static const Set<HealthDataType> _actualSleepTypes = {
+    HealthDataType.SLEEP_ASLEEP,
+    HealthDataType.SLEEP_LIGHT,
+    HealthDataType.SLEEP_DEEP,
+    HealthDataType.SLEEP_REM,
+    HealthDataType.SLEEP_UNKNOWN,
+  };
 
   List<HealthDataType> get _readableSleepTypes {
     if (Platform.isIOS) {

@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 
 import '../core/theme.dart';
+import '../data/workout_catalog.dart';
 import '../models/models.dart';
 import '../models/training_activity_models.dart';
 import '../providers/app_state.dart';
@@ -1225,13 +1226,20 @@ class _AthleteEventScreenState extends State<AthleteEventScreen> {
 
   String _drylandSportId() {
     final planned = widget.event.technicalDetails?['plannedDrylandSession'];
-    if (planned is Map &&
-        planned['category']?.toString() == ActivityCategory.athleticPrep) {
-      return 'athletic_prep';
+    if (planned is Map) {
+      for (final value in [
+        planned['sportType'],
+        planned['prepType'],
+        planned['category'],
+      ]) {
+        final resolved = WorkoutCatalog.stableSportId(
+          value?.toString(),
+          fallback: '',
+        );
+        if (resolved.isNotEmpty) return resolved;
+      }
     }
-    final specialty = widget.event.drylandSpecialty?.trim();
-    if (specialty == null || specialty.isEmpty) return 'dryland';
-    return 'dryland_${specialty.toLowerCase().replaceAll(RegExp(r'[^a-z0-9]+'), '_')}';
+    return WorkoutCatalog.stableSportId(widget.event.drylandSpecialty);
   }
 
   String _drylandCategoryLabel(String category) {

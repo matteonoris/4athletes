@@ -1,7 +1,7 @@
-Build TestFlight dedicata al report mensile team per i coach.
+Questa build TestFlight amplia la creazione allenamenti, i riepiloghi atleta e le analisi wellness.
 
-- Aggiunge un report mensile team con presenze, volume sci, carico atletico, test fisici, alert e confronto atleti.
-- Aggiunge esportazione PDF stampabile/condivisibile, con schede atleta individuali opzionali.
-- Espone il report dalla dashboard coach per utenti coach/admin autorizzati.
-- Aggiunge copertura test per lavoro programmato/fuori programma, fallback eventi, delta, alert e generazione PDF.
-- Mantiene Hyperarch e isometriche tendinee disponibili nella selezione sport su mobile e web prototype locale.
+- Aggiunge la creazione guidata di allenamenti di forza, corsa, velocità, agilità e sessioni a fasi.
+- Aggiunge il riepilogo mensile atleta e lo storico attività consultabile dai coach.
+- Migliora i report mensili team, inclusi i volumi sci e l'esportazione PDF.
+- Aggiorna i punteggi sonno, strain e recovery con calcoli scientifici più chiari.
+- Migliora import Apple Health, analisi della frequenza cardiaca e carichi massimi.

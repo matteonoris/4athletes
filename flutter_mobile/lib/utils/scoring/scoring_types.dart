@@ -31,12 +31,14 @@ class AthleteProfile {
   final String athleteId;
   final Sex sex;
   final bool isLutealPhase;
+  final int? ageYears;
   final String timezone;
 
   const AthleteProfile({
     required this.athleteId,
     this.sex = Sex.unknown,
     this.isLutealPhase = false,
+    this.ageYears,
     required this.timezone,
   });
 }
@@ -126,6 +128,7 @@ class HeartRateSample {
 }
 
 class HeartRateZones {
+  final double? belowZone1Minutes;
   final double? z1Minutes;
   final double? z2Minutes;
   final double? z3Minutes;
@@ -133,6 +136,7 @@ class HeartRateZones {
   final double? z5Minutes;
 
   const HeartRateZones({
+    this.belowZone1Minutes,
     this.z1Minutes,
     this.z2Minutes,
     this.z3Minutes,
@@ -141,6 +145,7 @@ class HeartRateZones {
   });
 
   bool get hasAny =>
+      belowZone1Minutes != null ||
       z1Minutes != null ||
       z2Minutes != null ||
       z3Minutes != null ||
@@ -229,6 +234,7 @@ class HistoricalDailyStrainLoad {
 class SessionStrainResult {
   final String sessionId;
   final StrainSportCategory sportCategory;
+  final double durationMinutes;
   final double? cardioLoadAU;
   final double? rpeLoadAU;
   final double? externalMechanicalLoadAU;
@@ -242,6 +248,7 @@ class SessionStrainResult {
   const SessionStrainResult({
     required this.sessionId,
     required this.sportCategory,
+    required this.durationMinutes,
     this.cardioLoadAU,
     this.rpeLoadAU,
     this.externalMechanicalLoadAU,
@@ -295,7 +302,9 @@ class DailyWearableData {
   final List<Nap>? naps;
   final double? restingHeartRateBpm;
   final double? hrvRmssdMs;
+  final String hrvMetric;
   final double? skinTemperatureCelsius;
+  final String temperatureMetric;
   final double? respiratoryRate;
   final double? spo2Percent;
   final double? previousDayStrainScore;
@@ -312,7 +321,9 @@ class DailyWearableData {
     this.naps,
     this.restingHeartRateBpm,
     this.hrvRmssdMs,
+    this.hrvMetric = 'unknown',
     this.skinTemperatureCelsius,
+    this.temperatureMetric = 'unknown',
     this.respiratoryRate,
     this.spo2Percent,
     this.previousDayStrainScore,
@@ -322,7 +333,9 @@ class DailyWearableData {
   DailyWearableData copyWith({
     double? restingHeartRateBpm,
     double? hrvRmssdMs,
+    String? hrvMetric,
     double? skinTemperatureCelsius,
+    String? temperatureMetric,
   }) {
     return DailyWearableData(
       date: date,
@@ -335,8 +348,10 @@ class DailyWearableData {
       naps: naps,
       restingHeartRateBpm: restingHeartRateBpm ?? this.restingHeartRateBpm,
       hrvRmssdMs: hrvRmssdMs ?? this.hrvRmssdMs,
+      hrvMetric: hrvMetric ?? this.hrvMetric,
       skinTemperatureCelsius:
           skinTemperatureCelsius ?? this.skinTemperatureCelsius,
+      temperatureMetric: temperatureMetric ?? this.temperatureMetric,
       respiratoryRate: respiratoryRate,
       spo2Percent: spo2Percent,
       previousDayStrainScore: previousDayStrainScore,

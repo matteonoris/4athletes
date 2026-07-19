@@ -33,21 +33,31 @@ class SleepDebtResult {
 DailySleepNeedResult calculateDailySleepNeed(
   DailyWearableData today,
   HistoricalDailyData historicalData, {
+  AthleteProfile? profile,
   AlgorithmConfig config = defaultAlgorithmConfig,
 }) {
   final history = _excludeToday(historicalData, today.date);
   final warnings = <String>[];
+  final validHistoryNights = _validBaselineSleepValues(history, config).length;
 
-  if (history.length < config.history.minCalibrationDays) {
-    warnings.add('history_less_than_4_days');
-  } else if (history.length < config.history.rollingWindowDays) {
-    warnings.add('partial_history_less_than_30_days');
+  if (validHistoryNights < config.history.minCalibrationDays) {
+    warnings.add('sleep_need_history_below_minimum_valid_nights');
+  } else if (validHistoryNights < config.history.rollingWindowDays) {
+    warnings.add('sleep_need_history_partial_valid_nights');
   }
 
-  final baseline = calculatePersonalBaseline(history, config: config);
+  final baseline = calculatePersonalBaseline(
+    history,
+    profile: profile,
+    config: config,
+  );
   warnings.addAll(baseline.warnings);
 
-  final sleepDebt = calculateSleepDebt(history, config: config);
+  final sleepDebt = calculateSleepDebt(
+    history,
+    profile: profile,
+    config: config,
+  );
   warnings.addAll(sleepDebt.warnings);
 
   final dailyStrainAdjustmentMinutes = calculateDailyStrainAdjustment(
@@ -55,16 +65,17 @@ DailySleepNeedResult calculateDailySleepNeed(
     config: config,
     warnings: warnings,
   );
-  final napsDeductionMinutes = calculateNapsDeduction(
+  // Kept in the existing result field for API compatibility. In v2 this is
+  // observed valid nap sleep, not a deduction from the athlete's sleep need.
+  final validNapMinutes = calculateNapsDeduction(
     today.naps,
     config: config,
     warnings: warnings,
   );
 
   final unclampedNeed = baseline.valueMinutes +
-      sleepDebt.valueMinutes +
-      dailyStrainAdjustmentMinutes -
-      napsDeductionMinutes;
+      math.max(config.confidence.min, sleepDebt.valueMinutes) +
+      dailyStrainAdjustmentMinutes;
   final valueMinutes = clampDouble(
     unclampedNeed,
     config.sleepNeed.minDailySleepNeedMinutes,
@@ -76,7 +87,7 @@ DailySleepNeedResult calculateDailySleepNeed(
   }
 
   var confidence = baseline.confidence;
-  if (history.length < config.history.rollingWindowDays) {
+  if (validHistoryNights < config.history.rollingWindowDays) {
     confidence *= config.confidence.shortHistoryMultiplier;
   }
   if (sleepDebt.usedDays < config.history.minCalibrationDays) {
@@ -88,7 +99,7 @@ DailySleepNeedResult calculateDailySleepNeed(
     personalBaselineMinutes: baseline.valueMinutes,
     sleepDebtMinutes: sleepDebt.valueMinutes,
     dailyStrainAdjustmentMinutes: dailyStrainAdjustmentMinutes,
-    napsDeductionMinutes: napsDeductionMinutes,
+    napsDeductionMinutes: validNapMinutes,
     confidence: clampDouble(
       confidence,
       config.confidence.min,
@@ -100,59 +111,72 @@ DailySleepNeedResult calculateDailySleepNeed(
 
 BaselineResult calculatePersonalBaseline(
   HistoricalDailyData historicalData, {
+  AthleteProfile? profile,
   AlgorithmConfig config = defaultAlgorithmConfig,
 }) {
-  final validValues = historicalData
-      .takeLast(config.history.rollingWindowDays)
-      .map((day) => day.totalSleepTimeMinutes)
-      .where(config.sleepNeed.validBaselineSleepMinutes.contains)
-      .map((value) => value!.toDouble())
-      .toList(growable: false);
+  final validValues = _validBaselineSleepValues(historicalData, config);
+  final ageTarget = athleteSleepTargetMinutes(profile, config: config);
+  final observedPercentile = percentile(
+    validValues,
+    config.sleepNeed.personalBaselinePercentile,
+  );
+  final evidenceInformedBaseline = math.max(
+    ageTarget,
+    observedPercentile ?? ageTarget,
+  );
+  final boundedBaseline = clampDouble(
+    evidenceInformedBaseline,
+    config.sleepNeed.minDailySleepNeedMinutes,
+    config.sleepNeed.maxDailySleepNeedMinutes,
+  );
 
   if (validValues.length >= config.sleepNeed.minValidBaselineNights) {
     return BaselineResult(
-      valueMinutes:
-          rollingMean(validValues, config.history.rollingWindowDays) ??
-              config.sleepNeed.defaultSleepBaselineMinutes,
+      valueMinutes: boundedBaseline,
       confidence: config.confidence.max,
       validNights: validValues.length,
-      warnings: const [],
+      warnings: evidenceInformedBaseline == boundedBaseline
+          ? const []
+          : const ['sleep_baseline_clamped_to_config_bounds'],
     );
   }
 
   if (validValues.length >= config.sleepNeed.partialBaselineMinNights) {
     return BaselineResult(
-      valueMinutes:
-          rollingMean(validValues, config.history.rollingWindowDays) ??
-              config.sleepNeed.defaultSleepBaselineMinutes,
+      valueMinutes: boundedBaseline,
       confidence: config.confidence.partialBaselineMultiplier,
       validNights: validValues.length,
-      warnings: const ['sleep_baseline_partial_4_to_6_valid_nights'],
+      warnings: const ['sleep_baseline_partial_valid_nights'],
     );
   }
 
   return BaselineResult(
-    valueMinutes: config.sleepNeed.defaultSleepBaselineMinutes,
+    valueMinutes: ageTarget,
     confidence: config.confidence.fallbackBaselineMultiplier,
     validNights: validValues.length,
-    warnings: const ['sleep_baseline_fallback_default_used'],
+    warnings: const ['sleep_baseline_fallback_age_target_used'],
   );
 }
 
 SleepDebtResult calculateSleepDebt(
   HistoricalDailyData historicalData, {
+  AthleteProfile? profile,
   AlgorithmConfig config = defaultAlgorithmConfig,
 }) {
   final warnings = <String>[];
   final debtWindow =
       historicalData.takeLast(config.history.sleepDebtWindowDays);
-  var weightedDebt = config.confidence.min;
+  var weightedBalance = config.confidence.min;
   var usedDays = 0;
 
   for (var index = 0; index < debtWindow.length; index++) {
     final day = debtWindow[index];
-    final actualSleep = day.totalSleepTimeMinutes;
-    if (!config.physiology.totalSleepTimeMinutes.contains(actualSleep)) {
+    final actualSleep24h = calculateTotalSleep24hMinutes(
+      day,
+      config: config,
+      warnings: warnings,
+    );
+    if (!isFiniteNumber(actualSleep24h)) {
       warnings.add('sleep_debt_day_skipped_invalid_total_sleep');
       continue;
     }
@@ -163,30 +187,34 @@ SleepDebtResult calculateSleepDebt(
     );
     final personalBaseline = calculatePersonalBaseline(
       historyBeforeDay,
+      profile: profile,
       config: config,
     ).valueMinutes;
     final strainAdjustment =
         calculateDailyStrainAdjustment(day, config: config);
-    final napsDeduction = calculateNapsDeduction(day.naps, config: config);
     final historicalReferenceNeedForDay = clampDouble(
-      personalBaseline + strainAdjustment - napsDeduction,
+      personalBaseline + strainAdjustment,
       config.sleepNeed.minDailySleepNeedMinutes,
       config.sleepNeed.maxDailySleepNeedMinutes,
     );
-    final dailyDeficit = math.max(
-      config.confidence.min,
-      historicalReferenceNeedForDay - actualSleep!,
-    );
-    final ageInDays = debtWindow.length - index;
-    weightedDebt += dailyDeficit *
+    // Signed balance: a surplus is negative and repays older positive
+    // deficits. The most recent completed day has age zero and full weight.
+    final dailyDeficit = historicalReferenceNeedForDay - actualSleep24h!;
+    final ageInDays = debtWindow.length - 1 - index;
+    weightedBalance += dailyDeficit *
         math.exp(-config.sleepNeed.sleepDebtDecayLambda * ageInDays);
     usedDays++;
   }
 
-  final valueMinutes =
-      math.min(weightedDebt, config.sleepNeed.maxSleepDebtMinutes);
-  if (weightedDebt > config.sleepNeed.maxSleepDebtMinutes) {
+  final valueMinutes = clampDouble(
+    weightedBalance,
+    -config.sleepNeed.maxSleepDebtMinutes,
+    config.sleepNeed.maxSleepDebtMinutes,
+  );
+  if (weightedBalance > config.sleepNeed.maxSleepDebtMinutes) {
     warnings.add('sleep_debt_capped');
+  } else if (weightedBalance < -config.sleepNeed.maxSleepDebtMinutes) {
+    warnings.add('sleep_surplus_capped');
   }
 
   return SleepDebtResult(
@@ -205,7 +233,8 @@ double calculateNapsDeduction(
 
   final rawDuration = naps.fold<double>(config.confidence.min, (sum, nap) {
     if (!isFiniteNumber(nap.durationMinutes) ||
-        nap.durationMinutes <= config.confidence.min) {
+        nap.durationMinutes <= config.confidence.min ||
+        !nap.endTimestamp.isAfter(nap.startTimestamp)) {
       warnings?.add('invalid_nap_duration_ignored');
       return sum;
     }
@@ -215,7 +244,7 @@ double calculateNapsDeduction(
       math.min(rawDuration, config.sleepNeed.maxNapsDeductionMinutes);
 
   if (cappedDuration < rawDuration) {
-    warnings?.add('naps_deduction_capped');
+    warnings?.add('nap_sleep_credit_capped');
   }
 
   return cappedDuration;
@@ -226,6 +255,13 @@ double calculateDailyStrainAdjustment(
   AlgorithmConfig config = defaultAlgorithmConfig,
   List<String>? warnings,
 }) {
+  // The v2 evidence-informed configuration disables the previous unvalidated
+  // strain-to-sleep-minutes curve. Do not emit missing-input warnings when the
+  // feature is disabled.
+  if (config.sleepNeed.maxStrainSleepNeedMinutes <= config.confidence.min) {
+    return config.confidence.min;
+  }
+
   final strainScore = day.previousDayStrainScore;
   if (!isFiniteNumber(strainScore)) {
     warnings?.add('missing_previous_day_strain_score');
@@ -255,6 +291,48 @@ double calculateDailyStrainAdjustment(
         clampedStrain / config.physiology.previousDayStrainScore.max,
         1.2,
       );
+}
+
+double athleteSleepTargetMinutes(
+  AthleteProfile? profile, {
+  AlgorithmConfig config = defaultAlgorithmConfig,
+}) {
+  final ageYears = profile?.ageYears;
+  if (ageYears != null &&
+      ageYears >= 0 &&
+      ageYears <= config.sleepNeed.adolescentMaxAgeYears) {
+    return config.sleepNeed.adolescentAthleteTargetMinutes;
+  }
+  return config.sleepNeed.adultAthleteTargetMinutes;
+}
+
+double? calculateTotalSleep24hMinutes(
+  DailyWearableData day, {
+  AlgorithmConfig config = defaultAlgorithmConfig,
+  List<String>? warnings,
+}) {
+  final totalSleep = day.totalSleepTimeMinutes;
+  if (!config.physiology.totalSleepTimeMinutes.contains(totalSleep)) {
+    return null;
+  }
+  final validNapMinutes = calculateNapsDeduction(
+    day.naps,
+    config: config,
+    warnings: warnings,
+  );
+  return totalSleep! + validNapMinutes;
+}
+
+List<double> _validBaselineSleepValues(
+  HistoricalDailyData historicalData,
+  AlgorithmConfig config,
+) {
+  return historicalData
+      .takeLast(config.history.rollingWindowDays)
+      .map((day) => day.totalSleepTimeMinutes)
+      .where(config.sleepNeed.validBaselineSleepMinutes.contains)
+      .map((value) => value!.toDouble())
+      .toList(growable: false);
 }
 
 List<DailyWearableData> _excludeToday(

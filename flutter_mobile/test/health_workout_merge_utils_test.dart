@@ -302,6 +302,64 @@ void main() {
     expect(merged.details?['source_part_count'], 2);
   });
 
+  test('trova tutti i duplicati con lo stesso external id', () {
+    final imported = importedWeightlifting(externalId: 'garmin-1');
+    final duplicates = HealthWorkoutMergeUtils.likelyDuplicateHealthImports(
+      [
+        importedWeightlifting(id: 'db-1', externalId: 'garmin-1'),
+        importedWeightlifting(id: 'db-2', externalId: 'garmin-1'),
+      ],
+      imported,
+    );
+
+    expect(
+        duplicates.map((session) => session.id), containsAll(['db-1', 'db-2']));
+  });
+
+  test('trova import speculari con id diversi e forte sovrapposizione', () {
+    final garmin = importedWeightlifting(
+      id: 'garmin-row',
+      externalId: 'garmin-1',
+      sourceName: 'com.garmin.android.apps.connectmobile',
+      startTime: '18:00:00',
+      endTime: '19:00:00',
+    );
+    final strava = importedWeightlifting(
+      externalId: 'strava-1',
+      sourceName: 'com.strava',
+      startTime: '18:05:00',
+      endTime: '19:03:00',
+    );
+
+    final duplicates = HealthWorkoutMergeUtils.likelyDuplicateHealthImports(
+      [garmin],
+      strava,
+    );
+
+    expect(duplicates.single.id, 'garmin-row');
+  });
+
+  test('non considera duplicati due allenamenti solo adiacenti', () {
+    final first = importedWeightlifting(
+      id: 'first-row',
+      externalId: 'first-1',
+      startTime: '18:00:00',
+      endTime: '18:45:00',
+    );
+    final second = importedWeightlifting(
+      externalId: 'second-1',
+      startTime: '18:40:00',
+      endTime: '19:30:00',
+    );
+
+    final duplicates = HealthWorkoutMergeUtils.likelyDuplicateHealthImports(
+      [first],
+      second,
+    );
+
+    expect(duplicates, isEmpty);
+  });
+
   test('non fonde forza strutturata quando la sovrapposizione e debole', () {
     final candidate = HealthWorkoutMergeUtils.bestOverlapMergeCandidate(
       [manualStrength(startTime: '18:00:00', endTime: '19:00:00')],
@@ -331,6 +389,55 @@ void main() {
     expect(candidate, isNull);
   });
 
+  test('ricalcola i riepiloghi importati con le zone correnti del profilo', () {
+    final start = DateTime(2026, 6, 12, 10);
+    final imported = TrainingSession(
+      id: 'import_hr_1',
+      sportId: 'running',
+      date: '2026-06-12',
+      startTime: '10:00:00',
+      endTime: '10:01:00',
+      duration: '1',
+      effort: 5,
+      details: {
+        'source': 'health_sync',
+        'active_duration_seconds': 60,
+        'hr_reliable': true,
+        'hr_samples': List.generate(7, (index) {
+          return {
+            'time':
+                start.add(Duration(seconds: index * 10)).millisecondsSinceEpoch,
+            'bpm': 175,
+          };
+        }),
+        'hr_zone_boundaries': const [
+          {'min': 100, 'max': 119},
+          {'min': 120, 'max': 139},
+          {'min': 140, 'max': 159},
+          {'min': 160, 'max': 174},
+          {'min': 175, 'max': 300},
+        ],
+        'hr_zones_seconds': const [0, 0, 0, 0, 0, 60],
+      },
+    );
+    const currentZones = [
+      {'min': 100, 'max': 119},
+      {'min': 120, 'max': 139},
+      {'min': 140, 'max': 159},
+      {'min': 160, 'max': 175},
+      {'min': 176, 'max': 300},
+    ];
+
+    final recalculated = HealthWorkoutMergeUtils.recalculateHeartRateZones(
+      imported,
+      currentZones,
+    );
+
+    expect(recalculated.details?['hr_zone_boundaries'], currentZones);
+    expect(recalculated.details?['hr_zones_seconds'], [0, 0, 0, 0, 60, 0]);
+    expect(recalculated.details?['dominant_hr_zone'], 4);
+  });
+
   test('fonde allenamento sci coach con import Garmin snow sports', () {
     final existing = coachSkiSession();
     final imported = importedSnowSports();
@@ -358,5 +465,17 @@ void main() {
         'com.garmin.android.apps.connectmobile');
     expect(merged.details?['avg_hr'], 132);
     expect(merged.details?['max_hr'], 171);
+  });
+
+  test('fonde sci Garmin contenuto nell intervallo anche se parte dopo', () {
+    final candidate = HealthWorkoutMergeUtils.bestOverlapMergeCandidate(
+      [coachSkiSession()],
+      importedSnowSports(
+        startTime: '10:15:00',
+        endTime: '11:45:00',
+      ),
+    );
+
+    expect(candidate?.eventId, 'coach_event_1');
   });
 }

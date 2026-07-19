@@ -15,7 +15,7 @@ void main() {
     {'min': 180, 'max': 200},
   ];
 
-  test('ignora uno spike cardiaco alto e isolato', () {
+  test('mantiene un picco cardiaco breve ma valido', () {
     final cleaned = HealthImportNormalizer.cleanHeartRateSamples([
       sample(0, 140),
       sample(30, 142),
@@ -26,14 +26,81 @@ void main() {
       sample(180, 148),
     ]);
 
-    expect(cleaned.map((sample) => sample.bpm), isNot(contains(220)));
+    expect(
+      cleaned.map((sample) => sample.bpm).toList(),
+      [140, 142, 144, 220, 145, 146, 148],
+    );
 
     final metrics = HealthImportNormalizer.calculateHeartRateMetrics(
       samples: cleaned,
       zones: zones,
     );
-    expect(metrics.maxHeartRate, 148);
-    expect(metrics.averageHeartRate, lessThan(150));
+    expect(metrics.maxHeartRate, 220);
+  });
+
+  test('mantiene campioni distinti con lo stesso timestamp', () {
+    final cleaned = HealthImportNormalizer.cleanHeartRateSamples([
+      sample(0, 140.25),
+      sample(0, 141.75),
+    ]);
+
+    expect(cleaned, hasLength(2));
+    expect(
+      cleaned.map((sample) => sample.bpm).toList(),
+      [140.25, 141.75],
+    );
+  });
+
+  test('serializza i bpm frazionari senza arrotondarli', () {
+    final serialized = HealthImportNormalizer.serializeHeartRateSamples([
+      sample(0, 109.25),
+    ]);
+
+    expect(serialized.single['bpm'], 109.25);
+  });
+
+  test('ordina i campioni per timestamp senza alterarne i valori', () {
+    final cleaned = HealthImportNormalizer.cleanHeartRateSamples([
+      sample(30, 143.5),
+      sample(0, 140.5),
+      sample(20, 142.5),
+      sample(10, 141.5),
+    ]);
+
+    expect(
+      cleaned.map((sample) => sample.time).toList(),
+      [
+        base,
+        base.add(const Duration(seconds: 10)),
+        base.add(const Duration(seconds: 20)),
+        base.add(const Duration(seconds: 30)),
+      ],
+    );
+    expect(
+      cleaned.map((sample) => sample.bpm).toList(),
+      [140.5, 141.5, 142.5, 143.5],
+    );
+  });
+
+  test('scarta solo bpm non finiti o fuori dal range Health Connect', () {
+    final cleaned = HealthImportNormalizer.cleanHeartRateSamples([
+      sample(0, double.nan),
+      sample(1, double.infinity),
+      sample(2, double.negativeInfinity),
+      sample(3, -1),
+      sample(4, 0),
+      sample(5, 0.9),
+      sample(6, 1),
+      sample(7, 34.5),
+      sample(8, 235.5),
+      sample(9, 300),
+      sample(10, 300.1),
+    ]);
+
+    expect(
+      cleaned.map((sample) => sample.bpm).toList(),
+      [1, 34.5, 235.5, 300],
+    );
   });
 
   test('mantiene una frequenza alta quando e sostenuta', () {
@@ -90,7 +157,7 @@ void main() {
     );
   });
 
-  test('assegna la zona al campione misurato, non alla media del segmento', () {
+  test('suddivide un segmento nelle zone cardiache attraversate', () {
     final metrics = HealthImportNormalizer.calculateHeartRateMetrics(
       samples: [
         sample(0, 130),
@@ -100,14 +167,72 @@ void main() {
     );
 
     expect(metrics.averageHeartRate, 160);
-    expect(metrics.zoneSeconds.map((seconds) => seconds.round()).toList(), [
-      0,
-      0,
+    expect(
+        HealthImportNormalizer.roundedZoneSeconds(
+          metrics.zoneSeconds,
+          targetSeconds: metrics.coverageSeconds,
+        ),
+        [
+          0,
+          0,
+          2,
+          3,
+          3,
+          2,
+        ]);
+  });
+
+  test('non manda in Z5 i bpm nel limite inclusivo della Z4', () {
+    const inclusiveZones = [
+      {'min': 100, 'max': 119},
+      {'min': 120, 'max': 139},
+      {'min': 140, 'max': 159},
+      {'min': 160, 'max': 175},
+      {'min': 176, 'max': 200},
+    ];
+
+    expect(
+      HealthImportNormalizer.zoneIndexForBpm(175, inclusiveZones),
+      4,
+    );
+    expect(
+      HealthImportNormalizer.zoneIndexForBpm(175.9, inclusiveZones),
+      4,
+    );
+    expect(
+      HealthImportNormalizer.zoneIndexForBpm(176, inclusiveZones),
+      5,
+    );
+  });
+
+  test('usa le soglie personalizzate del profilo come fonte di verita', () {
+    const custom = [
+      {'min': 95, 'max': 114},
+      {'min': 115, 'max': 134},
+      {'min': 135, 'max': 154},
+      {'min': 155, 'max': 174},
+      {'min': 175, 'max': 300},
+    ];
+
+    final resolved = HealthImportNormalizer.resolveHeartRateZones(
+      mode: 'custom',
+      customZones: custom,
+      maxHeartRate: 200,
+    );
+
+    expect(resolved, custom);
+    expect(HealthImportNormalizer.zoneIndexForBpm(174, resolved), 4);
+    expect(HealthImportNormalizer.zoneIndexForBpm(175, resolved), 5);
+  });
+
+  test('arrotonda le zone mantenendo la durata coperta totale', () {
+    expect(
+      HealthImportNormalizer.roundedZoneSeconds(
+        const [0, 0, 1.6, 3.3, 3.4, 1.7],
+        targetSeconds: 10,
+      ).fold<int>(0, (sum, value) => sum + value),
       10,
-      0,
-      0,
-      0,
-    ]);
+    );
   });
 
   test('include piccoli bordi start/end dell allenamento', () {
@@ -125,8 +250,8 @@ void main() {
     expect(metrics.zoneSeconds.map((seconds) => seconds.round()).toList(), [
       0,
       0,
-      20,
-      10,
+      15,
+      15,
       0,
       0,
     ]);
@@ -147,8 +272,8 @@ void main() {
     expect(metrics.zoneSeconds.map((seconds) => seconds.round()).toList(), [
       0,
       0,
-      60,
-      0,
+      30,
+      30,
       0,
       0,
     ]);

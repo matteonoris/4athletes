@@ -10,111 +10,266 @@ import '../providers/app_state.dart';
 import '../utils/coach_training_utils.dart';
 import '../widgets/custom_card.dart';
 
+class _SkiBlockDraft {
+  final String id;
+  final String name;
+  final TextEditingController lapsCtrl;
+  final TextEditingController metricCtrl;
+  final FocusNode lapsFocus = FocusNode();
+  final FocusNode metricFocus = FocusNode();
+
+  _SkiBlockDraft({
+    required this.id,
+    required this.name,
+    String laps = '',
+    String metric = '',
+  })  : lapsCtrl = TextEditingController(text: laps),
+        metricCtrl = TextEditingController(text: metric);
+
+  Map<String, dynamic> toTrackJson(String specialty) => {
+        'id': id,
+        'name': name,
+        'specialty': specialty,
+        'laps': CoachTrainingUtils.asNonNegativeInt(lapsCtrl.text),
+        'gates': CoachTrainingUtils.asNonNegativeInt(metricCtrl.text),
+        'changes': CoachTrainingUtils.asNonNegativeInt(metricCtrl.text),
+      };
+
+  Map<String, dynamic> toTrainingJson(String specialty) => {
+        'id': id,
+        'name': name,
+        'specialty': specialty,
+        'laps': CoachTrainingUtils.asNonNegativeInt(lapsCtrl.text),
+        'references': CoachTrainingUtils.asNonNegativeInt(metricCtrl.text),
+        'changes': CoachTrainingUtils.asNonNegativeInt(metricCtrl.text),
+      };
+
+  void dispose() {
+    lapsCtrl.dispose();
+    metricCtrl.dispose();
+    lapsFocus.dispose();
+    metricFocus.dispose();
+  }
+}
+
+class _SkiSpecialtyDraft {
+  String specialty;
+  final TextEditingController freeLapsCtrl;
+  final TextEditingController freeChangesCtrl;
+  final FocusNode freeLapsFocus = FocusNode();
+  final FocusNode freeChangesFocus = FocusNode();
+  final List<_SkiBlockDraft> tracks;
+  final List<_SkiBlockDraft> trainingBlocks;
+
+  _SkiSpecialtyDraft({
+    required this.specialty,
+    String freeLaps = '',
+    String freeChanges = '',
+    List<_SkiBlockDraft>? tracks,
+    List<_SkiBlockDraft>? trainingBlocks,
+  })  : freeLapsCtrl = TextEditingController(text: freeLaps),
+        freeChangesCtrl = TextEditingController(text: freeChanges),
+        tracks = tracks ?? [],
+        trainingBlocks = trainingBlocks ?? [];
+
+  void dispose() {
+    freeLapsCtrl.dispose();
+    freeChangesCtrl.dispose();
+    freeLapsFocus.dispose();
+    freeChangesFocus.dispose();
+    for (final track in tracks) {
+      track.dispose();
+    }
+    for (final block in trainingBlocks) {
+      block.dispose();
+    }
+  }
+}
+
 class SkiActivityScreen extends StatefulWidget {
   final TrainingSession? initialSession;
+  final DateTime? initialDate;
 
-  const SkiActivityScreen({super.key, this.initialSession});
+  const SkiActivityScreen({
+    super.key,
+    this.initialSession,
+    this.initialDate,
+  });
 
   @override
   State<SkiActivityScreen> createState() => _SkiActivityScreenState();
 }
 
 class _SkiActivityScreenState extends State<SkiActivityScreen> {
+  static const _snowOptions = [
+    'Dura/Ghiacciata',
+    'Compatta',
+    'Morbida',
+    'Primaverile',
+    'Fresca',
+  ];
+  static const _weatherOptions = [
+    'Sole',
+    'Nuvolo',
+    'Nevicata',
+    'Nebbia',
+    'Vento',
+  ];
+
   late DateTime _date;
   late TimeOfDay _startTime;
   late TimeOfDay _endTime;
-  String _specialty = 'CL';
-  String _snowCondition = '';
-  String _weatherCondition = '';
+  String _snowCondition = 'Compatta';
+  String _weatherCondition = 'Sole';
+  int _qualityRating = 3;
   double _rpe = 5;
+  bool _chronoEnabled = false;
+  bool _isSaving = false;
 
+  final _titleCtrl = TextEditingController();
   final _locationCtrl = TextEditingController();
-  final _freeLapsCtrl = TextEditingController();
-  final _freeChangesCtrl = TextEditingController();
-  final _trackLapsCtrl = TextEditingController();
-  final _trackGatesCtrl = TextEditingController();
-  final _trainingLapsCtrl = TextEditingController();
-  final _trainingRefsCtrl = TextEditingController();
   final _chronoCtrl = TextEditingController();
   final _painCtrl = TextEditingController();
   final _notesCtrl = TextEditingController();
-
-  final _freeLapsFocus = FocusNode();
-  final _freeChangesFocus = FocusNode();
-  final _trackLapsFocus = FocusNode();
-  final _trackGatesFocus = FocusNode();
-  final _trainingLapsFocus = FocusNode();
-  final _trainingRefsFocus = FocusNode();
+  final List<_SkiSpecialtyDraft> _skiDrafts = [];
 
   @override
   void initState() {
     super.initState();
     final initial = widget.initialSession;
-    _date = initial == null ? DateTime.now() : DateTime.parse(initial.date);
+    final details = _mergedDetails(initial?.details);
+    _date = initial == null
+        ? (widget.initialDate ?? DateTime.now())
+        : DateTime.tryParse(initial.date) ?? DateTime.now();
     _startTime = initial == null
         ? const TimeOfDay(hour: 9, minute: 0)
         : _parseTime(initial.startTime);
     _endTime = initial == null
         ? const TimeOfDay(hour: 12, minute: 0)
         : _parseTime(initial.endTime);
-    _rpe = (initial?.effort.toDouble() ?? 5).clamp(0, 10);
+    _rpe = (initial?.effort.toDouble() ??
+            CoachTrainingUtils.asInt(details['rpe'], fallback: 5).toDouble())
+        .clamp(0, 10);
 
-    final details = initial?.details ?? {};
-    _specialty = CoachTrainingUtils.specialtyFromDetails(details);
+    _titleCtrl.text =
+        details['title']?.toString() ?? 'Allenamento Alpine Skiing';
     _locationCtrl.text = details['location']?.toString() ?? '';
-    _snowCondition = details['snowCondition']?.toString() ?? '';
-    _weatherCondition = details['weatherCondition']?.toString() ?? '';
+    _snowCondition =
+        details['snowCondition']?.toString().trim().isNotEmpty == true
+            ? details['snowCondition'].toString()
+            : 'Compatta';
+    _weatherCondition =
+        details['weatherCondition']?.toString().trim().isNotEmpty == true
+            ? details['weatherCondition'].toString()
+            : 'Sole';
+    _qualityRating = CoachTrainingUtils.asInt(
+      details['qualityRating'],
+      fallback: 3,
+    ).clamp(1, 5);
     _painCtrl.text = details['pain']?.toString() ?? '';
     _notesCtrl.text =
         (details['athleteNotes'] ?? details['notes'])?.toString() ?? '';
     _chronoCtrl.text = details['chronoNotes']?.toString() ?? '';
+    final chrono = CoachTrainingUtils.chronoFromDetails(details);
+    _chronoEnabled =
+        chrono['enabled'] == true || _chronoCtrl.text.trim().isNotEmpty;
+    _loadSkiDrafts(details);
+  }
 
-    final free = CoachTrainingUtils.freeSkiingFromDetails(details);
-    _freeLapsCtrl.text = (details['freeLaps'] ?? free['laps'] ?? '').toString();
-    _freeChangesCtrl.text = (free['changes'] ?? '').toString();
+  Map<String, dynamic> _mergedDetails(Map<String, dynamic>? raw) {
+    final root = Map<String, dynamic>.from(raw ?? const {});
+    final nested = root['technicalDetails'];
+    if (nested is! Map) return root;
+    return {
+      ...Map<String, dynamic>.from(nested),
+      ...root,
+    };
+  }
 
+  void _loadSkiDrafts(Map<String, dynamic> details) {
+    final specialties = (widget.initialSession == null
+            ? <String>['SL']
+            : CoachTrainingUtils.specialtiesFromDetails(details))
+        .where(CoachTrainingUtils.specialties.contains)
+        .take(2)
+        .toList();
+    if (specialties.isEmpty) specialties.add('SL');
+
+    final primarySpecialty = specialties.first;
+    final freeBySpecialty =
+        CoachTrainingUtils.freeSkiingBySpecialtyFromDetails(details);
     final tracks = CoachTrainingUtils.tracksFromDetails(details);
-    if (tracks.isNotEmpty) {
-      _trackLapsCtrl.text = (tracks.first['laps'] ?? '').toString();
-      _trackGatesCtrl.text =
-          (tracks.first['gates'] ?? tracks.first['changes'] ?? '').toString();
-    } else {
-      final gated = details['gatedSkiing'];
-      if (gated is Map) {
-        _trackLapsCtrl.text = (gated['laps'] ?? '').toString();
-        _trackGatesCtrl.text = (gated['changes'] ?? '').toString();
-      }
-    }
-
     final trainingBlocks =
         CoachTrainingUtils.trainingBlocksFromDetails(details);
-    if (trainingBlocks.isNotEmpty) {
-      _trainingLapsCtrl.text = (trainingBlocks.first['laps'] ?? '').toString();
-      _trainingRefsCtrl.text = (trainingBlocks.first['references'] ??
-              trainingBlocks.first['changes'] ??
-              '')
-          .toString();
+
+    for (final specialty in specialties) {
+      final free = freeBySpecialty[specialty] ??
+          (specialties.length == 1
+              ? CoachTrainingUtils.freeSkiingFromDetails(details)
+              : const <String, dynamic>{});
+      final draft = _SkiSpecialtyDraft(
+        specialty: specialty,
+        freeLaps: free['laps']?.toString() ?? '',
+        freeChanges: free['changes']?.toString() ?? '',
+      );
+
+      for (final track in tracks) {
+        if (draft.tracks.length >= 3) break;
+        final nextTrackNumber = draft.tracks.length + 1;
+        final trackSpecialty = CoachTrainingUtils.normalizeSpecialty(
+          track['specialty']?.toString() ?? primarySpecialty,
+        );
+        if (trackSpecialty != specialty) continue;
+        draft.tracks.add(_SkiBlockDraft(
+          id: track['id']?.toString() ??
+              _blockId(draft, 'track', nextTrackNumber),
+          name: track['name']?.toString() ?? 'Tracciato $nextTrackNumber',
+          laps: track['laps']?.toString() ?? '',
+          metric: (track['gates'] ?? track['changes'])?.toString() ?? '',
+        ));
+      }
+
+      for (final block in trainingBlocks) {
+        if (draft.trainingBlocks.isNotEmpty) break;
+        final blockSpecialty = CoachTrainingUtils.normalizeSpecialty(
+          block['specialty']?.toString() ?? primarySpecialty,
+        );
+        if (blockSpecialty != specialty) continue;
+        draft.trainingBlocks.add(_SkiBlockDraft(
+          id: block['id']?.toString() ??
+              _blockId(draft, 'training', draft.trainingBlocks.length + 1),
+          name: block['name']?.toString() ?? 'Addestramento',
+          laps: block['laps']?.toString() ?? '',
+          metric: (block['references'] ?? block['changes'])?.toString() ?? '',
+        ));
+      }
+      _skiDrafts.add(draft);
+    }
+
+    if (_skiDrafts.length == 1 &&
+        _skiDrafts.first.specialty != 'CL' &&
+        _skiDrafts.first.tracks.isEmpty &&
+        details['gatedSkiing'] is Map) {
+      final gated = details['gatedSkiing'] as Map;
+      _skiDrafts.first.tracks.add(_SkiBlockDraft(
+        id: _blockId(_skiDrafts.first, 'track', 1),
+        name: 'Tracciato 1',
+        laps: gated['laps']?.toString() ?? '',
+        metric: (gated['gates'] ?? gated['changes'])?.toString() ?? '',
+      ));
     }
   }
 
   @override
   void dispose() {
+    _titleCtrl.dispose();
     _locationCtrl.dispose();
-    _freeLapsCtrl.dispose();
-    _freeChangesCtrl.dispose();
-    _trackLapsCtrl.dispose();
-    _trackGatesCtrl.dispose();
-    _trainingLapsCtrl.dispose();
-    _trainingRefsCtrl.dispose();
     _chronoCtrl.dispose();
     _painCtrl.dispose();
     _notesCtrl.dispose();
-    _freeLapsFocus.dispose();
-    _freeChangesFocus.dispose();
-    _trackLapsFocus.dispose();
-    _trackGatesFocus.dispose();
-    _trainingLapsFocus.dispose();
-    _trainingRefsFocus.dispose();
+    for (final draft in _skiDrafts) {
+      draft.dispose();
+    }
     super.dispose();
   }
 
@@ -128,7 +283,9 @@ class _SkiActivityScreenState extends State<SkiActivityScreen> {
   }
 
   String _formatTime(TimeOfDay time) {
-    return '${time.hour.toString().padLeft(2, '0')}:${time.minute.toString().padLeft(2, '0')}';
+    final hour = time.hour.toString().padLeft(2, '0');
+    final minute = time.minute.toString().padLeft(2, '0');
+    return '$hour:$minute';
   }
 
   int _durationMinutes() {
@@ -143,92 +300,116 @@ class _SkiActivityScreenState extends State<SkiActivityScreen> {
     return CoachTrainingUtils.asNonNegativeInt(controller.text);
   }
 
+  String _blockId(
+    _SkiSpecialtyDraft draft,
+    String type,
+    int number,
+  ) {
+    final index = _skiDrafts.indexOf(draft);
+    final draftNumber = index + 1;
+    final prefix = index < 0 ? draft.specialty.toLowerCase() : 's$draftNumber';
+    return '$prefix' '_$type' '_$number';
+  }
+
   Map<String, dynamic> _details() {
-    final freeLaps = _intValue(_freeLapsCtrl);
-    final freeChanges = _intValue(_freeChangesCtrl);
-    final trackLaps = _intValue(_trackLapsCtrl);
-    final trackGates = _intValue(_trackGatesCtrl);
-    final trainingLaps = _intValue(_trainingLapsCtrl);
-    final trainingRefs = _intValue(_trainingRefsCtrl);
+    final previousDetails =
+        Map<String, dynamic>.from(widget.initialSession?.details ?? const {});
+    final freeBySpecialty = <String, Map<String, dynamic>>{
+      for (final draft in _skiDrafts)
+        draft.specialty: {
+          'specialty': draft.specialty,
+          'laps': _intValue(draft.freeLapsCtrl),
+          'changes': _intValue(draft.freeChangesCtrl),
+        },
+    };
+    final tracks = <Map<String, dynamic>>[
+      for (final draft in _skiDrafts)
+        if (draft.specialty != 'CL')
+          ...draft.tracks.map((track) => track.toTrackJson(draft.specialty)),
+    ];
+    final trainingBlocks = <Map<String, dynamic>>[
+      for (final draft in _skiDrafts)
+        if (draft.specialty != 'CL')
+          ...draft.trainingBlocks
+              .map((block) => block.toTrainingJson(draft.specialty)),
+    ];
+    final specialties =
+        _skiDrafts.map((draft) => draft.specialty).toList(growable: false);
+    final firstFree = freeBySpecialty.values.first;
 
     final technicalDetails = <String, dynamic>{
-      'specialty': _specialty,
-      'specialties': [_specialty],
+      'technicalVersion': 3,
+      'qualityRating': _qualityRating,
       'snowCondition': _snowCondition,
       'weatherCondition': _weatherCondition,
-      if (freeLaps > 0 || freeChanges > 0)
-        'freeSkiing': {'laps': freeLaps, 'changes': freeChanges},
-      if (trackLaps > 0 || trackGates > 0)
-        'tracks': [
-          {
-            'id': 'track_1',
-            'specialty': _specialty,
-            'laps': trackLaps,
-            'gates': trackGates,
-          }
-        ],
-      if (trainingLaps > 0 || trainingRefs > 0)
-        'trainingBlocks': [
-          {
-            'id': 'training_1',
-            'name': 'Addestramento',
-            'laps': trainingLaps,
-            'references': trainingRefs,
-          }
-        ],
-      if (_chronoCtrl.text.trim().isNotEmpty)
-        'chrono': {'enabled': true, 'notes': _chronoCtrl.text.trim()},
+      'specialties': specialties,
+      'freeSkiingBySpecialty': freeBySpecialty,
+      'freeSkiing': firstFree,
+      if (tracks.isNotEmpty) 'tracks': tracks,
+      if (tracks.isNotEmpty)
+        'gatedSkiing': {
+          'laps': tracks.fold<int>(
+            0,
+            (sum, track) =>
+                sum + CoachTrainingUtils.asNonNegativeInt(track['laps']),
+          ),
+          'changes': CoachTrainingUtils.asNonNegativeInt(
+            tracks.first['gates'],
+          ),
+        },
+      if (trainingBlocks.isNotEmpty) 'trainingBlocks': trainingBlocks,
+      'chrono': {'enabled': _chronoEnabled},
     };
 
-    return {
-      'skiSchemaVersion': 2,
+    final details = <String, dynamic>{
+      ...previousDetails,
+      'skiSchemaVersion': 3,
       'activityDomain': 'sport',
       'activityCategory': ActivityCategory.sport,
-      'source': ActivitySource.athlete,
-      'title': 'Alpine Skiing',
+      'status': ActivityStatus.completed,
+      'source': previousDetails['source'] ?? ActivitySource.athlete,
+      'title': _titleCtrl.text.trim().isEmpty
+          ? 'Allenamento Alpine Skiing'
+          : _titleCtrl.text.trim(),
       'location': _locationCtrl.text.trim(),
-      'specialty': _specialty,
-      'specialties': [_specialty],
+      'specialty': specialties.first,
+      'specialties': specialties,
+      'qualityRating': _qualityRating,
       'snowCondition': _snowCondition,
       'weatherCondition': _weatherCondition,
       'technicalDetails': technicalDetails,
-      if (freeLaps > 0 || freeChanges > 0)
-        'freeSkiing': {'laps': freeLaps, 'changes': freeChanges},
-      if (freeLaps > 0) 'freeLaps': freeLaps,
-      if (trackLaps > 0 || trackGates > 0)
-        'tracks': [
-          {
-            'id': 'track_1',
-            'specialty': _specialty,
-            'laps': trackLaps,
-            'gates': trackGates,
-          }
-        ],
-      if (trackLaps > 0 || trackGates > 0)
-        'gatedSkiing': {'laps': trackLaps, 'changes': trackGates},
-      if (trainingLaps > 0 || trainingRefs > 0)
-        'trainingBlocks': [
-          {
-            'id': 'training_1',
-            'name': 'Addestramento',
-            'laps': trainingLaps,
-            'references': trainingRefs,
-          }
-        ],
-      if (_chronoCtrl.text.trim().isNotEmpty)
+      'freeSkiingBySpecialty': freeBySpecialty,
+      'freeSkiing': firstFree,
+      if (tracks.isNotEmpty) 'tracks': tracks,
+      if (tracks.isNotEmpty) 'gatedSkiing': technicalDetails['gatedSkiing'],
+      if (trainingBlocks.isNotEmpty) 'trainingBlocks': trainingBlocks,
+      'chrono': {'enabled': _chronoEnabled},
+      if (_chronoEnabled && _chronoCtrl.text.trim().isNotEmpty)
         'chronoNotes': _chronoCtrl.text.trim(),
       'rpe': _rpe.round(),
       'pain': _painCtrl.text.trim(),
       'athleteNotes': _notesCtrl.text.trim(),
-    }..removeWhere((_, value) {
-        if (value == null) return true;
-        if (value is String) return value.trim().isEmpty;
-        return false;
-      });
+    }..removeWhere((_, value) => value is String && value.trim().isEmpty);
+    if (tracks.isEmpty) {
+      details.remove('tracks');
+      details.remove('gatedSkiing');
+    }
+    if (trainingBlocks.isEmpty) {
+      details.remove('trainingBlocks');
+      details.remove('addestramento');
+    }
+    if (!_chronoEnabled || _chronoCtrl.text.trim().isEmpty) {
+      details.remove('chronoNotes');
+    }
+    details['volumeSummary'] =
+        CoachTrainingUtils.volumeFromDetails(details).toJson();
+    return details;
   }
 
   Future<void> _save() async {
+    if (_isSaving) return;
     HapticFeedback.lightImpact();
+    setState(() => _isSaving = true);
     final session = TrainingSession(
       id: widget.initialSession?.id ??
           DateTime.now().millisecondsSinceEpoch.toString(),
@@ -241,9 +422,23 @@ class _SkiActivityScreenState extends State<SkiActivityScreen> {
       eventId: widget.initialSession?.eventId,
       details: _details(),
     );
-    await Provider.of<AppState>(context, listen: false).addSession(session);
-    if (!mounted) return;
-    Navigator.of(context).popUntil((route) => route.isFirst);
+    try {
+      await context.read<AppState>().addSession(
+            session,
+            rethrowErrors: true,
+          );
+      if (!mounted) return;
+      Navigator.of(context).popUntil((route) => route.isFirst);
+    } catch (_) {
+      if (!mounted) return;
+      setState(() => _isSaving = false);
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Impossibile salvare l allenamento. Riprova.'),
+          backgroundColor: AppTheme.error,
+        ),
+      );
+    }
   }
 
   Future<void> _delete() async {
@@ -254,7 +449,7 @@ class _SkiActivityScreenState extends State<SkiActivityScreen> {
         backgroundColor: AppTheme.card,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
         title: Text(
-          'Elimina Allenamento',
+          'Elimina allenamento',
           style: TextStyle(
             color: AppTheme.textHighEmphasis,
             fontWeight: FontWeight.bold,
@@ -267,10 +462,7 @@ class _SkiActivityScreenState extends State<SkiActivityScreen> {
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx, false),
-            child: Text(
-              'Annulla',
-              style: TextStyle(color: AppTheme.textMediumEmphasis),
-            ),
+            child: const Text('Annulla'),
           ),
           TextButton(
             onPressed: () => Navigator.pop(ctx, true),
@@ -287,7 +479,8 @@ class _SkiActivityScreenState extends State<SkiActivityScreen> {
     );
     final id = widget.initialSession?.id;
     if (confirm != true || id == null || !mounted) return;
-    Provider.of<AppState>(context, listen: false).deleteSession(id);
+    await context.read<AppState>().deleteSession(id);
+    if (!mounted) return;
     Navigator.of(context).popUntil((route) => route.isFirst);
   }
 
@@ -307,17 +500,23 @@ class _SkiActivityScreenState extends State<SkiActivityScreen> {
       );
     }
 
+    final actions = <KeyboardActionsItem>[];
+    for (final draft in _skiDrafts) {
+      actions.add(action(draft.freeLapsFocus));
+      actions.add(action(draft.freeChangesFocus));
+      for (final track in draft.tracks) {
+        actions.add(action(track.lapsFocus));
+        actions.add(action(track.metricFocus));
+      }
+      for (final block in draft.trainingBlocks) {
+        actions.add(action(block.lapsFocus));
+        actions.add(action(block.metricFocus));
+      }
+    }
     return KeyboardActionsConfig(
       keyboardActionsPlatform: KeyboardActionsPlatform.IOS,
       keyboardBarColor: AppTheme.card,
-      actions: [
-        action(_freeLapsFocus),
-        action(_freeChangesFocus),
-        action(_trackLapsFocus),
-        action(_trackGatesFocus),
-        action(_trainingLapsFocus),
-        action(_trainingRefsFocus),
-      ],
+      actions: actions,
     );
   }
 
@@ -349,9 +548,9 @@ class _SkiActivityScreenState extends State<SkiActivityScreen> {
           children: [
             _overviewCard(),
             const SizedBox(height: 16),
-            _technicalCard(),
-            const SizedBox(height: 16),
             _conditionsCard(),
+            const SizedBox(height: 16),
+            _technicalCard(),
             const SizedBox(height: 16),
             _personalCard(),
           ],
@@ -361,9 +560,16 @@ class _SkiActivityScreenState extends State<SkiActivityScreen> {
         child: Padding(
           padding: const EdgeInsets.all(16),
           child: ElevatedButton.icon(
-            onPressed: _save,
-            icon: const Icon(Icons.check_circle_outline),
-            label: const Text('Salva allenamento'),
+            key: const ValueKey('ski_save_button'),
+            onPressed: _isSaving ? null : _save,
+            icon: _isSaving
+                ? const SizedBox(
+                    width: 18,
+                    height: 18,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  )
+                : const Icon(Icons.check_circle_outline),
+            label: Text(_isSaving ? 'Salvataggio...' : 'Salva allenamento'),
             style: ElevatedButton.styleFrom(
               backgroundColor: AppTheme.primary,
               foregroundColor: Colors.white,
@@ -384,39 +590,28 @@ class _SkiActivityScreenState extends State<SkiActivityScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(
+          const Row(
             children: [
-              const Icon(Icons.downhill_skiing, color: AppTheme.secondary),
-              const SizedBox(width: 10),
-              const Expanded(
+              Icon(Icons.downhill_skiing, color: AppTheme.secondary),
+              SizedBox(width: 10),
+              Expanded(
                 child: Text(
                   'Alpine Skiing',
                   style: TextStyle(fontWeight: FontWeight.bold, fontSize: 20),
                 ),
               ),
-              _badge(_specialty, AppTheme.secondary),
             ],
           ),
           const SizedBox(height: 18),
-          Wrap(
-            spacing: 8,
-            runSpacing: 8,
-            children: CoachTrainingUtils.specialties.map((item) {
-              final selected = _specialty == item;
-              return ChoiceChip(
-                label: Text(item),
-                selected: selected,
-                onSelected: (_) => setState(() => _specialty = item),
-                selectedColor: AppTheme.primary,
-                backgroundColor: AppTheme.background,
-                labelStyle: TextStyle(
-                  color: selected ? Colors.white : AppTheme.textMediumEmphasis,
-                  fontWeight: FontWeight.bold,
-                ),
-              );
-            }).toList(),
+          _specialtySelector(),
+          const SizedBox(height: 18),
+          _textInput(
+            'Titolo allenamento',
+            _titleCtrl,
+            Icons.edit_outlined,
+            key: const ValueKey('ski_training_title'),
           ),
-          const SizedBox(height: 16),
+          const SizedBox(height: 12),
           Row(
             children: [
               Expanded(child: _dateField()),
@@ -433,40 +628,122 @@ class _SkiActivityScreenState extends State<SkiActivityScreen> {
     );
   }
 
-  Widget _technicalCard() {
-    return CustomCard(
-      padding: const EdgeInsets.all(20),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          const Text('Dettagli tecnici',
-              style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
-          const SizedBox(height: 16),
-          _volumeBlock(
-            title: 'Campo libero',
-            firstLabel: 'Giri',
-            first: _freeLapsCtrl,
-            secondLabel: 'Cambi/giro',
-            second: _freeChangesCtrl,
+  Widget _specialtySelector() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            Expanded(
+              child: Text(
+                'SPECIALITA',
+                style: TextStyle(
+                  color: AppTheme.textMediumEmphasis,
+                  fontSize: 11,
+                  fontWeight: FontWeight.bold,
+                  letterSpacing: 1,
+                ),
+              ),
+            ),
+            OutlinedButton.icon(
+              key: const ValueKey('ski_double_specialty'),
+              onPressed: () => setState(() {
+                if (_skiDrafts.length > 1) {
+                  final removed = _skiDrafts.removeLast();
+                  removed.dispose();
+                } else {
+                  _skiDrafts.add(_SkiSpecialtyDraft(
+                    specialty: _firstAvailableSpecialty(),
+                  ));
+                }
+              }),
+              icon: Icon(
+                _skiDrafts.length > 1 ? Icons.remove : Icons.add,
+                size: 18,
+              ),
+              label: Text(
+                _skiDrafts.length > 1 ? 'Rimuovi seconda' : 'Doppia specialita',
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 10),
+        _specialtyChoiceGroup(_skiDrafts.first),
+        if (_skiDrafts.length > 1) ...[
+          const SizedBox(height: 12),
+          Text(
+            'SECONDA SPECIALITA',
+            style: TextStyle(
+              color: AppTheme.textMediumEmphasis,
+              fontSize: 11,
+              fontWeight: FontWeight.bold,
+              letterSpacing: 1,
+            ),
           ),
-          _volumeBlock(
-            title: 'Pali',
-            firstLabel: 'Giri',
-            first: _trackLapsCtrl,
-            secondLabel: 'Porte/giro',
-            second: _trackGatesCtrl,
-          ),
-          _volumeBlock(
-            title: 'Addestramento',
-            firstLabel: 'Giri',
-            first: _trainingLapsCtrl,
-            secondLabel: 'Riferimenti/giro',
-            second: _trainingRefsCtrl,
-          ),
-          _textInput('Crono / note tempi', _chronoCtrl, Icons.timer_outlined),
+          const SizedBox(height: 10),
+          _specialtyChoiceGroup(_skiDrafts[1]),
         ],
-      ),
+      ],
     );
+  }
+
+  Widget _specialtyChoiceGroup(_SkiSpecialtyDraft draft) {
+    return Wrap(
+      spacing: 8,
+      runSpacing: 8,
+      children: CoachTrainingUtils.specialties.map((specialty) {
+        final selected = specialty == draft.specialty;
+        final usedByOther = _skiDrafts
+            .any((item) => item != draft && item.specialty == specialty);
+        return ChoiceChip(
+          label: Text(CoachTrainingUtils.specialtyLabel(specialty)),
+          selected: selected,
+          onSelected: usedByOther
+              ? null
+              : (_) => setState(() => _setDraftSpecialty(draft, specialty)),
+          selectedColor: AppTheme.primary,
+          disabledColor: AppTheme.subtleFill.withValues(alpha: 0.4),
+          backgroundColor: AppTheme.background,
+          labelStyle: TextStyle(
+            color: selected
+                ? Colors.white
+                : usedByOther
+                    ? AppTheme.textMediumEmphasis.withValues(alpha: 0.45)
+                    : AppTheme.textMediumEmphasis,
+            fontWeight: FontWeight.bold,
+          ),
+          side: BorderSide(
+            color: selected ? AppTheme.primary : AppTheme.subtleFill,
+          ),
+        );
+      }).toList(),
+    );
+  }
+
+  String _firstAvailableSpecialty() {
+    const preferred = ['GS', 'SL', 'SG', 'DH', 'SX', 'CL'];
+    return preferred.firstWhere(
+      (specialty) => !_skiDrafts.any((draft) => draft.specialty == specialty),
+      orElse: () => 'GS',
+    );
+  }
+
+  void _setDraftSpecialty(_SkiSpecialtyDraft draft, String specialty) {
+    if (_skiDrafts
+        .any((item) => item != draft && item.specialty == specialty)) {
+      return;
+    }
+    draft.specialty = specialty;
+    if (specialty == 'CL') {
+      for (final track in draft.tracks) {
+        track.dispose();
+      }
+      for (final block in draft.trainingBlocks) {
+        block.dispose();
+      }
+      draft.tracks.clear();
+      draft.trainingBlocks.clear();
+    }
   }
 
   Widget _conditionsCard() {
@@ -475,35 +752,220 @@ class _SkiActivityScreenState extends State<SkiActivityScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text('Condizioni',
-              style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
+          _sectionHeader(Icons.cloud_outlined, 'Condizioni'),
           const SizedBox(height: 14),
           _choiceRow(
-              'Neve',
-              [
-                'Dura',
-                'Compatta',
-                'Morbida',
-                'Primaverile',
-                'Fresca',
-              ],
-              _snowCondition,
-              (value) => setState(() => _snowCondition = value)),
-          const SizedBox(height: 12),
+            'Neve',
+            _snowOptions,
+            _snowCondition,
+            (value) => setState(() => _snowCondition = value),
+          ),
+          const SizedBox(height: 14),
           _choiceRow(
-              'Meteo',
-              [
-                'Sole',
-                'Nuvolo',
-                'Nevicata',
-                'Nebbia',
-                'Vento',
-              ],
-              _weatherCondition,
-              (value) => setState(() => _weatherCondition = value)),
+            'Meteo',
+            _weatherOptions,
+            _weatherCondition,
+            (value) => setState(() => _weatherCondition = value),
+          ),
+          const SizedBox(height: 16),
+          _qualityPicker(),
         ],
       ),
     );
+  }
+
+  Widget _qualityPicker() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          'QUALITA ALLENAMENTO',
+          style: TextStyle(
+            color: AppTheme.textMediumEmphasis,
+            fontSize: 11,
+            fontWeight: FontWeight.bold,
+            letterSpacing: 1,
+          ),
+        ),
+        const SizedBox(height: 10),
+        Row(
+          key: const ValueKey('ski_quality_picker'),
+          children: List.generate(5, (index) {
+            final value = index + 1;
+            final selected = _qualityRating == value;
+            return Expanded(
+              child: GestureDetector(
+                onTap: () => setState(() => _qualityRating = value),
+                child: Container(
+                  height: 42,
+                  margin: EdgeInsets.only(right: index == 4 ? 0 : 8),
+                  decoration: BoxDecoration(
+                    color: selected ? AppTheme.primary : AppTheme.background,
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(
+                      color: selected ? AppTheme.primary : AppTheme.subtleFill,
+                    ),
+                  ),
+                  child: Center(
+                    child: Text(
+                      '$value',
+                      style: TextStyle(
+                        color: selected
+                            ? Colors.white
+                            : AppTheme.textMediumEmphasis,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            );
+          }),
+        ),
+      ],
+    );
+  }
+
+  Widget _technicalCard() {
+    return CustomCard(
+      padding: const EdgeInsets.all(20),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          _sectionHeader(Icons.tune, 'Dettagli tecnici'),
+          const SizedBox(height: 16),
+          for (var i = 0; i < _skiDrafts.length; i++)
+            _specialtyTechnicalSection(_skiDrafts[i], i),
+          if (_skiDrafts.any((draft) => draft.specialty != 'CL')) ...[
+            SwitchListTile(
+              key: const ValueKey('ski_chrono_switch'),
+              value: _chronoEnabled,
+              onChanged: (value) => setState(() => _chronoEnabled = value),
+              title: Text(
+                'Crono',
+                style: TextStyle(
+                  color: AppTheme.textHighEmphasis,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+              subtitle: Text(
+                'Abilita i dati cronometrati personali.',
+                style: TextStyle(color: AppTheme.textMediumEmphasis),
+              ),
+              activeThumbColor: AppTheme.primary,
+              contentPadding: EdgeInsets.zero,
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Widget _specialtyTechnicalSection(
+    _SkiSpecialtyDraft draft,
+    int draftIndex,
+  ) {
+    final label = CoachTrainingUtils.specialtyLabel(draft.specialty);
+    final specialtyNumber = draftIndex + 1;
+    return Padding(
+      padding:
+          EdgeInsets.only(bottom: draftIndex == _skiDrafts.length - 1 ? 0 : 22),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          _badge(
+            'Specialita $specialtyNumber - $label',
+            AppTheme.primary,
+          ),
+          const SizedBox(height: 12),
+          _volumeBlock(
+            title: '$label - Campo libero',
+            firstLabel: 'Giri',
+            first: draft.freeLapsCtrl,
+            firstFocus: draft.freeLapsFocus,
+            secondLabel: 'Cambi/giro',
+            second: draft.freeChangesCtrl,
+            secondFocus: draft.freeChangesFocus,
+            totalLabel: 'cambi',
+          ),
+          if (draft.specialty != 'CL') ...[
+            for (final track in draft.tracks)
+              _volumeBlock(
+                title: _blockTitle(label, track.name),
+                firstLabel: 'Giri',
+                first: track.lapsCtrl,
+                firstFocus: track.lapsFocus,
+                secondLabel: 'Porte/giro',
+                second: track.metricCtrl,
+                secondFocus: track.metricFocus,
+                totalLabel: 'passaggi',
+                onRemove: () => setState(() {
+                  draft.tracks.remove(track);
+                  track.dispose();
+                }),
+              ),
+            if (draft.tracks.length < 3)
+              TextButton.icon(
+                key: _specialtyKey('ski_add_track', draft.specialty),
+                onPressed: () => _addTrack(draft),
+                icon: const Icon(Icons.add),
+                label: Text('Aggiungi tracciato $label'),
+              ),
+            const SizedBox(height: 8),
+            for (final block in draft.trainingBlocks)
+              _volumeBlock(
+                title: _blockTitle(label, block.name),
+                firstLabel: 'Giri',
+                first: block.lapsCtrl,
+                firstFocus: block.lapsFocus,
+                secondLabel: 'Riferimenti/giro',
+                second: block.metricCtrl,
+                secondFocus: block.metricFocus,
+                totalLabel: 'cambi',
+                onRemove: () => setState(() {
+                  draft.trainingBlocks.remove(block);
+                  block.dispose();
+                }),
+              ),
+            TextButton.icon(
+              key: _specialtyKey('ski_add_training', draft.specialty),
+              onPressed: draft.trainingBlocks.isEmpty
+                  ? () => _addTrainingBlock(draft)
+                  : null,
+              icon: const Icon(Icons.add),
+              label: Text('Aggiungi addestramento $label'),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  void _addTrack(_SkiSpecialtyDraft draft) {
+    if (draft.tracks.length >= 3) return;
+    setState(() {
+      final number = draft.tracks.length + 1;
+      draft.tracks.add(_SkiBlockDraft(
+        id: _blockId(draft, 'track', number),
+        name: 'Tracciato $number',
+      ));
+    });
+  }
+
+  void _addTrainingBlock(_SkiSpecialtyDraft draft) {
+    if (draft.trainingBlocks.isNotEmpty) return;
+    setState(() {
+      draft.trainingBlocks.add(_SkiBlockDraft(
+        id: _blockId(draft, 'training', 1),
+        name: 'Addestramento',
+      ));
+    });
+  }
+
+  String _blockTitle(String specialty, String name) => '$specialty - $name';
+
+  ValueKey<String> _specialtyKey(String prefix, String specialty) {
+    return ValueKey<String>('$prefix' '_$specialty');
   }
 
   Widget _personalCard() {
@@ -512,16 +974,18 @@ class _SkiActivityScreenState extends State<SkiActivityScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text('Dati personali',
-              style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
+          _sectionHeader(Icons.person_outline, 'Dati personali'),
           const SizedBox(height: 12),
           Row(
             children: [
               Expanded(
-                child: Text('RPE',
-                    style: TextStyle(
-                        color: AppTheme.textMediumEmphasis,
-                        fontWeight: FontWeight.bold)),
+                child: Text(
+                  'RPE',
+                  style: TextStyle(
+                    color: AppTheme.textMediumEmphasis,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
               ),
               _badge(_rpe.round().toString(), AppTheme.primary),
             ],
@@ -534,6 +998,14 @@ class _SkiActivityScreenState extends State<SkiActivityScreen> {
             onChanged: (value) => setState(() => _rpe = value),
           ),
           _textInput('Dolore', _painCtrl, Icons.healing_outlined),
+          if (_chronoEnabled) ...[
+            const SizedBox(height: 12),
+            _textInput(
+              'Crono personale / note tempi',
+              _chronoCtrl,
+              Icons.timer_outlined,
+            ),
+          ],
           const SizedBox(height: 12),
           _textInput('Note personali', _notesCtrl, Icons.notes, maxLines: 3),
         ],
@@ -541,12 +1013,33 @@ class _SkiActivityScreenState extends State<SkiActivityScreen> {
     );
   }
 
+  Widget _sectionHeader(IconData icon, String title) {
+    return Row(
+      children: [
+        Icon(icon, color: AppTheme.primary, size: 20),
+        const SizedBox(width: 8),
+        Text(
+          title,
+          style: TextStyle(
+            color: AppTheme.textHighEmphasis,
+            fontWeight: FontWeight.bold,
+            fontSize: 18,
+          ),
+        ),
+      ],
+    );
+  }
+
   Widget _volumeBlock({
     required String title,
     required String firstLabel,
     required TextEditingController first,
+    required FocusNode firstFocus,
     required String secondLabel,
     required TextEditingController second,
+    required FocusNode secondFocus,
+    required String totalLabel,
+    VoidCallback? onRemove,
   }) {
     final total = _intValue(first) * _intValue(second);
     return Container(
@@ -560,25 +1053,37 @@ class _SkiActivityScreenState extends State<SkiActivityScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(title,
-              style: TextStyle(
-                  color: AppTheme.textHighEmphasis,
-                  fontWeight: FontWeight.bold)),
-          const SizedBox(height: 10),
           Row(
             children: [
               Expanded(
-                child: _numberInput(firstLabel, first, _focusNodeFor(first)),
+                child: Text(
+                  title,
+                  style: TextStyle(
+                    color: AppTheme.textHighEmphasis,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
               ),
+              if (onRemove != null)
+                IconButton(
+                  onPressed: onRemove,
+                  icon: const Icon(Icons.close, size: 18),
+                  tooltip: 'Rimuovi',
+                  visualDensity: VisualDensity.compact,
+                ),
+            ],
+          ),
+          const SizedBox(height: 10),
+          Row(
+            children: [
+              Expanded(child: _numberInput(firstLabel, first, firstFocus)),
               const SizedBox(width: 10),
-              Expanded(
-                child: _numberInput(secondLabel, second, _focusNodeFor(second)),
-              ),
+              Expanded(child: _numberInput(secondLabel, second, secondFocus)),
             ],
           ),
           const SizedBox(height: 8),
           Text(
-            'Totale: $total',
+            'Totale $totalLabel: $total',
             style: TextStyle(
               color: AppTheme.textMediumEmphasis,
               fontSize: 12,
@@ -643,14 +1148,23 @@ class _SkiActivityScreenState extends State<SkiActivityScreen> {
           children: [
             Icon(icon, color: AppTheme.primary, size: 18),
             const SizedBox(height: 8),
-            Text(label,
-                style: TextStyle(
-                    color: AppTheme.textMediumEmphasis, fontSize: 11)),
+            Text(
+              label,
+              style: TextStyle(
+                color: AppTheme.textMediumEmphasis,
+                fontSize: 11,
+              ),
+            ),
             const SizedBox(height: 4),
-            Text(value,
-                style: TextStyle(
-                    color: AppTheme.textHighEmphasis,
-                    fontWeight: FontWeight.bold)),
+            Text(
+              value,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(
+                color: AppTheme.textHighEmphasis,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
           ],
         ),
       ),
@@ -662,8 +1176,10 @@ class _SkiActivityScreenState extends State<SkiActivityScreen> {
     TextEditingController controller,
     IconData icon, {
     int maxLines = 1,
+    Key? key,
   }) {
     return TextField(
+      key: key,
       controller: controller,
       maxLines: maxLines,
       style: TextStyle(color: AppTheme.textHighEmphasis),
@@ -680,15 +1196,6 @@ class _SkiActivityScreenState extends State<SkiActivityScreen> {
     );
   }
 
-  FocusNode _focusNodeFor(TextEditingController controller) {
-    if (controller == _freeLapsCtrl) return _freeLapsFocus;
-    if (controller == _freeChangesCtrl) return _freeChangesFocus;
-    if (controller == _trackLapsCtrl) return _trackLapsFocus;
-    if (controller == _trackGatesCtrl) return _trackGatesFocus;
-    if (controller == _trainingLapsCtrl) return _trainingLapsFocus;
-    return _trainingRefsFocus;
-  }
-
   Widget _numberInput(
     String label,
     TextEditingController controller,
@@ -701,7 +1208,9 @@ class _SkiActivityScreenState extends State<SkiActivityScreen> {
       textInputAction: TextInputAction.done,
       inputFormatters: [FilteringTextInputFormatter.digitsOnly],
       style: TextStyle(
-          color: AppTheme.textHighEmphasis, fontWeight: FontWeight.bold),
+        color: AppTheme.textHighEmphasis,
+        fontWeight: FontWeight.bold,
+      ),
       decoration: InputDecoration(
         labelText: label,
         filled: true,
@@ -724,11 +1233,14 @@ class _SkiActivityScreenState extends State<SkiActivityScreen> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(label,
-            style: TextStyle(
-                color: AppTheme.textMediumEmphasis,
-                fontSize: 11,
-                fontWeight: FontWeight.bold)),
+        Text(
+          label,
+          style: TextStyle(
+            color: AppTheme.textMediumEmphasis,
+            fontSize: 11,
+            fontWeight: FontWeight.bold,
+          ),
+        ),
         const SizedBox(height: 8),
         Wrap(
           spacing: 8,

@@ -98,11 +98,13 @@ class UnilateralMode {
   static const bilateral = 'bilateral';
   static const right = 'right';
   static const left = 'left';
+  static const alternating = 'alternating';
 }
 
 class TrainingSide {
   static const right = 'right';
   static const left = 'left';
+  static const alternating = 'alternating';
   static const both = 'both';
   static const none = 'none';
 }
@@ -463,6 +465,56 @@ class PlyometricEntry {
       };
 }
 
+class SpeedAgilityTrial {
+  final int trialNumber;
+  final double? distanceM;
+  final double? timeSeconds;
+  final int? restSeconds;
+  final double? intensityPercent;
+  final String? startType;
+  final String side;
+  final String? notes;
+
+  const SpeedAgilityTrial({
+    required this.trialNumber,
+    this.distanceM,
+    this.timeSeconds,
+    this.restSeconds,
+    this.intensityPercent,
+    this.startType,
+    this.side = TrainingSide.none,
+    this.notes,
+  });
+
+  factory SpeedAgilityTrial.fromJson(
+    Map<String, dynamic> json, {
+    int fallbackTrial = 1,
+  }) {
+    return SpeedAgilityTrial(
+      trialNumber:
+          _int(json['trialNumber'] ?? json['setNumber']) ?? fallbackTrial,
+      distanceM: _double(json['distanceM'] ?? json['distanceMeters']),
+      timeSeconds: _double(json['timeSeconds']),
+      restSeconds: _int(json['restSeconds']),
+      intensityPercent: _double(json['intensityPercent']),
+      startType: _string(json['startType']),
+      side: json['side']?.toString() ?? TrainingSide.none,
+      notes: _string(json['notes']),
+    );
+  }
+
+  Map<String, dynamic> toJson() => {
+        'trialNumber': trialNumber,
+        'distanceM': distanceM,
+        'timeSeconds': timeSeconds,
+        'restSeconds': restSeconds,
+        'intensityPercent': intensityPercent,
+        'startType': startType,
+        'side': side,
+        'notes': notes,
+      }..removeWhere((_, value) => value == null);
+}
+
 class SpeedAgilityDrill {
   final String name;
   final String type;
@@ -474,6 +526,7 @@ class SpeedAgilityDrill {
   final String? startType;
   final String? surface;
   final List<String> equipment;
+  final List<SpeedAgilityTrial> trials;
   final String? notes;
 
   const SpeedAgilityDrill({
@@ -487,6 +540,7 @@ class SpeedAgilityDrill {
     this.startType,
     this.surface,
     this.equipment = const [],
+    this.trials = const [],
     this.notes,
   });
 
@@ -504,8 +558,29 @@ class SpeedAgilityDrill {
       equipment:
           (json['equipment'] as List?)?.map((e) => e.toString()).toList() ??
               const [],
+      trials: _mapList(json['trials']).asMap().entries.map((entry) {
+        return SpeedAgilityTrial.fromJson(
+          entry.value,
+          fallbackTrial: entry.key + 1,
+        );
+      }).toList(),
       notes: _string(json['notes']),
     );
+  }
+
+  double get totalDistanceM => trials.fold(
+        0,
+        (sum, trial) => sum + (trial.distanceM ?? 0),
+      );
+
+  double? get bestTimeSeconds {
+    final values = trials
+        .map((trial) => trial.timeSeconds)
+        .whereType<double>()
+        .where((value) => value > 0)
+        .toList();
+    if (values.isEmpty) return null;
+    return values.reduce((a, b) => a < b ? a : b);
   }
 
   Map<String, dynamic> toJson() => {
@@ -519,8 +594,9 @@ class SpeedAgilityDrill {
         'startType': startType,
         'surface': surface,
         'equipment': equipment,
+        'trials': trials.map((trial) => trial.toJson()).toList(),
         'notes': notes,
-      };
+      }..removeWhere((_, value) => value == null);
 }
 
 class EnduranceMetrics {
@@ -953,6 +1029,11 @@ class WorkoutTemplate {
   final String? teamId;
   final String category;
   final String? sportType;
+  final String? activityMode;
+  final String? protocolId;
+  final String structureMode;
+  final int? plannedDurationMinutes;
+  final String visibility;
   final List<TrainingBlock> blocks;
   final String createdBy;
   final DateTime createdAt;
@@ -968,6 +1049,11 @@ class WorkoutTemplate {
     this.teamId,
     required this.category,
     this.sportType,
+    this.activityMode,
+    this.protocolId,
+    this.structureMode = 'simple',
+    this.plannedDurationMinutes,
+    this.visibility = 'private',
     this.blocks = const [],
     required this.createdBy,
     required this.createdAt,
@@ -985,6 +1071,11 @@ class WorkoutTemplate {
       teamId: _string(json['teamId']),
       category: json['category']?.toString() ?? ActivityCategory.other,
       sportType: _string(json['sportType']),
+      activityMode: _string(json['activityMode']),
+      protocolId: _string(json['protocolId']),
+      structureMode: json['structureMode']?.toString() ?? 'simple',
+      plannedDurationMinutes: _int(json['plannedDurationMinutes']),
+      visibility: json['visibility']?.toString() ?? 'private',
       blocks: _mapList(json['blocks'])
           .map((item) => TrainingBlock.fromJson(item))
           .toList(),
@@ -1007,6 +1098,11 @@ class WorkoutTemplate {
       teamId: _string(json['team_id']),
       category: json['category']?.toString() ?? ActivityCategory.other,
       sportType: _string(json['sport_type']),
+      activityMode: _string(json['activity_mode']),
+      protocolId: _string(json['protocol_id']),
+      structureMode: json['structure_mode']?.toString() ?? 'simple',
+      plannedDurationMinutes: _int(json['planned_duration_minutes']),
+      visibility: json['visibility']?.toString() ?? 'private',
       blocks: _mapList(json['blocks'])
           .map((item) => TrainingBlock.fromJson(item))
           .toList(),
@@ -1028,6 +1124,11 @@ class WorkoutTemplate {
     required String ownerId,
     String? teamId,
     required String createdBy,
+    String? activityMode,
+    String? protocolId,
+    String? structureMode,
+    int? plannedDurationMinutes,
+    String visibility = 'private',
     DateTime? now,
   }) {
     final timestamp = now ?? DateTime.now();
@@ -1040,6 +1141,12 @@ class WorkoutTemplate {
       teamId: teamId,
       category: activity.category,
       sportType: activity.sportType,
+      activityMode: activityMode,
+      protocolId: protocolId,
+      structureMode:
+          structureMode ?? (activity.usesPhases == true ? 'phased' : 'simple'),
+      plannedDurationMinutes: plannedDurationMinutes,
+      visibility: visibility,
       blocks: activity.blocks.map((block) => block.deepCopy()).toList(),
       createdBy: createdBy,
       createdAt: timestamp,
@@ -1072,6 +1179,7 @@ class WorkoutTemplate {
       status: status,
       category: category,
       sportType: sportType,
+      usesPhases: structureMode == 'phased',
       title: title ?? name,
       date: date,
       startTime: startTime,
@@ -1092,6 +1200,11 @@ class WorkoutTemplate {
         'teamId': teamId,
         'category': category,
         'sportType': sportType,
+        'activityMode': activityMode,
+        'protocolId': protocolId,
+        'structureMode': structureMode,
+        'plannedDurationMinutes': plannedDurationMinutes,
+        'visibility': visibility,
         'blocks': blocks.map((block) => block.toJson()).toList(),
         'createdBy': createdBy,
         'createdAt': createdAt.toIso8601String(),
@@ -1108,6 +1221,11 @@ class WorkoutTemplate {
         'team_id': teamId,
         'category': category,
         'sport_type': sportType,
+        'activity_mode': activityMode,
+        'protocol_id': protocolId,
+        'structure_mode': structureMode,
+        'planned_duration_minutes': plannedDurationMinutes,
+        'visibility': visibility,
         'blocks': blocks.map((block) => block.toJson()).toList(),
         'created_by': createdBy,
         'created_at': createdAt.toIso8601String(),
@@ -1141,9 +1259,11 @@ String _categoryFromSportId(String sportId, Map<String, dynamic> details) {
     return ActivityCategory.speedAgility;
   }
   if (sportId == 'dryland_endurance') return ActivityCategory.endurance;
-  if (sportId == 'dryland_mobility_core') return ActivityCategory.mobility;
-  if (sportId == 'dryland_mixed_circuit') {
-    return ActivityCategory.athleticPrep;
+  if (sportId == 'dryland_mobility_core' || sportId == 'mobility_recovery') {
+    return ActivityCategory.mobility;
+  }
+  if (sportId == 'dryland_mixed_circuit' || sportId == 'conditioning_hiit') {
+    return ActivityCategory.circuit;
   }
   if (['weightlifting', 'powerlifting', 'crossfit', 'bodybuilding']
       .contains(sportId)) {

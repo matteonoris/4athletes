@@ -15,6 +15,7 @@ class AnalyticsDetailsScreen extends StatefulWidget {
   final List<dynamic>? preloadedLogs;
   final bool isReadOnly;
   final String? athleteId;
+  final bool openAddOnStart;
 
   const AnalyticsDetailsScreen({
     super.key,
@@ -24,6 +25,7 @@ class AnalyticsDetailsScreen extends StatefulWidget {
     this.preloadedLogs,
     this.isReadOnly = false,
     this.athleteId,
+    this.openAddOnStart = false,
   });
 
   @override
@@ -32,6 +34,16 @@ class AnalyticsDetailsScreen extends StatefulWidget {
 
 class _AnalyticsDetailsScreenState extends State<AnalyticsDetailsScreen> {
   String _selectedTimeframe = '1M'; // '1M' | '3M' | '6M' | '1Y' | 'ALL'
+
+  @override
+  void initState() {
+    super.initState();
+    if (widget.openAddOnStart && !widget.isReadOnly) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) _showAddOrEditLogDialog();
+      });
+    }
+  }
 
   bool get _isDropJumpDetail =>
       widget.type == 'jump' && widget.exerciseId == 'drop_jump';
@@ -426,8 +438,7 @@ class _AnalyticsDetailsScreenState extends State<AnalyticsDetailsScreen> {
     List<dynamic> logs = _filterLogsByTimeframe(allLogs);
 
     return Scaffold(
-      backgroundColor:
-          const Color(0xFF111418), // very dark background resembling image
+      backgroundColor: AppTheme.background,
       appBar: AppBar(
         leading: IconButton(
             icon: const Icon(Icons.arrow_back),
@@ -435,7 +446,7 @@ class _AnalyticsDetailsScreenState extends State<AnalyticsDetailsScreen> {
         title: Text(widget.title,
             style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
         centerTitle: true,
-        backgroundColor: Colors.transparent,
+        backgroundColor: AppTheme.surface,
         actions: [
           if (!widget.isReadOnly)
             Padding(
@@ -444,8 +455,8 @@ class _AnalyticsDetailsScreenState extends State<AnalyticsDetailsScreen> {
                 onTap: () => _showAddOrEditLogDialog(),
                 child: Container(
                   padding: const EdgeInsets.all(8),
-                  decoration: const BoxDecoration(
-                    color: Color(0xFF1B232A), // circle bg
+                  decoration: BoxDecoration(
+                    color: AppTheme.card,
                     shape: BoxShape.circle,
                   ),
                   child: const Icon(PhosphorIconsRegular.plus,
@@ -480,7 +491,7 @@ class _AnalyticsDetailsScreenState extends State<AnalyticsDetailsScreen> {
           if (logs.isEmpty)
             Center(
                 child: Padding(
-                    padding: EdgeInsets.all(40),
+                    padding: const EdgeInsets.all(40),
                     child: Text('Nessun dato registrato nel periodo.',
                         style: TextStyle(color: AppTheme.textMediumEmphasis))))
           else
@@ -497,7 +508,7 @@ class _AnalyticsDetailsScreenState extends State<AnalyticsDetailsScreen> {
       child: Container(
         padding: const EdgeInsets.all(4),
         decoration: BoxDecoration(
-          color: const Color(0xFF1B1D22),
+          color: AppTheme.card,
           borderRadius: BorderRadius.circular(12),
         ),
         child: Row(
@@ -607,7 +618,7 @@ class _AnalyticsDetailsScreenState extends State<AnalyticsDetailsScreen> {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 20),
       child: CustomCard(
-        color: const Color(0xFF22282D),
+        color: AppTheme.card,
         padding: const EdgeInsets.all(24),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -723,7 +734,7 @@ class _AnalyticsDetailsScreenState extends State<AnalyticsDetailsScreen> {
       return Padding(
         padding: const EdgeInsets.symmetric(horizontal: 20),
         child: CustomCard(
-          color: const Color(0xFF22282D),
+          color: AppTheme.card,
           height: 250,
           child: Center(
             child: Text(emptyMessage,
@@ -754,7 +765,7 @@ class _AnalyticsDetailsScreenState extends State<AnalyticsDetailsScreen> {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 20),
       child: CustomCard(
-        color: const Color(0xFF22282D),
+        color: AppTheme.card,
         height: 250,
         padding:
             const EdgeInsets.only(top: 32, bottom: 16, left: 16, right: 32),
@@ -842,7 +853,7 @@ class _AnalyticsDetailsScreenState extends State<AnalyticsDetailsScreen> {
                       radius: 4,
                       color: color,
                       strokeWidth: 2,
-                      strokeColor: const Color(0xFF22282D),
+                      strokeColor: AppTheme.card,
                     );
                   },
                 ),

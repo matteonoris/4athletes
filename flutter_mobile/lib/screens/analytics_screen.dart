@@ -3,12 +3,17 @@ import 'package:provider/provider.dart';
 import 'package:phosphor_flutter/phosphor_flutter.dart';
 
 import '../core/theme.dart';
+import '../data/exercises.dart';
+import '../data/workout_catalog.dart';
 import '../providers/app_state.dart';
+import '../services/athlete_monthly_recap_calculator.dart';
+import '../utils/max_load_analytics_utils.dart';
 import '../utils/strength_pr_utils.dart';
 import '../widgets/custom_card.dart';
 import '../models/models.dart';
 import 'activity_details_screen.dart';
 import 'analytics_details_screen.dart';
+import 'athlete_monthly_recap_screen.dart';
 
 class AnalyticsScreen extends StatefulWidget {
   const AnalyticsScreen({super.key});
@@ -48,6 +53,103 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
   // Get Latest PR by date (not the highest — just the most recently added)
   double _getLatestPR(List<PRLog> logs, String exerciseId) {
     return currentOneRepMaxForExercise(exerciseId, logs);
+  }
+
+  Future<void> _openMaxLoadDetails(
+    String exerciseId, {
+    bool openAddOnStart = false,
+  }) {
+    return Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => AnalyticsDetailsScreen(
+          title: maxLoadExerciseName(exerciseId),
+          type: 'pr',
+          exerciseId: exerciseId,
+          openAddOnStart: openAddOnStart,
+        ),
+      ),
+    );
+  }
+
+  Future<void> _addMaxLoadExercise() async {
+    final exercise = await showModalBottomSheet<ExerciseDef>(
+      context: context,
+      isScrollControlled: true,
+      showDragHandle: true,
+      backgroundColor: AppTheme.surface,
+      builder: (_) => const _MaxLoadExercisePickerSheet(),
+    );
+    if (exercise == null || !mounted) return;
+    await _openMaxLoadDetails(exercise.id, openAddOnStart: true);
+  }
+
+  Widget _buildMaxLoadSection(AppState appState, String weightUnit) {
+    final exerciseIds = trackedMaxLoadExerciseIds(appState.prLogs);
+    final visibleIds = exerciseIds.take(4).toList();
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            Expanded(
+              child: Text(
+                'MAX LOAD',
+                style: Theme.of(context)
+                    .textTheme
+                    .titleMedium
+                    ?.copyWith(fontWeight: FontWeight.bold),
+              ),
+            ),
+            TextButton.icon(
+              key: const ValueKey('add_max_load_exercise'),
+              onPressed: _addMaxLoadExercise,
+              icon: const Icon(Icons.add, size: 18),
+              label: const Text('Aggiungi'),
+            ),
+          ],
+        ),
+        const SizedBox(height: 12),
+        GridView.count(
+          crossAxisCount: 2,
+          mainAxisSpacing: 12,
+          crossAxisSpacing: 12,
+          shrinkWrap: true,
+          physics: const NeverScrollableScrollPhysics(),
+          childAspectRatio: 1.8,
+          children: visibleIds
+              .map(
+                (exerciseId) => GestureDetector(
+                  key: ValueKey('max_load_$exerciseId'),
+                  onTap: () => _openMaxLoadDetails(exerciseId),
+                  child: _MaxLoadCard(
+                    title: maxLoadExerciseName(exerciseId),
+                    val: _getLatestPR(appState.prLogs, exerciseId),
+                    unit: weightUnit,
+                  ),
+                ),
+              )
+              .toList(),
+        ),
+        if (exerciseIds.length > 4) ...[
+          const SizedBox(height: 10),
+          SizedBox(
+            width: double.infinity,
+            child: OutlinedButton.icon(
+              key: const ValueKey('view_all_max_loads'),
+              onPressed: () => Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (_) => const _AllMaxLoadsScreen(),
+                ),
+              ),
+              icon: const Icon(Icons.grid_view_outlined, size: 18),
+              label: Text('Vedi tutti (${exerciseIds.length})'),
+            ),
+          ),
+        ],
+      ],
+    );
   }
 
   double _getLatestBodyVal(List<BodyMetricLog> logs, String type) {
@@ -98,6 +200,17 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
     final plankSideL = _getLatestBodyVal(appState.bodyLogs, 'plank_side_l');
     final plankSideR = _getLatestBodyVal(appState.bodyLogs, 'plank_side_r');
     final pullupsMax = _getLatestBodyVal(appState.bodyLogs, 'pullups_max');
+    final now = DateTime.now();
+    final monthlyRecap = const AthleteMonthlyRecapCalculator().build(
+      sessions: appState.sessions,
+      coachEvents: appState.coachEvents,
+      athleteId: user?.id,
+      athleteEmail: user?.email,
+      athleteName:
+          user == null ? null : '${user.firstName} ${user.lastName}'.trim(),
+      selectedMonth: DateTime(now.year, now.month),
+      now: now,
+    );
     return Scaffold(
       appBar: AppBar(
         title: const Text('Analytics',
@@ -153,6 +266,18 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
             ),
             const SizedBox(height: 24),
           ],
+          AthleteMonthlyRecapCard(
+            recap: monthlyRecap,
+            onTap: () => Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (_) => AthleteMonthlyRecapScreen(
+                  initialMonth: monthlyRecap.selectedMonth,
+                ),
+              ),
+            ),
+          ),
+          const SizedBox(height: 32),
           // JUMP PROFILE
           Text('PROFILO SALTI',
               style: Theme.of(context).textTheme.labelSmall?.copyWith(
@@ -386,75 +511,7 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
 
           const SizedBox(height: 32),
 
-          // MAX LOAD
-          Text('MAX LOAD',
-              style: Theme.of(context)
-                  .textTheme
-                  .titleMedium
-                  ?.copyWith(fontWeight: FontWeight.bold)),
-          const SizedBox(height: 12),
-          GridView.count(
-            crossAxisCount: 2,
-            mainAxisSpacing: 12,
-            crossAxisSpacing: 12,
-            shrinkWrap: true,
-            physics: const NeverScrollableScrollPhysics(),
-            childAspectRatio: 1.8,
-            children: [
-              GestureDetector(
-                onTap: () => Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                        builder: (_) => const AnalyticsDetailsScreen(
-                            title: 'Back Squat',
-                            type: 'pr',
-                            exerciseId: 'back_squat'))),
-                child: _MaxLoadCard(
-                    title: 'Back Squat',
-                    val: _getLatestPR(appState.prLogs, 'back_squat'),
-                    unit: weightUnit),
-              ),
-              GestureDetector(
-                onTap: () => Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                        builder: (_) => const AnalyticsDetailsScreen(
-                            title: 'Deadlift',
-                            type: 'pr',
-                            exerciseId: 'deadlift'))),
-                child: _MaxLoadCard(
-                    title: 'Deadlift',
-                    val: _getLatestPR(appState.prLogs, 'deadlift'),
-                    unit: weightUnit),
-              ),
-              GestureDetector(
-                onTap: () => Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                        builder: (_) => const AnalyticsDetailsScreen(
-                            title: 'Bench Press',
-                            type: 'pr',
-                            exerciseId: 'bp'))),
-                child: _MaxLoadCard(
-                    title: 'Bench Press',
-                    val: _getLatestPR(appState.prLogs, 'bp'),
-                    unit: weightUnit),
-              ),
-              GestureDetector(
-                onTap: () => Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                        builder: (_) => const AnalyticsDetailsScreen(
-                            title: 'Clean & Jerk',
-                            type: 'pr',
-                            exerciseId: 'clean_jerk'))),
-                child: _MaxLoadCard(
-                    title: 'Clean & Jerk',
-                    val: _getLatestPR(appState.prLogs, 'clean_jerk'),
-                    unit: weightUnit),
-              ),
-            ],
-          ),
+          _buildMaxLoadSection(appState, weightUnit),
 
           const SizedBox(height: 32),
 
@@ -654,11 +711,17 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Text('Sessioni Recenti',
+              Expanded(
+                child: Text(
+                  'Sessioni Recenti',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
                   style: Theme.of(context)
                       .textTheme
                       .titleMedium
-                      ?.copyWith(fontWeight: FontWeight.bold)),
+                      ?.copyWith(fontWeight: FontWeight.bold),
+                ),
+              ),
               TextButton(
                 onPressed: () {
                   Navigator.push(
@@ -723,7 +786,9 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            Text(s.sportId.toUpperCase().replaceAll('_', ' '),
+                            Text(
+                                WorkoutCatalog.displayName(s.sportId)
+                                    .toUpperCase(),
                                 style: const TextStyle(
                                     fontSize: 14, fontWeight: FontWeight.bold)),
                             RichText(
@@ -839,6 +904,187 @@ class _JumpCard extends StatelessWidget {
   }
 }
 
+class _AllMaxLoadsScreen extends StatefulWidget {
+  const _AllMaxLoadsScreen();
+
+  @override
+  State<_AllMaxLoadsScreen> createState() => _AllMaxLoadsScreenState();
+}
+
+class _AllMaxLoadsScreenState extends State<_AllMaxLoadsScreen> {
+  Future<void> _openExercise(
+    String exerciseId, {
+    bool openAddOnStart = false,
+  }) {
+    return Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => AnalyticsDetailsScreen(
+          title: maxLoadExerciseName(exerciseId),
+          type: 'pr',
+          exerciseId: exerciseId,
+          openAddOnStart: openAddOnStart,
+        ),
+      ),
+    );
+  }
+
+  Future<void> _addExercise() async {
+    final exercise = await showModalBottomSheet<ExerciseDef>(
+      context: context,
+      isScrollControlled: true,
+      showDragHandle: true,
+      backgroundColor: AppTheme.surface,
+      builder: (_) => const _MaxLoadExercisePickerSheet(),
+    );
+    if (exercise == null || !mounted) return;
+    await _openExercise(exercise.id, openAddOnStart: true);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final appState = context.watch<AppState>();
+    final exerciseIds = trackedMaxLoadExerciseIds(appState.prLogs);
+    final unit = appState.profile?.unitSystem == 'imperial' ? 'lbs' : 'kg';
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('Tutti i massimali'),
+        actions: [
+          IconButton(
+            key: const ValueKey('add_max_load_exercise_all'),
+            tooltip: 'Aggiungi esercizio',
+            onPressed: _addExercise,
+            icon: const Icon(Icons.add),
+          ),
+        ],
+      ),
+      body: GridView.builder(
+        padding: const EdgeInsets.all(16),
+        gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+          crossAxisCount: 2,
+          mainAxisSpacing: 12,
+          crossAxisSpacing: 12,
+          childAspectRatio: 1.8,
+        ),
+        itemCount: exerciseIds.length,
+        itemBuilder: (_, index) {
+          final exerciseId = exerciseIds[index];
+          return GestureDetector(
+            key: ValueKey('all_max_load_$exerciseId'),
+            onTap: () => _openExercise(exerciseId),
+            child: _MaxLoadCard(
+              title: maxLoadExerciseName(exerciseId),
+              val: currentOneRepMaxForExercise(
+                exerciseId,
+                appState.prLogs,
+              ),
+              unit: unit,
+            ),
+          );
+        },
+      ),
+    );
+  }
+}
+
+class _MaxLoadExercisePickerSheet extends StatefulWidget {
+  const _MaxLoadExercisePickerSheet();
+
+  @override
+  State<_MaxLoadExercisePickerSheet> createState() =>
+      _MaxLoadExercisePickerSheetState();
+}
+
+class _MaxLoadExercisePickerSheetState
+    extends State<_MaxLoadExercisePickerSheet> {
+  final _searchController = TextEditingController();
+  String _query = '';
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final query = _query.trim().toLowerCase();
+    final exercises = exerciseDatabase.where((exercise) {
+      final searchable =
+          '${exercise.name} ${exercise.id} ${exercise.targetMuscle} ${exercise.category}'
+              .toLowerCase();
+      return query.isEmpty || searchable.contains(query);
+    }).toList()
+      ..sort((a, b) => a.name.compareTo(b.name));
+    return SafeArea(
+      child: SizedBox(
+        height: MediaQuery.sizeOf(context).height * 0.82,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Aggiungi un massimale',
+                    style: Theme.of(context).textTheme.titleLarge,
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    'Scegli un esercizio dal database.',
+                    style: TextStyle(color: AppTheme.textMediumEmphasis),
+                  ),
+                  const SizedBox(height: 12),
+                  TextField(
+                    key: const ValueKey('max_load_exercise_search'),
+                    controller: _searchController,
+                    onChanged: (value) => setState(() => _query = value),
+                    decoration: const InputDecoration(
+                      hintText: 'Cerca esercizio, muscolo o attrezzatura',
+                      prefixIcon: Icon(Icons.search),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            Expanded(
+              child: exercises.isEmpty
+                  ? Center(
+                      child: Text(
+                        'Nessun esercizio trovato',
+                        style: TextStyle(color: AppTheme.textMediumEmphasis),
+                      ),
+                    )
+                  : ListView.separated(
+                      itemCount: exercises.length,
+                      separatorBuilder: (_, __) =>
+                          Divider(height: 1, color: AppTheme.divider),
+                      itemBuilder: (_, index) {
+                        final exercise = exercises[index];
+                        return ListTile(
+                          key: ValueKey('max_load_picker_${exercise.id}'),
+                          leading: const Icon(
+                            PhosphorIconsRegular.barbell,
+                            color: AppTheme.primary,
+                          ),
+                          title: Text(exercise.name),
+                          subtitle: Text(
+                            '${exercise.targetMuscle} · ${exercise.category}',
+                          ),
+                          onTap: () => Navigator.pop(context, exercise),
+                        );
+                      },
+                    ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
 class _MaxLoadCard extends StatelessWidget {
   final String title;
   final double val;
@@ -943,7 +1189,7 @@ class _HistorySection extends StatelessWidget {
           CustomCard(
             child: Center(
               child: Padding(
-                padding: EdgeInsets.all(8.0),
+                padding: const EdgeInsets.all(8.0),
                 child: Text('Nessun dato registrato.',
                     style: TextStyle(
                         fontStyle: FontStyle.italic,
@@ -1329,7 +1575,9 @@ class _AllSessionsScreen extends StatelessWidget {
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Text(s.sportId.toUpperCase().replaceAll('_', ' '),
+                          Text(
+                              WorkoutCatalog.displayName(s.sportId)
+                                  .toUpperCase(),
                               style: const TextStyle(
                                   fontSize: 14, fontWeight: FontWeight.bold)),
                           RichText(

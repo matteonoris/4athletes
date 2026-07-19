@@ -374,16 +374,24 @@ class _DrylandActivityScreenState extends State<DrylandActivityScreen> {
         return TrainingBlockType.plyometrics;
       case ActivityCategory.speedAgility:
         return TrainingBlockType.speedAgility;
+      case ActivityCategory.endurance:
+        return TrainingBlockType.endurance;
       default:
         return TrainingBlockType.strength;
     }
   }
 
-  bool _exerciseMatchesPrepFilter(ExerciseDef exercise) {
+  bool _exerciseMatchesPrepFilter(
+    ExerciseDef exercise, {
+    String phase = TrainingPhase.main,
+  }) {
     final filters = _prepOption?.exerciseFilters;
-    if (_isPrepFlow && (filters == null || filters.isEmpty)) return true;
-    if (_isPrepFlow && filters != null) {
-      return filters.contains(exercise.resolvedActivityCategory);
+    if (_isPrepFlow) {
+      return exerciseMatchesTrainingPhase(
+        exercise,
+        phase: phase,
+        mainPhaseCategories: filters ?? const <String>{},
+      );
     }
     if (_isAthleticPrep) return true;
     if (_category == ActivityCategory.mobility) {
@@ -570,16 +578,11 @@ class _DrylandActivityScreenState extends State<DrylandActivityScreen> {
     if (!mounted) return;
 
     final appState = Provider.of<AppState>(context, listen: false);
-    final template = _activityService.saveActivityAsTemplate(
+    final template = _activityService.savePersonalActivityAsTemplate(
       _buildActivity(id: 'template_source'),
       templateId: DateTime.now().millisecondsSinceEpoch.toString(),
       name: templateName,
-      ownerType: appState.userProfile?.role == 'coach'
-          ? TemplateOwnerType.coach
-          : TemplateOwnerType.athlete,
       ownerId: appState.userId,
-      teamId: appState.userProfile?.teamId,
-      createdBy: appState.userId,
     );
     await appState.saveWorkoutTemplate(template);
     if (!mounted) return;
@@ -1031,32 +1034,180 @@ class _DrylandActivityScreenState extends State<DrylandActivityScreen> {
               exercise.category == _equipmentFilter;
           return searchMatch &&
               equipmentMatch &&
-              _exerciseMatchesPrepFilter(exercise);
+              _exerciseMatchesPrepFilter(exercise, phase: phase);
         })
         .take(6)
         .toList();
-    if (query.isEmpty && _equipmentFilter == 'all') {
-      return const SizedBox();
-    }
     return Column(
-      children: filtered.map((exercise) {
-        return ListTile(
-          dense: true,
-          title: Text(exercise.name,
-              style: TextStyle(
-                  color: AppTheme.textHighEmphasis,
-                  fontWeight: FontWeight.bold)),
-          subtitle: Text('${exercise.targetMuscle} - ${exercise.category}',
-              style: TextStyle(color: AppTheme.textMediumEmphasis)),
-          trailing: const Icon(Icons.add, color: AppTheme.primary),
-          onTap: () => _addStrengthExercise(
-            exercise.id,
-            exercise.name,
-            equipment: exercise.category,
-            phase: phase,
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        if (query.isNotEmpty || _equipmentFilter != 'all')
+          ...filtered.map((exercise) => _exerciseResultTile(exercise, phase)),
+        OutlinedButton.icon(
+          onPressed: () => _showExerciseCatalog(phase),
+          icon: const Icon(Icons.menu_book_outlined),
+          label: Text(
+            phase == TrainingPhase.main
+                ? 'Sfoglia il catalogo per ${_categoryLabel(_category)}'
+                : 'Sfoglia tutto il catalogo',
           ),
-        );
-      }).toList(),
+        ),
+        if (_usesPhases && phase != TrainingPhase.main)
+          Padding(
+            padding: const EdgeInsets.only(top: 6),
+            child: Text(
+              'Qui puoi scegliere cardio, core, salti, mobilita, forza e altro.',
+              style: TextStyle(
+                color: AppTheme.textMediumEmphasis,
+                fontSize: 12,
+              ),
+            ),
+          ),
+      ],
+    );
+  }
+
+  Widget _exerciseResultTile(ExerciseDef exercise, String phase) {
+    return ListTile(
+      dense: true,
+      contentPadding: EdgeInsets.zero,
+      title: Text(
+        exercise.name,
+        style: TextStyle(
+          color: AppTheme.textHighEmphasis,
+          fontWeight: FontWeight.bold,
+        ),
+      ),
+      subtitle: Text(
+        '${exercise.targetMuscle} - ${exercise.category}',
+        style: TextStyle(color: AppTheme.textMediumEmphasis),
+      ),
+      trailing: const Icon(Icons.add, color: AppTheme.primary),
+      onTap: () => _addStrengthExercise(
+        exercise.id,
+        exercise.name,
+        equipment: exercise.category,
+        phase: phase,
+      ),
+    );
+  }
+
+  Future<void> _showExerciseCatalog(String phase) async {
+    var query = '';
+    var activityFilter = 'all';
+    final categories = <(String, String)>[
+      ('all', 'Tutti'),
+      (ActivityCategory.endurance, 'Cardio'),
+      (ActivityCategory.core, 'Core'),
+      (ActivityCategory.plyometrics, 'Salti'),
+      (ActivityCategory.mobility, 'Mobilita'),
+      (ActivityCategory.speedAgility, 'Velocita'),
+      (ActivityCategory.strength, 'Forza'),
+    ];
+
+    await showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: AppTheme.card,
+      builder: (sheetContext) => StatefulBuilder(
+        builder: (context, setSheetState) {
+          final matches = exerciseDatabase.where((exercise) {
+            final normalizedQuery = query.trim().toLowerCase();
+            final matchesQuery = normalizedQuery.isEmpty ||
+                exercise.name.toLowerCase().contains(normalizedQuery) ||
+                exercise.targetMuscle.toLowerCase().contains(normalizedQuery);
+            final matchesActivity = activityFilter == 'all' ||
+                exercise.resolvedActivityCategory == activityFilter;
+            return matchesQuery &&
+                matchesActivity &&
+                _exerciseMatchesPrepFilter(exercise, phase: phase);
+          }).toList();
+
+          return SafeArea(
+            child: FractionallySizedBox(
+              heightFactor: 0.9,
+              child: Padding(
+                padding: EdgeInsets.fromLTRB(
+                  16,
+                  16,
+                  16,
+                  MediaQuery.viewInsetsOf(context).bottom + 12,
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Expanded(
+                          child: Text(
+                            TrainingPhase.label(phase),
+                            style: TextStyle(
+                              color: AppTheme.textHighEmphasis,
+                              fontSize: 20,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ),
+                        IconButton(
+                          onPressed: () => Navigator.pop(sheetContext),
+                          icon: const Icon(Icons.close),
+                        ),
+                      ],
+                    ),
+                    TextField(
+                      autofocus: true,
+                      onChanged: (value) => setSheetState(() => query = value),
+                      style: TextStyle(color: AppTheme.textHighEmphasis),
+                      decoration: const InputDecoration(
+                        hintText: 'Cerca esercizio o gruppo muscolare',
+                        prefixIcon: Icon(Icons.search),
+                      ),
+                    ),
+                    const SizedBox(height: 10),
+                    SingleChildScrollView(
+                      scrollDirection: Axis.horizontal,
+                      child: Row(
+                        children: categories.map((category) {
+                          final selected = activityFilter == category.$1;
+                          return Padding(
+                            padding: const EdgeInsets.only(right: 8),
+                            child: ChoiceChip(
+                              label: Text(category.$2),
+                              selected: selected,
+                              onSelected: (_) => setSheetState(
+                                () => activityFilter = category.$1,
+                              ),
+                              selectedColor: AppTheme.primary,
+                              labelStyle: TextStyle(
+                                color: selected
+                                    ? Colors.white
+                                    : AppTheme.textMediumEmphasis,
+                              ),
+                            ),
+                          );
+                        }).toList(),
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      '${matches.length} esercizi',
+                      style: TextStyle(color: AppTheme.textMediumEmphasis),
+                    ),
+                    const SizedBox(height: 4),
+                    Expanded(
+                      child: ListView.builder(
+                        itemCount: matches.length,
+                        itemBuilder: (context, index) =>
+                            _exerciseResultTile(matches[index], phase),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          );
+        },
+      ),
     );
   }
 

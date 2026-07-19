@@ -51,7 +51,7 @@ class DrylandPrepTypes {
     ),
     DrylandPrepTypeOption(
       id: DrylandPrepType.speedAgility,
-      title: 'Velocita / Agilita',
+      title: 'Velocità e agilità',
       subtitle: 'Sprint, cambi, ostacoli',
       icon: Icons.speed,
       color: Color(0xFF43D9B8),
@@ -70,8 +70,8 @@ class DrylandPrepTypes {
     ),
     DrylandPrepTypeOption(
       id: DrylandPrepType.mobilityCore,
-      title: 'Mobilita / Core',
-      subtitle: 'Stabilita, controllo, ROM',
+      title: 'Mobilità / Recupero',
+      subtitle: 'Mobilità, core, respirazione e recupero',
       icon: Icons.self_improvement,
       color: Color(0xFF7DD56F),
       category: ActivityCategory.mobility,
@@ -80,14 +80,22 @@ class DrylandPrepTypes {
     ),
     DrylandPrepTypeOption(
       id: DrylandPrepType.mixedCircuit,
-      title: 'Misto / Circuito',
-      subtitle: 'Blocchi combinati',
+      title: 'Conditioning / HIIT',
+      subtitle: 'Circuiti, intervalli, EMOM e AMRAP',
       icon: Icons.loop,
       color: Color(0xFFEB6D8C),
       category: ActivityCategory.athleticPrep,
       sportType: 'dryland_mixed_circuit',
     ),
   ];
+
+  static List<DrylandPrepTypeOption> get selectableOptions => options
+      .where((option) =>
+          option.id == DrylandPrepType.strength ||
+          option.id == DrylandPrepType.plyometrics ||
+          option.id == DrylandPrepType.speedAgility ||
+          option.id == DrylandPrepType.mixedCircuit)
+      .toList(growable: false);
 
   static DrylandPrepTypeOption byId(String? id) {
     return options.firstWhere(

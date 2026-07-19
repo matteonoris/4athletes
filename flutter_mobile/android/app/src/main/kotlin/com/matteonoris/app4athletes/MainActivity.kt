@@ -7,17 +7,18 @@ import io.flutter.embedding.engine.FlutterEngine
 import io.flutter.plugin.common.MethodChannel
 import kotlinx.coroutines.*
 import androidx.health.connect.client.records.DistanceRecord
+import androidx.health.connect.client.records.ElevationGainedRecord
 import androidx.health.connect.client.records.ExerciseSessionRecord
 import androidx.health.connect.client.records.ExerciseSegment
 import androidx.health.connect.client.records.HeartRateRecord
+import androidx.health.connect.client.records.SpeedRecord
+import androidx.health.connect.client.records.StepsRecord
 import androidx.health.connect.client.records.TotalCaloriesBurnedRecord
 import androidx.health.connect.client.request.ReadRecordsRequest
 import androidx.health.connect.client.time.TimeRangeFilter
 import java.time.Duration
 import java.time.Instant
 import java.time.temporal.ChronoUnit
-import kotlin.math.pow
-import kotlin.math.sqrt
 
 class MainActivity: FlutterFragmentActivity() {
     private val CHANNEL = "com.4athletes.health/hrv"
@@ -67,8 +68,16 @@ class HealthConnectWorkoutReader(
         return sessions.mapNotNull { session ->
             val distanceMeters = readDistanceMeters(session)
             val energyKcal = readEnergyKcal(session)
-            val heartRateSamples = readHeartRateSamples(session)
+            val heartRate = readHeartRateSamples(session)
             val activeSeconds = activeDurationSeconds(session)
+            val averageSpeedKmh = readAverageSpeedKmh(session)
+            val elevationMeters = readElevationMeters(session)
+            val stepCount = readStepCount(session)
+            val averageCadenceSpm = if (activeSeconds > 0 && stepCount > 0) {
+                stepCount / (activeSeconds / 60.0)
+            } else {
+                null
+            }
             mapOf<String, Any?>(
                 "id" to session.metadata.id,
                 "sourceName" to session.metadata.dataOrigin.packageName,
@@ -81,7 +90,35 @@ class HealthConnectWorkoutReader(
                 "movingDurationSeconds" to activeSeconds,
                 "distanceMeters" to distanceMeters,
                 "energyTotalKcal" to energyKcal,
-                "hrSamples" to heartRateSamples
+                "avgSpeedKmh" to averageSpeedKmh,
+                "elevationMeters" to elevationMeters,
+                "avgCadenceSpm" to averageCadenceSpm,
+                "importedLaps" to session.laps.map { lap ->
+                    mapOf(
+                        "startTime" to lap.startTime.toEpochMilli(),
+                        "endTime" to lap.endTime.toEpochMilli(),
+                        "durationSeconds" to Duration.between(lap.startTime, lap.endTime).seconds,
+                        "distanceMeters" to lap.length?.inMeters
+                    )
+                },
+                "segments" to session.segments.map { segment ->
+                    mapOf(
+                        "startTime" to segment.startTime.toEpochMilli(),
+                        "endTime" to segment.endTime.toEpochMilli(),
+                        "durationSeconds" to Duration.between(segment.startTime, segment.endTime).seconds,
+                        "segmentType" to segment.segmentType,
+                        "repetitions" to segment.repetitions
+                    )
+                },
+                "hrSamples" to heartRate.samples.map { sample ->
+                    mapOf(
+                        "time" to sample.time.toEpochMilli(),
+                        "bpm" to sample.bpm
+                    )
+                },
+                "hrSourceId" to heartRate.sourcePackage,
+                "hrSampleCount" to heartRate.samples.size,
+                "hrMaxBpm" to heartRate.samples.maxOfOrNull { it.bpm }
             )
         }
     }
@@ -108,15 +145,58 @@ class HealthConnectWorkoutReader(
             .sumOf { it.energy.inKilocalories }
     }
 
-    private suspend fun readHeartRateSamples(session: ExerciseSessionRecord): List<Map<String, Any>> {
-        val records = healthConnectClient.readRecords(
-            ReadRecordsRequest(
-                recordType = HeartRateRecord::class,
-                timeRangeFilter = TimeRangeFilter.between(session.startTime, session.endTime)
-            )
-        ).records
+    private suspend fun readAverageSpeedKmh(session: ExerciseSessionRecord): Double? {
+        return try {
+            val samples = healthConnectClient.readRecords(
+                ReadRecordsRequest(
+                    recordType = SpeedRecord::class,
+                    timeRangeFilter = TimeRangeFilter.between(session.startTime, session.endTime)
+                )
+            ).records
+                .filter { it.metadata.dataOrigin.packageName == session.metadata.dataOrigin.packageName }
+                .flatMap { it.samples }
+                .filter { !it.time.isBefore(session.startTime) && !it.time.isAfter(session.endTime) }
+            if (samples.isEmpty()) null else samples.map { it.speed.inMetersPerSecond }.average() * 3.6
+        } catch (_: Exception) {
+            null
+        }
+    }
 
-        if (records.isEmpty()) return emptyList()
+    private suspend fun readElevationMeters(session: ExerciseSessionRecord): Double? {
+        return try {
+            val value = healthConnectClient.readRecords(
+                ReadRecordsRequest(
+                    recordType = ElevationGainedRecord::class,
+                    timeRangeFilter = TimeRangeFilter.between(session.startTime, session.endTime)
+                )
+            ).records
+                .filter { it.metadata.dataOrigin.packageName == session.metadata.dataOrigin.packageName }
+                .sumOf { it.elevation.inMeters }
+            value.takeIf { it > 0 }
+        } catch (_: Exception) {
+            null
+        }
+    }
+
+    private suspend fun readStepCount(session: ExerciseSessionRecord): Long {
+        return try {
+            healthConnectClient.readRecords(
+                ReadRecordsRequest(
+                    recordType = StepsRecord::class,
+                    timeRangeFilter = TimeRangeFilter.between(session.startTime, session.endTime)
+                )
+            ).records
+                .filter { it.metadata.dataOrigin.packageName == session.metadata.dataOrigin.packageName }
+                .sumOf { it.count }
+        } catch (_: Exception) {
+            0
+        }
+    }
+
+    private suspend fun readHeartRateSamples(session: ExerciseSessionRecord): HeartRateReadResult {
+        val records = readAllHeartRateRecords(session)
+
+        if (records.isEmpty()) return HeartRateReadResult(null, emptyList())
 
         val sessionPackage = session.metadata.dataOrigin.packageName
         val samplesByPackage = records
@@ -136,49 +216,57 @@ class HealthConnectWorkoutReader(
             }
             .groupBy { it.sourcePackage }
 
-        if (samplesByPackage.isEmpty()) return emptyList()
+        if (samplesByPackage.isEmpty()) return HeartRateReadResult(null, emptyList())
 
-        val selectedSamples = selectHeartRateSourceSamples(
+        val selectedSource = selectHeartRateSource(
             samplesByPackage,
             sessionPackage
         )
 
-        return selectedSamples
-            .map { sample ->
-                mapOf(
-                    "time" to sample.time.toEpochMilli(),
-                    "bpm" to sample.bpm
-                )
-            }
-            .sortedBy { it["time"] as Long }
+        return HeartRateReadResult(
+            sourcePackage = selectedSource.packageName,
+            samples = selectedSource.samples
+        )
     }
 
-    private fun selectHeartRateSourceSamples(
+    private suspend fun readAllHeartRateRecords(
+        session: ExerciseSessionRecord
+    ): List<HeartRateRecord> {
+        val records = mutableListOf<HeartRateRecord>()
+        var pageToken: String? = null
+
+        do {
+            val response = healthConnectClient.readRecords(
+                ReadRecordsRequest(
+                    recordType = HeartRateRecord::class,
+                    timeRangeFilter = TimeRangeFilter.between(
+                        session.startTime,
+                        session.endTime
+                    ),
+                    pageToken = pageToken
+                )
+            )
+            records.addAll(response.records)
+            pageToken = response.pageToken
+        } while (!pageToken.isNullOrEmpty())
+
+        return records
+    }
+
+    private fun selectHeartRateSource(
         samplesByPackage: Map<String, List<HeartRateSamplePoint>>,
         sessionPackage: String
-    ): List<HeartRateSamplePoint> {
+    ): HeartRateSourceStats {
         val stats = samplesByPackage.map { (packageName, samples) ->
             heartRateSourceStats(packageName, samples)
         }
-        val best = stats.maxWithOrNull(
+        val sessionStats = stats.firstOrNull { it.packageName == sessionPackage }
+        if (sessionStats != null) return sessionStats
+
+        return stats.maxWithOrNull(
             compareBy<HeartRateSourceStats> { it.coverageSeconds }
                 .thenBy { it.samples.size }
-        ) ?: return emptyList()
-        val sessionStats = stats.firstOrNull { it.packageName == sessionPackage }
-
-        if (sessionStats != null) {
-            if (sessionStats.samples.size >= best.samples.size * 0.80) {
-                return sessionStats.samples
-            }
-            if (
-                sessionStats.coverageSeconds >= best.coverageSeconds * 0.95 &&
-                sessionStats.samples.size >= best.samples.size * 0.50
-            ) {
-                return sessionStats.samples
-            }
-        }
-
-        return best.samples
+        ) ?: error("Heart-rate source selection requires at least one source")
     }
 
     private fun heartRateSourceStats(
@@ -250,116 +338,7 @@ data class HeartRateSourceStats(
     val coverageSeconds: Long
 )
 
-// MARK: - Pipeline Code
-
-data class NormalizedWorkout(
-    val id: String, val sourceName: String, val activityType: Int, val startTime: Instant, val endTime: Instant,
-    val elapsedDuration: Duration, val activeDuration: Duration, val totalDistance: Double?, val averagePace: Double?,
-    val maxHeartRate: Double?, val averageHeartRate: Double?, val heartRateSamples: List<HeartRateSample>
+data class HeartRateReadResult(
+    val sourcePackage: String?,
+    val samples: List<HeartRateSamplePoint>
 )
-
-data class HeartRateSample(val date: Instant, val value: Double)
-
-data class RawWorkoutData(
-    val session: ExerciseSessionRecord, val heartRateRecords: List<HeartRateRecord>, val totalDistanceMeters: Double? = null
-)
-
-class DeduplicationFilter {
-    private val sourcePriority = mapOf(
-        "com.google.android.apps.fitness" to 1, "com.garmin.android.apps.connectmobile" to 2,
-        "com.polar.polarbeat" to 3, "com.strava" to 10, "com.nike.plusgps" to 11
-    )
-    fun process(workouts: List<RawWorkoutData>): List<RawWorkoutData> {
-        val sorted = workouts.sortedBy { it.session.startTime }
-        val resolved = mutableListOf<RawWorkoutData>()
-        for (current in sorted) {
-            val overlapIndex = resolved.indexOfFirst { overlaps(it.session, current.session) }
-            if (overlapIndex != -1) {
-                if (priority(current) < priority(resolved[overlapIndex])) {
-                    resolved[overlapIndex] = current
-                }
-            } else { resolved.add(current) }
-        }
-        return resolved
-    }
-    private fun overlaps(s1: ExerciseSessionRecord, s2: ExerciseSessionRecord): Boolean {
-        return s1.startTime.isBefore(s2.endTime) && s2.startTime.isBefore(s1.endTime)
-    }
-    private fun priority(data: RawWorkoutData): Int {
-        val packageName = data.session.metadata.dataOrigin.packageName
-        return sourcePriority.entries.firstOrNull { packageName.contains(it.key, ignoreCase = true) }?.value ?: 100
-    }
-}
-
-class HeartRateSmoothingFilter {
-    fun process(records: List<HeartRateRecord>): Triple<Double?, Double?, List<HeartRateSample>> {
-        val allSamples = records.flatMap { it.samples }.sortedBy { it.time }
-        if (allSamples.isEmpty()) return Triple(null, null, emptyList())
-        val rawValues = allSamples.map { it.beatsPerMinute.toDouble() }
-        val filteredSamples = mutableListOf<HeartRateSample>()
-        val validValues = mutableListOf<Double>()
-        for (i in allSamples.indices) {
-            val start = maxOf(0, i - 2)
-            val end = minOf(allSamples.size - 1, i + 2)
-            val window = rawValues.subList(start, end + 1)
-            val mean = window.average()
-            val variance = window.map { (it - mean).pow(2) }.average()
-            val stdDev = sqrt(variance)
-            val maxAllowed = maxOf(2 * stdDev, 10.0)
-            if (Math.abs(rawValues[i] - mean) <= maxAllowed) {
-                filteredSamples.add(HeartRateSample(allSamples[i].time, rawValues[i]))
-                validValues.add(rawValues[i])
-            }
-        }
-        val maxHR = validValues.maxOrNull()
-        val avgHR = if (validValues.isNotEmpty()) validValues.average() else null
-        return Triple(maxHR, avgHR, filteredSamples)
-    }
-}
-
-class PaceAndPauseCalculator {
-    fun process(session: ExerciseSessionRecord, distanceMeters: Double?): Pair<Duration, Double?> {
-        val elapsedDuration = Duration.between(session.startTime, session.endTime)
-        var activeDuration = elapsedDuration
-        val segments = session.segments
-        if (!segments.isNullOrEmpty()) {
-            var totalActiveMillis = 0L
-            for (segment in segments) {
-                if (segment.segmentType != androidx.health.connect.client.records.ExerciseSegment.EXERCISE_SEGMENT_TYPE_PAUSE) {
-                    totalActiveMillis += Duration.between(segment.startTime, segment.endTime).toMillis()
-                }
-            }
-            if (totalActiveMillis > 0) activeDuration = Duration.ofMillis(totalActiveMillis)
-        }
-        var pace: Double? = null
-        if (distanceMeters != null && distanceMeters > 0 && activeDuration.seconds > 0) {
-            pace = activeDuration.seconds / (distanceMeters / 1000.0)
-        }
-        return Pair(activeDuration, pace)
-    }
-}
-
-class FitnessDataPipeline {
-    private val deduplicator = DeduplicationFilter()
-    private val hrFilter = HeartRateSmoothingFilter()
-    private val paceCalculator = PaceAndPauseCalculator()
-    suspend fun processWorkouts(rawData: List<RawWorkoutData>): List<NormalizedWorkout> {
-        val uniqueWorkouts = deduplicator.process(rawData)
-        return coroutineScope {
-            uniqueWorkouts.map { raw ->
-                async { normalize(raw) }
-            }.awaitAll().sortedBy { it.startTime }
-        }
-    }
-    private fun normalize(raw: RawWorkoutData): NormalizedWorkout {
-        val hrMetrics = hrFilter.process(raw.heartRateRecords)
-        val paceMetrics = paceCalculator.process(raw.session, raw.totalDistanceMeters)
-        return NormalizedWorkout(
-            id = raw.session.metadata.id, sourceName = raw.session.metadata.dataOrigin.packageName,
-            activityType = raw.session.exerciseType, startTime = raw.session.startTime, endTime = raw.session.endTime,
-            elapsedDuration = Duration.between(raw.session.startTime, raw.session.endTime),
-            activeDuration = paceMetrics.first, totalDistance = raw.totalDistanceMeters, averagePace = paceMetrics.second,
-            maxHeartRate = hrMetrics.first, averageHeartRate = hrMetrics.second, heartRateSamples = hrMetrics.third
-        )
-    }
-}

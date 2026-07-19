@@ -8,6 +8,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../core/theme.dart';
 import '../data/dryland_prep_types.dart';
 import '../data/exercises.dart';
+import '../data/workout_catalog.dart';
 import '../models/models.dart';
 import '../models/training_activity_models.dart';
 import '../providers/app_state.dart';
@@ -1175,7 +1176,7 @@ class _CoachEventDetailsScreenState extends State<CoachEventDetailsScreen> {
     return Wrap(
       spacing: 8,
       runSpacing: 8,
-      children: DrylandPrepTypes.options.map((option) {
+      children: DrylandPrepTypes.selectableOptions.map((option) {
         final selected = option.id == _drylandPrepType;
         return ChoiceChip(
           avatar: Icon(
@@ -1489,7 +1490,7 @@ class _CoachEventDetailsScreenState extends State<CoachEventDetailsScreen> {
           _equipmentFilter == 'all' || exercise.category == _equipmentFilter;
       return matchesQuery &&
           matchesEquipment &&
-          _exerciseMatchesPrepFilter(exercise);
+          _exerciseMatchesPrepFilter(exercise, phase: phase);
     }).take(8);
 
     return Column(
@@ -2110,10 +2111,7 @@ class _CoachEventDetailsScreenState extends State<CoachEventDetailsScreen> {
   }
 
   String _sportLabel(String sportId) {
-    for (final sport in selectableSportActivities) {
-      if (sport.id == sportId) return sport.name;
-    }
-    return sportId;
+    return WorkoutCatalog.displayName(sportId);
   }
 
   String _exerciseBlockType() {
@@ -2165,11 +2163,17 @@ class _CoachEventDetailsScreenState extends State<CoachEventDetailsScreen> {
     return type == TrainingBlockType.mobility || type == TrainingBlockType.core;
   }
 
-  bool _exerciseMatchesPrepFilter(ExerciseDef exercise) {
+  bool _exerciseMatchesPrepFilter(
+    ExerciseDef exercise, {
+    String phase = TrainingPhase.main,
+  }) {
     final filters = _drylandPrepOption.exerciseFilters;
-    if (_isPrepPlan && filters.isEmpty) return true;
     if (_isPrepPlan) {
-      return filters.contains(exercise.resolvedActivityCategory);
+      return exerciseMatchesTrainingPhase(
+        exercise,
+        phase: phase,
+        mainPhaseCategories: filters,
+      );
     }
     if (_isAthleticPrep) return true;
     if (_drylandCategory == ActivityCategory.mobility) {
@@ -3588,7 +3592,13 @@ class _CoachEventDetailsScreenState extends State<CoachEventDetailsScreen> {
         'name': athlete['name'],
         'teamId': athlete['teamId'],
         'teamName': athlete['teamName'],
+        'invitationStatus': athlete['invitationStatus'] ?? 'invited',
         'attendanceStatus': status,
+        'completionStatus': athlete['completionStatus'] ??
+            (_eventStatus == CoachTrainingUtils.statusCompleted &&
+                    status == CoachTrainingUtils.attendancePresent
+                ? 'completed'
+                : 'pending'),
         'isPresent': athlete['isPresent'],
         'invitedAt': athlete['invitedAt'] ?? DateTime.now().toIso8601String(),
         'respondedAt': athlete['respondedAt'],

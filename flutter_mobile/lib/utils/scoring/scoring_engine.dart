@@ -13,6 +13,7 @@ RecoveryAndSleepResult calculateRecoveryAndSleep(
   final dailySleepNeed = calculateDailySleepNeed(
     today,
     historicalData,
+    profile: profile,
     config: config,
   );
   final sleepScore = calculateSleepScoreResult(

@@ -36,15 +36,21 @@ void main() {
     );
 
     expect(std, defaultAlgorithmConfig.zScore.minStdDev.restingHeartRateBpm);
-    expect(z, 2);
+    expect(
+      z,
+      closeTo(
+        1 / defaultAlgorithmConfig.zScore.minStdDev.restingHeartRateBpm,
+        0.000001,
+      ),
+    );
   });
 
   test('valid HRV is transformed in log space', () {
     final history = _makeHistory(
-      6,
+      8,
       mutate: (day, index) => _copyDay(day, hrvRmssdMs: 50 + index * 5),
     );
-    final today = _makeDay(7, hrvRmssdMs: 90);
+    final today = _makeDay(9, hrvRmssdMs: 90);
     final result = calculateRecoveryAndSleep(profile, today, history);
     final hrvComponent = result.recoveryScore.components['hrv'] as Map;
     final details = hrvComponent['details'] as Map;
@@ -54,13 +60,13 @@ void main() {
   });
 
   test('invalid HRV <= 0 is excluded without breaking recovery', () {
-    final history = _makeHistory(6);
-    final today = _makeDay(7, hrvRmssdMs: 0);
+    final history = _makeHistory(8);
+    final today = _makeDay(9, hrvRmssdMs: 0);
     final result = calculateRecoveryAndSleep(profile, today, history);
     final hrvComponent = result.recoveryScore.components['hrv'] as Map;
 
     expect(hrvComponent['used'], isFalse);
-    expect(result.recoveryScore.warnings, contains('invalid_hrv_rmssd'));
+    expect(result.recoveryScore.warnings, contains('invalid_hrv'));
     expect(result.recoveryScore.score, isNotNull);
   });
 
@@ -99,7 +105,7 @@ void main() {
     expect(deviation, lessThanOrEqualTo(10));
   });
 
-  test('sleep regularity uses bedtime and wake time over four nights', () {
+  test('sleep regularity applies the v2 30-minute tolerance', () {
     final history = [
       _makeDay(1),
       _makeDay(2),
@@ -115,7 +121,7 @@ void main() {
     final regularity =
         result.sleepScore.components['circadianRegularity'] as Map;
 
-    expect(regularity['value'], closeTo(77.5, 0.05));
+    expect(regularity['value'], 100);
     expect(regularity['details']['windowNightCount'], 4);
     expect(
       regularity['details']['wakeDeviationMinutes'],
@@ -137,7 +143,7 @@ void main() {
     expect(result.recoveryScore.score, isNotNull);
   });
 
-  test('luteal phase adjustment is applied only when explicit', () {
+  test('luteal context does not apply a fixed population correction', () {
     final history = _makeHistory(8);
     final today = _makeDay(
       9,
@@ -159,11 +165,11 @@ void main() {
 
     expect(
       result.recoveryScore.warnings,
-      contains('luteal_phase_adjustment_applied'),
+      contains('luteal_phase_context_only_fixed_adjustment_disabled'),
     );
-    expect(rhrDetails['todayValue'], 50);
+    expect(rhrDetails['todayValue'], 52);
     expect(
-      (hrvDetails['lnToday'] as double) - math.log(66),
+      (hrvDetails['lnToday'] as double) - math.log(60),
       closeTo(0, 0.000001),
     );
   });
@@ -189,12 +195,23 @@ void main() {
     expect(result.recoveryScore.score, inInclusiveRange(0, 100));
   });
 
-  test('neutral recovery baseline maps to about 70 points', () {
+  test('neutral recovery contribution maps to about 70 points', () {
     final history = _makeHistory(30);
     final today = _makeDay(31);
-    final result = calculateRecoveryAndSleep(profile, today, history);
+    final result = calculateRecoveryScoreResult(
+      profile,
+      today,
+      history,
+      const ScoreResult(
+        score: 75,
+        status: ScoreStatus.ok,
+        confidence: 1,
+        components: {},
+        warnings: [],
+      ),
+    );
 
-    expect(result.recoveryScore.score, closeTo(70, 1));
+    expect(result.score, closeTo(70, 1));
   });
 }
 
