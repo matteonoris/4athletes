@@ -4,8 +4,10 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:phosphor_flutter/phosphor_flutter.dart';
 import 'package:permission_handler/permission_handler.dart';
+import 'package:provider/provider.dart';
 
 import '../core/theme.dart';
+import '../providers/app_state.dart';
 import '../services/health_service.dart';
 import 'notification_permission_screen.dart';
 
@@ -27,6 +29,8 @@ class _HealthPermissionScreenState extends State<HealthPermissionScreen> {
     if (mounted) {
       setState(() => _isLoading = false);
       if (result.isGranted) {
+        await context.read<AppState>().markHealthAccessEnabled();
+        if (!mounted) return;
         _navigateToHome();
       } else {
         ScaffoldMessenger.of(context).showSnackBar(

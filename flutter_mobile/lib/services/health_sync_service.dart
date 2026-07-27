@@ -31,8 +31,11 @@ class HealthSyncService {
   static const int _napEndHour = 20;
 
   Future<HealthSyncResult> fetchAndCalculateScores(
-      UserProfile userProfile, List<BodyMetricLog> bodyLogs,
-      [DateTime? targetDate]) async {
+    UserProfile userProfile,
+    List<BodyMetricLog> bodyLogs, {
+    DateTime? targetDate,
+    bool requestPermissions = true,
+  }) async {
     await _health.configure();
 
     // Definizione dei tipi di dati da richiedere per le misurazioni orarie/giornaliere (es. sonno)
@@ -42,7 +45,7 @@ class HealthSyncService {
     // Verifica permessi
     bool? hasPermissions =
         await _health.hasPermissions(types, permissions: permissions);
-    if (hasPermissions == null || !hasPermissions) {
+    if (requestPermissions && (hasPermissions == null || !hasPermissions)) {
       bool authorized =
           await _health.requestAuthorization(types, permissions: permissions);
       if (!authorized) {
@@ -63,21 +66,10 @@ class HealthSyncService {
     final sleepHistoryStart = now.subtract(const Duration(days: 90));
     final monthAgo = now.subtract(const Duration(days: 30));
 
-    final targetStart = DateTime(now.year, now.month, now.day)
-        .subtract(const Duration(hours: 6));
-    final targetEnd = now;
-
     // Estrazione dati storici SONNO
     List<HealthDataPoint> healthData = await _fetchHealthDataByType(
       startTime: sleepHistoryStart,
       endTime: now,
-      types: types,
-    );
-
-    // Dati odierni SONNO
-    List<HealthDataPoint> todayData = await _fetchHealthDataByType(
-      startTime: targetStart,
-      endTime: targetEnd,
       types: types,
     );
 
@@ -121,7 +113,10 @@ class HealthSyncService {
     double? respToday = getTodayVal('resp');
     double? spo2Today = getTodayVal('spo2');
 
-    var todaySleep = _aggregateSleepForDate(todayData, target);
+    // The historical window already includes the requested day. Reusing it
+    // avoids a second per-type HealthKit / Health Connect read and guarantees
+    // the same 12-hour overnight boundary is used for history and today.
+    var todaySleep = _aggregateSleepForDate(healthData, target);
     if (todaySleep.totalSleepMinutes == null) {
       throw Exception('NO_TODAY_SLEEP_DATA');
     }

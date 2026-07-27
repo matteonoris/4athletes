@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:provider/provider.dart';
@@ -84,6 +86,13 @@ class _FourAthletesAppState extends State<FourAthletesApp>
   @override
   void didChangePlatformBrightness() {
     setState(() {});
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      unawaited(context.read<AppState>().refreshHealthDataIfStale());
+    }
   }
 
   @override

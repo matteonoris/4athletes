@@ -35,7 +35,6 @@ class DailyReadinessDetailsScreen extends StatelessWidget {
     final confidence = dailyMetrics[
         isSleep ? 'sleepScoreConfidence' : 'recoveryScoreConfidence'];
     final temperatureIsDelta = dailyMetrics['tempIsDelta'] == 1;
-    final hrvIsSdnn = dailyMetrics['hrvIsSdnn'] == 1;
 
     // Lista di metriche da visualizzare in base al tipo
     List<Map<String, dynamic>> metricsToShow = isSleep
@@ -71,11 +70,7 @@ class DailyReadinessDetailsScreen extends StatelessWidget {
               'label': 'Battiti a Riposo (bpm)',
               'icon': Icons.favorite
             },
-            {
-              'key': 'hrv',
-              'label': hrvIsSdnn ? 'HRV SDNN (ms)' : 'HRV RMSSD (ms)',
-              'icon': Icons.monitor_heart
-            },
+            {'key': 'hrv', 'label': 'HRV', 'icon': Icons.monitor_heart},
             {
               'key': 'temp',
               'label': temperatureIsDelta

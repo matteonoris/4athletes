@@ -84,7 +84,7 @@ void main() {
     expect(report.athletes.single.athleticPresence, 0.5);
   });
 
-  test('calcola presenza solo sulle sedute a cui atleta è invitato', () {
+  test('calcola presenza su tutte le sedute completate del team', () {
     final report = calculator.build(
       team: _team(),
       month: DateTime(2026, 6),
@@ -119,8 +119,121 @@ void main() {
       sessions: const [],
     );
 
+    expect(report.athletes[0].skiPresence, 0.5);
+    expect(report.athletes[1].skiPresence, 0);
+  });
+
+  test('include nella media presenza gli atleti monitorati senza dati', () {
+    final report = calculator.build(
+      team: _team(),
+      month: DateTime(2026, 6),
+      athletes: const [
+        TeamReportAthleteProfile(
+          id: 'athlete_1',
+          firstName: 'Ada',
+          lastName: 'Rossi',
+        ),
+        TeamReportAthleteProfile(
+          id: 'athlete_2',
+          firstName: 'Luca',
+          lastName: 'Bianchi',
+        ),
+        TeamReportAthleteProfile(
+          id: 'athlete_3',
+          firstName: 'Marta',
+          lastName: 'Verdi',
+        ),
+      ],
+      events: [
+        _event(
+          id: 'ski_team',
+          sportCategory: 'ski',
+          attendees: const [
+            {'id': 'athlete_1', 'attendanceStatus': 'present'},
+          ],
+        ),
+      ],
+      sessions: const [],
+    );
+
     expect(report.athletes[0].skiPresence, 1);
     expect(report.athletes[1].skiPresence, 0);
+    expect(report.athletes[2].skiPresence, 0);
+    expect(report.summary.averageSkiPresence, closeTo(1 / 3, 0.0001));
+    expect(report.summary.averageAthleticPresence, isNull);
+  });
+
+  test('non mostra 100% se atleta manca a sedute sci e atletica del team', () {
+    final report = calculator.build(
+      team: _team(),
+      month: DateTime(2026, 6),
+      athletes: const [
+        TeamReportAthleteProfile(
+          id: 'athlete_1',
+          firstName: 'Ada',
+          lastName: 'Rossi',
+        ),
+      ],
+      events: [
+        _event(
+          id: 'ski_present',
+          sportCategory: 'ski',
+          attendees: const [
+            {'id': 'athlete_1', 'attendanceStatus': 'present'},
+          ],
+        ),
+        _event(
+          id: 'ski_missed',
+          sportCategory: 'ski',
+        ),
+        _event(
+          id: 'prep_present',
+          sportCategory: 'dryland',
+          attendees: const [
+            {'id': 'athlete_1', 'attendanceStatus': 'present'},
+          ],
+        ),
+        _event(
+          id: 'prep_missed',
+          sportCategory: 'dryland',
+        ),
+      ],
+      sessions: const [],
+    );
+
+    final athlete = report.athletes.single;
+    expect(athlete.skiPresence, 0.5);
+    expect(athlete.athleticPresence, 0.5);
+  });
+
+  test('considera valido lo zero percento senza segnare atleta attivo', () {
+    final report = calculator.build(
+      team: _team(),
+      month: DateTime(2026, 6),
+      athletes: const [
+        TeamReportAthleteProfile(
+          id: 'athlete_1',
+          firstName: 'Ada',
+          lastName: 'Rossi',
+        ),
+      ],
+      events: [
+        _event(
+          id: 'ski_absent',
+          sportCategory: 'ski',
+          attendees: const [
+            {'id': 'athlete_1', 'attendanceStatus': 'absent'},
+          ],
+        ),
+      ],
+      sessions: const [],
+    );
+
+    final athlete = report.athletes.single;
+    expect(athlete.skiPresence, 0);
+    expect(athlete.hasAnyData, isTrue);
+    expect(report.summary.athletesWithActivity, 0);
+    expect(report.summary.athletesWithoutData, 1);
   });
 
   test('usa evento coach completato come fallback se manca la sessione', () {
@@ -249,6 +362,8 @@ void main() {
 
     expect(report.athletes.single.skiPresence, isNull);
     expect(report.athletes.single.athleticPresence, isNull);
+    expect(report.summary.averageSkiPresence, isNull);
+    expect(report.summary.averageAthleticPresence, isNull);
   });
 
   test('calcola volume forza, drill e metri resistenza', () {

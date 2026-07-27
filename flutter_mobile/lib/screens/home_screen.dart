@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
@@ -123,6 +124,8 @@ class _DashboardViewState extends State<_DashboardView> {
   Future<void> _syncInitialHealthData() async {
     final appState = Provider.of<AppState>(context, listen: false);
     await appState.syncDailyHealthData(_currentDate);
+    if (!mounted) return;
+    unawaited(appState.refreshHealthDataIfStale(_currentDate));
   }
 
   String _getCurrentSeason() {
@@ -1569,7 +1572,13 @@ class _DashboardViewState extends State<_DashboardView> {
   }
 
   Widget _buildDailyReadiness(AppState appState) {
-    if (appState.isSyncingHealth) {
+    final sleepScore = appState.sleepScoreForDate(_currentDate);
+    final strainScore = appState.strainScoreForDate(_currentDate);
+    final recoveryScore = appState.recoveryScoreForDate(_currentDate);
+    final hasLastSuccessfulSnapshot =
+        sleepScore != null || strainScore != null || recoveryScore != null;
+
+    if (appState.isSyncingHealth && !hasLastSuccessfulSnapshot) {
       return Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -1584,7 +1593,7 @@ class _DashboardViewState extends State<_DashboardView> {
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  _PulsingSyncIcon(),
+                  const _ReadinessSyncIndicator(),
                   SizedBox(height: 20),
                   Text(
                     'Sincronizzazione in Corso',
@@ -1679,9 +1688,6 @@ class _DashboardViewState extends State<_DashboardView> {
       );
     }
 
-    final sleepScore = appState.sleepScoreForDate(_currentDate);
-    final strainScore = appState.strainScoreForDate(_currentDate);
-    final recoveryScore = appState.recoveryScoreForDate(_currentDate);
     final sleepStatus = appState.sleepStatusForDate(_currentDate);
     final recoveryStatus = appState.recoveryStatusForDate(_currentDate);
     final dailyMetrics =
@@ -1696,19 +1702,31 @@ class _DashboardViewState extends State<_DashboardView> {
     final hasInsufficientData = recoveryStatus == 'INSUFFICIENT_DATA';
     final hasPartialData =
         sleepStatus == 'PARTIAL_DATA' || recoveryStatus == 'PARTIAL_DATA';
-    final syncLabel = isCalibration
-        ? 'In calibrazione'
-        : hasInsufficientData
-            ? 'Dati insufficienti'
-            : hasPartialData
-                ? 'Dati parziali'
-                : 'Sincronizzato';
-    final syncColor = isCalibration || hasInsufficientData
-        ? Colors.grey
-        : hasPartialData
+    final hasRefreshError = appState.healthSyncError != null &&
+        appState.healthSyncError != 'CALIBRATION_PHASE';
+    final syncLabel = appState.isSyncingHealth
+        ? 'Aggiornamento...'
+        : hasRefreshError
+            ? 'Ultimo dato valido'
+            : isCalibration
+                ? 'In calibrazione'
+                : hasInsufficientData
+                    ? 'Dati insufficienti'
+                    : hasPartialData
+                        ? 'Dati parziali'
+                        : 'Sincronizzato';
+    final syncColor = appState.isSyncingHealth
+        ? AppTheme.primary
+        : hasRefreshError
             ? const Color(0xFFFF8C42)
-            : AppTheme.primary;
-    if (appState.healthSyncCompleted &&
+            : isCalibration || hasInsufficientData
+                ? Colors.grey
+                : hasPartialData
+                    ? const Color(0xFFFF8C42)
+                    : AppTheme.primary;
+    if ((appState.healthSyncCompleted ||
+            appState.isSyncingHealth ||
+            hasLastSuccessfulSnapshot) &&
         (sleepScore != null ||
             strainScore != null ||
             recoveryScore != null ||
@@ -1737,13 +1755,20 @@ class _DashboardViewState extends State<_DashboardView> {
                       color: AppTheme.textMediumEmphasis)),
               Row(
                 children: [
-                  Icon(
-                    hasPartialData || isCalibration || hasInsufficientData
-                        ? Icons.info_outline
-                        : Icons.check_circle,
-                    color: syncColor,
-                    size: 16,
-                  ),
+                  if (appState.isSyncingHealth)
+                    _SpinningSyncIcon(color: syncColor)
+                  else
+                    Icon(
+                      hasRefreshError
+                          ? Icons.warning_amber_rounded
+                          : hasPartialData ||
+                                  isCalibration ||
+                                  hasInsufficientData
+                              ? Icons.info_outline
+                              : Icons.check_circle,
+                      color: syncColor,
+                      size: 16,
+                    ),
                   const SizedBox(width: 4),
                   Text(
                     syncLabel,
@@ -2342,37 +2367,44 @@ class _ScoreRingPainter extends CustomPainter {
   }
 }
 
-class _PulsingSyncIcon extends StatefulWidget {
-  const _PulsingSyncIcon();
+class _ReadinessSyncIndicator extends StatefulWidget {
+  const _ReadinessSyncIndicator();
 
   @override
-  State<_PulsingSyncIcon> createState() => _PulsingSyncIconState();
+  State<_ReadinessSyncIndicator> createState() =>
+      _ReadinessSyncIndicatorState();
 }
 
-class _PulsingSyncIconState extends State<_PulsingSyncIcon>
+class _ReadinessSyncIndicatorState extends State<_ReadinessSyncIndicator>
     with SingleTickerProviderStateMixin {
-  late AnimationController _controller;
-  late Animation<double> _scaleAnimation;
-  late Animation<double> _rotationAnimation;
+  late final AnimationController _controller;
+  late final Animation<double> _pulseAnimation;
+  late final Animation<double> _orbitAnimation;
 
   @override
   void initState() {
     super.initState();
     _controller = AnimationController(
       vsync: this,
-      duration: const Duration(seconds: 2),
+      duration: const Duration(milliseconds: 1450),
     )..repeat();
 
-    _scaleAnimation = TweenSequence<double>([
+    _pulseAnimation = TweenSequence<double>([
       TweenSequenceItem(
-          tween: Tween<double>(begin: 1.0, end: 1.15), weight: 50),
+        tween: Tween<double>(begin: 1, end: 1.055)
+            .chain(CurveTween(curve: Curves.easeOut)),
+        weight: 50,
+      ),
       TweenSequenceItem(
-          tween: Tween<double>(begin: 1.15, end: 1.0), weight: 50),
-    ]).animate(CurvedAnimation(parent: _controller, curve: Curves.easeInOut));
+        tween: Tween<double>(begin: 1.055, end: 1)
+            .chain(CurveTween(curve: Curves.easeIn)),
+        weight: 50,
+      ),
+    ]).animate(_controller);
 
-    _rotationAnimation = Tween<double>(begin: 0.0, end: 1.0).animate(
-      CurvedAnimation(parent: _controller, curve: Curves.linear),
-    );
+    // The Material sync arrowheads read counter-clockwise. Keep the orbit in
+    // that same direction so the ring never appears to fight the icon.
+    _orbitAnimation = Tween<double>(begin: 0, end: -1).animate(_controller);
   }
 
   @override
@@ -2383,32 +2415,177 @@ class _PulsingSyncIconState extends State<_PulsingSyncIcon>
 
   @override
   Widget build(BuildContext context) {
-    return AnimatedBuilder(
-      animation: _controller,
-      builder: (context, child) {
-        return Transform.scale(
-          scale: _scaleAnimation.value,
-          child: Container(
-            padding: const EdgeInsets.all(16),
-            decoration: BoxDecoration(
-              color: AppTheme.primary.withValues(alpha: 0.1),
-              shape: BoxShape.circle,
-              border: Border.all(
-                color: AppTheme.primary.withValues(alpha: 0.3),
-                width: 2,
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final trackColor = Theme.of(context)
+        .colorScheme
+        .onSurface
+        .withValues(alpha: isDark ? 0.12 : 0.08);
+
+    return Semantics(
+      label: 'Calcolo Daily Readiness in corso',
+      child: SizedBox.square(
+        dimension: 84,
+        child: Stack(
+          alignment: Alignment.center,
+          children: [
+            ScaleTransition(
+              scale: _pulseAnimation,
+              child: Container(
+                width: 76,
+                height: 76,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  gradient: RadialGradient(
+                    colors: [
+                      AppTheme.primary.withValues(alpha: isDark ? 0.16 : 0.12),
+                      AppTheme.primary.withValues(alpha: 0.025),
+                    ],
+                  ),
+                ),
               ),
             ),
-            child: Transform.rotate(
-              angle: _rotationAnimation.value * 2 * 3.1415926535,
+            RotationTransition(
+              turns: _orbitAnimation,
+              child: CustomPaint(
+                size: const Size.square(76),
+                painter: _SyncOrbitPainter(
+                  trackColor: trackColor,
+                  primaryColor: AppTheme.primary,
+                  accentColor: AppTheme.secondary,
+                ),
+              ),
+            ),
+            Container(
+              width: 48,
+              height: 48,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: AppTheme.primary.withValues(alpha: isDark ? 0.16 : 0.1),
+                border: Border.all(
+                  color: AppTheme.primary.withValues(alpha: 0.3),
+                ),
+                boxShadow: [
+                  BoxShadow(
+                    color: AppTheme.primary.withValues(
+                      alpha: isDark ? 0.18 : 0.12,
+                    ),
+                    blurRadius: 14,
+                    spreadRadius: 1,
+                  ),
+                ],
+              ),
               child: const Icon(
-                Icons.sync,
+                Icons.sync_rounded,
                 color: AppTheme.primary,
-                size: 32,
+                size: 28,
               ),
             ),
-          ),
-        );
-      },
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _SyncOrbitPainter extends CustomPainter {
+  final Color trackColor;
+  final Color primaryColor;
+  final Color accentColor;
+
+  const _SyncOrbitPainter({
+    required this.trackColor,
+    required this.primaryColor,
+    required this.accentColor,
+  });
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final center = size.center(Offset.zero);
+    final radius = size.shortestSide / 2 - 4;
+    final orbit = Rect.fromCircle(center: center, radius: radius);
+
+    canvas.drawCircle(
+      center,
+      radius,
+      Paint()
+        ..color = trackColor
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 3,
+    );
+
+    final orbitPaint = Paint()
+      ..shader = SweepGradient(
+        colors: [
+          primaryColor.withValues(alpha: 0.12),
+          primaryColor,
+          accentColor,
+        ],
+        stops: const [0, 0.72, 1],
+        transform: const GradientRotation(-math.pi / 2),
+      ).createShader(orbit)
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 4
+      ..strokeCap = StrokeCap.round;
+    const startAngle = -math.pi / 2;
+    const sweepAngle = math.pi * 1.38;
+    canvas.drawArc(orbit, startAngle, sweepAngle, false, orbitPaint);
+
+    const endAngle = startAngle + sweepAngle;
+    final markerCenter = Offset(
+      center.dx + math.cos(endAngle) * radius,
+      center.dy + math.sin(endAngle) * radius,
+    );
+    canvas.drawCircle(
+      markerCenter,
+      3.5,
+      Paint()
+        ..color = accentColor
+        ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 3),
+    );
+    canvas.drawCircle(markerCenter, 2.25, Paint()..color = accentColor);
+  }
+
+  @override
+  bool shouldRepaint(_SyncOrbitPainter oldDelegate) {
+    return oldDelegate.trackColor != trackColor ||
+        oldDelegate.primaryColor != primaryColor ||
+        oldDelegate.accentColor != accentColor;
+  }
+}
+
+class _SpinningSyncIcon extends StatefulWidget {
+  final Color color;
+
+  const _SpinningSyncIcon({required this.color});
+
+  @override
+  State<_SpinningSyncIcon> createState() => _SpinningSyncIconState();
+}
+
+class _SpinningSyncIconState extends State<_SpinningSyncIcon>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _controller;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 1100),
+    )..repeat();
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return RotationTransition(
+      turns: Tween<double>(begin: 0, end: -1).animate(_controller),
+      child: Icon(Icons.sync_rounded, color: widget.color, size: 16),
     );
   }
 }

@@ -1277,7 +1277,7 @@ class HealthService {
   }
 
   Future<Map<String, List<BodyMetricLog>>> syncDailyHealthMetrics(
-      {int days = 7}) async {
+      {int days = 7, bool requestPermissions = true}) async {
     Map<String, List<BodyMetricLog>> results = {
       'resting_hr': [],
       'hrv_sdnn': [],
@@ -1292,12 +1292,14 @@ class HealthService {
       await _health.configure();
       final now = DateTime.now();
       final startDate = now.subtract(Duration(days: days));
-      try {
-        await _ensureDailyMetricPermissions();
-      } catch (e) {
-        // Reads below are isolated per stream; one optional permission must
-        // not suppress RHR/HRV or the other recovery inputs.
-        debugPrint('Daily metric permission check was partial: $e');
+      if (requestPermissions) {
+        try {
+          await _ensureDailyMetricPermissions();
+        } catch (e) {
+          // Reads below are isolated per stream; one optional permission must
+          // not suppress RHR/HRV or the other recovery inputs.
+          debugPrint('Daily metric permission check was partial: $e');
+        }
       }
 
       // Fetch Resting Heart Rate

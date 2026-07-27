@@ -515,42 +515,10 @@ class _MonthlyTeamReportScreenState extends State<MonthlyTeamReportScreen> {
   }
 
   Widget _buildKpiCard(_KpiData data) {
-    return Container(
-      height: 112,
-      padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(
-        color: AppTheme.card,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: AppTheme.subtleBorder),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Icon(data.icon, color: AppTheme.primary, size: 20),
-          const Spacer(),
-          Text(
-            data.value,
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            style: TextStyle(
-              color: AppTheme.textHighEmphasis,
-              fontSize: 20,
-              fontWeight: FontWeight.w900,
-            ),
-          ),
-          const SizedBox(height: 4),
-          Text(
-            data.label,
-            maxLines: 2,
-            overflow: TextOverflow.ellipsis,
-            style: TextStyle(
-              color: AppTheme.textMediumEmphasis,
-              fontSize: 11,
-              fontWeight: FontWeight.bold,
-            ),
-          ),
-        ],
-      ),
+    return MonthlyTeamReportKpiCard(
+      label: data.label,
+      value: data.value,
+      icon: data.icon,
     );
   }
 
@@ -742,9 +710,12 @@ class _MonthlyTeamReportScreenState extends State<MonthlyTeamReportScreen> {
                       ),
                       const SizedBox(height: 2),
                       Text(
-                        athlete.hasAnyData
+                        athlete.skiPresence != null ||
+                                athlete.athleticPresence != null
                             ? '${_formatPresence(athlete.skiPresence)} sci | ${_formatPresence(athlete.athleticPresence)} atletica'
                             : 'Dati mancanti',
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
                         style: TextStyle(
                           color: AppTheme.textMediumEmphasis,
                           fontSize: 11,
@@ -781,6 +752,7 @@ class _MonthlyTeamReportScreenState extends State<MonthlyTeamReportScreen> {
             if (mainAlert != null) ...[
               const SizedBox(height: 10),
               Container(
+                width: double.infinity,
                 padding:
                     const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
                 decoration: BoxDecoration(
@@ -789,6 +761,8 @@ class _MonthlyTeamReportScreenState extends State<MonthlyTeamReportScreen> {
                 ),
                 child: Text(
                   mainAlert.label,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
                   style: const TextStyle(
                     color: AppTheme.error,
                     fontSize: 11,
@@ -921,6 +895,8 @@ class _MonthlyTeamReportScreenState extends State<MonthlyTeamReportScreen> {
         children: [
           Text(
             title,
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
             style: TextStyle(
               color: AppTheme.textHighEmphasis,
               fontWeight: FontWeight.bold,
@@ -1015,12 +991,16 @@ class _MonthlyTeamReportScreenState extends State<MonthlyTeamReportScreen> {
       children: [
         Icon(icon, color: AppTheme.primary, size: 18),
         const SizedBox(width: 8),
-        Text(
-          label,
-          style: TextStyle(
-            color: AppTheme.textHighEmphasis,
-            fontSize: 16,
-            fontWeight: FontWeight.bold,
+        Expanded(
+          child: Text(
+            label,
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
+            style: TextStyle(
+              color: AppTheme.textHighEmphasis,
+              fontSize: 16,
+              fontWeight: FontWeight.bold,
+            ),
           ),
         ),
       ],
@@ -1128,4 +1108,59 @@ class _ChartValue {
   final double value;
 
   const _ChartValue(this.label, this.value);
+}
+
+class MonthlyTeamReportKpiCard extends StatelessWidget {
+  final String label;
+  final String value;
+  final IconData icon;
+
+  const MonthlyTeamReportKpiCard({
+    super.key,
+    required this.label,
+    required this.value,
+    required this.icon,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      constraints: const BoxConstraints(minHeight: 112),
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: AppTheme.card,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: AppTheme.subtleBorder),
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(icon, color: AppTheme.primary, size: 20),
+          const SizedBox(height: 8),
+          Text(
+            value,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: TextStyle(
+              color: AppTheme.textHighEmphasis,
+              fontSize: 20,
+              fontWeight: FontWeight.w900,
+            ),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            label,
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
+            style: TextStyle(
+              color: AppTheme.textMediumEmphasis,
+              fontSize: 11,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
 }

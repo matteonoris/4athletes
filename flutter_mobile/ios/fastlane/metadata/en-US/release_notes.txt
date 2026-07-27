@@ -1,7 +1,8 @@
-This TestFlight build expands workout creation, athlete insights, and wellness analytics.
+This TestFlight build makes health data more reliable and expands team analytics.
 
-- Adds guided workout creation for strength, running, speed, agility, and phased sessions.
-- Adds athlete monthly recaps and coach access to athlete activity history.
-- Improves monthly team reports, including ski-volume breakdowns and PDF export.
-- Updates sleep, strain, and recovery scoring with clearer science-based calculations.
-- Improves Apple Health imports, heart-rate insights, and maximum-load analytics.
+- Automatically refreshes health data when the app returns to the foreground without repeated permission prompts.
+- Preserves valid recovery and strain scores during partial refreshes or network failures.
+- Improves Health workout importing and deduplication and loads the complete body-metrics history.
+- Adds team leaderboards with period filters and metrics for hours, skiing, strength, running, jumps, and speed.
+- Fixes attendance percentages and team averages, including absences and athletes without activity.
+- Improves team-report layout, readability, and details in light and dark themes.

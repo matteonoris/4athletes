@@ -6,13 +6,10 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../core/theme.dart';
 import '../models/models.dart';
-import '../models/training_activity_models.dart';
+import '../services/team_leaderboard_calculator.dart';
 import 'coach_athlete_detail_screen.dart';
 import 'package:provider/provider.dart';
 import '../providers/app_state.dart';
-import '../utils/coach_training_utils.dart';
-import '../utils/time_utils.dart';
-import '../utils/training_metrics_utils.dart';
 
 class TeamDetailScreen extends StatefulWidget {
   final Team team;
@@ -24,15 +21,15 @@ class TeamDetailScreen extends StatefulWidget {
 }
 
 class _TeamDetailScreenState extends State<TeamDetailScreen> {
-  String _timeFilter = 'Last 7 Days';
-  String _categoryFilter = 'Ore';
+  TeamLeaderboardTimeRange _timeFilter = TeamLeaderboardTimeRange.last7Days;
+  TeamLeaderboardMetric _categoryFilter =
+      TeamLeaderboardMetric.hoursOutsideAlpineSki;
   bool _showFilters = true;
 
-  final List<Map<String, dynamic>> _teamAthletes = [];
   bool _isLoading = true;
   List<Map<String, dynamic>> _rawTeammates = [];
   List<Map<String, dynamic>> _teamCoaches = [];
-  List<Map<String, dynamic>> _rawSessions = [];
+  List<TeamLeaderboardSession> _rawSessions = [];
 
   @override
   void initState() {
@@ -67,14 +64,35 @@ class _TeamDetailScreenState extends State<TeamDetailScreen> {
       final List<Map<String, dynamic>> coaches =
           List<Map<String, dynamic>>.from(coachesResponse);
 
-      List<Map<String, dynamic>> sessions = [];
+      List<TeamLeaderboardSession> sessions = [];
       if (athletes.isNotEmpty) {
         final athleteIds = athletes.map((a) => a['id'] as String).toList();
-        final sessionsResponse = await supabase
-            .from('training_sessions')
-            .select()
-            .inFilter('user_id', athleteIds);
-        sessions = List<Map<String, dynamic>>.from(sessionsResponse);
+        final now = DateTime.now();
+        final season = TeamLeaderboardPeriod.forRange(
+          TeamLeaderboardTimeRange.thisSeason,
+          now,
+        );
+        final seasonStart = _dateKey(season.start);
+        final tomorrow = _dateKey(season.endExclusive);
+        final rows =
+            await TeamLeaderboardPagination.fetchAll<Map<String, dynamic>>(
+          fetchPage: (from, to) async {
+            final response = await supabase
+                .from('training_sessions')
+                .select(
+                  'id, user_id, sport_id, date, start_time, end_time, '
+                  'duration, effort, event_id, details',
+                )
+                .inFilter('user_id', athleteIds)
+                .gte('date', seasonStart)
+                .lt('date', tomorrow)
+                .order('date', ascending: true)
+                .order('id', ascending: true)
+                .range(from, to);
+            return List<Map<String, dynamic>>.from(response);
+          },
+        );
+        sessions = rows.map(_leaderboardSessionFromRow).toList();
       }
 
       if (!mounted) return;
@@ -93,146 +111,70 @@ class _TeamDetailScreenState extends State<TeamDetailScreen> {
     }
   }
 
-  DateTime _getFilterStartDate() {
-    final now = DateTime.now();
-    final today = DateTime(now.year, now.month, now.day);
-    if (_timeFilter == 'Last 7 Days') {
-      return today.subtract(const Duration(days: 7));
-    } else if (_timeFilter == 'This Month') {
-      return DateTime(today.year, today.month, 1);
-    } else {
-      // This Season
-      return DateTime(today.year - (today.month < 5 ? 1 : 0), 5, 1);
+  String _dateKey(DateTime date) {
+    return '${date.year.toString().padLeft(4, '0')}-'
+        '${date.month.toString().padLeft(2, '0')}-'
+        '${date.day.toString().padLeft(2, '0')}';
+  }
+
+  TeamLeaderboardSession _leaderboardSessionFromRow(
+    Map<String, dynamic> row,
+  ) {
+    final details = row['details'];
+    return TeamLeaderboardSession(
+      athleteId: row['user_id']?.toString() ?? '',
+      session: TrainingSession(
+        id: row['id']?.toString() ?? '',
+        sportId: row['sport_id']?.toString() ?? '',
+        date: row['date']?.toString() ?? '',
+        startTime: row['start_time']?.toString() ?? '',
+        endTime: row['end_time']?.toString() ?? '',
+        duration: row['duration']?.toString() ?? '0',
+        effort: row['effort'] is num
+            ? (row['effort'] as num).round()
+            : int.tryParse(row['effort']?.toString() ?? '') ?? 0,
+        eventId: row['event_id']?.toString(),
+        details: details is Map
+            ? details.map(
+                (key, value) => MapEntry(key.toString(), value),
+              )
+            : null,
+      ),
+    );
+  }
+
+  double _getCategoryValue(
+    TeamLeaderboardAthleteStats athlete,
+    TeamLeaderboardMetric category,
+  ) {
+    return athlete.valueFor(category);
+  }
+
+  String _getCategoryUnit(TeamLeaderboardMetric category) => category.unit;
+
+  IconData _getCategoryIcon(TeamLeaderboardMetric category) {
+    switch (category) {
+      case TeamLeaderboardMetric.hoursOutsideAlpineSki:
+      case TeamLeaderboardMetric.enduranceHours:
+        return PhosphorIcons.clock();
+      case TeamLeaderboardMetric.zone23Hours:
+      case TeamLeaderboardMetric.zone45Hours:
+        return PhosphorIcons.heart();
+      case TeamLeaderboardMetric.strengthVolumeKg:
+        return PhosphorIcons.barbell();
+      case TeamLeaderboardMetric.plyometricContacts:
+      case TeamLeaderboardMetric.slPolePasses:
+        return PhosphorIcons.lightning();
+      case TeamLeaderboardMetric.strengthSessions:
+      case TeamLeaderboardMetric.enduranceSessions:
+        return PhosphorIcons.listChecks();
+      case TeamLeaderboardMetric.totalDirectionChanges:
+        return PhosphorIcons.waveSine();
+      case TeamLeaderboardMetric.gsPolePasses:
+        return PhosphorIcons.snowflake();
+      default:
+        return PhosphorIcons.trendUp();
     }
-  }
-
-  double _parseDurationToHours(String duration) {
-    return TimeUtils.parseDurationToHours(duration);
-  }
-
-  void _generateTeamData() {
-    _teamAthletes.clear();
-    final startDate = _getFilterStartDate();
-
-    for (var athlete in _rawTeammates) {
-      final athleteId = athlete['id'];
-      double oreFuoriSci = 0.0;
-      int cambiTotale = 0;
-      int passaggiSL = 0;
-      int passaggiGS = 0;
-      int passaggiSG = 0;
-      int passaggiDH = 0;
-      int passaggiSX = 0;
-      double enduranceHours = 0.0;
-      double zone23Hours = 0.0;
-      double zone45Hours = 0.0;
-      double strengthVolumeKg = 0.0;
-      int plyoContacts = 0;
-      int strengthSessions = 0;
-      int enduranceSessions = 0;
-
-      final athleteSessions =
-          _rawSessions.where((s) => s['user_id'] == athleteId);
-
-      for (var session in athleteSessions) {
-        final dateStr = session['date'] ?? '';
-        DateTime? sessionDate = DateTime.tryParse(dateStr);
-        if (sessionDate == null || sessionDate.isBefore(startDate)) continue;
-
-        final sportId = session['sport_id'] ?? '';
-        bool isAlpineSkiing = sportId == 'alpine_skiing' ||
-            sportId == 'skiing' ||
-            sportId == 'snowboarding' ||
-            sportId == 'ski';
-        final durationStr = session['duration']?.toString() ?? '0';
-        final details = session['details'] as Map<String, dynamic>?;
-
-        if (!isAlpineSkiing) {
-          final trainingSession = TrainingSession(
-            id: session['id']?.toString() ?? '',
-            sportId: sportId.toString(),
-            date: dateStr.toString(),
-            startTime: session['start_time']?.toString() ?? '',
-            endTime: session['end_time']?.toString() ?? '',
-            duration: durationStr,
-            effort: CoachTrainingUtils.asInt(session['effort'], fallback: 0),
-            eventId: session['event_id']?.toString(),
-            details: details,
-          );
-          final activity =
-              TrainingActivity.fromTrainingSession(trainingSession);
-          if (activity.status == ActivityStatus.cancelled) continue;
-
-          oreFuoriSci += _parseDurationToHours(durationStr);
-          final strength = TrainingMetricsUtils.strengthSummary([activity]);
-          final plyo = TrainingMetricsUtils.plyometricSummary([activity]);
-          final endurance = TrainingMetricsUtils.enduranceSummary([activity]);
-          strengthVolumeKg += strength.volumeKg;
-          plyoContacts += plyo.totalContacts;
-          if (strength.totalSets > 0) strengthSessions++;
-          if (endurance.durationSeconds > 0 || endurance.distanceKm > 0) {
-            enduranceSessions++;
-          }
-          enduranceHours += endurance.durationSeconds / 3600;
-          zone23Hours += endurance.zone23Seconds / 3600;
-          zone45Hours += endurance.zone45Seconds / 3600;
-        } else {
-          final summary = CoachTrainingUtils.volumeFromDetails(details);
-          cambiTotale += summary.totalDirectionChanges;
-          passaggiSL += summary.polePassesBySpecialty['SL'] ?? 0;
-          passaggiGS += summary.polePassesBySpecialty['GS'] ?? 0;
-          passaggiSG += summary.polePassesBySpecialty['SG'] ?? 0;
-          passaggiDH += summary.polePassesBySpecialty['DH'] ?? 0;
-          passaggiSX += summary.polePassesBySpecialty['SX'] ?? 0;
-        }
-      }
-
-      _teamAthletes.add({
-        'id': athleteId,
-        'name': '${athlete['first_name'] ?? ''} ${athlete['last_name'] ?? ''}'
-            .trim(),
-        'avatar': athlete['avatar_url'] ?? '',
-        'subtitle': athlete['skill_level'] ?? 'Athlete',
-        'Ore': oreFuoriSci,
-        'Tot. Dir': cambiTotale.toDouble(),
-        'Pass. SL': passaggiSL.toDouble(),
-        'Pass. GS': passaggiGS.toDouble(),
-        'Pass. SG': passaggiSG.toDouble(),
-        'Pass. DH': passaggiDH.toDouble(),
-        'Pass. SX': passaggiSX.toDouble(),
-        'Ore Res.': enduranceHours,
-        'Z2-3': zone23Hours,
-        'Z4-5': zone45Hours,
-        'Vol. Kg': strengthVolumeKg,
-        'Contatti': plyoContacts.toDouble(),
-        'Sed. Forza': strengthSessions.toDouble(),
-        'Sed. End.': enduranceSessions.toDouble(),
-      });
-    }
-  }
-
-  double _getCategoryValue(Map<String, dynamic> athlete, String category) {
-    return (athlete[category] ?? 0.0).toDouble();
-  }
-
-  String _getCategoryUnit(String category) {
-    if (category.contains('Ore')) return 'h';
-    if (category.startsWith('Z')) return 'h';
-    if (category.contains('Vol. Kg')) return 'kg';
-    if (category.contains('Sed.')) return 'sess';
-    return '';
-  }
-
-  IconData _getCategoryIcon(String category) {
-    if (category.contains('Ore')) return PhosphorIcons.clock();
-    if (category.startsWith('Z')) return PhosphorIcons.heart();
-    if (category.contains('Vol. Kg')) return PhosphorIcons.barbell();
-    if (category.contains('Contatti')) return PhosphorIcons.lightning();
-    if (category.contains('Sed.')) return PhosphorIcons.listChecks();
-    if (category.contains('Tot. Dir')) return PhosphorIcons.waveSine();
-    if (category.contains('Pass. SL')) return PhosphorIcons.lightning();
-    if (category.contains('Pass. GS')) return PhosphorIcons.snowflake();
-    return PhosphorIcons.trendUp();
   }
 
   String _profileName(Map<String, dynamic> profile, String fallback) {
@@ -452,9 +394,11 @@ class _TeamDetailScreenState extends State<TeamDetailScreen> {
     );
   }
 
-  double _getTotalValue() {
+  double _getTotalValue(
+    Iterable<TeamLeaderboardAthleteStats> athletes,
+  ) {
     double total = 0;
-    for (var a in _teamAthletes) {
+    for (final a in athletes) {
       total += _getCategoryValue(a, _categoryFilter);
     }
     return total;
@@ -544,13 +488,18 @@ class _TeamDetailScreenState extends State<TeamDetailScreen> {
         Provider.of<AppState>(context).userProfile?.role == 'athlete';
     final isCoach = Provider.of<AppState>(context).userProfile?.role == 'coach';
 
-    _generateTeamData();
-
-    final sortedAthletes = List<Map<String, dynamic>>.from(_teamAthletes);
+    final sortedAthletes = const TeamLeaderboardCalculator().calculate(
+      athletes: _rawTeammates,
+      sessions: _rawSessions,
+      timeRange: _timeFilter,
+    );
     sortedAthletes.sort((a, b) {
       double valA = _getCategoryValue(a, _categoryFilter);
       double valB = _getCategoryValue(b, _categoryFilter);
-      return valB.compareTo(valA);
+      final byValue = valB.compareTo(valA);
+      return byValue != 0
+          ? byValue
+          : a.name.toLowerCase().compareTo(b.name.toLowerCase());
     });
 
     double maxValue = sortedAthletes.isEmpty
@@ -702,20 +651,19 @@ class _TeamDetailScreenState extends State<TeamDetailScreen> {
                       minimumSize: const Size(0, 36),
                     ),
                   ),
-                  PopupMenuButton<String>(
-                    onSelected: (String value) {
+                  PopupMenuButton<TeamLeaderboardTimeRange>(
+                    onSelected: (value) {
                       setState(() {
                         _timeFilter = value;
                       });
                     },
                     color: AppTheme.card,
                     itemBuilder: (BuildContext context) {
-                      return ['Last 7 Days', 'This Month', 'This Season']
-                          .map((String choice) {
-                        return PopupMenuItem<String>(
+                      return TeamLeaderboardTimeRange.values.map((choice) {
+                        return PopupMenuItem<TeamLeaderboardTimeRange>(
                           value: choice,
                           child: Text(
-                            choice,
+                            choice.label,
                             style: TextStyle(
                               color: _timeFilter == choice
                                   ? AppTheme.primary
@@ -741,7 +689,7 @@ class _TeamDetailScreenState extends State<TeamDetailScreen> {
                           Icon(PhosphorIcons.clock(),
                               size: 16, color: AppTheme.primary),
                           const SizedBox(width: 8),
-                          Text(_timeFilter,
+                          Text(_timeFilter.label,
                               style: TextStyle(
                                   fontWeight: FontWeight.bold,
                                   fontSize: 12,
@@ -766,7 +714,8 @@ class _TeamDetailScreenState extends State<TeamDetailScreen> {
                         crossAxisAlignment: CrossAxisAlignment.baseline,
                         textBaseline: TextBaseline.alphabetic,
                         children: [
-                          Text(_getTotalValue().toStringAsFixed(1),
+                          Text(
+                              _getTotalValue(sortedAthletes).toStringAsFixed(1),
                               style: TextStyle(
                                   fontSize: 16,
                                   fontWeight: FontWeight.bold,
@@ -793,22 +742,7 @@ class _TeamDetailScreenState extends State<TeamDetailScreen> {
                 padding:
                     const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
                 child: Row(
-                  children: [
-                    'Ore',
-                    'Tot. Dir',
-                    'Pass. SL',
-                    'Pass. GS',
-                    'Pass. SG',
-                    'Pass. DH',
-                    'Pass. SX',
-                    'Ore Res.',
-                    'Z2-3',
-                    'Z4-5',
-                    'Vol. Kg',
-                    'Contatti',
-                    'Sed. Forza',
-                    'Sed. End.'
-                  ].map((cat) {
+                  children: TeamLeaderboardMetric.values.map((cat) {
                     bool isSelected = _categoryFilter == cat;
                     return Padding(
                       padding: const EdgeInsets.only(right: 8.0),
@@ -835,7 +769,7 @@ class _TeamDetailScreenState extends State<TeamDetailScreen> {
                                       ? Colors.white
                                       : AppTheme.textMediumEmphasis),
                               const SizedBox(width: 6),
-                              Text(cat,
+                              Text(cat.label,
                                   style: TextStyle(
                                     color: isSelected
                                         ? Colors.white
@@ -917,7 +851,7 @@ class _TeamDetailScreenState extends State<TeamDetailScreen> {
                               onTap: () {
                                 if (isCoach) {
                                   HapticFeedback.lightImpact();
-                                  String name = athlete['name'] ?? 'Atleta';
+                                  final name = athlete.name;
                                   String initial = name.isNotEmpty
                                       ? name[0].toUpperCase()
                                       : 'A';
@@ -927,7 +861,7 @@ class _TeamDetailScreenState extends State<TeamDetailScreen> {
                                       builder: (_) => CoachAthleteDetailScreen(
                                         athleteName: name,
                                         initial: initial,
-                                        athleteId: athlete['id'],
+                                        athleteId: athlete.id,
                                       ),
                                     ),
                                   );
@@ -998,10 +932,8 @@ class _TeamDetailScreenState extends State<TeamDetailScreen> {
                                           const SizedBox(width: 12),
                                           // Avatar
                                           _buildProfileAvatar(
-                                            name: athlete['name'] ?? 'Atleta',
-                                            avatarUrl:
-                                                athlete['avatar']?.toString() ??
-                                                    '',
+                                            name: athlete.name,
+                                            avatarUrl: athlete.avatarUrl,
                                             backgroundColor: AppTheme.surface,
                                             textColor:
                                                 AppTheme.textHighEmphasis,
@@ -1013,7 +945,7 @@ class _TeamDetailScreenState extends State<TeamDetailScreen> {
                                               crossAxisAlignment:
                                                   CrossAxisAlignment.start,
                                               children: [
-                                                Text(athlete['name'],
+                                                Text(athlete.name,
                                                     style: TextStyle(
                                                         fontWeight:
                                                             FontWeight.bold,
@@ -1021,9 +953,7 @@ class _TeamDetailScreenState extends State<TeamDetailScreen> {
                                                             .textHighEmphasis,
                                                         fontSize: 14)),
                                                 const SizedBox(height: 2),
-                                                Text(
-                                                    athlete['subtitle'] ??
-                                                        'Athlete',
+                                                Text(athlete.subtitle,
                                                     style: TextStyle(
                                                         color: AppTheme
                                                             .textMediumEmphasis,
@@ -1110,9 +1040,10 @@ class _TeamDetailScreenState extends State<TeamDetailScreen> {
                                                   const BoxConstraints(),
                                               onPressed: () =>
                                                   _confirmRemoveAthlete(
-                                                      context,
-                                                      athlete['id'],
-                                                      athlete['name']),
+                                                context,
+                                                athlete.id,
+                                                athlete.name,
+                                              ),
                                             ),
                                           ],
                                         ],

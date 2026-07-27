@@ -1,7 +1,8 @@
-Questa build TestFlight amplia la creazione allenamenti, i riepiloghi atleta e le analisi wellness.
+Questa build TestFlight rende più affidabili i dati salute e amplia le analisi della squadra.
 
-- Aggiunge la creazione guidata di allenamenti di forza, corsa, velocità, agilità e sessioni a fasi.
-- Aggiunge il riepilogo mensile atleta e lo storico attività consultabile dai coach.
-- Migliora i report mensili team, inclusi i volumi sci e l'esportazione PDF.
-- Aggiorna i punteggi sonno, strain e recovery con calcoli scientifici più chiari.
-- Migliora import Apple Health, analisi della frequenza cardiaca e carichi massimi.
+- Aggiorna automaticamente i dati salute quando l'app torna in primo piano, senza richieste di permesso ripetute.
+- Protegge i punteggi recovery e strain già validi durante refresh parziali o problemi di rete.
+- Migliora import e deduplicazione degli allenamenti Health e carica lo storico completo delle metriche corporee.
+- Aggiunge la classifica squadra con filtri per periodo e indicatori di ore, sci, forza, corsa, salti e velocità.
+- Corregge presenze e medie nei report mensili, includendo correttamente assenze e atleti senza attività.
+- Migliora layout, leggibilità e dettagli dei report squadra in tema chiaro e scuro.

@@ -34,7 +34,7 @@ void main() {
 
         expect(find.text('Affidabilità dati 80%'), findsOneWidget);
         expect(
-          find.text(isDark ? 'HRV SDNN (ms)' : 'HRV RMSSD (ms)'),
+          find.text('HRV'),
           findsOneWidget,
         );
         expect(

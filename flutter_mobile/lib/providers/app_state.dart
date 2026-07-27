@@ -9,7 +9,6 @@ import 'package:google_sign_in/google_sign_in.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:sign_in_with_apple/sign_in_with_apple.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
-import 'package:health/health.dart';
 import '../core/dev_flags.dart';
 import '../core/theme.dart';
 import '../data/workout_catalog.dart';
@@ -30,6 +29,9 @@ import '../utils/strain_session_mapper.dart';
 
 class AppState extends ChangeNotifier {
   static const String _healthScoreCachePrefix = 'health_sync_v12_science_v2_';
+  static const String _lastHealthRefreshPrefix =
+      'health_sync_last_successful_refresh_';
+  static const Duration _automaticHealthRefreshInterval = Duration(minutes: 15);
   static const String _themeModeKey = 'themeMode';
 
   SharedPreferences? _prefs;
@@ -210,11 +212,29 @@ class AppState extends ChangeNotifier {
   bool get healthSyncCompleted => _healthSyncCompleted;
 
   Future<void>? _healthWorkoutSyncFuture;
+  Future<void>? _healthRefreshFuture;
+  String? _healthRefreshDateKey;
+  bool _healthRefreshRequestsPermissions = false;
   int _healthDataRequestId = 0;
+  final Set<String> _dirtyBodyMetricKeys = <String>{};
 
   String? _healthSyncError;
   String? get healthSyncError => _healthSyncError;
   static const int _healthMetricSyncLookbackDays = 90;
+
+  String _healthScoreCacheKey(String dateKey) {
+    final ownerId = userId;
+    return ownerId.isEmpty
+        ? '$_healthScoreCachePrefix$dateKey'
+        : '$_healthScoreCachePrefix${ownerId}_$dateKey';
+  }
+
+  String get _healthAccessPreferenceKey {
+    final ownerId = userId;
+    return ownerId.isEmpty
+        ? 'healthAccessEnabled'
+        : 'healthAccessEnabled_$ownerId';
+  }
 
   void _clearCurrentHealthScores() {
     _currentSleepScore = null;
@@ -290,7 +310,9 @@ class AppState extends ChangeNotifier {
   /// Reads a saved snapshot by default. Health sources and scoring are touched
   /// only by the explicit refresh flows that pass [forceRefresh].
   Future<void> syncDailyHealthData(DateTime targetDate,
-      {bool forceRefresh = false, int? healthRequestId}) async {
+      {bool forceRefresh = false,
+      int? healthRequestId,
+      bool requestPermissions = true}) async {
     final requestId = healthRequestId ?? ++_healthDataRequestId;
     if (requestId != _healthDataRequestId) return;
 
@@ -300,7 +322,7 @@ class AppState extends ChangeNotifier {
       final today = DateTime(now.year, now.month, now.day);
       final targetDay =
           DateTime(targetDate.year, targetDate.month, targetDate.day);
-      final cacheKey = '$_healthScoreCachePrefix$requestedDateKey';
+      final cacheKey = _healthScoreCacheKey(requestedDateKey);
 
       _currentHealthDateKey = requestedDateKey;
       _healthSyncError = null;
@@ -322,11 +344,20 @@ class AppState extends ChangeNotifier {
       return;
     }
 
+    final wasShowingRequestedDate = _currentHealthDateKey == requestedDateKey;
     _currentHealthDateKey = requestedDateKey;
     _isSyncingHealth = true;
     _healthSyncCompleted = false;
     _healthSyncError = null;
-    _clearCurrentHealthScores();
+    // Keep the last successful snapshot visible while a refresh is running.
+    // When switching dates, hydrate only data belonging to the requested day.
+    if (!wasShowingRequestedDate) {
+      _clearCurrentHealthScores();
+      final requestedCacheKey = _healthScoreCacheKey(requestedDateKey);
+      if (!_loadCachedHealthScores(requestedCacheKey, requestedDateKey)) {
+        _hydrateCurrentScoresFromLogs(requestedDateKey);
+      }
+    }
     notifyListeners();
 
     DateTime now = DateTime.now();
@@ -342,33 +373,7 @@ class AppState extends ChangeNotifier {
     }
 
     String dateKey = localDateKey(targetDate);
-    String cacheKey = '$_healthScoreCachePrefix$dateKey';
-
-    // Sincronizza Peso esplicitamente in modo incondizionato
-    try {
-      final weightData = await Health().getHealthDataFromTypes(
-        startTime: DateTime.now().subtract(const Duration(days: 7)),
-        endTime: DateTime.now(),
-        types: [HealthDataType.WEIGHT],
-      );
-      for (var point in weightData) {
-        if (point.value is NumericHealthValue) {
-          final val = (point.value as NumericHealthValue).numericValue;
-          final dateStr = point.dateFrom.toIso8601String().split('T')[0];
-          final exists =
-              _bodyLogs.any((l) => l.type == 'weight' && l.date == dateStr);
-          if (!exists) {
-            addBodyLog(BodyMetricLog(
-                id: 'weight_$dateStr',
-                date: dateStr,
-                type: 'weight',
-                value: val.toDouble()));
-          }
-        }
-      }
-    } catch (e) {
-      debugPrint('Error syncing weight in syncDailyHealthData: $e');
-    }
+    String cacheKey = _healthScoreCacheKey(dateKey);
 
     // Today's sleep data can still be completed or corrected by the source
     // app after the first morning sync. Always re-read it when the Home screen
@@ -444,16 +449,29 @@ class AppState extends ChangeNotifier {
 
     try {
       // Assicuriamoci che i log corporei locali (Temp, SpO2, Resp) siano aggiornati prima di calcolare
-      await syncDailyHealthMetrics();
+      await syncDailyHealthMetrics(requestPermissions: requestPermissions);
       await syncDailyStrainScore(
         targetDate.subtract(const Duration(days: 1)),
         notify: false,
       );
+      await syncDailyStrainScore(targetDate, notify: false);
 
       final result = await _healthSyncService.fetchAndCalculateScores(
-          _userProfile!, _bodyLogs, targetDate);
+        _userProfile!,
+        _bodyLogs,
+        targetDate: targetDate,
+        requestPermissions: requestPermissions,
+      );
 
       if (requestId != _healthDataRequestId) return;
+      final previousRecoveryScore = recoveryScoreForDate(targetDate);
+      final retainPreviousRecovery =
+          result.recoveryScore == null && previousRecoveryScore != null;
+      final effectiveRecoveryScore =
+          result.recoveryScore ?? previousRecoveryScore;
+      final effectiveRecoveryStatus = retainPreviousRecovery
+          ? ScoreStatus.partialData.code
+          : result.scoringResult.recoveryScore.statusCode;
 
       // Sync sleep_score to Supabase
       try {
@@ -471,7 +489,7 @@ class AppState extends ChangeNotifier {
             type: 'recovery_score',
             value: result.recoveryScore!,
           ));
-        } else {
+        } else if (!retainPreviousRecovery) {
           await _removeBodyMetricLogForDate('recovery_score', dateKey);
         }
       } catch (e) {
@@ -484,7 +502,8 @@ class AppState extends ChangeNotifier {
             cacheKey,
             jsonEncode({
               'sleepScore': result.sleepScore,
-              'recoveryScore': result.recoveryScore,
+              'recoveryScore': effectiveRecoveryScore,
+              'recoveryScoreRetained': retainPreviousRecovery,
               'dailyMetrics': result.dailyMetrics,
               'historicalMetrics': result.historicalMetrics,
               'localSleepHistory': result.localSleepHistory,
@@ -493,21 +512,25 @@ class AppState extends ChangeNotifier {
               'recoveryConfidence':
                   result.scoringResult.recoveryScore.confidence,
               'sleepStatus': result.scoringResult.sleepScore.statusCode,
-              'recoveryStatus': result.scoringResult.recoveryScore.statusCode,
+              'recoveryStatus': effectiveRecoveryStatus,
               'sleepComponents': result.scoringResult.sleepScore.components,
               'recoveryComponents':
                   result.scoringResult.recoveryScore.components,
               'sleepWarnings': result.scoringResult.sleepScore.warnings,
-              'recoveryWarnings': result.scoringResult.recoveryScore.warnings,
+              'recoveryWarnings': [
+                ...result.scoringResult.recoveryScore.warnings,
+                if (retainPreviousRecovery)
+                  'previous_valid_recovery_retained_after_partial_refresh',
+              ],
             }));
       }
 
       if (requestId != _healthDataRequestId) return;
       _currentHealthDateKey = dateKey;
       _currentSleepScore = result.sleepScore;
-      _currentRecoveryScore = result.recoveryScore;
+      _currentRecoveryScore = effectiveRecoveryScore;
       _currentSleepStatus = result.scoringResult.sleepScore.statusCode;
-      _currentRecoveryStatus = result.scoringResult.recoveryScore.statusCode;
+      _currentRecoveryStatus = effectiveRecoveryStatus;
       _currentDailyMetrics = result.dailyMetrics;
       _currentHistoricalMetrics = result.historicalMetrics;
       _currentLocalSleepHistory = result.localSleepHistory;
@@ -593,6 +616,13 @@ class AppState extends ChangeNotifier {
     _sessions.clear();
     _teams.clear();
     _bodyLogs.clear();
+    _dirtyBodyMetricKeys.clear();
+    _healthDataRequestId++;
+    _currentHealthDateKey = null;
+    _clearCurrentHealthScores();
+    _isSyncingHealth = false;
+    _healthSyncCompleted = false;
+    _healthSyncError = null;
     _prLogs.clear();
     _jumpLogs.clear();
     _coachEvents.clear();
@@ -1223,19 +1253,35 @@ class AppState extends ChangeNotifier {
 
   Future<void> _loadBodyLogs() async {
     try {
-      final data = await _supabase
-          .from('body_metric_logs')
-          .select()
-          .eq('user_id', userId)
-          .order('date', ascending: true);
-      _bodyLogs = (data as List)
+      const requestedPageSize = 500;
+      final rows = <dynamic>[];
+      var offset = 0;
+      while (true) {
+        final page = await _supabase
+            .from('body_metric_logs')
+            .select()
+            .eq('user_id', userId)
+            .order('date', ascending: false)
+            .order('id', ascending: false)
+            .range(offset, offset + requestedPageSize - 1);
+        final pageRows = page as List;
+        if (pageRows.isEmpty) break;
+        rows.addAll(pageRows);
+        offset += pageRows.length;
+      }
+
+      _bodyLogs = rows
           .map((e) => BodyMetricLog(
-                id: e['id'],
+                id: e['id'].toString(),
                 date: e['date'],
                 type: e['type'],
                 value: (e['value'] as num).toDouble(),
               ))
-          .toList();
+          .toList()
+        ..sort((a, b) {
+          final byDate = a.date.compareTo(b.date);
+          return byDate != 0 ? byDate : a.id.compareTo(b.id);
+        });
     } catch (e) {
       debugPrint('Error loading body logs: $e');
     }
@@ -1616,12 +1662,21 @@ class AppState extends ChangeNotifier {
     TrainingSession session, {
     bool fromHealthSync = false,
     bool rethrowErrors = false,
+    bool recalculateStrain = true,
+    bool notify = true,
   }) async {
     try {
       if (!fromHealthSync) {
         session = _markManualHealthDurationOverrideIfNeeded(session);
       }
       session = HealthWorkoutMergeUtils.normalizeSessionHealthDetails(session);
+      if (fromHealthSync && _isValidUuid(session.id)) {
+        final existingIndex = _sessions.indexWhere((s) => s.id == session.id);
+        if (existingIndex >= 0 &&
+            _samePersistedSession(_sessions[existingIndex], session)) {
+          return;
+        }
+      }
 
       if (!_isValidUuid(session.id)) {
         // Insert new
@@ -1664,18 +1719,53 @@ class AppState extends ChangeNotifier {
       await _syncCoachEventDrylandFromSession(session);
       _sessions.sort((a, b) => b.date.compareTo(a.date));
       final sessionDate = DateTime.tryParse(session.date);
-      if (sessionDate != null) {
+      if (recalculateStrain && sessionDate != null) {
         await calculateAndPersistDailyStrainScore(
           userId,
           sessionDate,
           notify: false,
         );
       }
-      notifyListeners();
+      if (notify) notifyListeners();
     } catch (e) {
       debugPrint('Error adding/updating session: $e');
       if (rethrowErrors) rethrow;
     }
+  }
+
+  bool _samePersistedSession(TrainingSession first, TrainingSession second) {
+    return first.id == second.id &&
+        first.sportId == second.sportId &&
+        first.date == second.date &&
+        first.startTime == second.startTime &&
+        first.endTime == second.endTime &&
+        first.duration == second.duration &&
+        first.effort == second.effort &&
+        first.eventId == second.eventId &&
+        _deepValueEquals(first.details, second.details);
+  }
+
+  bool _deepValueEquals(Object? first, Object? second) {
+    if (identical(first, second)) return true;
+    if (first is num && second is num) return first == second;
+    if (first is List && second is List) {
+      if (first.length != second.length) return false;
+      for (var index = 0; index < first.length; index++) {
+        if (!_deepValueEquals(first[index], second[index])) return false;
+      }
+      return true;
+    }
+    if (first is Map && second is Map) {
+      if (first.length != second.length) return false;
+      for (final key in first.keys) {
+        if (!second.containsKey(key) ||
+            !_deepValueEquals(first[key], second[key])) {
+          return false;
+        }
+      }
+      return true;
+    }
+    return first == second;
   }
 
   TrainingSession _markManualHealthDurationOverrideIfNeeded(
@@ -2150,13 +2240,19 @@ class AppState extends ChangeNotifier {
     }
   }
 
-  Future<void> syncHealthWorkouts({int days = 7}) {
+  Future<void> syncHealthWorkouts({int days = 7}) async {
+    await _syncHealthWorkoutImports(days: days);
+    await syncDailyHealthMetrics();
+    await syncDailyStrainScore(DateTime.now(), notify: false);
+  }
+
+  Future<void> _syncHealthWorkoutImports({int days = 7}) {
     if (_userProfile == null) return Future.value();
 
     final runningSync = _healthWorkoutSyncFuture;
     if (runningSync != null) return runningSync;
 
-    final sync = _syncHealthWorkouts(days: days);
+    final sync = _performHealthWorkoutImport(days: days);
     _healthWorkoutSyncFuture = sync;
     return sync.whenComplete(() {
       if (identical(_healthWorkoutSyncFuture, sync)) {
@@ -2165,14 +2261,18 @@ class AppState extends ChangeNotifier {
     });
   }
 
-  Future<void> _syncHealthWorkouts({required int days}) async {
+  Future<void> _performHealthWorkoutImport({required int days}) async {
     try {
+      final syncOwnerId = userId;
+      final syncProfile = _userProfile;
+      if (syncOwnerId.isEmpty || syncProfile == null) return;
       final healthSessions =
-          await HealthService().fetchRecentWorkouts(userProfile!, days: days);
+          await HealthService().fetchRecentWorkouts(syncProfile, days: days);
 
       final processedExternalIds = <String>{};
 
       for (var session in healthSessions) {
+        if (userId != syncOwnerId || _userProfile?.id != syncOwnerId) return;
         final extId = session.details?['external_id']?.toString();
         if (extId != null && processedExternalIds.contains(extId)) {
           continue;
@@ -2184,7 +2284,7 @@ class AppState extends ChangeNotifier {
             processedExternalIds.add(extId);
           }
           final baseSession = sourcePartMatches.first;
-          final consolidatedSession = await _consolidateDuplicateHealthSessions(
+          await _persistConsolidatedHealthSession(
             baseSession,
             [
               ...sourcePartMatches,
@@ -2193,13 +2293,7 @@ class AppState extends ChangeNotifier {
                 session,
               ),
             ],
-          );
-          await addSession(
-            HealthWorkoutMergeUtils.mergeImportedSession(
-              consolidatedSession,
-              session,
-            ),
-            fromHealthSync: true,
+            session,
           );
           continue;
         }
@@ -2213,19 +2307,13 @@ class AppState extends ChangeNotifier {
           if (extId != null) {
             processedExternalIds.add(extId);
           }
-          final consolidatedSession = await _consolidateDuplicateHealthSessions(
+          await _persistConsolidatedHealthSession(
             overlapCandidate,
             HealthWorkoutMergeUtils.likelyDuplicateHealthImports(
               _sessions,
               session,
             ),
-          );
-          await addSession(
-            HealthWorkoutMergeUtils.mergeImportedSession(
-              consolidatedSession,
-              session,
-            ),
-            fromHealthSync: true,
+            session,
           );
           continue;
         }
@@ -2254,10 +2342,6 @@ class AppState extends ChangeNotifier {
         }
         await addSession(session, fromHealthSync: true);
       }
-
-      // Sync Health Metrics (HRV, RHR)
-      await syncDailyHealthMetrics();
-      await syncDailyStrainScore(DateTime.now(), notify: false);
     } catch (e) {
       debugPrint('Error syncing health workouts: $e');
     }
@@ -2339,16 +2423,6 @@ class AppState extends ChangeNotifier {
   }
 
   Future<void> _removeBodyMetricLogForDate(String type, String dateKey) async {
-    _bodyLogs.removeWhere((l) => l.type == type && l.date == dateKey);
-
-    if (type == 'strain_score' &&
-        _currentDailyMetrics != null &&
-        _currentHealthDateKey == dateKey) {
-      final updatedMetrics = Map<String, double>.from(_currentDailyMetrics!);
-      updatedMetrics.remove('strainScore');
-      _currentDailyMetrics = updatedMetrics;
-    }
-
     try {
       await _supabase
           .from('body_metric_logs')
@@ -2356,6 +2430,18 @@ class AppState extends ChangeNotifier {
           .eq('user_id', userId)
           .eq('date', dateKey)
           .eq('type', type);
+
+      // Remove the optimistic local copy only after the authoritative delete
+      // succeeds. A network failure must not make a valid score disappear.
+      _bodyLogs.removeWhere((l) => l.type == type && l.date == dateKey);
+      _dirtyBodyMetricKeys.remove('$type|$dateKey');
+      if (type == 'strain_score' &&
+          _currentDailyMetrics != null &&
+          _currentHealthDateKey == dateKey) {
+        final updatedMetrics = Map<String, double>.from(_currentDailyMetrics!);
+        updatedMetrics.remove('strainScore');
+        _currentDailyMetrics = updatedMetrics;
+      }
     } catch (e) {
       debugPrint('Error removing $type log for $dateKey: $e');
     }
@@ -2429,9 +2515,10 @@ class AppState extends ChangeNotifier {
     }).toList();
   }
 
-  Future<TrainingSession> _consolidateDuplicateHealthSessions(
+  Future<void> _persistConsolidatedHealthSession(
     TrainingSession baseSession,
     Iterable<TrainingSession> candidates,
+    TrainingSession imported,
   ) async {
     var consolidated = baseSession;
     final duplicates = <String, TrainingSession>{};
@@ -2450,12 +2537,44 @@ class AppState extends ChangeNotifier {
       );
     }
 
+    final updated = HealthWorkoutMergeUtils.mergeImportedSession(
+      consolidated,
+      imported,
+    );
+    // Persist the canonical survivor before removing any source rows. If the
+    // write fails, addSession rethrows and every existing import remains.
+    await addSession(
+      updated,
+      fromHealthSync: true,
+      rethrowErrors: true,
+      recalculateStrain: false,
+      notify: false,
+    );
+
     final duplicateIds = duplicates.keys.toSet();
-    for (final duplicateId in duplicateIds) {
-      await _supabase.from('training_sessions').delete().eq('id', duplicateId);
+    if (duplicateIds.isNotEmpty) {
+      await _supabase
+          .from('training_sessions')
+          .delete()
+          .inFilter('id', duplicateIds.toList());
+      _sessions.removeWhere((session) => duplicateIds.contains(session.id));
     }
-    _sessions.removeWhere((session) => duplicateIds.contains(session.id));
-    return consolidated;
+
+    final affectedDates = <String>{
+      updated.date,
+      ...duplicates.values.map((session) => session.date),
+    };
+    for (final dateKey in affectedDates) {
+      final date = DateTime.tryParse(dateKey);
+      if (date != null) {
+        await calculateAndPersistDailyStrainScore(
+          userId,
+          date,
+          notify: false,
+        );
+      }
+    }
+    notifyListeners();
   }
 
   TrainingSession? _matchingPlannedCoachSkiSession(
@@ -2516,7 +2635,89 @@ class AppState extends ChangeNotifier {
     );
   }
 
-  Future<void> refreshAllHealthData(DateTime targetDate) async {
+  Future<void> refreshAllHealthData(
+    DateTime targetDate, {
+    bool requestPermissions = true,
+  }) {
+    final dateKey = localDateKey(targetDate);
+    final runningRefresh = _healthRefreshFuture;
+    if (runningRefresh != null) {
+      final compatibleRequest = _healthRefreshDateKey == dateKey &&
+          (!requestPermissions || _healthRefreshRequestsPermissions);
+      if (compatibleRequest) return runningRefresh;
+      return runningRefresh.whenComplete(
+        () => refreshAllHealthData(
+          targetDate,
+          requestPermissions: requestPermissions,
+        ),
+      );
+    }
+
+    final refresh = _runHealthRefresh(
+      targetDate,
+      requestPermissions: requestPermissions,
+    );
+    _healthRefreshFuture = refresh;
+    _healthRefreshDateKey = dateKey;
+    _healthRefreshRequestsPermissions = requestPermissions;
+    return refresh.whenComplete(() {
+      if (identical(_healthRefreshFuture, refresh)) {
+        _healthRefreshFuture = null;
+        _healthRefreshDateKey = null;
+        _healthRefreshRequestsPermissions = false;
+      }
+    });
+  }
+
+  Future<void> refreshHealthDataIfStale([DateTime? targetDate]) async {
+    final profile = _userProfile;
+    if (profile == null || profile.role != 'athlete' || !_hasAuthSession) {
+      return;
+    }
+
+    final target = targetDate ?? DateTime.now();
+    final today = DateTime.now();
+    if (localDateKey(target) != localDateKey(today)) return;
+
+    final hasHealthAccess = _prefs?.getBool(_healthAccessPreferenceKey) ==
+            true ||
+        profile.connectedDevices.any((device) =>
+            device.provider == 'health_connect' &&
+            device.status == 'connected') ||
+        _sessions
+            .any((session) => session.details?['source'] == 'health_sync') ||
+        _bodyLogs.any((log) => const {
+              'resting_hr',
+              'hrv_sdnn',
+              'hrv_rmssd',
+              'sleep_score',
+              'recovery_score',
+              'strain_score',
+            }.contains(log.type));
+    if (!hasHealthAccess) return;
+
+    final refreshKey = '$_lastHealthRefreshPrefix$userId';
+    final previousAttempt =
+        DateTime.tryParse(_prefs?.getString(refreshKey) ?? '');
+    if (previousAttempt != null &&
+        today.difference(previousAttempt) < _automaticHealthRefreshInterval) {
+      return;
+    }
+
+    // Record the attempt up front so denied/revoked permissions do not cause a
+    // new expensive sync on every foreground transition.
+    await _prefs?.setString(refreshKey, today.toIso8601String());
+    await refreshAllHealthData(target, requestPermissions: false);
+  }
+
+  Future<void> markHealthAccessEnabled() async {
+    await _prefs?.setBool(_healthAccessPreferenceKey, true);
+  }
+
+  Future<void> _runHealthRefresh(
+    DateTime targetDate, {
+    required bool requestPermissions,
+  }) async {
     final requestId = ++_healthDataRequestId;
     _currentHealthDateKey = localDateKey(targetDate);
     _isSyncingHealth = true;
@@ -2524,12 +2725,16 @@ class AppState extends ChangeNotifier {
     _healthSyncError = null;
     notifyListeners();
     try {
-      await syncHealthWorkouts(days: 7);
+      // Workout imports and daily score calculation share the same biometric
+      // snapshot. Import workouts here without triggering a second 90-day
+      // metric pass; syncDailyHealthData performs that pass exactly once.
+      await _syncHealthWorkoutImports(days: 7);
       if (requestId != _healthDataRequestId) return;
       await syncDailyHealthData(
         targetDate,
         forceRefresh: true,
         healthRequestId: requestId,
+        requestPermissions: requestPermissions,
       );
     } catch (e) {
       if (requestId != _healthDataRequestId) return;
@@ -2552,9 +2757,12 @@ class AppState extends ChangeNotifier {
     _clearCurrentHealthScores();
     notifyListeners();
 
+    final ownerCachePrefix = userId.isEmpty
+        ? _healthScoreCachePrefix
+        : '$_healthScoreCachePrefix${userId}_';
     final keys = _prefs
             ?.getKeys()
-            .where((key) => key.startsWith(_healthScoreCachePrefix))
+            .where((key) => key.startsWith(ownerCachePrefix))
             .toList() ??
         <String>[];
     for (final key in keys) {
@@ -2562,7 +2770,7 @@ class AppState extends ChangeNotifier {
     }
 
     try {
-      await syncHealthWorkouts(days: 7);
+      await _syncHealthWorkoutImports(days: 7);
       if (requestId != _healthDataRequestId) return keys.length;
       await syncDailyHealthData(
         targetDate,
@@ -2598,10 +2806,16 @@ class AppState extends ChangeNotifier {
     }
   }
 
-  Future<void> syncDailyHealthMetrics() async {
+  Future<void> syncDailyHealthMetrics({bool requestPermissions = true}) async {
+    var bodyLogsChanged = false;
     try {
-      final results = await HealthService()
-          .syncDailyHealthMetrics(days: _healthMetricSyncLookbackDays);
+      final syncOwnerId = userId;
+      if (syncOwnerId.isEmpty) return;
+      final results = await HealthService().syncDailyHealthMetrics(
+        days: _healthMetricSyncLookbackDays,
+        requestPermissions: requestPermissions,
+      );
+      if (userId != syncOwnerId || _userProfile?.id != syncOwnerId) return;
 
       // Wearable-owned streams are upserted on every sync because HealthKit
       // and Health Connect can correct an incomplete morning aggregate later.
@@ -2615,13 +2829,17 @@ class AppState extends ChangeNotifier {
       ];
       for (final metricKey in platformMetricKeys) {
         for (final log in results[metricKey] ?? const <BodyMetricLog>[]) {
-          await addBodyLog(log);
+          if (userId != syncOwnerId || _userProfile?.id != syncOwnerId) return;
+          bodyLogsChanged =
+              await addBodyLog(log, updateProfile: false, notify: false) ||
+                  bodyLogsChanged;
         }
       }
 
       // Native RR pipeline (currently available on iOS) feeds its own
       // device-specific RMSSD baseline table.
       final rawRR = await NativeHealthService.getNightlyRRIntervals();
+      if (userId != syncOwnerId || _userProfile?.id != syncOwnerId) return;
       if (rawRR.isNotEmpty) {
         final dateStr = DateTime.now().toIso8601String().split('T')[0];
 
@@ -2659,25 +2877,60 @@ class AppState extends ChangeNotifier {
         }
       }
 
-      // Sync Weight
-      if (results.containsKey('weight')) {
-        for (var weightLog in results['weight']!) {
-          final exists = _bodyLogs
-              .any((l) => l.type == 'weight' && l.date == weightLog.date);
-          if (!exists) {
-            await addBodyLog(weightLog);
-          }
+      // Health sources can correct an earlier daily weight. Persist every
+      // changed aggregate, then update the profile once from the newest day.
+      final weightLogs = List<BodyMetricLog>.from(
+        results['weight'] ?? const <BodyMetricLog>[],
+      )..sort((a, b) => a.date.compareTo(b.date));
+      for (final weightLog in weightLogs) {
+        if (userId != syncOwnerId || _userProfile?.id != syncOwnerId) return;
+        bodyLogsChanged = await addBodyLog(
+              weightLog,
+              updateProfile: false,
+              notify: false,
+            ) ||
+            bodyLogsChanged;
+      }
+      if (weightLogs.isNotEmpty && _userProfile != null) {
+        final newestWeight = weightLogs.last.value;
+        if ((_userProfile!.weight - newestWeight).abs() >= 0.000000001) {
+          _userProfile!.weight = newestWeight;
+          await _saveUserProfile();
+          await TrainingReminderNotificationService.instance.syncForProfile(
+            _userProfile,
+            bodyLogs: _bodyLogs,
+          );
+          bodyLogsChanged = true;
         }
       }
     } catch (e) {
       debugPrint('Error syncing health metrics: $e');
+    } finally {
+      if (bodyLogsChanged) notifyListeners();
     }
   }
 
-  Future<void> addBodyLog(BodyMetricLog log) async {
-    // Aggiornamento ottimistico locale
+  Future<bool> addBodyLog(
+    BodyMetricLog log, {
+    bool updateProfile = true,
+    bool notify = true,
+  }) async {
+    final metricKey = '${log.type}|${log.date}';
     final existingIndex =
         _bodyLogs.indexWhere((l) => l.type == log.type && l.date == log.date);
+    final existingLog = existingIndex >= 0 ? _bodyLogs[existingIndex] : null;
+    final persistedId = existingLog?.id ?? log.id;
+    final valueUnchanged = existingLog != null &&
+        (existingLog.value - log.value).abs() < 0.000000001;
+
+    // A normal refresh re-reads up to 90 days. Stable, already-persisted daily
+    // aggregates must be true no-ops rather than SELECT + UPDATE pairs.
+    if (valueUnchanged &&
+        _isValidUuid(persistedId) &&
+        !_dirtyBodyMetricKeys.contains(metricKey)) {
+      return false;
+    }
+
     if (existingIndex >= 0) {
       _bodyLogs[existingIndex].value = log.value;
       log.id = _bodyLogs[existingIndex].id;
@@ -2686,35 +2939,51 @@ class AppState extends ChangeNotifier {
       _bodyLogs.sort((a, b) => a.date.compareTo(b.date));
     }
 
-    if (log.type == 'weight') {
+    var profileChanged = false;
+    if (updateProfile && log.type == 'weight' && _userProfile != null) {
+      profileChanged = (_userProfile!.weight - log.value).abs() >= 0.000000001;
       _userProfile!.weight = log.value;
-      TrainingReminderNotificationService.instance.syncForProfile(
+      await TrainingReminderNotificationService.instance.syncForProfile(
         _userProfile,
         bodyLogs: _bodyLogs,
       );
-    } else if (log.type == 'height') {
+    } else if (updateProfile && log.type == 'height' && _userProfile != null) {
+      profileChanged = (_userProfile!.height - log.value).abs() >= 0.000000001;
       _userProfile!.height = log.value;
     }
-    _saveUserProfile();
-    notifyListeners();
+    if (profileChanged) {
+      await _saveUserProfile();
+    }
+    if (notify && !valueUnchanged) notifyListeners();
 
     try {
-      final existingData = await _supabase
-          .from('body_metric_logs')
-          .select('id')
-          .eq('user_id', userId)
-          .eq('date', log.date)
-          .eq('type', log.type)
-          .maybeSingle();
+      Map<String, dynamic>? existingData;
+      if (_isValidUuid(persistedId)) {
+        existingData = await _supabase
+            .from('body_metric_logs')
+            .update({'value': log.value})
+            .eq('id', persistedId)
+            .select('id')
+            .maybeSingle();
+      } else {
+        existingData = await _supabase
+            .from('body_metric_logs')
+            .select('id')
+            .eq('user_id', userId)
+            .eq('date', log.date)
+            .eq('type', log.type)
+            .maybeSingle();
+      }
 
       if (existingData != null) {
-        await _supabase
-            .from('body_metric_logs')
-            .update({'value': log.value}).eq('id', existingData['id']);
-
+        if (!_isValidUuid(persistedId)) {
+          await _supabase
+              .from('body_metric_logs')
+              .update({'value': log.value}).eq('id', existingData['id']);
+        }
         final idx = _bodyLogs
             .indexWhere((l) => l.type == log.type && l.date == log.date);
-        if (idx >= 0) _bodyLogs[idx].id = existingData['id'];
+        if (idx >= 0) _bodyLogs[idx].id = existingData['id'].toString();
       } else {
         final response = await _supabase
             .from('body_metric_logs')
@@ -2729,11 +2998,14 @@ class AppState extends ChangeNotifier {
 
         final idx = _bodyLogs
             .indexWhere((l) => l.type == log.type && l.date == log.date);
-        if (idx >= 0) _bodyLogs[idx].id = response['id'];
+        if (idx >= 0) _bodyLogs[idx].id = response['id'].toString();
       }
+      _dirtyBodyMetricKeys.remove(metricKey);
     } catch (e) {
+      _dirtyBodyMetricKeys.add(metricKey);
       debugPrint('Error adding body log: $e');
     }
+    return !valueUnchanged;
   }
 
   void deleteBodyLog(String id) async {

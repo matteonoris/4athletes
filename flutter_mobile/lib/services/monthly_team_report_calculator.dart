@@ -240,7 +240,7 @@ class MonthlyTeamReportCalculator {
       events: athleticEvents,
       linkedSessionEventIds: sessionEventIds,
     );
-    if ((metrics.skiPresence ?? 0) > 0 || (metrics.athleticPresence ?? 0) > 0) {
+    if (metrics.skiPresence != null || metrics.athleticPresence != null) {
       metrics.hasAnyData = true;
     }
 
@@ -327,20 +327,17 @@ class MonthlyTeamReportCalculator {
     if (events.isEmpty) return null;
 
     var score = 0.0;
-    var invitedEventCount = 0;
     for (final event in events) {
       final attendee = _attendeeForAthlete(event, athlete);
       if (attendee == null) {
         if (linkedSessionEventIds.contains(event.id)) {
-          invitedEventCount++;
           score += 1;
         }
         continue;
       }
-      invitedEventCount++;
       score += _attendanceScore(attendee);
     }
-    return invitedEventCount == 0 ? null : score / invitedEventCount;
+    return score / events.length;
   }
 
   List<TeamReportSession> _canonicalSessions(
@@ -587,17 +584,16 @@ class MonthlyTeamReportCalculator {
   MonthlyTeamReportSummary _buildSummary(
     List<MonthlyTeamAthleteReport> athletes,
   ) {
-    final activeAthletes =
-        athletes.where((athlete) => athlete.hasAnyData).toList();
+    final activeAthletes = athletes.where(_hasRecordedActivity).toList();
     final active = activeAthletes.length;
     return MonthlyTeamReportSummary(
       totalAthletes: athletes.length,
       athletesWithActivity: active,
       athletesWithoutData: athletes.length - active,
-      averageSkiPresence: _averageNullable(
+      averageSkiPresence: _averageTeamPresence(
         athletes.map((athlete) => athlete.skiPresence),
       ),
-      averageAthleticPresence: _averageNullable(
+      averageAthleticPresence: _averageTeamPresence(
         athletes.map((athlete) => athlete.athleticPresence),
       ),
       averageAthleteHours: active == 0
@@ -742,7 +738,7 @@ class MonthlyTeamReportCalculator {
     MonthlyTeamSkiReport skiReport,
     List<MonthlyTeamAthleteReport> athletes,
   ) {
-    if (summary.totalAthletes == 0 || summary.athletesWithActivity == 0) {
+    if (summary.totalAthletes == 0) {
       return 'Dati insufficienti per generare una sintesi affidabile.';
     }
 
@@ -1181,6 +1177,12 @@ class MonthlyTeamReportCalculator {
         thresholds.disciplineDominanceRatio;
   }
 
+  bool _hasRecordedActivity(MonthlyTeamAthleteReport athlete) {
+    return athlete.sessionCount > 0 ||
+        athlete.totalHours > 0 ||
+        athlete.testSessionCount > 0;
+  }
+
   Map<String, dynamic>? _attendeeForAthlete(
     CalendarEvent event,
     TeamReportAthleteProfile athlete,
@@ -1243,6 +1245,18 @@ class MonthlyTeamReportCalculator {
     final valid = values.whereType<double>().toList();
     if (valid.isEmpty) return null;
     return valid.reduce((a, b) => a + b) / valid.length;
+  }
+
+  double? _averageTeamPresence(Iterable<double?> values) {
+    final monitored = values.toList(growable: false);
+    if (monitored.isEmpty || monitored.every((value) => value == null)) {
+      return null;
+    }
+
+    // Once the team has attendance data for this training type, athletes
+    // without a recorded presence still belong to the monitored denominator.
+    final total = monitored.fold<double>(0, (sum, value) => sum + (value ?? 0));
+    return total / monitored.length;
   }
 }
 
