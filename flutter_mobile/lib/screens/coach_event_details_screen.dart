@@ -139,6 +139,7 @@ class _CoachEventDetailsScreenState extends State<CoachEventDetailsScreen> {
   bool _chronoEnabled = false;
   bool _isLoadingAthletes = false;
   bool _isSaving = false;
+  String? _persistedEventId;
   String _searchQuery = '';
   String _drylandKind = 'prep';
   String _drylandSportId = 'hiking';
@@ -205,6 +206,7 @@ class _CoachEventDetailsScreenState extends State<CoachEventDetailsScreen> {
   @override
   void initState() {
     super.initState();
+    _persistedEventId = widget.event?.id;
     final event = widget.event;
     final tech = event?.technicalDetails ?? {};
 
@@ -3889,7 +3891,9 @@ class _CoachEventDetailsScreenState extends State<CoachEventDetailsScreen> {
 
     setState(() => _isSaving = true);
     final event = CalendarEvent(
-      id: widget.event?.id ?? DateTime.now().millisecondsSinceEpoch.toString(),
+      id: _persistedEventId ??
+          widget.event?.id ??
+          DateTime.now().millisecondsSinceEpoch.toString(),
       teamId: _selectedTeams.first.id,
       type: _eventType,
       title: _titleCtrl.text.trim(),
@@ -3905,18 +3909,31 @@ class _CoachEventDetailsScreenState extends State<CoachEventDetailsScreen> {
       status: _eventStatus,
     );
 
-    await appState.saveCoachEvent(event);
-    if (!mounted) return;
-    setState(() => _isSaving = false);
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(_eventStatus == CoachTrainingUtils.statusCompleted
-            ? 'Allenamento completato e sincronizzato.'
-            : 'Allenamento salvato.'),
-        backgroundColor: AppTheme.primary,
-      ),
-    );
-    Navigator.pop(context);
+    try {
+      await appState.saveCoachEvent(event, rethrowErrors: true);
+      _persistedEventId = event.id;
+      if (!mounted) return;
+      setState(() => _isSaving = false);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(_eventStatus == CoachTrainingUtils.statusCompleted
+              ? 'Allenamento completato e sincronizzato.'
+              : 'Allenamento salvato.'),
+          backgroundColor: AppTheme.primary,
+        ),
+      );
+      Navigator.pop(context);
+    } catch (error) {
+      if (!mounted) return;
+      _persistedEventId = event.id;
+      setState(() => _isSaving = false);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Salvataggio non riuscito: $error'),
+          backgroundColor: AppTheme.error,
+        ),
+      );
+    }
   }
 
   Future<bool?> _showSaveConfirmation() {

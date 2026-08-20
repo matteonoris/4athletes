@@ -7,6 +7,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../core/theme.dart';
 import '../models/models.dart';
 import '../services/team_leaderboard_calculator.dart';
+import '../utils/coach_training_utils.dart';
 import 'coach_athlete_detail_screen.dart';
 import 'package:provider/provider.dart';
 import '../providers/app_state.dart';
@@ -30,6 +31,7 @@ class _TeamDetailScreenState extends State<TeamDetailScreen> {
   List<Map<String, dynamic>> _rawTeammates = [];
   List<Map<String, dynamic>> _teamCoaches = [];
   List<TeamLeaderboardSession> _rawSessions = [];
+  List<CalendarEvent> _completedEvents = [];
 
   @override
   void initState() {
@@ -47,7 +49,7 @@ class _TeamDetailScreenState extends State<TeamDetailScreen> {
       final athletesResponse = await supabase
           .from('profiles')
           .select(
-              'id, first_name, last_name, avatar_url, skill_level, ski_club')
+              'id, first_name, last_name, email, avatar_url, skill_level, ski_club')
           .eq('team_id', widget.team.id)
           .eq('role', 'athlete')
           .order('last_name', ascending: true);
@@ -72,7 +74,14 @@ class _TeamDetailScreenState extends State<TeamDetailScreen> {
           TeamLeaderboardTimeRange.thisSeason,
           now,
         );
-        final seasonStart = _dateKey(season.start);
+        final last7Days = TeamLeaderboardPeriod.forRange(
+          TeamLeaderboardTimeRange.last7Days,
+          now,
+        );
+        final loadStart = last7Days.start.isBefore(season.start)
+            ? last7Days.start
+            : season.start;
+        final seasonStart = _dateKey(loadStart);
         final tomorrow = _dateKey(season.endExclusive);
         final rows =
             await TeamLeaderboardPagination.fetchAll<Map<String, dynamic>>(
@@ -95,11 +104,56 @@ class _TeamDetailScreenState extends State<TeamDetailScreen> {
         sessions = rows.map(_leaderboardSessionFromRow).toList();
       }
 
+      final now = DateTime.now();
+      final season = TeamLeaderboardPeriod.forRange(
+        TeamLeaderboardTimeRange.thisSeason,
+        now,
+      );
+      final last7Days = TeamLeaderboardPeriod.forRange(
+        TeamLeaderboardTimeRange.last7Days,
+        now,
+      );
+      final loadStart = last7Days.start.isBefore(season.start)
+          ? last7Days.start
+          : season.start;
+      var completedEvents = <CalendarEvent>[];
+      try {
+        final eventRows =
+            await TeamLeaderboardPagination.fetchAll<Map<String, dynamic>>(
+          fetchPage: (from, to) async {
+            final response = await supabase
+                .from('calendar_events')
+                .select(
+                  'id, team_id, type, title, date, start_time, end_time, '
+                  'location, notes, sport_category, dryland_specialty, '
+                  'technical_details, attendees, status',
+                )
+                .eq('status', 'completed')
+                .gte('date', _dateKey(loadStart))
+                .lt('date', _dateKey(season.endExclusive))
+                .order('date', ascending: true)
+                .order('id', ascending: true)
+                .range(from, to);
+            return List<Map<String, dynamic>>.from(response);
+          },
+        );
+        completedEvents = eventRows
+            .map(_calendarEventFromRow)
+            .where(
+              (event) => CoachTrainingUtils.teamIdsForEvent(event)
+                  .contains(widget.team.id),
+            )
+            .toList();
+      } catch (error) {
+        debugPrint('Error loading completed events for leaderboard: $error');
+      }
+
       if (!mounted) return;
       setState(() {
         _rawTeammates = athletes;
         _teamCoaches = coaches;
         _rawSessions = sessions;
+        _completedEvents = completedEvents;
         _isLoading = false;
       });
     } catch (e) {
@@ -140,6 +194,32 @@ class _TeamDetailScreenState extends State<TeamDetailScreen> {
               )
             : null,
       ),
+    );
+  }
+
+  CalendarEvent _calendarEventFromRow(Map<String, dynamic> row) {
+    return CalendarEvent(
+      id: row['id']?.toString() ?? '',
+      teamId: row['team_id']?.toString() ?? '',
+      type: row['type']?.toString() ?? '',
+      title: row['title']?.toString() ?? '',
+      date: row['date']?.toString() ?? '',
+      startTime: row['start_time']?.toString() ?? '',
+      endTime: row['end_time']?.toString() ?? '',
+      location: row['location']?.toString(),
+      notes: row['notes']?.toString(),
+      sportCategory: row['sport_category']?.toString(),
+      drylandSpecialty: row['dryland_specialty']?.toString(),
+      technicalDetails: row['technical_details'] is Map
+          ? Map<String, dynamic>.from(row['technical_details'] as Map)
+          : null,
+      attendees: row['attendees'] is List
+          ? (row['attendees'] as List)
+              .whereType<Map>()
+              .map((value) => Map<String, dynamic>.from(value))
+              .toList()
+          : null,
+      status: row['status']?.toString() ?? '',
     );
   }
 
@@ -491,6 +571,7 @@ class _TeamDetailScreenState extends State<TeamDetailScreen> {
     final sortedAthletes = const TeamLeaderboardCalculator().calculate(
       athletes: _rawTeammates,
       sessions: _rawSessions,
+      completedEvents: _completedEvents,
       timeRange: _timeFilter,
     );
     sortedAthletes.sort((a, b) {
@@ -545,520 +626,531 @@ class _TeamDetailScreenState extends State<TeamDetailScreen> {
             ),
         ],
       ),
-      body: CustomScrollView(
-        slivers: [
-          // "INVITA MEMBRI" Card
-          SliverToBoxAdapter(
-            child: Container(
-              margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-              padding: const EdgeInsets.all(16),
-              decoration: BoxDecoration(
-                color: AppTheme.secondary.withValues(alpha: 0.10),
-                borderRadius: BorderRadius.circular(16),
-                border: Border.all(
-                    color: AppTheme.secondary.withValues(alpha: 0.24),
-                    width: 1.5),
-              ),
-              child: Row(
-                children: [
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text('INVITA MEMBRI',
-                            style: TextStyle(
-                                color: AppTheme.secondary,
-                                fontSize: 10,
-                                fontWeight: FontWeight.bold,
-                                letterSpacing: 1.5)),
-                        const SizedBox(height: 8),
-                        GestureDetector(
-                          onTap: _copyCode,
-                          child: Row(
-                            children: [
-                              Text(widget.team.inviteCode,
-                                  style: TextStyle(
-                                      fontSize: 22,
-                                      fontWeight: FontWeight.bold,
-                                      letterSpacing: 2,
-                                      color: AppTheme.textHighEmphasis)),
-                              const SizedBox(width: 8),
-                              Icon(PhosphorIcons.copy(),
-                                  size: 18, color: AppTheme.textMediumEmphasis),
-                            ],
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                  ElevatedButton(
-                    key: _shareButtonKey,
-                    onPressed: _shareCode,
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: AppTheme.primary,
-                      foregroundColor: Colors.white,
-                      shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(10)),
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 16, vertical: 12),
-                      elevation: 0,
-                    ),
-                    child: const Text('INVIA LINK',
-                        style: TextStyle(
-                            fontWeight: FontWeight.w900,
-                            fontSize: 12,
-                            letterSpacing: 0.5)),
-                  ),
-                ],
-              ),
-            ),
-          ),
-
-          SliverToBoxAdapter(
-            child: _buildCoachesSection(),
-          ),
-
-          // FILTRI Row 1 (Button, Dropdown, Total)
-          SliverToBoxAdapter(
-            child: Padding(
-              padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  OutlinedButton.icon(
-                    onPressed: () =>
-                        setState(() => _showFilters = !_showFilters),
-                    icon: Icon(
-                        _showFilters
-                            ? Icons.keyboard_arrow_up
-                            : Icons.keyboard_arrow_down,
-                        size: 16,
-                        color: _showFilters ? Colors.white : AppTheme.primary),
-                    label: Text('FILTRI',
-                        style: TextStyle(
-                            color:
-                                _showFilters ? Colors.white : AppTheme.primary,
-                            fontWeight: FontWeight.bold,
-                            fontSize: 12)),
-                    style: OutlinedButton.styleFrom(
-                      backgroundColor:
-                          _showFilters ? AppTheme.primary : Colors.transparent,
-                      side: BorderSide(color: AppTheme.primary),
-                      shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(10)),
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 12, vertical: 0),
-                      minimumSize: const Size(0, 36),
-                    ),
-                  ),
-                  PopupMenuButton<TeamLeaderboardTimeRange>(
-                    onSelected: (value) {
-                      setState(() {
-                        _timeFilter = value;
-                      });
-                    },
-                    color: AppTheme.card,
-                    itemBuilder: (BuildContext context) {
-                      return TeamLeaderboardTimeRange.values.map((choice) {
-                        return PopupMenuItem<TeamLeaderboardTimeRange>(
-                          value: choice,
-                          child: Text(
-                            choice.label,
-                            style: TextStyle(
-                              color: _timeFilter == choice
-                                  ? AppTheme.primary
-                                  : AppTheme.textHighEmphasis,
-                              fontWeight: _timeFilter == choice
-                                  ? FontWeight.bold
-                                  : FontWeight.normal,
+      body: RefreshIndicator(
+        onRefresh: _loadLeaderboardData,
+        child: CustomScrollView(
+          physics: const AlwaysScrollableScrollPhysics(),
+          slivers: [
+            // "INVITA MEMBRI" Card
+            SliverToBoxAdapter(
+              child: Container(
+                margin:
+                    const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: AppTheme.secondary.withValues(alpha: 0.10),
+                  borderRadius: BorderRadius.circular(16),
+                  border: Border.all(
+                      color: AppTheme.secondary.withValues(alpha: 0.24),
+                      width: 1.5),
+                ),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text('INVITA MEMBRI',
+                              style: TextStyle(
+                                  color: AppTheme.secondary,
+                                  fontSize: 10,
+                                  fontWeight: FontWeight.bold,
+                                  letterSpacing: 1.5)),
+                          const SizedBox(height: 8),
+                          GestureDetector(
+                            onTap: _copyCode,
+                            child: Row(
+                              children: [
+                                Text(widget.team.inviteCode,
+                                    style: TextStyle(
+                                        fontSize: 22,
+                                        fontWeight: FontWeight.bold,
+                                        letterSpacing: 2,
+                                        color: AppTheme.textHighEmphasis)),
+                                const SizedBox(width: 8),
+                                Icon(PhosphorIcons.copy(),
+                                    size: 18,
+                                    color: AppTheme.textMediumEmphasis),
+                              ],
                             ),
                           ),
-                        );
-                      }).toList();
-                    },
-                    child: Container(
-                      height: 36,
-                      padding: const EdgeInsets.symmetric(horizontal: 12),
-                      decoration: BoxDecoration(
-                        color: AppTheme.card,
-                        borderRadius: BorderRadius.circular(10),
-                        border: Border.all(color: AppTheme.subtleBorder),
-                      ),
-                      child: Row(
-                        children: [
-                          Icon(PhosphorIcons.clock(),
-                              size: 16, color: AppTheme.primary),
-                          const SizedBox(width: 8),
-                          Text(_timeFilter.label,
-                              style: TextStyle(
-                                  fontWeight: FontWeight.bold,
-                                  fontSize: 12,
-                                  color: AppTheme.textHighEmphasis)),
-                          const SizedBox(width: 4),
-                          Icon(Icons.keyboard_arrow_down,
-                              size: 16, color: AppTheme.textMediumEmphasis),
                         ],
                       ),
                     ),
-                  ),
-                  Column(
-                    crossAxisAlignment: CrossAxisAlignment.end,
-                    children: [
-                      Text('TOTAL',
+                    ElevatedButton(
+                      key: _shareButtonKey,
+                      onPressed: _shareCode,
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: AppTheme.primary,
+                        foregroundColor: Colors.white,
+                        shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(10)),
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 16, vertical: 12),
+                        elevation: 0,
+                      ),
+                      child: const Text('INVIA LINK',
                           style: TextStyle(
-                              color: AppTheme.textMediumEmphasis,
-                              fontSize: 9,
-                              fontWeight: FontWeight.bold,
-                              letterSpacing: 1.0)),
-                      Row(
-                        crossAxisAlignment: CrossAxisAlignment.baseline,
-                        textBaseline: TextBaseline.alphabetic,
-                        children: [
-                          Text(
-                              _getTotalValue(sortedAthletes).toStringAsFixed(1),
-                              style: TextStyle(
-                                  fontSize: 16,
-                                  fontWeight: FontWeight.bold,
-                                  color: AppTheme.primary)),
-                          const SizedBox(width: 2),
-                          Text(_getCategoryUnit(_categoryFilter),
-                              style: TextStyle(
-                                  fontSize: 12,
-                                  color: AppTheme.textMediumEmphasis)),
-                        ],
-                      ),
-                    ],
-                  )
-                ],
-              ),
-            ),
-          ),
-
-          if (_showFilters) ...[
-            // I filtri di tempo temporizzati nel popup
-            SliverToBoxAdapter(
-              child: SingleChildScrollView(
-                scrollDirection: Axis.horizontal,
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-                child: Row(
-                  children: TeamLeaderboardMetric.values.map((cat) {
-                    bool isSelected = _categoryFilter == cat;
-                    return Padding(
-                      padding: const EdgeInsets.only(right: 8.0),
-                      child: GestureDetector(
-                        onTap: () => setState(() => _categoryFilter = cat),
-                        child: Container(
-                          padding: const EdgeInsets.symmetric(
-                              horizontal: 16, vertical: 8),
-                          decoration: BoxDecoration(
-                            color: isSelected
-                                ? AppTheme.primary
-                                : Colors.transparent,
-                            border: Border.all(
-                                color: isSelected
-                                    ? AppTheme.primary
-                                    : AppTheme.subtleBorder),
-                            borderRadius: BorderRadius.circular(20),
-                          ),
-                          child: Row(
-                            children: [
-                              Icon(_getCategoryIcon(cat),
-                                  size: 14,
-                                  color: isSelected
-                                      ? Colors.white
-                                      : AppTheme.textMediumEmphasis),
-                              const SizedBox(width: 6),
-                              Text(cat.label,
-                                  style: TextStyle(
-                                    color: isSelected
-                                        ? Colors.white
-                                        : AppTheme.textMediumEmphasis,
-                                    fontWeight: FontWeight.bold,
-                                    fontSize: 12,
-                                  )),
-                            ],
-                          ),
-                        ),
-                      ),
-                    );
-                  }).toList(),
+                              fontWeight: FontWeight.w900,
+                              fontSize: 12,
+                              letterSpacing: 0.5)),
+                    ),
+                  ],
                 ),
               ),
             ),
-          ],
 
-          // LEADERBOARD HEADERS
-          SliverToBoxAdapter(
-            child: Padding(
-              padding: const EdgeInsets.only(
-                  left: 16, right: 16, top: 24, bottom: 12),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Text('RANK & ATHLETE',
-                      style: TextStyle(
-                          color: AppTheme.textMediumEmphasis,
-                          fontSize: 10,
-                          fontWeight: FontWeight.bold,
-                          letterSpacing: 1.5)),
-                  Text('VOLUME',
-                      style: TextStyle(
-                          color: AppTheme.textMediumEmphasis,
-                          fontSize: 10,
-                          fontWeight: FontWeight.bold,
-                          letterSpacing: 1.5)),
-                ],
+            SliverToBoxAdapter(
+              child: _buildCoachesSection(),
+            ),
+
+            // FILTRI Row 1 (Button, Dropdown, Total)
+            SliverToBoxAdapter(
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    OutlinedButton.icon(
+                      onPressed: () =>
+                          setState(() => _showFilters = !_showFilters),
+                      icon: Icon(
+                          _showFilters
+                              ? Icons.keyboard_arrow_up
+                              : Icons.keyboard_arrow_down,
+                          size: 16,
+                          color:
+                              _showFilters ? Colors.white : AppTheme.primary),
+                      label: Text('FILTRI',
+                          style: TextStyle(
+                              color: _showFilters
+                                  ? Colors.white
+                                  : AppTheme.primary,
+                              fontWeight: FontWeight.bold,
+                              fontSize: 12)),
+                      style: OutlinedButton.styleFrom(
+                        backgroundColor: _showFilters
+                            ? AppTheme.primary
+                            : Colors.transparent,
+                        side: BorderSide(color: AppTheme.primary),
+                        shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(10)),
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 12, vertical: 0),
+                        minimumSize: const Size(0, 36),
+                      ),
+                    ),
+                    PopupMenuButton<TeamLeaderboardTimeRange>(
+                      onSelected: (value) {
+                        setState(() {
+                          _timeFilter = value;
+                        });
+                      },
+                      color: AppTheme.card,
+                      itemBuilder: (BuildContext context) {
+                        return TeamLeaderboardTimeRange.values.map((choice) {
+                          return PopupMenuItem<TeamLeaderboardTimeRange>(
+                            value: choice,
+                            child: Text(
+                              choice.label,
+                              style: TextStyle(
+                                color: _timeFilter == choice
+                                    ? AppTheme.primary
+                                    : AppTheme.textHighEmphasis,
+                                fontWeight: _timeFilter == choice
+                                    ? FontWeight.bold
+                                    : FontWeight.normal,
+                              ),
+                            ),
+                          );
+                        }).toList();
+                      },
+                      child: Container(
+                        height: 36,
+                        padding: const EdgeInsets.symmetric(horizontal: 12),
+                        decoration: BoxDecoration(
+                          color: AppTheme.card,
+                          borderRadius: BorderRadius.circular(10),
+                          border: Border.all(color: AppTheme.subtleBorder),
+                        ),
+                        child: Row(
+                          children: [
+                            Icon(PhosphorIcons.clock(),
+                                size: 16, color: AppTheme.primary),
+                            const SizedBox(width: 8),
+                            Text(_timeFilter.label,
+                                style: TextStyle(
+                                    fontWeight: FontWeight.bold,
+                                    fontSize: 12,
+                                    color: AppTheme.textHighEmphasis)),
+                            const SizedBox(width: 4),
+                            Icon(Icons.keyboard_arrow_down,
+                                size: 16, color: AppTheme.textMediumEmphasis),
+                          ],
+                        ),
+                      ),
+                    ),
+                    Column(
+                      crossAxisAlignment: CrossAxisAlignment.end,
+                      children: [
+                        Text('TOTAL',
+                            style: TextStyle(
+                                color: AppTheme.textMediumEmphasis,
+                                fontSize: 9,
+                                fontWeight: FontWeight.bold,
+                                letterSpacing: 1.0)),
+                        Row(
+                          crossAxisAlignment: CrossAxisAlignment.baseline,
+                          textBaseline: TextBaseline.alphabetic,
+                          children: [
+                            Text(
+                                _getTotalValue(sortedAthletes)
+                                    .toStringAsFixed(1),
+                                style: TextStyle(
+                                    fontSize: 16,
+                                    fontWeight: FontWeight.bold,
+                                    color: AppTheme.primary)),
+                            const SizedBox(width: 2),
+                            Text(_getCategoryUnit(_categoryFilter),
+                                style: TextStyle(
+                                    fontSize: 12,
+                                    color: AppTheme.textMediumEmphasis)),
+                          ],
+                        ),
+                      ],
+                    )
+                  ],
+                ),
               ),
             ),
-          ),
 
-          // LEADERBOARD ITEMS
-          _isLoading
-              ? const SliverToBoxAdapter(
-                  child: Padding(
-                    padding: EdgeInsets.symmetric(vertical: 60),
-                    child: Center(
-                      child: CircularProgressIndicator(color: AppTheme.primary),
-                    ),
-                  ),
-                )
-              : sortedAthletes.isEmpty
-                  ? SliverToBoxAdapter(
-                      child: Padding(
-                        padding: const EdgeInsets.symmetric(
-                            vertical: 60, horizontal: 16),
-                        child: Center(
-                          child: Text(
-                            'Nessun atleta in questo team.',
-                            style: TextStyle(
-                              color: AppTheme.textMediumEmphasis,
-                              fontSize: 14,
+            if (_showFilters) ...[
+              // I filtri di tempo temporizzati nel popup
+              SliverToBoxAdapter(
+                child: SingleChildScrollView(
+                  scrollDirection: Axis.horizontal,
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+                  child: Row(
+                    children: TeamLeaderboardMetric.values.map((cat) {
+                      bool isSelected = _categoryFilter == cat;
+                      return Padding(
+                        padding: const EdgeInsets.only(right: 8.0),
+                        child: GestureDetector(
+                          onTap: () => setState(() => _categoryFilter = cat),
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 16, vertical: 8),
+                            decoration: BoxDecoration(
+                              color: isSelected
+                                  ? AppTheme.primary
+                                  : Colors.transparent,
+                              border: Border.all(
+                                  color: isSelected
+                                      ? AppTheme.primary
+                                      : AppTheme.subtleBorder),
+                              borderRadius: BorderRadius.circular(20),
+                            ),
+                            child: Row(
+                              children: [
+                                Icon(_getCategoryIcon(cat),
+                                    size: 14,
+                                    color: isSelected
+                                        ? Colors.white
+                                        : AppTheme.textMediumEmphasis),
+                                const SizedBox(width: 6),
+                                Text(cat.label,
+                                    style: TextStyle(
+                                      color: isSelected
+                                          ? Colors.white
+                                          : AppTheme.textMediumEmphasis,
+                                      fontWeight: FontWeight.bold,
+                                      fontSize: 12,
+                                    )),
+                              ],
                             ),
                           ),
                         ),
-                      ),
-                    )
-                  : SliverList(
-                      delegate: SliverChildBuilderDelegate(
-                        (context, index) {
-                          final athlete = sortedAthletes[index];
-                          double val =
-                              _getCategoryValue(athlete, _categoryFilter);
-                          bool isFirst = index == 0;
+                      );
+                    }).toList(),
+                  ),
+                ),
+              ),
+            ],
 
-                          return GestureDetector(
-                              onTap: () {
-                                if (isCoach) {
-                                  HapticFeedback.lightImpact();
-                                  final name = athlete.name;
-                                  String initial = name.isNotEmpty
-                                      ? name[0].toUpperCase()
-                                      : 'A';
-                                  Navigator.push(
-                                    context,
-                                    MaterialPageRoute(
-                                      builder: (_) => CoachAthleteDetailScreen(
-                                        athleteName: name,
-                                        initial: initial,
-                                        athleteId: athlete.id,
-                                      ),
-                                    ),
-                                  );
-                                }
-                              },
-                              child: Container(
-                                margin: const EdgeInsets.only(
-                                    bottom: 12, left: 16, right: 16),
-                                decoration: BoxDecoration(
-                                  color: AppTheme.card,
-                                  borderRadius: BorderRadius.circular(16),
-                                  border:
-                                      Border.all(color: AppTheme.subtleBorder),
-                                ),
-                                child: Stack(
-                                  children: [
-                                    // Highlight on left for #1
-                                    if (isFirst) ...[
-                                      Positioned(
-                                        left: 0,
-                                        top: 0,
-                                        bottom: 0,
-                                        child: Container(
-                                            width: 3,
-                                            decoration: BoxDecoration(
-                                              color: AppTheme.primary,
-                                              borderRadius:
-                                                  const BorderRadius.only(
-                                                      topLeft:
-                                                          Radius.circular(16),
-                                                      bottomLeft:
-                                                          Radius.circular(16)),
-                                            )),
-                                      ),
-                                    ],
-                                    Padding(
-                                      padding: const EdgeInsets.all(16.0),
-                                      child: Row(
-                                        children: [
-                                          // Rank / Trophy
-                                          SizedBox(
-                                            width: 28,
-                                            child: Center(
-                                              child: index == 0
-                                                  ? const Icon(
-                                                      Icons
-                                                          .emoji_events_outlined,
-                                                      color: Color(0xFFFFD700),
-                                                      size: 24)
-                                                  : Text(
-                                                      '${index + 1}',
-                                                      style: TextStyle(
-                                                          fontSize: 18,
-                                                          fontWeight: FontWeight
-                                                              .w900,
-                                                          color: index ==
-                                                                  1
-                                                              ? AppTheme
-                                                                  .textHighEmphasis
-                                                              : (index ==
-                                                                      2
-                                                                  ? const Color(
-                                                                      0xFFCD7F32)
-                                                                  : AppTheme
-                                                                      .textLowEmphasis))),
-                                            ),
-                                          ),
-                                          const SizedBox(width: 12),
-                                          // Avatar
-                                          _buildProfileAvatar(
-                                            name: athlete.name,
-                                            avatarUrl: athlete.avatarUrl,
-                                            backgroundColor: AppTheme.surface,
-                                            textColor:
-                                                AppTheme.textHighEmphasis,
-                                          ),
-                                          const SizedBox(width: 16),
-                                          // Profile Info and Progress Bar
-                                          Expanded(
-                                            child: Column(
-                                              crossAxisAlignment:
-                                                  CrossAxisAlignment.start,
-                                              children: [
-                                                Text(athlete.name,
-                                                    style: TextStyle(
-                                                        fontWeight:
-                                                            FontWeight.bold,
-                                                        color: AppTheme
-                                                            .textHighEmphasis,
-                                                        fontSize: 14)),
-                                                const SizedBox(height: 2),
-                                                Text(athlete.subtitle,
-                                                    style: TextStyle(
-                                                        color: AppTheme
-                                                            .textMediumEmphasis,
-                                                        fontSize: 11)),
-                                                const SizedBox(height: 8),
-                                                LayoutBuilder(builder:
-                                                    (context, constraints) {
-                                                  double percentage =
-                                                      val / maxValue;
-                                                  if (percentage > 1.0)
-                                                    percentage = 1.0;
-                                                  return Stack(
-                                                    children: [
-                                                      Container(
-                                                        height: 4,
-                                                        width: constraints
-                                                            .maxWidth,
-                                                        decoration: BoxDecoration(
-                                                            color: AppTheme
-                                                                .subtleFill,
-                                                            borderRadius:
-                                                                BorderRadius
-                                                                    .circular(
-                                                                        2)),
-                                                      ),
-                                                      Container(
-                                                        height: 4,
-                                                        width: constraints
-                                                                .maxWidth *
-                                                            percentage,
-                                                        decoration: BoxDecoration(
-                                                            color: isFirst
-                                                                ? AppTheme
-                                                                    .primary
-                                                                : AppTheme
-                                                                    .textLowEmphasis,
-                                                            borderRadius:
-                                                                BorderRadius
-                                                                    .circular(
-                                                                        2)),
-                                                      ),
-                                                    ],
-                                                  );
-                                                }),
-                                              ],
-                                            ),
-                                          ),
-                                          const SizedBox(width: 16),
-                                          // Value
-                                          Row(
-                                            crossAxisAlignment:
-                                                CrossAxisAlignment.baseline,
-                                            textBaseline:
-                                                TextBaseline.alphabetic,
-                                            children: [
-                                              Text(val.toStringAsFixed(1),
-                                                  style: TextStyle(
-                                                      fontSize: 18,
-                                                      fontWeight:
-                                                          FontWeight.w900,
-                                                      color: isFirst
-                                                          ? AppTheme.primary
-                                                          : AppTheme
-                                                              .textHighEmphasis)),
-                                              const SizedBox(width: 2),
-                                              Text(
-                                                  _getCategoryUnit(
-                                                      _categoryFilter),
-                                                  style: TextStyle(
-                                                      fontSize: 12,
-                                                      color: AppTheme
-                                                          .textMediumEmphasis)),
-                                            ],
-                                          ),
-                                          if (isCoach) ...[
-                                            const SizedBox(width: 8),
-                                            IconButton(
-                                              icon: Icon(
-                                                  PhosphorIcons.userMinus(),
-                                                  color: Colors.redAccent,
-                                                  size: 20),
-                                              padding: EdgeInsets.zero,
-                                              constraints:
-                                                  const BoxConstraints(),
-                                              onPressed: () =>
-                                                  _confirmRemoveAthlete(
-                                                context,
-                                                athlete.id,
-                                                athlete.name,
-                                              ),
-                                            ),
-                                          ],
-                                        ],
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              ));
-                        },
-                        childCount: sortedAthletes.length,
+            // LEADERBOARD HEADERS
+            SliverToBoxAdapter(
+              child: Padding(
+                padding: const EdgeInsets.only(
+                    left: 16, right: 16, top: 24, bottom: 12),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Text('RANK & ATHLETE',
+                        style: TextStyle(
+                            color: AppTheme.textMediumEmphasis,
+                            fontSize: 10,
+                            fontWeight: FontWeight.bold,
+                            letterSpacing: 1.5)),
+                    Text('VOLUME',
+                        style: TextStyle(
+                            color: AppTheme.textMediumEmphasis,
+                            fontSize: 10,
+                            fontWeight: FontWeight.bold,
+                            letterSpacing: 1.5)),
+                  ],
+                ),
+              ),
+            ),
+
+            // LEADERBOARD ITEMS
+            _isLoading
+                ? const SliverToBoxAdapter(
+                    child: Padding(
+                      padding: EdgeInsets.symmetric(vertical: 60),
+                      child: Center(
+                        child:
+                            CircularProgressIndicator(color: AppTheme.primary),
                       ),
                     ),
+                  )
+                : sortedAthletes.isEmpty
+                    ? SliverToBoxAdapter(
+                        child: Padding(
+                          padding: const EdgeInsets.symmetric(
+                              vertical: 60, horizontal: 16),
+                          child: Center(
+                            child: Text(
+                              'Nessun atleta in questo team.',
+                              style: TextStyle(
+                                color: AppTheme.textMediumEmphasis,
+                                fontSize: 14,
+                              ),
+                            ),
+                          ),
+                        ),
+                      )
+                    : SliverList(
+                        delegate: SliverChildBuilderDelegate(
+                          (context, index) {
+                            final athlete = sortedAthletes[index];
+                            double val =
+                                _getCategoryValue(athlete, _categoryFilter);
+                            bool isFirst = index == 0;
 
-          const SliverToBoxAdapter(child: SizedBox(height: 40)),
-        ],
+                            return GestureDetector(
+                                onTap: () {
+                                  if (isCoach) {
+                                    HapticFeedback.lightImpact();
+                                    final name = athlete.name;
+                                    String initial = name.isNotEmpty
+                                        ? name[0].toUpperCase()
+                                        : 'A';
+                                    Navigator.push(
+                                      context,
+                                      MaterialPageRoute(
+                                        builder: (_) =>
+                                            CoachAthleteDetailScreen(
+                                          athleteName: name,
+                                          initial: initial,
+                                          athleteId: athlete.id,
+                                        ),
+                                      ),
+                                    );
+                                  }
+                                },
+                                child: Container(
+                                  margin: const EdgeInsets.only(
+                                      bottom: 12, left: 16, right: 16),
+                                  decoration: BoxDecoration(
+                                    color: AppTheme.card,
+                                    borderRadius: BorderRadius.circular(16),
+                                    border: Border.all(
+                                        color: AppTheme.subtleBorder),
+                                  ),
+                                  child: Stack(
+                                    children: [
+                                      // Highlight on left for #1
+                                      if (isFirst) ...[
+                                        Positioned(
+                                          left: 0,
+                                          top: 0,
+                                          bottom: 0,
+                                          child: Container(
+                                              width: 3,
+                                              decoration: BoxDecoration(
+                                                color: AppTheme.primary,
+                                                borderRadius:
+                                                    const BorderRadius.only(
+                                                        topLeft:
+                                                            Radius.circular(16),
+                                                        bottomLeft:
+                                                            Radius.circular(
+                                                                16)),
+                                              )),
+                                        ),
+                                      ],
+                                      Padding(
+                                        padding: const EdgeInsets.all(16.0),
+                                        child: Row(
+                                          children: [
+                                            // Rank / Trophy
+                                            SizedBox(
+                                              width: 28,
+                                              child: Center(
+                                                child: index == 0
+                                                    ? const Icon(
+                                                        Icons
+                                                            .emoji_events_outlined,
+                                                        color:
+                                                            Color(0xFFFFD700),
+                                                        size: 24)
+                                                    : Text('${index + 1}',
+                                                        style: TextStyle(
+                                                            fontSize: 18,
+                                                            fontWeight:
+                                                                FontWeight.w900,
+                                                            color: index == 1
+                                                                ? AppTheme
+                                                                    .textHighEmphasis
+                                                                : (index == 2
+                                                                    ? const Color(
+                                                                        0xFFCD7F32)
+                                                                    : AppTheme
+                                                                        .textLowEmphasis))),
+                                              ),
+                                            ),
+                                            const SizedBox(width: 12),
+                                            // Avatar
+                                            _buildProfileAvatar(
+                                              name: athlete.name,
+                                              avatarUrl: athlete.avatarUrl,
+                                              backgroundColor: AppTheme.surface,
+                                              textColor:
+                                                  AppTheme.textHighEmphasis,
+                                            ),
+                                            const SizedBox(width: 16),
+                                            // Profile Info and Progress Bar
+                                            Expanded(
+                                              child: Column(
+                                                crossAxisAlignment:
+                                                    CrossAxisAlignment.start,
+                                                children: [
+                                                  Text(athlete.name,
+                                                      style: TextStyle(
+                                                          fontWeight:
+                                                              FontWeight.bold,
+                                                          color: AppTheme
+                                                              .textHighEmphasis,
+                                                          fontSize: 14)),
+                                                  const SizedBox(height: 2),
+                                                  Text(athlete.subtitle,
+                                                      style: TextStyle(
+                                                          color: AppTheme
+                                                              .textMediumEmphasis,
+                                                          fontSize: 11)),
+                                                  const SizedBox(height: 8),
+                                                  LayoutBuilder(builder:
+                                                      (context, constraints) {
+                                                    double percentage =
+                                                        val / maxValue;
+                                                    if (percentage > 1.0)
+                                                      percentage = 1.0;
+                                                    return Stack(
+                                                      children: [
+                                                        Container(
+                                                          height: 4,
+                                                          width: constraints
+                                                              .maxWidth,
+                                                          decoration: BoxDecoration(
+                                                              color: AppTheme
+                                                                  .subtleFill,
+                                                              borderRadius:
+                                                                  BorderRadius
+                                                                      .circular(
+                                                                          2)),
+                                                        ),
+                                                        Container(
+                                                          height: 4,
+                                                          width: constraints
+                                                                  .maxWidth *
+                                                              percentage,
+                                                          decoration: BoxDecoration(
+                                                              color: isFirst
+                                                                  ? AppTheme
+                                                                      .primary
+                                                                  : AppTheme
+                                                                      .textLowEmphasis,
+                                                              borderRadius:
+                                                                  BorderRadius
+                                                                      .circular(
+                                                                          2)),
+                                                        ),
+                                                      ],
+                                                    );
+                                                  }),
+                                                ],
+                                              ),
+                                            ),
+                                            const SizedBox(width: 16),
+                                            // Value
+                                            Row(
+                                              crossAxisAlignment:
+                                                  CrossAxisAlignment.baseline,
+                                              textBaseline:
+                                                  TextBaseline.alphabetic,
+                                              children: [
+                                                Text(val.toStringAsFixed(1),
+                                                    style: TextStyle(
+                                                        fontSize: 18,
+                                                        fontWeight:
+                                                            FontWeight.w900,
+                                                        color: isFirst
+                                                            ? AppTheme.primary
+                                                            : AppTheme
+                                                                .textHighEmphasis)),
+                                                const SizedBox(width: 2),
+                                                Text(
+                                                    _getCategoryUnit(
+                                                        _categoryFilter),
+                                                    style: TextStyle(
+                                                        fontSize: 12,
+                                                        color: AppTheme
+                                                            .textMediumEmphasis)),
+                                              ],
+                                            ),
+                                            if (isCoach) ...[
+                                              const SizedBox(width: 8),
+                                              IconButton(
+                                                icon: Icon(
+                                                    PhosphorIcons.userMinus(),
+                                                    color: Colors.redAccent,
+                                                    size: 20),
+                                                padding: EdgeInsets.zero,
+                                                constraints:
+                                                    const BoxConstraints(),
+                                                onPressed: () =>
+                                                    _confirmRemoveAthlete(
+                                                  context,
+                                                  athlete.id,
+                                                  athlete.name,
+                                                ),
+                                              ),
+                                            ],
+                                          ],
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ));
+                          },
+                          childCount: sortedAthletes.length,
+                        ),
+                      ),
+
+            const SliverToBoxAdapter(child: SizedBox(height: 40)),
+          ],
+        ),
       ),
     );
   }

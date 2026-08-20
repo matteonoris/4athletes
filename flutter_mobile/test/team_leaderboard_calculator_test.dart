@@ -147,6 +147,113 @@ void main() {
     );
   });
 
+  test('una sessione legacy terminata viene contata salvo planned o cancelled',
+      () {
+    final stats = calculator.calculate(
+      athletes: [athlete],
+      sessions: [
+        _entry(
+          athleteId,
+          date: '2026-07-25',
+          duration: '60',
+          sportId: 'athletic_prep',
+          status: 'finished',
+        ),
+      ],
+      timeRange: TeamLeaderboardTimeRange.last7Days,
+      referenceDate: DateTime(2026, 7, 26),
+    ).single;
+
+    expect(stats.valueFor(TeamLeaderboardMetric.hoursOutsideAlpineSki), 1);
+  });
+
+  test('usa l evento coach completato se manca la sessione dell atleta', () {
+    final event = CalendarEvent(
+      id: 'event-1',
+      teamId: 'team-1',
+      type: 'training',
+      title: 'Preparazione atletica',
+      date: '2026-07-25',
+      startTime: '09:00',
+      endTime: '10:30',
+      sportCategory: 'dryland',
+      drylandSpecialty: ActivityCategory.athleticPrep,
+      attendees: [
+        {
+          'id': athleteId,
+          'name': 'Test Athlete',
+          'attendanceStatus': AttendanceStatus.present,
+        },
+      ],
+      status: ActivityStatus.completed,
+    );
+
+    final fromFallback = calculator.calculate(
+      athletes: [athlete],
+      sessions: const [],
+      completedEvents: [event],
+      timeRange: TeamLeaderboardTimeRange.last7Days,
+      referenceDate: DateTime(2026, 7, 26),
+    ).single;
+    final withGeneratedSession = calculator.calculate(
+      athletes: [athlete],
+      sessions: [
+        _entry(
+          athleteId,
+          date: '2026-07-25',
+          duration: '90',
+          sportId: 'athletic_prep',
+          eventId: event.id,
+          status: ActivityStatus.completed,
+        ),
+      ],
+      completedEvents: [event],
+      timeRange: TeamLeaderboardTimeRange.last7Days,
+      referenceDate: DateTime(2026, 7, 26),
+    ).single;
+
+    expect(
+      fromFallback.valueFor(TeamLeaderboardMetric.hoursOutsideAlpineSki),
+      1.5,
+    );
+    expect(
+      withGeneratedSession.valueFor(
+        TeamLeaderboardMetric.hoursOutsideAlpineSki,
+      ),
+      1.5,
+    );
+  });
+
+  test('non accredita il fallback coach agli atleti assenti', () {
+    final stats = calculator.calculate(
+      athletes: [athlete],
+      sessions: const [],
+      completedEvents: [
+        CalendarEvent(
+          id: 'event-absent',
+          teamId: 'team-1',
+          type: 'training',
+          title: 'Preparazione atletica',
+          date: '2026-07-25',
+          startTime: '09:00',
+          endTime: '10:00',
+          sportCategory: 'dryland',
+          attendees: [
+            {
+              'id': athleteId,
+              'attendanceStatus': AttendanceStatus.absent,
+            },
+          ],
+          status: ActivityStatus.completed,
+        ),
+      ],
+      timeRange: TeamLeaderboardTimeRange.last7Days,
+      referenceDate: DateTime(2026, 7, 26),
+    ).single;
+
+    expect(stats.valueFor(TeamLeaderboardMetric.hoursOutsideAlpineSki), 0);
+  });
+
   test('tutti i filtri aggregano i payload legacy e strutturati corretti', () {
     final stats = calculator.calculate(
       athletes: [athlete],

@@ -1,8 +1,8 @@
-This TestFlight build makes health data more reliable and expands team analytics.
+This TestFlight build fixes missing training hours in team rankings.
 
-- Automatically refreshes health data when the app returns to the foreground without repeated permission prompts.
-- Preserves valid recovery and strain scores during partial refreshes or network failures.
-- Improves Health workout importing and deduplication and loads the complete body-metrics history.
-- Adds team leaderboards with period filters and metrics for hours, skiing, strength, running, jumps, and speed.
-- Fixes attendance percentages and team averages, including absences and athletes without activity.
-- Improves team-report layout, readability, and details in light and dark themes.
+- Reliably saves completed athlete training sessions before leaving the form.
+- Correctly credits backdated completed sessions in the selected ranking period.
+- Credits present athletes for completed coach athletic training, even if a generated session row is temporarily missing.
+- Prevents duplicate credit when both the coach event and athlete session exist.
+- Shows save and synchronization errors instead of reporting a false success.
+- Adds pull-to-refresh to team rankings.

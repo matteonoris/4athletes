@@ -1,5 +1,6 @@
 import '../models/models.dart';
 import '../models/training_activity_models.dart';
+import '../services/training_activity_service.dart';
 import '../utils/coach_training_utils.dart';
 import '../utils/time_utils.dart';
 import '../utils/training_metrics_utils.dart';
@@ -173,6 +174,7 @@ class TeamLeaderboardCalculator {
   List<TeamLeaderboardAthleteStats> calculate({
     required Iterable<Map<String, dynamic>> athletes,
     required Iterable<TeamLeaderboardSession> sessions,
+    Iterable<CalendarEvent> completedEvents = const [],
     required TeamLeaderboardTimeRange timeRange,
     DateTime? referenceDate,
   }) {
@@ -181,11 +183,18 @@ class TeamLeaderboardCalculator {
       referenceDate ?? DateTime.now(),
     );
     final sessionsByAthlete = <String, List<TrainingSession>>{};
+    final linkedEventIdsByAthlete = <String, Set<String>>{};
     for (final entry in sessions) {
       if (entry.athleteId.isEmpty) continue;
       sessionsByAthlete
           .putIfAbsent(entry.athleteId, () => [])
           .add(entry.session);
+      final eventId = entry.session.eventId?.trim();
+      if (eventId != null && eventId.isNotEmpty) {
+        linkedEventIdsByAthlete
+            .putIfAbsent(entry.athleteId, () => <String>{})
+            .add(eventId);
+      }
     }
 
     return athletes.map((athlete) {
@@ -194,6 +203,22 @@ class TeamLeaderboardCalculator {
       for (final session
           in sessionsByAthlete[athleteId] ?? const <TrainingSession>[]) {
         _addSession(accumulator, session, period);
+      }
+      for (final event in completedEvents) {
+        if (event.status != CoachTrainingUtils.statusCompleted) continue;
+        if (linkedEventIdsByAthlete[athleteId]?.contains(event.id) == true) {
+          continue;
+        }
+        final attendee = _attendeeForAthlete(event, athlete);
+        if (attendee == null ||
+            !CoachTrainingUtils.isAttendeePresent(attendee)) {
+          continue;
+        }
+        _addSession(
+          accumulator,
+          _sessionFromCompletedEvent(event, attendee),
+          period,
+        );
       }
 
       final name =
@@ -217,7 +242,10 @@ class TeamLeaderboardCalculator {
     if (date == null || !period.contains(date)) return;
 
     final activity = TrainingActivity.fromTrainingSession(session);
-    if (activity.status != ActivityStatus.completed) return;
+    if (activity.status == ActivityStatus.planned ||
+        activity.status == ActivityStatus.cancelled) {
+      return;
+    }
 
     if (_isAlpineSkiing(session.sportId)) {
       final volume = CoachTrainingUtils.volumeFromDetails(session.details);
@@ -330,6 +358,66 @@ class TeamLeaderboardCalculator {
       }
     }
     return contacts;
+  }
+
+  Map<String, dynamic>? _attendeeForAthlete(
+    CalendarEvent event,
+    Map<String, dynamic> athlete,
+  ) {
+    final athleteId = athlete['id']?.toString().trim() ?? '';
+    final athleteEmail = athlete['email']?.toString().trim().toLowerCase();
+    final athleteName =
+        '${athlete['first_name'] ?? ''} ${athlete['last_name'] ?? ''}'
+            .trim()
+            .toLowerCase();
+    for (final attendee in event.attendees ?? const <Map<String, dynamic>>[]) {
+      final attendeeId = attendee['id']?.toString().trim() ?? '';
+      final attendeeEmail = attendee['email']?.toString().trim().toLowerCase();
+      final attendeeName =
+          attendee['name']?.toString().trim().toLowerCase() ?? '';
+      if ((athleteId.isNotEmpty && attendeeId == athleteId) ||
+          (athleteEmail != null &&
+              athleteEmail.isNotEmpty &&
+              (attendeeId.toLowerCase() == athleteEmail ||
+                  attendeeEmail == athleteEmail)) ||
+          (athleteName.isNotEmpty &&
+              attendeeId.isEmpty &&
+              (attendeeEmail == null || attendeeEmail.isEmpty) &&
+              attendeeName == athleteName)) {
+        return attendee;
+      }
+    }
+    return null;
+  }
+
+  TrainingSession _sessionFromCompletedEvent(
+    CalendarEvent event,
+    Map<String, dynamic> attendee,
+  ) {
+    final isSkiing = event.sportCategory == 'ski';
+    final details = isSkiing
+        ? CoachTrainingUtils.buildSessionDetailsForAttendee(event, attendee)
+        : const TrainingActivityService()
+            .buildCoachDrylandSessionDetails(event, attendee);
+    final planned = event.technicalDetails?['plannedDrylandSession'];
+    final plannedSportType =
+        planned is Map ? planned['sportType']?.toString().trim() : null;
+    return TrainingSession(
+      id: 'event_${event.id}',
+      sportId: isSkiing
+          ? 'alpine_skiing'
+          : (plannedSportType != null && plannedSportType.isNotEmpty
+              ? plannedSportType
+              : 'athletic_prep'),
+      date: event.date,
+      startTime: event.startTime,
+      endTime: event.endTime,
+      duration:
+          _clockDurationMinutes(event.startTime, event.endTime).toString(),
+      effort: CoachTrainingUtils.asInt(attendee['rpe'], fallback: 5),
+      eventId: event.id,
+      details: details,
+    );
   }
 
   bool _isEnduranceSession(

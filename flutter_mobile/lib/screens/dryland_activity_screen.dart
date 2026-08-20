@@ -57,6 +57,7 @@ class _DrylandActivityScreenState extends State<DrylandActivityScreen> {
   final Map<String, dynamic> _endurance = {};
   String _exerciseSearch = '';
   String _equipmentFilter = 'all';
+  bool _isSaving = false;
 
   DrylandPrepTypeOption? get _prepOption =>
       DrylandPrepTypes.maybeById(_prepType);
@@ -553,6 +554,7 @@ class _DrylandActivityScreenState extends State<DrylandActivityScreen> {
   }
 
   Future<void> _saveSession() async {
+    if (_isSaving) return;
     final activity = _buildActivity();
     final session = TrainingSession(
       id: widget.initialSession?.id ?? 'new_session',
@@ -566,9 +568,24 @@ class _DrylandActivityScreenState extends State<DrylandActivityScreen> {
       details:
           activity.toSessionDetails(existing: widget.initialSession?.details),
     );
-    await Provider.of<AppState>(context, listen: false).addSession(session);
-    if (!mounted) return;
-    Navigator.of(context).popUntil((route) => route.isFirst);
+    setState(() => _isSaving = true);
+    try {
+      await Provider.of<AppState>(context, listen: false).addSession(
+        session,
+        rethrowErrors: true,
+      );
+      if (!mounted) return;
+      Navigator.of(context).popUntil((route) => route.isFirst);
+    } catch (error) {
+      if (!mounted) return;
+      setState(() => _isSaving = false);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Salvataggio non riuscito: $error'),
+          backgroundColor: AppTheme.error,
+        ),
+      );
+    }
   }
 
   Future<void> _saveTemplate() async {
@@ -678,7 +695,7 @@ class _DrylandActivityScreenState extends State<DrylandActivityScreen> {
         child: Padding(
           padding: const EdgeInsets.all(16),
           child: ElevatedButton.icon(
-            onPressed: _saveSession,
+            onPressed: _isSaving ? null : _saveSession,
             icon: const Icon(Icons.check_circle_outline),
             label: const Text('Salva attività'),
             style: ElevatedButton.styleFrom(

@@ -63,6 +63,7 @@ class _AddTrainingScreenState extends State<AddTrainingScreen> {
   late TimeOfDay _startTime;
   late TimeOfDay _endTime;
   double _effort = 5.0;
+  bool _isSaving = false;
 
   // Pain Monitoring
   List<String> _painZones = [];
@@ -315,7 +316,8 @@ class _AddTrainingScreenState extends State<AddTrainingScreen> {
     return diff;
   }
 
-  void _saveSession() {
+  Future<void> _saveSession() async {
+    if (_isSaving) return;
     final duration = _calculateDuration();
     final isSkiing = widget.sportId == 'alpine_skiing';
     // ignore unused sport type booleans — kept for future section expansion
@@ -454,6 +456,7 @@ class _AddTrainingScreenState extends State<AddTrainingScreen> {
         details.remove('addestramento');
       }
     }
+    details['status'] = ActivityStatus.completed;
 
     final session = TrainingSession(
       id: widget.initialSession?.id ??
@@ -468,9 +471,25 @@ class _AddTrainingScreenState extends State<AddTrainingScreen> {
       details: details,
     );
 
-    Provider.of<AppState>(context, listen: false).addSession(session);
-    // Pop all the way back to the Home screen
-    Navigator.of(context).popUntil((route) => route.isFirst);
+    setState(() => _isSaving = true);
+    try {
+      await Provider.of<AppState>(context, listen: false).addSession(
+        session,
+        rethrowErrors: true,
+      );
+      if (!mounted) return;
+      // Pop all the way back to Home only after persistence succeeds.
+      Navigator.of(context).popUntil((route) => route.isFirst);
+    } catch (error) {
+      if (!mounted) return;
+      setState(() => _isSaving = false);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Salvataggio non riuscito: $error'),
+          backgroundColor: AppTheme.error,
+        ),
+      );
+    }
   }
 
   void _addTrack() {
@@ -2233,8 +2252,10 @@ class _AddTrainingScreenState extends State<AddTrainingScreen> {
                   width: double.infinity,
                   height: 56,
                   child: ElevatedButton(
-                    onPressed: _saveSession,
-                    child: const Text('SALVA ALLENAMENTO'),
+                    onPressed: _isSaving ? null : _saveSession,
+                    child: Text(
+                      _isSaving ? 'SALVATAGGIO...' : 'SALVA ALLENAMENTO',
+                    ),
                   ),
                 ),
               ),

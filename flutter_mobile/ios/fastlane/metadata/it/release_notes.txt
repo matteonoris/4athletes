@@ -1,8 +1,8 @@
-Questa build TestFlight rende più affidabili i dati salute e amplia le analisi della squadra.
+Questa build TestFlight corregge le ore di allenamento mancanti nelle classifiche squadra.
 
-- Aggiorna automaticamente i dati salute quando l'app torna in primo piano, senza richieste di permesso ripetute.
-- Protegge i punteggi recovery e strain già validi durante refresh parziali o problemi di rete.
-- Migliora import e deduplicazione degli allenamenti Health e carica lo storico completo delle metriche corporee.
-- Aggiunge la classifica squadra con filtri per periodo e indicatori di ore, sci, forza, corsa, salti e velocità.
-- Corregge presenze e medie nei report mensili, includendo correttamente assenze e atleti senza attività.
-- Migliora layout, leggibilità e dettagli dei report squadra in tema chiaro e scuro.
+- Salva in modo affidabile gli allenamenti completati dagli atleti prima di uscire dal modulo.
+- Accredita correttamente gli allenamenti completati e inseriti per giorni precedenti nel periodo selezionato.
+- Accredita gli atleti presenti agli allenamenti atletici completati dal coach, anche se manca temporaneamente la sessione generata.
+- Evita doppi conteggi quando esistono sia l'evento del coach sia la sessione dell'atleta.
+- Mostra gli errori di salvataggio e sincronizzazione invece di segnalare un falso successo.
+- Aggiunge il gesto di aggiornamento alla classifica squadra.
