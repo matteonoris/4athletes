@@ -31,7 +31,7 @@ class _AuthScreenState extends State<AuthScreen>
   bool _isSocialSignup = kOnboardingPreviewMode;
   _SignupStep _signupStep = _SignupStep.role;
   String _role = 'athlete';
-  String _gender = 'M';
+  String? _gender;
   File? _pickedAvatarFile;
 
   final _emailCtrl = TextEditingController();
@@ -69,6 +69,7 @@ class _AuthScreenState extends State<AuthScreen>
     );
 
     if (kOnboardingPreviewMode) {
+      _gender = 'M';
       _emailCtrl.text = 'preview@4athletes.local';
       _firstNameCtrl.text = 'Mario';
       _lastNameCtrl.text = 'Rossi';
@@ -136,19 +137,31 @@ class _AuthScreenState extends State<AuthScreen>
 
   void _startSocialSignup() {
     final appState = Provider.of<AppState>(context, listen: false);
+    final existingProfile = appState.userProfile;
     setState(() {
       _isLogin = false;
       _isSocialSignup = true;
       _signupStep = _SignupStep.role;
-      _firstNameCtrl.text = appState.userProfile?.firstName.isNotEmpty == true
-          ? appState.userProfile!.firstName
+      _role = existingProfile?.role == 'coach' ? 'coach' : 'athlete';
+      _gender = kOnboardingPreviewMode ? 'M' : existingProfile?.gender;
+      _firstNameCtrl.text = existingProfile?.firstName.isNotEmpty == true
+          ? existingProfile!.firstName
           : _firstNameCtrl.text;
-      _lastNameCtrl.text = appState.userProfile?.lastName.isNotEmpty == true
-          ? appState.userProfile!.lastName
+      _lastNameCtrl.text = existingProfile?.lastName.isNotEmpty == true
+          ? existingProfile!.lastName
           : _lastNameCtrl.text;
-      _emailCtrl.text = appState.userProfile?.email.isNotEmpty == true
-          ? appState.userProfile!.email
+      _emailCtrl.text = existingProfile?.email.isNotEmpty == true
+          ? existingProfile!.email
           : _emailCtrl.text;
+      _dobCtrl.text = existingProfile?.birthDate.isNotEmpty == true
+          ? existingProfile!.birthDate
+          : _dobCtrl.text;
+      if ((existingProfile?.weight ?? 0) > 0) {
+        _weightCtrl.text = existingProfile!.weight.toString();
+      }
+      if ((existingProfile?.height ?? 0) > 0) {
+        _heightCtrl.text = existingProfile!.height.toString();
+      }
       _animationController.forward(from: 0);
     });
   }
@@ -172,6 +185,11 @@ class _AuthScreenState extends State<AuthScreen>
 
   void _goNext() {
     HapticFeedback.lightImpact();
+    if (_signupStep == _SignupStep.personal && _gender == null) {
+      _showError('Seleziona il sesso prima di continuare.');
+      return;
+    }
+
     final currentIndex = _activeSteps.indexOf(_signupStep);
     if (currentIndex < _activeSteps.length - 1) {
       setState(() {
@@ -238,6 +256,11 @@ class _AuthScreenState extends State<AuthScreen>
     final appState = Provider.of<AppState>(context, listen: false);
     final weight = double.tryParse(_weightCtrl.text) ?? 0.0;
     final height = double.tryParse(_heightCtrl.text) ?? 0.0;
+    final gender = _gender;
+    if (gender == null) {
+      _showError('Seleziona il sesso prima di completare l’iscrizione.');
+      return;
+    }
 
     String avatarUrl = appState.userProfile?.avatarUrl ?? '';
     if (!kOnboardingPreviewMode && _pickedAvatarFile != null) {
@@ -253,7 +276,7 @@ class _AuthScreenState extends State<AuthScreen>
       birthDate: _dobCtrl.text.isNotEmpty ? _dobCtrl.text : '2000-01-01',
       role: _role,
       skiClub: '',
-      gender: _gender,
+      gender: gender,
       weight: _role == 'athlete' ? weight : 0,
       height: _role == 'athlete' ? height : 0,
       maxHr: 190,
@@ -272,7 +295,7 @@ class _AuthScreenState extends State<AuthScreen>
 
     try {
       if (_isSocialSignup) {
-        appState.login(profile);
+        await appState.login(profile);
       }
 
       final date = DateTime.now().toIso8601String().split('T')[0];

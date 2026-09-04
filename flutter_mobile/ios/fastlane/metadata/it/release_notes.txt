@@ -1,8 +1,7 @@
-Questa build TestFlight corregge le ore di allenamento mancanti nelle classifiche squadra.
+Questa build TestFlight introduce una valutazione immediata dei test atletici nella sezione Analytics.
 
-- Salva in modo affidabile gli allenamenti completati dagli atleti prima di uscire dal modulo.
-- Accredita correttamente gli allenamenti completati e inseriti per giorni precedenti nel periodo selezionato.
-- Accredita gli atleti presenti agli allenamenti atletici completati dal coach, anche se manca temporaneamente la sessione generata.
-- Evita doppi conteggi quando esistono sia l'evento del coach sia la sessione dell'atleta.
-- Mostra gli errori di salvataggio e sincronizzazione invece di segnalare un falso successo.
-- Aggiunge il gesto di aggiornamento alla classifica squadra.
+- Colora le schede dei test in rosso, giallo o verde in base alle tabelle di riferimento.
+- Applica automaticamente le soglie corrette per sesso e fascia di età, inclusa la categoria SENIOR oltre i 21 anni.
+- Valuta salto, velocità, capacità aerobica, equilibrio, core e forza mantenendo invariata la struttura di Analytics.
+- Rende obbligatoria la scelta del sesso durante l'iscrizione.
+- Corregge il completamento e il salvataggio dei profili creati tramite Google o Apple quando il sesso è ancora mancante.

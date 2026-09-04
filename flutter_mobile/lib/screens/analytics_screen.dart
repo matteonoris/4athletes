@@ -7,6 +7,8 @@ import '../data/exercises.dart';
 import '../data/workout_catalog.dart';
 import '../providers/app_state.dart';
 import '../services/athlete_monthly_recap_calculator.dart';
+import '../utils/analytics_performance_benchmarks.dart';
+import '../utils/analytics_performance_colors.dart';
 import '../utils/max_load_analytics_utils.dart';
 import '../utils/strength_pr_utils.dart';
 import '../widgets/custom_card.dart';
@@ -166,6 +168,18 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
     final appState = Provider.of<AppState>(context);
     final user = appState.profile;
     final unitSystem = user?.unitSystem ?? 'metric';
+    final now = DateTime.now();
+    final benchmarkProfile = AnalyticsBenchmarkProfile.fromDemographics(
+      birthDate: user?.birthDate,
+      gender: user?.gender,
+      onDate: now,
+    );
+    AnalyticsPerformanceBand bandFor(String exerciseId, double value) =>
+        analyticsPerformanceBandFor(
+          profile: benchmarkProfile,
+          exerciseId: exerciseId,
+          value: value,
+        );
 
     // Initialize selected team if null and teams exist
     if (_selectedTeamId == null && appState.teams.isNotEmpty) {
@@ -200,7 +214,6 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
     final plankSideL = _getLatestBodyVal(appState.bodyLogs, 'plank_side_l');
     final plankSideR = _getLatestBodyVal(appState.bodyLogs, 'plank_side_r');
     final pullupsMax = _getLatestBodyVal(appState.bodyLogs, 'pullups_max');
-    final now = DateTime.now();
     final monthlyRecap = const AthleteMonthlyRecapCalculator().build(
       sessions: appState.sessions,
       coachEvents: appState.coachEvents,
@@ -302,10 +315,12 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
                             type: 'jump',
                             exerciseId: 'squat_jump'))),
                 child: _JumpCard(
+                    key: const ValueKey('benchmark_card_squat_jump'),
                     title: 'Squat Jump',
                     val: squatJumpVal,
                     unit: jumpUnit,
-                    unitSystem: unitSystem),
+                    unitSystem: unitSystem,
+                    performanceBand: bandFor('squat_jump', squatJumpVal)),
               ),
               GestureDetector(
                 onTap: () => Navigator.push(
@@ -316,10 +331,12 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
                             type: 'jump',
                             exerciseId: 'cm_jump'))),
                 child: _JumpCard(
+                    key: const ValueKey('benchmark_card_cm_jump'),
                     title: 'CM Jump',
                     val: cmJumpVal,
                     unit: jumpUnit,
                     unitSystem: unitSystem,
+                    performanceBand: bandFor('cm_jump', cmJumpVal),
                     isHighlighted: true),
               ),
               GestureDetector(
@@ -331,11 +348,13 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
                             type: 'jump',
                             exerciseId: 'drop_jump'))),
                 child: _JumpCard(
+                    key: const ValueKey('benchmark_card_drop_jump'),
                     title: 'Drop Jump',
                     val: dropJumpVal,
                     rsiVal: dropJumpRsiVal,
                     unit: jumpUnit,
-                    unitSystem: unitSystem),
+                    unitSystem: unitSystem,
+                    performanceBand: bandFor('drop_jump', dropJumpVal)),
               ),
               GestureDetector(
                 onTap: () => Navigator.push(
@@ -346,164 +365,193 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
                             type: 'jump',
                             exerciseId: '45s_jump'))),
                 child: _JumpCard(
+                    key: const ValueKey('benchmark_card_45s_jump'),
                     title: '45s\nJump',
                     val: jump45sVal,
                     unit: jumpUnit,
-                    unitSystem: unitSystem),
+                    unitSystem: unitSystem,
+                    performanceBand: bandFor('45s_jump', jump45sVal)),
               ),
 
               // Box 5: Double Width Single Leg
               CustomCard(
+                key: const ValueKey('benchmark_card_single_leg'),
                 padding: EdgeInsets.zero,
-                child: Stack(
-                  children: [
-                    Row(
-                      children: [
-                        Expanded(
-                          child: InkWell(
-                            onTap: () => Navigator.push(
-                                context,
-                                MaterialPageRoute(
-                                    builder: (_) =>
-                                        const AnalyticsDetailsScreen(
-                                            title: 'Single Leg SX',
-                                            type: 'jump',
-                                            exerciseId: 'single_leg_left'))),
-                            child: Column(
-                              mainAxisAlignment: MainAxisAlignment.center,
-                              children: [
-                                FittedBox(
-                                  fit: BoxFit.scaleDown,
-                                  child: RichText(
-                                    text: TextSpan(
-                                      style: TextStyle(
-                                          color: AppTheme.textHighEmphasis),
-                                      children: [
-                                        TextSpan(
-                                            text: _formatVal(
-                                                slLeftVal, 'jump', unitSystem),
-                                            style: const TextStyle(
-                                                fontSize: 16,
-                                                fontWeight: FontWeight.bold)),
-                                        TextSpan(
-                                            text: ' $jumpUnit',
-                                            style: TextStyle(
-                                                fontSize: 11,
-                                                color: AppTheme
-                                                    .textMediumEmphasis)),
-                                      ],
-                                    ),
-                                  ),
-                                ),
-                                Text('SX',
-                                    style: TextStyle(
-                                        fontSize: 9,
-                                        fontWeight: FontWeight.bold,
-                                        color: AppTheme.textMediumEmphasis)),
-                              ],
-                            ),
-                          ),
-                        ),
-                        Container(
-                          width: 1,
-                          height: 40,
-                          color:
-                              AppTheme.textLowEmphasis.withValues(alpha: 0.2),
-                        ),
-                        Expanded(
-                          child: InkWell(
-                            onTap: () => Navigator.push(
-                                context,
-                                MaterialPageRoute(
-                                    builder: (_) =>
-                                        const AnalyticsDetailsScreen(
-                                            title: 'Single Leg DX',
-                                            type: 'jump',
-                                            exerciseId: 'single_leg_right'))),
-                            child: Column(
-                              mainAxisAlignment: MainAxisAlignment.center,
-                              children: [
-                                FittedBox(
-                                  fit: BoxFit.scaleDown,
-                                  child: RichText(
-                                    text: TextSpan(
-                                      style: TextStyle(
-                                          color: AppTheme.textHighEmphasis),
-                                      children: [
-                                        TextSpan(
-                                            text: _formatVal(
-                                                slRightVal, 'jump', unitSystem),
-                                            style: const TextStyle(
-                                                fontSize: 16,
-                                                fontWeight: FontWeight.bold)),
-                                        TextSpan(
-                                            text: ' $jumpUnit',
-                                            style: TextStyle(
-                                                fontSize: 11,
-                                                color: AppTheme
-                                                    .textMediumEmphasis)),
-                                      ],
-                                    ),
-                                  ),
-                                ),
-                                Text('DX',
-                                    style: TextStyle(
-                                        fontSize: 9,
-                                        fontWeight: FontWeight.bold,
-                                        color: AppTheme.textMediumEmphasis)),
-                              ],
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                    Positioned(
-                      bottom: 8,
-                      left: 0,
-                      right: 0,
-                      child: GestureDetector(
-                        onTap: () => Navigator.push(
-                            context,
-                            MaterialPageRoute(
-                                builder: (_) => const AnalyticsDetailsScreen(
-                                    title: 'Single Leg Jump',
-                                    type: 'jump',
-                                    exerciseId: 'single_leg'))),
-                        child: Column(
-                          children: [
-                            if (slLeftVal > 0 || slRightVal > 0)
-                              Container(
-                                width: 96,
-                                height: 4,
-                                decoration: BoxDecoration(
-                                    color: AppTheme.textLowEmphasis
-                                        .withValues(alpha: 0.18),
-                                    borderRadius: BorderRadius.circular(4)),
-                                child: Row(
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(16),
+                  child: Stack(
+                    children: [
+                      Row(
+                        children: [
+                          Expanded(
+                            child: ColoredBox(
+                              key: const ValueKey(
+                                  'benchmark_card_single_leg_left'),
+                              color: analyticsPerformanceCardColor(
+                                      Theme.of(context).brightness,
+                                      bandFor('single_leg_left', slLeftVal)) ??
+                                  Colors.transparent,
+                              child: InkWell(
+                                onTap: () => Navigator.push(
+                                    context,
+                                    MaterialPageRoute(
+                                        builder: (_) =>
+                                            const AnalyticsDetailsScreen(
+                                                title: 'Single Leg SX',
+                                                type: 'jump',
+                                                exerciseId:
+                                                    'single_leg_left'))),
+                                child: Column(
+                                  mainAxisAlignment: MainAxisAlignment.center,
                                   children: [
-                                    Container(
-                                      width: 96 *
-                                          (slLeftVal /
-                                              (slLeftVal + slRightVal)),
-                                      decoration: BoxDecoration(
-                                          color: AppTheme.secondary,
-                                          borderRadius:
-                                              BorderRadius.circular(4)),
+                                    FittedBox(
+                                      fit: BoxFit.scaleDown,
+                                      child: RichText(
+                                        text: TextSpan(
+                                          style: TextStyle(
+                                              color: AppTheme.textHighEmphasis),
+                                          children: [
+                                            TextSpan(
+                                                text: _formatVal(slLeftVal,
+                                                    'jump', unitSystem),
+                                                style: const TextStyle(
+                                                    fontSize: 16,
+                                                    fontWeight:
+                                                        FontWeight.bold)),
+                                            TextSpan(
+                                                text: ' $jumpUnit',
+                                                style: TextStyle(
+                                                    fontSize: 11,
+                                                    color: AppTheme
+                                                        .textMediumEmphasis)),
+                                          ],
+                                        ),
+                                      ),
                                     ),
+                                    Text('SX',
+                                        style: TextStyle(
+                                            fontSize: 9,
+                                            fontWeight: FontWeight.bold,
+                                            color:
+                                                AppTheme.textMediumEmphasis)),
                                   ],
                                 ),
                               ),
-                            const SizedBox(height: 2),
-                            Text('SINGLE LEG',
-                                style: TextStyle(
-                                    fontSize: 8,
-                                    fontWeight: FontWeight.bold,
-                                    color: AppTheme.textMediumEmphasis)),
-                          ],
+                            ),
+                          ),
+                          Container(
+                            width: 1,
+                            height: 40,
+                            color:
+                                AppTheme.textLowEmphasis.withValues(alpha: 0.2),
+                          ),
+                          Expanded(
+                            child: ColoredBox(
+                              key: const ValueKey(
+                                  'benchmark_card_single_leg_right'),
+                              color: analyticsPerformanceCardColor(
+                                      Theme.of(context).brightness,
+                                      bandFor(
+                                          'single_leg_right', slRightVal)) ??
+                                  Colors.transparent,
+                              child: InkWell(
+                                onTap: () => Navigator.push(
+                                    context,
+                                    MaterialPageRoute(
+                                        builder: (_) =>
+                                            const AnalyticsDetailsScreen(
+                                                title: 'Single Leg DX',
+                                                type: 'jump',
+                                                exerciseId:
+                                                    'single_leg_right'))),
+                                child: Column(
+                                  mainAxisAlignment: MainAxisAlignment.center,
+                                  children: [
+                                    FittedBox(
+                                      fit: BoxFit.scaleDown,
+                                      child: RichText(
+                                        text: TextSpan(
+                                          style: TextStyle(
+                                              color: AppTheme.textHighEmphasis),
+                                          children: [
+                                            TextSpan(
+                                                text: _formatVal(slRightVal,
+                                                    'jump', unitSystem),
+                                                style: const TextStyle(
+                                                    fontSize: 16,
+                                                    fontWeight:
+                                                        FontWeight.bold)),
+                                            TextSpan(
+                                                text: ' $jumpUnit',
+                                                style: TextStyle(
+                                                    fontSize: 11,
+                                                    color: AppTheme
+                                                        .textMediumEmphasis)),
+                                          ],
+                                        ),
+                                      ),
+                                    ),
+                                    Text('DX',
+                                        style: TextStyle(
+                                            fontSize: 9,
+                                            fontWeight: FontWeight.bold,
+                                            color:
+                                                AppTheme.textMediumEmphasis)),
+                                  ],
+                                ),
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                      Positioned(
+                        bottom: 8,
+                        left: 0,
+                        right: 0,
+                        child: GestureDetector(
+                          onTap: () => Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                  builder: (_) => const AnalyticsDetailsScreen(
+                                      title: 'Single Leg Jump',
+                                      type: 'jump',
+                                      exerciseId: 'single_leg'))),
+                          child: Column(
+                            children: [
+                              if (slLeftVal > 0 || slRightVal > 0)
+                                Container(
+                                  width: 96,
+                                  height: 4,
+                                  decoration: BoxDecoration(
+                                      color: AppTheme.textLowEmphasis
+                                          .withValues(alpha: 0.18),
+                                      borderRadius: BorderRadius.circular(4)),
+                                  child: Row(
+                                    children: [
+                                      Container(
+                                        width: 96 *
+                                            (slLeftVal /
+                                                (slLeftVal + slRightVal)),
+                                        decoration: BoxDecoration(
+                                            color: AppTheme.secondary,
+                                            borderRadius:
+                                                BorderRadius.circular(4)),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              const SizedBox(height: 2),
+                              Text('SINGLE LEG',
+                                  style: TextStyle(
+                                      fontSize: 8,
+                                      fontWeight: FontWeight.bold,
+                                      color: AppTheme.textMediumEmphasis)),
+                            ],
+                          ),
                         ),
                       ),
-                    ),
-                  ],
+                    ],
+                  ),
                 ),
               ),
             ],
@@ -539,7 +587,11 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
                             type: 'body',
                             exerciseId: 'sprint_20m'))),
                 child: _MaxLoadCard(
-                    title: 'Scatto 20 m', val: sprint20m, unit: 's'),
+                    key: const ValueKey('benchmark_card_sprint_20m'),
+                    title: 'Scatto 20 m',
+                    val: sprint20m,
+                    unit: 's',
+                    performanceBand: bandFor('sprint_20m', sprint20m)),
               ),
               GestureDetector(
                 onTap: () => Navigator.push(
@@ -550,7 +602,11 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
                             type: 'body',
                             exerciseId: 'sprint_60m'))),
                 child: _MaxLoadCard(
-                    title: 'Scatto 60 m', val: sprint60m, unit: 's'),
+                    key: const ValueKey('benchmark_card_sprint_60m'),
+                    title: 'Scatto 60 m',
+                    val: sprint60m,
+                    unit: 's',
+                    performanceBand: bandFor('sprint_60m', sprint60m)),
               ),
               GestureDetector(
                 onTap: () => Navigator.push(
@@ -572,7 +628,11 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
                             type: 'body',
                             exerciseId: 'leger_vo2max'))),
                 child: _MaxLoadCard(
-                    title: 'Léger Vo2Max', val: legerVo2Max, unit: 'ml/kg/min'),
+                    key: const ValueKey('benchmark_card_leger_vo2max'),
+                    title: 'Léger Vo2Max',
+                    val: legerVo2Max,
+                    unit: 'ml/kg/min',
+                    performanceBand: bandFor('leger_vo2max', legerVo2Max)),
               ),
               GestureDetector(
                 onTap: () => Navigator.push(
@@ -613,8 +673,13 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
                             title: 'Bipodale',
                             type: 'body',
                             exerciseId: 'balance_bipedal'))),
-                child:
-                    _MaxLoadCard(title: 'Bipodale', val: balBipedal, unit: ''),
+                child: _MaxLoadCard(
+                  key: const ValueKey('benchmark_card_balance_bipedal'),
+                  title: 'Bipodale',
+                  val: balBipedal,
+                  unit: '',
+                  performanceBand: bandFor('balance_bipedal', balBipedal),
+                ),
               ),
               GestureDetector(
                 onTap: () => Navigator.push(
@@ -624,8 +689,13 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
                             title: 'Monopodale SX',
                             type: 'body',
                             exerciseId: 'balance_single_l'))),
-                child:
-                    _MaxLoadCard(title: 'Mono SX', val: balSingleL, unit: ''),
+                child: _MaxLoadCard(
+                  key: const ValueKey('benchmark_card_balance_single_l'),
+                  title: 'Mono SX',
+                  val: balSingleL,
+                  unit: '',
+                  performanceBand: bandFor('balance_single_l', balSingleL),
+                ),
               ),
               GestureDetector(
                 onTap: () => Navigator.push(
@@ -635,8 +705,13 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
                             title: 'Monopodale DX',
                             type: 'body',
                             exerciseId: 'balance_single_r'))),
-                child:
-                    _MaxLoadCard(title: 'Mono DX', val: balSingleR, unit: ''),
+                child: _MaxLoadCard(
+                  key: const ValueKey('benchmark_card_balance_single_r'),
+                  title: 'Mono DX',
+                  val: balSingleR,
+                  unit: '',
+                  performanceBand: bandFor('balance_single_r', balSingleR),
+                ),
               ),
             ],
           ),
@@ -700,7 +775,11 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
                             type: 'body',
                             exerciseId: 'pullups_max'))),
                 child: _MaxLoadCard(
-                    title: 'Trazioni Max', val: pullupsMax, unit: 'reps'),
+                    key: const ValueKey('benchmark_card_pullups_max'),
+                    title: 'Trazioni Max',
+                    val: pullupsMax,
+                    unit: 'reps',
+                    performanceBand: bandFor('pullups_max', pullupsMax)),
               ),
             ],
           ),
@@ -832,20 +911,27 @@ class _JumpCard extends StatelessWidget {
   final String unit;
   final String unitSystem;
   final bool isHighlighted;
+  final AnalyticsPerformanceBand performanceBand;
 
   const _JumpCard({
+    super.key,
     required this.title,
     required this.val,
     this.rsiVal,
     required this.unit,
     required this.unitSystem,
     this.isHighlighted = false,
+    this.performanceBand = AnalyticsPerformanceBand.neutral,
   });
 
   @override
   Widget build(BuildContext context) {
     return CustomCard(
       padding: const EdgeInsets.all(8),
+      color: analyticsPerformanceCardColor(
+        Theme.of(context).brightness,
+        performanceBand,
+      ),
       borderColor:
           isHighlighted ? AppTheme.secondary.withValues(alpha: 0.5) : null,
       child: Stack(
@@ -1089,11 +1175,14 @@ class _MaxLoadCard extends StatelessWidget {
   final String title;
   final double val;
   final String unit;
+  final AnalyticsPerformanceBand performanceBand;
 
   const _MaxLoadCard({
+    super.key,
     required this.title,
     required this.val,
     required this.unit,
+    this.performanceBand = AnalyticsPerformanceBand.neutral,
   });
 
   @override
@@ -1101,7 +1190,11 @@ class _MaxLoadCard extends StatelessWidget {
     final bool hasPr = val > 0;
     final decimals = unit == 'reps' || unit == 'm' ? 0 : 2;
     return CustomCard(
-      padding: const EdgeInsets.all(12),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      color: analyticsPerformanceCardColor(
+        Theme.of(context).brightness,
+        performanceBand,
+      ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [

@@ -1,8 +1,7 @@
-This TestFlight build fixes missing training hours in team rankings.
+This TestFlight build introduces instant athletic test evaluation in Analytics.
 
-- Reliably saves completed athlete training sessions before leaving the form.
-- Correctly credits backdated completed sessions in the selected ranking period.
-- Credits present athletes for completed coach athletic training, even if a generated session row is temporarily missing.
-- Prevents duplicate credit when both the coach event and athlete session exist.
-- Shows save and synchronization errors instead of reporting a false success.
-- Adds pull-to-refresh to team rankings.
+- Colors test cards red, yellow, or green using the reference benchmarks.
+- Automatically applies the correct thresholds for sex and age group, including SENIOR athletes over 21.
+- Evaluates jumping, speed, aerobic capacity, balance, core, and strength while preserving the Analytics layout.
+- Requires an explicit sex selection during registration.
+- Fixes completion and persistence of Google or Apple profiles when sex is still missing.

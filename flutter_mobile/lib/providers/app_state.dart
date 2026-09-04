@@ -630,7 +630,7 @@ class AppState extends ChangeNotifier {
     _workoutTemplates.clear();
   }
 
-  void login(UserProfile profile) async {
+  Future<void> login(UserProfile profile) async {
     final authUser = _supabase.auth.currentUser;
     final ownedProfile = authUser == null
         ? profile.copyWith(themeMode: _themeMode)
@@ -643,10 +643,10 @@ class AppState extends ChangeNotifier {
     if (ownedProfile == null) return;
 
     _userProfile = ownedProfile;
+    await _saveUserProfile(rethrowOnError: true);
+    await _loadAllData();
     _isLoggedIn = true;
     _prefs!.setBool('isLoggedIn', true);
-    await _saveUserProfile();
-    await _loadAllData();
     notifyListeners();
   }
 
@@ -772,21 +772,32 @@ class AppState extends ChangeNotifier {
             .select()
             .eq('id', userId)
             .maybeSingle();
+        final storedGender = _normalizePersistedGender(profileData?['gender']);
 
-        if (profileData == null) {
+        if (profileData == null || storedGender == null) {
           _isNewGoogleUser = true;
-          // Create a temp profile to be completed
+          // A Supabase trigger may already have created an incomplete row.
+          // Keep its data, but require onboarding until gender is present.
           _userProfile = UserProfile(
             id: userId,
-            firstName: googleUser.displayName?.split(' ').first ?? 'New',
-            lastName: googleUser.displayName?.split(' ').last ?? 'User',
-            email: response.user!.email ?? googleUser.email,
-            birthDate: '', // Empty, so it can be requested
-            role: 'athlete',
-            weight: 0.0,
-            height: 0.0,
-            maxHr: 0,
-            avatarUrl: googleUser.photoUrl ?? '',
+            firstName: profileData?['first_name'] ??
+                googleUser.displayName?.split(' ').first ??
+                'New',
+            lastName: profileData?['last_name'] ??
+                googleUser.displayName?.split(' ').last ??
+                'User',
+            email: profileData?['email'] ??
+                response.user!.email ??
+                googleUser.email,
+            birthDate: profileData?['birth_date'] ?? '',
+            role: profileData?['role'] ?? 'athlete',
+            weight: (profileData?['weight'] as num?)?.toDouble() ?? 0.0,
+            height: (profileData?['height'] as num?)?.toDouble() ?? 0.0,
+            maxHr: profileData?['max_hr'] ?? 0,
+            avatarUrl: profileData?['avatar_url'] ?? googleUser.photoUrl ?? '',
+            skiClub: profileData?['ski_club'],
+            gender: storedGender,
+            skillLevel: profileData?['skill_level'],
             unitSystem: 'metric',
             language: 'it',
             themeMode: _themeMode,
@@ -809,6 +820,9 @@ class AppState extends ChangeNotifier {
             height: (profileData['height'] as num?)?.toDouble() ?? 175.0,
             maxHr: profileData['max_hr'] ?? 190,
             avatarUrl: profileData['avatar_url'] ?? '',
+            skiClub: profileData['ski_club'],
+            gender: storedGender,
+            skillLevel: profileData['skill_level'],
             unitSystem: _prefs!.getString('unitSystem') ?? 'metric',
             language: _prefs!.getString('language') ?? 'it',
             themeMode: _themeMode,
@@ -886,6 +900,7 @@ class AppState extends ChangeNotifier {
             .select()
             .eq('id', userId)
             .maybeSingle();
+        final storedGender = _normalizePersistedGender(profileData?['gender']);
 
         // Apple only returns givenName / familyName / email on the FIRST
         // authorization, so fall back to whatever Supabase has on the user.
@@ -896,21 +911,29 @@ class AppState extends ChangeNotifier {
             (meta['family_name'] ?? meta['last_name'] ?? '') as String;
         final fallbackEmail = response.user!.email ?? '';
 
-        if (profileData == null) {
+        if (profileData == null || storedGender == null) {
           _isNewAppleUser = true;
           _userProfile = UserProfile(
             id: userId,
-            firstName: credential.givenName ??
+            firstName: profileData?['first_name'] ??
+                credential.givenName ??
                 (fallbackFirst.isNotEmpty ? fallbackFirst : 'Nuovo'),
-            lastName: credential.familyName ??
+            lastName: profileData?['last_name'] ??
+                credential.familyName ??
                 (fallbackLast.isNotEmpty ? fallbackLast : 'Utente'),
-            email: response.user!.email ?? credential.email ?? fallbackEmail,
-            birthDate: '',
-            role: 'athlete',
-            weight: 0.0,
-            height: 0.0,
-            maxHr: 0,
-            avatarUrl: '',
+            email: profileData?['email'] ??
+                response.user!.email ??
+                credential.email ??
+                fallbackEmail,
+            birthDate: profileData?['birth_date'] ?? '',
+            role: profileData?['role'] ?? 'athlete',
+            weight: (profileData?['weight'] as num?)?.toDouble() ?? 0.0,
+            height: (profileData?['height'] as num?)?.toDouble() ?? 0.0,
+            maxHr: profileData?['max_hr'] ?? 0,
+            avatarUrl: profileData?['avatar_url'] ?? '',
+            skiClub: profileData?['ski_club'],
+            gender: storedGender,
+            skillLevel: profileData?['skill_level'],
             unitSystem: 'metric',
             language: 'it',
             themeMode: _themeMode,
@@ -933,6 +956,9 @@ class AppState extends ChangeNotifier {
             height: (profileData['height'] as num?)?.toDouble() ?? 175.0,
             maxHr: profileData['max_hr'] ?? 190,
             avatarUrl: profileData['avatar_url'] ?? '',
+            skiClub: profileData['ski_club'],
+            gender: storedGender,
+            skillLevel: profileData['skill_level'],
             unitSystem: _prefs!.getString('unitSystem') ?? 'metric',
             language: _prefs!.getString('language') ?? 'it',
             themeMode: _themeMode,
@@ -1025,6 +1051,23 @@ class AppState extends ChangeNotifier {
     final RegExp regex = RegExp(
         r'^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$');
     return regex.hasMatch(id);
+  }
+
+  String? _normalizePersistedGender(dynamic value) {
+    final normalized = value?.toString().trim().toLowerCase();
+    if (normalized == 'm' ||
+        normalized == 'male' ||
+        normalized == 'maschio' ||
+        normalized == 'maschile') {
+      return 'M';
+    }
+    if (normalized == 'f' ||
+        normalized == 'female' ||
+        normalized == 'femmina' ||
+        normalized == 'femminile') {
+      return 'F';
+    }
+    return null;
   }
 
   // ==== SUPABASE LOADERS ====
@@ -1510,7 +1553,7 @@ class AppState extends ChangeNotifier {
     }
   }
 
-  Future<void> _saveUserProfile() async {
+  Future<void> _saveUserProfile({bool rethrowOnError = false}) async {
     final profile = _userProfile;
     if (profile == null) return;
 
@@ -1555,6 +1598,7 @@ class AppState extends ChangeNotifier {
           .setBool('notificationsEnabled', ownedProfile.notificationsEnabled);
     } catch (e) {
       debugPrint('Error saving profile: $e');
+      if (rethrowOnError) rethrow;
     }
   }
 
