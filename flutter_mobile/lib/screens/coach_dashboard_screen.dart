@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../core/theme.dart';
+import '../widgets/bottom_nav.dart';
 import '../data/workout_catalog.dart';
 import '../providers/app_state.dart';
 import '../models/models.dart';
@@ -42,7 +43,6 @@ class _CoachDashboardScreenState extends State<CoachDashboardScreen> {
       ];
 
   void _onTabTapped(int index) {
-    HapticFeedback.selectionClick();
     setState(() {
       _currentIndex = index;
     });
@@ -307,46 +307,10 @@ class _CoachDashboardScreenState extends State<CoachDashboardScreen> {
         index: _currentIndex,
         children: _pages,
       ),
-      bottomNavigationBar: Container(
-        decoration: BoxDecoration(
-          color: AppTheme.background,
-          border: Border(top: BorderSide(color: AppTheme.divider, width: 1)),
-        ),
-        child: BottomNavigationBar(
-          backgroundColor: AppTheme.background,
-          type: BottomNavigationBarType.fixed,
-          currentIndex: _currentIndex,
-          selectedItemColor: AppTheme.primary,
-          unselectedItemColor: AppTheme.textMediumEmphasis,
-          onTap: _onTabTapped,
-          items: const [
-            BottomNavigationBarItem(
-              icon: Icon(Icons.home_outlined),
-              activeIcon: Icon(Icons.home),
-              label: 'Home',
-            ),
-            BottomNavigationBarItem(
-              icon: Icon(Icons.content_paste_outlined),
-              activeIcon: Icon(Icons.content_paste),
-              label: 'Report',
-            ),
-            BottomNavigationBarItem(
-              icon: Icon(Icons.list_alt_outlined),
-              activeIcon: Icon(Icons.list_alt),
-              label: 'Plan',
-            ),
-            BottomNavigationBarItem(
-              icon: Icon(Icons.group_outlined),
-              activeIcon: Icon(Icons.group),
-              label: 'Team',
-            ),
-            BottomNavigationBarItem(
-              icon: Icon(Icons.person_outline),
-              activeIcon: Icon(Icons.person),
-              label: 'Profilo',
-            ),
-          ],
-        ),
+      bottomNavigationBar: BottomNav(
+        currentIndex: _currentIndex,
+        onTap: _onTabTapped,
+        isCoach: true,
       ),
       floatingActionButton: _currentIndex == 0
           ? FloatingActionButton(
@@ -561,8 +525,7 @@ class _CoachHomeViewState extends State<_CoachHomeView> {
                             fontSize: 24,
                             fontWeight: FontWeight.bold)),
                     Container(
-                      decoration: BoxDecoration(
-                          color: AppTheme.card,
+                      decoration: AppTheme.panelDecoration(
                           borderRadius: BorderRadius.circular(12),
                           border: Border.all(color: AppTheme.subtleBorder)),
                       child: Row(
@@ -619,8 +582,7 @@ class _CoachHomeViewState extends State<_CoachHomeView> {
                 const SizedBox(height: 20),
                 Container(
                   padding: const EdgeInsets.all(20),
-                  decoration: BoxDecoration(
-                      color: AppTheme.card,
+                  decoration: AppTheme.panelDecoration(
                       borderRadius: BorderRadius.circular(20),
                       border: Border.all(color: AppTheme.subtleBorder)),
                   child: Column(
@@ -784,8 +746,7 @@ class _CoachHomeViewState extends State<_CoachHomeView> {
           children: [
             Container(
               padding: const EdgeInsets.all(20),
-              decoration: BoxDecoration(
-                  color: AppTheme.card,
+              decoration: AppTheme.panelDecoration(
                   borderRadius: BorderRadius.circular(16)),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -1165,8 +1126,8 @@ class _CoachReportViewState extends State<_CoachReportView> {
           const SizedBox(height: 24),
           Container(
             padding: const EdgeInsets.all(24),
-            decoration: BoxDecoration(
-                color: AppTheme.card, borderRadius: BorderRadius.circular(16)),
+            decoration: AppTheme.panelDecoration(
+                borderRadius: BorderRadius.circular(16)),
             child: Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -1206,8 +1167,7 @@ class _CoachReportViewState extends State<_CoachReportView> {
               Expanded(
                 child: Container(
                   height: 48,
-                  decoration: BoxDecoration(
-                      color: AppTheme.card,
+                  decoration: AppTheme.panelDecoration(
                       borderRadius: BorderRadius.circular(12)),
                   child: TextField(
                     onChanged: (val) => setState(() => _searchQuery = val),
@@ -1247,8 +1207,7 @@ class _CoachReportViewState extends State<_CoachReportView> {
           else if (_athletes.isEmpty)
             Container(
               padding: const EdgeInsets.all(32),
-              decoration: BoxDecoration(
-                  color: AppTheme.card,
+              decoration: AppTheme.panelDecoration(
                   borderRadius: BorderRadius.circular(16)),
               child: Center(
                 child: Text('Nessun atleta trovato',
@@ -1281,8 +1240,7 @@ class _CoachReportViewState extends State<_CoachReportView> {
           : null,
       child: Container(
         padding: const EdgeInsets.all(18),
-        decoration: BoxDecoration(
-          color: AppTheme.card,
+        decoration: AppTheme.panelDecoration(
           borderRadius: BorderRadius.circular(16),
           border: Border.all(color: AppTheme.subtleBorder),
         ),
@@ -1378,8 +1336,8 @@ class _CoachReportViewState extends State<_CoachReportView> {
       child: Container(
         margin: const EdgeInsets.only(bottom: 12),
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-        decoration: BoxDecoration(
-            color: AppTheme.card, borderRadius: BorderRadius.circular(16)),
+        decoration:
+            AppTheme.panelDecoration(borderRadius: BorderRadius.circular(16)),
         child: Row(
           children: [
             CircleAvatar(
@@ -1616,8 +1574,7 @@ class _CoachTrainingViewState extends State<_CoachTrainingView> {
               Expanded(
                 child: Container(
                   height: 48,
-                  decoration: BoxDecoration(
-                      color: AppTheme.card,
+                  decoration: AppTheme.panelDecoration(
                       borderRadius: BorderRadius.circular(12)),
                   child: TextField(
                     onChanged: (val) => setState(() => _searchQuery = val),
@@ -1711,8 +1668,8 @@ class _CoachTrainingViewState extends State<_CoachTrainingView> {
           Container(
             margin: const EdgeInsets.only(bottom: 16),
             padding: const EdgeInsets.all(20),
-            decoration: BoxDecoration(
-                color: AppTheme.card, borderRadius: BorderRadius.circular(16)),
+            decoration: AppTheme.panelDecoration(
+                borderRadius: BorderRadius.circular(16)),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [

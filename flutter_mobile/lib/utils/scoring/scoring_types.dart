@@ -296,6 +296,10 @@ class DailyWearableData {
   final double? totalSleepTimeMinutes;
   final double? deepSleepMinutes;
   final double? remSleepMinutes;
+  final double? lightSleepMinutes;
+
+  /// Stable platform/source/device identity; null for unknown or mixed sources.
+  final String? sleepStageSource;
   final double? timeInBedMinutes;
   final DateTime? sleepOnsetTimestamp;
   final DateTime? sleepWakeTimestamp;
@@ -315,6 +319,8 @@ class DailyWearableData {
     this.totalSleepTimeMinutes,
     this.deepSleepMinutes,
     this.remSleepMinutes,
+    this.lightSleepMinutes,
+    this.sleepStageSource,
     this.timeInBedMinutes,
     this.sleepOnsetTimestamp,
     this.sleepWakeTimestamp,
@@ -342,6 +348,8 @@ class DailyWearableData {
       totalSleepTimeMinutes: totalSleepTimeMinutes,
       deepSleepMinutes: deepSleepMinutes,
       remSleepMinutes: remSleepMinutes,
+      lightSleepMinutes: lightSleepMinutes,
+      sleepStageSource: sleepStageSource,
       timeInBedMinutes: timeInBedMinutes,
       sleepOnsetTimestamp: sleepOnsetTimestamp,
       sleepWakeTimestamp: sleepWakeTimestamp,

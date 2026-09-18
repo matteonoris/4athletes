@@ -25,6 +25,19 @@ class MainActivity: FlutterFragmentActivity() {
 
     override fun configureFlutterEngine(@NonNull flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
+        MethodChannel(flutterEngine.dartExecutor.binaryMessenger,
+            "com.4athletes.health/execution").setMethodCallHandler { call, result ->
+            val serviceIntent = android.content.Intent(this, HealthSyncExecutionService::class.java)
+            try {
+                when (call.method) {
+                    "begin" -> { startForegroundService(serviceIntent); result.success(null) }
+                    "end" -> { stopService(serviceIntent); result.success(null) }
+                    else -> result.notImplemented()
+                }
+            } catch (e: Exception) {
+                result.error("BACKGROUND_UNAVAILABLE", e.message, null)
+            }
+        }
         MethodChannel(flutterEngine.dartExecutor.binaryMessenger, CHANNEL).setMethodCallHandler {
             call, result ->
             if (call.method == "getRRIntervals") {

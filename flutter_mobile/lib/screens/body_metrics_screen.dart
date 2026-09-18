@@ -104,8 +104,7 @@ class _BodyMetricsScreenState extends State<BodyMetricsScreen> {
                     child: Container(
                       padding: const EdgeInsets.symmetric(
                           vertical: 12, horizontal: 16),
-                      decoration: BoxDecoration(
-                        color: AppTheme.surface,
+                      decoration: AppTheme.panelDecoration(
                         borderRadius: BorderRadius.circular(12),
                       ),
                       child: Row(

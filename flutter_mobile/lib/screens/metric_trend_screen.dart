@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:fl_chart/fl_chart.dart';
 import 'package:intl/intl.dart';
 import '../core/theme.dart';
+import '../widgets/custom_card.dart';
 import '../utils/health_display_utils.dart';
 
 class MetricTrendScreen extends StatelessWidget {
@@ -59,10 +60,8 @@ class MetricTrendScreen extends StatelessWidget {
         padding: const EdgeInsets.all(24),
         children: [
           // Statistiche
-          Card(
-            color: AppTheme.card,
-            shape:
-                RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          CustomCard(
+            padding: EdgeInsets.zero,
             child: Padding(
               padding: const EdgeInsets.all(24.0),
               child: Column(

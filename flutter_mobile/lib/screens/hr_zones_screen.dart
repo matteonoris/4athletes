@@ -80,8 +80,7 @@ class _HrZonesScreenState extends State<HrZonesScreen> {
     return Container(
       margin: const EdgeInsets.only(bottom: 16),
       padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: AppTheme.card,
+      decoration: AppTheme.panelDecoration(
         borderRadius: BorderRadius.circular(12),
         border: Border.all(color: AppTheme.subtleBorder),
       ),
@@ -190,8 +189,7 @@ class _HrZonesScreenState extends State<HrZonesScreen> {
 
           // Radio Options
           Container(
-            decoration: BoxDecoration(
-              color: AppTheme.card,
+            decoration: AppTheme.panelDecoration(
               borderRadius: BorderRadius.circular(16),
             ),
             clipBehavior: Clip.antiAlias,

@@ -12,6 +12,8 @@ import 'core/theme.dart';
 import 'providers/app_state.dart';
 import 'screens/auth_screen.dart';
 import 'screens/home_screen.dart';
+import 'screens/health_screen.dart';
+import 'widgets/health_score_notice_host.dart';
 import 'screens/coach_dashboard_screen.dart';
 import 'services/training_reminder_notification_service.dart';
 
@@ -71,6 +73,16 @@ class FourAthletesApp extends StatefulWidget {
 
 class _FourAthletesAppState extends State<FourAthletesApp>
     with WidgetsBindingObserver {
+  final _navigatorKey = GlobalKey<NavigatorState>();
+
+  Future<void> _openHealthScores() async {
+    final state = context.read<AppState>();
+    await state.syncDailyHealthData(DateTime.now());
+    if (!mounted || !state.isLoggedIn) return;
+    await _navigatorKey.currentState
+        ?.push(MaterialPageRoute(builder: (_) => const HealthScreen()));
+  }
+
   @override
   void initState() {
     super.initState();
@@ -127,6 +139,12 @@ class _FourAthletesAppState extends State<FourAthletesApp>
     }
 
     return MaterialApp(
+      navigatorKey: _navigatorKey,
+      builder: (context, child) => HealthScoreNoticeHost(
+        state: context.read<AppState>(),
+        onOpenScores: () => unawaited(_openHealthScores()),
+        child: child ?? const SizedBox.shrink(),
+      ),
       title: '4athletes',
       debugShowCheckedModeBanner: false,
       localizationsDelegates: const [

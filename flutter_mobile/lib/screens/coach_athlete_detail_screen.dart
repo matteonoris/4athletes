@@ -10,6 +10,7 @@ import '../providers/app_state.dart';
 import '../utils/coach_training_utils.dart';
 import '../utils/training_metrics_utils.dart';
 import '../utils/time_utils.dart';
+import '../utils/health_display_utils.dart';
 import 'activity_details_screen.dart';
 import 'analytics_details_screen.dart';
 import 'coach_athlete_activity_history_screen.dart';
@@ -218,7 +219,9 @@ class _CoachAthleteDetailScreenState extends State<CoachAthleteDetailScreen> {
     return filtered.isNotEmpty ? filtered.first.weight : 0;
   }
 
-  List<BodyMetricLog> _logsOf(String type) => _bodyLogs
+  List<BodyMetricLog> _logsOf(String type) => (isWellnessScoreType(type)
+          ? canonicalWellnessScoreLogs(_bodyLogs)
+          : _bodyLogs)
       .where((l) => l.type == type)
       .toList()
     ..sort((a, b) => DateTime.parse(a.date).compareTo(DateTime.parse(b.date)));
@@ -431,8 +434,7 @@ class _CoachAthleteDetailScreenState extends State<CoachAthleteDetailScreen> {
                 if (completedSessions.isEmpty)
                   Container(
                     padding: const EdgeInsets.all(32),
-                    decoration: BoxDecoration(
-                        color: AppTheme.card,
+                    decoration: AppTheme.panelDecoration(
                         borderRadius: BorderRadius.circular(16)),
                     child: Center(
                         child: Text('Nessun allenamento svolto',
@@ -495,8 +497,7 @@ class _CoachAthleteDetailScreenState extends State<CoachAthleteDetailScreen> {
 
     return Container(
       padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: AppTheme.card,
+      decoration: AppTheme.panelDecoration(
         borderRadius: BorderRadius.circular(14),
       ),
       child: Column(
@@ -603,8 +604,8 @@ class _CoachAthleteDetailScreenState extends State<CoachAthleteDetailScreen> {
       Expanded(
           child: Container(
         padding: const EdgeInsets.symmetric(vertical: 18, horizontal: 10),
-        decoration: BoxDecoration(
-            color: AppTheme.card, borderRadius: BorderRadius.circular(14)),
+        decoration:
+            AppTheme.panelDecoration(borderRadius: BorderRadius.circular(14)),
         child: Column(children: [
           Text('PRESENZE',
               style: TextStyle(
@@ -647,8 +648,8 @@ class _CoachAthleteDetailScreenState extends State<CoachAthleteDetailScreen> {
       },
       child: Container(
         padding: const EdgeInsets.all(16),
-        decoration: BoxDecoration(
-            color: AppTheme.card, borderRadius: BorderRadius.circular(14)),
+        decoration:
+            AppTheme.panelDecoration(borderRadius: BorderRadius.circular(14)),
         child: Row(
           children: [
             Container(
@@ -745,8 +746,8 @@ class _CoachAthleteDetailScreenState extends State<CoachAthleteDetailScreen> {
   Widget _buildStatCard(String label, String value, Color valueColor) {
     return Container(
       padding: const EdgeInsets.symmetric(vertical: 18, horizontal: 10),
-      decoration: BoxDecoration(
-          color: AppTheme.card, borderRadius: BorderRadius.circular(14)),
+      decoration:
+          AppTheme.panelDecoration(borderRadius: BorderRadius.circular(14)),
       child: Column(children: [
         Text(label,
             style: TextStyle(
@@ -785,8 +786,7 @@ class _CoachAthleteDetailScreenState extends State<CoachAthleteDetailScreen> {
       child: Container(
         height: 140,
         padding: const EdgeInsets.all(12),
-        decoration: BoxDecoration(
-          color: AppTheme.card,
+        decoration: AppTheme.panelDecoration(
           borderRadius: BorderRadius.circular(16),
           border: Border.all(color: color.withValues(alpha: 0.15)),
         ),
@@ -880,27 +880,29 @@ class _CoachAthleteDetailScreenState extends State<CoachAthleteDetailScreen> {
               )),
           child: Container(
             padding: const EdgeInsets.all(8),
-            decoration: BoxDecoration(
-              color: AppTheme.card,
+            decoration: AppTheme.panelDecoration(
               borderRadius: BorderRadius.circular(14),
             ),
             child:
                 Column(mainAxisAlignment: MainAxisAlignment.center, children: [
               RichText(
                 textAlign: TextAlign.center,
-                text: TextSpan(children: [
-                  TextSpan(
-                      text: val > 0 ? val.toStringAsFixed(2) : '--',
-                      style: const TextStyle(
-                          fontSize: 20,
-                          fontWeight: FontWeight.bold,
-                          color: Colors.white)),
-                  if (val > 0)
-                    TextSpan(
-                        text: ' cm',
-                        style: TextStyle(
-                            fontSize: 11, color: AppTheme.textMediumEmphasis)),
-                ]),
+                text: TextSpan(
+                    style: const TextStyle(fontFamily: 'Lexend'),
+                    children: [
+                      TextSpan(
+                          text: val > 0 ? val.toStringAsFixed(2) : '--',
+                          style: TextStyle(
+                              fontSize: 20,
+                              fontWeight: FontWeight.bold,
+                              color: AppTheme.textHighEmphasis)),
+                      if (val > 0)
+                        TextSpan(
+                            text: ' cm',
+                            style: TextStyle(
+                                fontSize: 11,
+                                color: AppTheme.textMediumEmphasis)),
+                    ]),
               ),
               if (rsiVal > 0) ...[
                 const SizedBox(height: 3),
@@ -965,8 +967,8 @@ class _CoachAthleteDetailScreenState extends State<CoachAthleteDetailScreen> {
               )),
           child: Container(
             padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-            decoration: BoxDecoration(
-                color: AppTheme.card, borderRadius: BorderRadius.circular(12)),
+            decoration: AppTheme.panelDecoration(
+                borderRadius: BorderRadius.circular(12)),
             child: Row(children: [
               Expanded(
                 child: Text(label,
@@ -975,8 +977,8 @@ class _CoachAthleteDetailScreenState extends State<CoachAthleteDetailScreen> {
                         fontSize: 12,
                         fontWeight: FontWeight.bold)),
               ),
-              RichText(
-                text: TextSpan(children: [
+              Text.rich(
+                TextSpan(children: [
                   TextSpan(
                       text: val > 0 ? val.toStringAsFixed(2) : '--',
                       style: TextStyle(
@@ -1071,8 +1073,8 @@ class _CoachAthleteDetailScreenState extends State<CoachAthleteDetailScreen> {
               )),
           child: Container(
             padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-            decoration: BoxDecoration(
-                color: AppTheme.card, borderRadius: BorderRadius.circular(12)),
+            decoration: AppTheme.panelDecoration(
+                borderRadius: BorderRadius.circular(12)),
             child: Row(children: [
               Expanded(
                 child: Text(label,
@@ -1081,10 +1083,12 @@ class _CoachAthleteDetailScreenState extends State<CoachAthleteDetailScreen> {
                         fontSize: 12,
                         fontWeight: FontWeight.bold)),
               ),
-              RichText(
-                text: TextSpan(children: [
+              Text.rich(
+                TextSpan(children: [
                   TextSpan(
-                      text: val > 0 ? val.toStringAsFixed(decimals) : '--',
+                      text: (isWellnessScoreType(t) ? logs.isNotEmpty : val > 0)
+                          ? val.toStringAsFixed(decimals)
+                          : '--',
                       style: TextStyle(
                           color: AppTheme.textHighEmphasis,
                           fontSize: 18,

@@ -7,6 +7,7 @@ import 'package:timezone/data/latest_all.dart' as tz;
 import 'package:timezone/timezone.dart' as tz;
 
 import '../models/models.dart';
+import '../models/health_score_update.dart';
 
 class TrainingReminderNotificationService {
   TrainingReminderNotificationService._();
@@ -30,6 +31,8 @@ class TrainingReminderNotificationService {
       FlutterLocalNotificationsPlugin();
 
   bool _initialized = false;
+  static const int _healthScoresReadyId = 2302;
+  final ValueNotifier<String?> healthScoreNotificationTap = ValueNotifier(null);
 
   Future<void> initialize() async {
     if (_initialized || kIsWeb) return;
@@ -49,8 +52,48 @@ class TrainingReminderNotificationService {
       macOS: darwinSettings,
     );
 
-    await _plugin.initialize(settings);
+    await _plugin.initialize(settings,
+        onDidReceiveNotificationResponse: (response) {
+      if (response.payload?.startsWith('health_scores_ready:') == true) {
+        healthScoreNotificationTap.value = response.payload;
+      }
+    });
+    final launch = await _plugin.getNotificationAppLaunchDetails();
+    if (launch?.didNotificationLaunchApp == true &&
+        launch?.notificationResponse?.payload
+                ?.startsWith('health_scores_ready:') ==
+            true) {
+      healthScoreNotificationTap.value = launch!.notificationResponse!.payload;
+    }
     _initialized = true;
+  }
+
+  /// No permission prompt during a refresh; uses the existing notification opt-in.
+  Future<bool> showHealthScoresReady(
+    HealthScoreUpdate update, {
+    required bool Function() canNotify,
+  }) async {
+    if (!canNotify() || !await areNotificationsAllowed() || !canNotify()) {
+      return false;
+    }
+    await _plugin.show(
+      _healthScoresReadyId,
+      update.title,
+      update.message,
+      const NotificationDetails(
+        android: AndroidNotificationDetails(
+            'health_scores_ready', 'Punteggi pronti',
+            channelDescription:
+                'Avviso al termine del calcolo di sonno e recupero.',
+            importance: Importance.high,
+            priority: Priority.high,
+            visibility: NotificationVisibility.private),
+        iOS: DarwinNotificationDetails(
+            presentAlert: true, presentBanner: true, presentSound: true),
+      ),
+      payload: 'health_scores_ready:${update.dateKey}',
+    );
+    return true;
   }
 
   Future<void> syncForProfile(
@@ -238,6 +281,8 @@ class TrainingReminderNotificationService {
   Future<void> cancelAllReminders() async {
     await cancelDailyTrainingReminder();
     await cancelWeightMeasurementReminder();
+    await _plugin.cancel(_healthScoresReadyId);
+    healthScoreNotificationTap.value = null;
   }
 
   Future<void> _configureLocalTimeZone() async {

@@ -251,8 +251,7 @@ class _ActivitySelectScreenState extends State<ActivitySelectScreen> {
     return Container(
       key: key,
       margin: const EdgeInsets.only(bottom: 8),
-      decoration: BoxDecoration(
-        color: AppTheme.card,
+      decoration: AppTheme.panelDecoration(
         borderRadius: BorderRadius.circular(14),
         border: Border.all(color: AppTheme.subtleBorder),
       ),

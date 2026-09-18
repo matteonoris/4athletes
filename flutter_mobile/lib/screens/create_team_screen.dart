@@ -173,8 +173,7 @@ class _CreateTeamScreenState extends State<CreateTeamScreen> {
         const SizedBox(height: 32),
         Container(
           padding: const EdgeInsets.all(24),
-          decoration: BoxDecoration(
-            color: AppTheme.surface,
+          decoration: AppTheme.panelDecoration(
             borderRadius: BorderRadius.circular(16),
             border: Border.all(
                 color: AppTheme.secondary.withValues(alpha: 0.3), width: 2),

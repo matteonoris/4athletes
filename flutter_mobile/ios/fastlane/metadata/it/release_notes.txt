@@ -1,7 +1,7 @@
-Questa build TestFlight introduce una valutazione immediata dei test atletici nella sezione Analytics.
+Questo aggiornamento rinnova l'intera app partendo dall'esperienza Daily Readiness.
 
-- Colora le schede dei test in rosso, giallo o verde in base alle tabelle di riferimento.
-- Applica automaticamente le soglie corrette per sesso e fascia di età, inclusa la categoria SENIOR oltre i 21 anni.
-- Valuta salto, velocità, capacità aerobica, equilibrio, core e forza mantenendo invariata la struttura di Analytics.
-- Rende obbligatoria la scelta del sesso durante l'iscrizione.
-- Corregge il completamento e il salvataggio dei profili creati tramite Google o Apple quando il sesso è ancora mancante.
+- Estende lo stile della scheda Sonno, Sforzo e Recupero alle schermate atleta e coach.
+- Introduce temi chiaro e scuro più leggibili, nuova barra di navigazione, schede, controlli e tipografia coerenti.
+- Migliora l'aggiornamento dei dati salute e la sincronizzazione in background con indicazioni più chiare.
+- Affina il calcolo e la calibrazione di sonno e recupero, lo storico giornaliero e i grafici wellness.
+- Mantiene il modulo dedicato allo sci alpino e migliora i layout compatti di Analytics e allenamenti.

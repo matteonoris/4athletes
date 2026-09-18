@@ -54,8 +54,7 @@ class WorkoutPhaseEditor extends StatelessWidget {
     final primaryIsConditioning = editorKind == WorkoutEditorKind.circuit &&
         phase.type == TrainingPhase.main;
     return Container(
-      decoration: BoxDecoration(
-        color: AppTheme.card,
+      decoration: AppTheme.panelDecoration(
         borderRadius: BorderRadius.circular(16),
         border: Border.all(color: AppTheme.subtleBorder),
       ),
@@ -197,8 +196,7 @@ class WorkoutPhaseEditor extends StatelessWidget {
     final isExercise = _isExercise(block);
     return Container(
       margin: const EdgeInsets.fromLTRB(12, 10, 12, 0),
-      decoration: BoxDecoration(
-        color: AppTheme.surface,
+      decoration: AppTheme.panelDecoration(
         borderRadius: BorderRadius.circular(12),
         border: Border.all(color: AppTheme.subtleBorder),
       ),

@@ -112,13 +112,15 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
           ],
         ),
         const SizedBox(height: 12),
-        GridView.count(
-          crossAxisCount: 2,
-          mainAxisSpacing: 12,
-          crossAxisSpacing: 12,
+        GridView(
+          gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+            crossAxisCount: 2,
+            mainAxisSpacing: 12,
+            crossAxisSpacing: 12,
+            mainAxisExtent: 112 * MediaQuery.textScalerOf(context).scale(1),
+          ),
           shrinkWrap: true,
           physics: const NeverScrollableScrollPhysics(),
-          childAspectRatio: 1.8,
           children: visibleIds
               .map(
                 (exerciseId) => GestureDetector(
@@ -242,8 +244,7 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
           if (appState.teams.length > 1) ...[
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 16),
-              decoration: BoxDecoration(
-                color: AppTheme.card,
+              decoration: AppTheme.panelDecoration(
                 borderRadius: BorderRadius.circular(12),
                 border: Border.all(
                   color: AppTheme.textLowEmphasis.withValues(alpha: 0.2),
@@ -406,8 +407,8 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
                                   children: [
                                     FittedBox(
                                       fit: BoxFit.scaleDown,
-                                      child: RichText(
-                                        text: TextSpan(
+                                      child: Text.rich(
+                                        TextSpan(
                                           style: TextStyle(
                                               color: AppTheme.textHighEmphasis),
                                           children: [
@@ -469,8 +470,8 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
                                   children: [
                                     FittedBox(
                                       fit: BoxFit.scaleDown,
-                                      child: RichText(
-                                        text: TextSpan(
+                                      child: Text.rich(
+                                        TextSpan(
                                           style: TextStyle(
                                               color: AppTheme.textHighEmphasis),
                                           children: [
@@ -570,13 +571,15 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
                   letterSpacing: 1.5,
                   fontWeight: FontWeight.bold)),
           const SizedBox(height: 12),
-          GridView.count(
-            crossAxisCount: 2,
-            mainAxisSpacing: 8,
-            crossAxisSpacing: 8,
+          GridView(
+            gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+              crossAxisCount: 2,
+              mainAxisSpacing: 8,
+              crossAxisSpacing: 8,
+              mainAxisExtent: 112 * MediaQuery.textScalerOf(context).scale(1),
+            ),
             shrinkWrap: true,
             physics: const NeverScrollableScrollPhysics(),
-            childAspectRatio: 2.2,
             children: [
               GestureDetector(
                 onTap: () => Navigator.push(
@@ -657,13 +660,15 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
                   letterSpacing: 1.5,
                   fontWeight: FontWeight.bold)),
           const SizedBox(height: 12),
-          GridView.count(
-            crossAxisCount: 2,
-            mainAxisSpacing: 8,
-            crossAxisSpacing: 8,
+          GridView(
+            gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+              crossAxisCount: 2,
+              mainAxisSpacing: 8,
+              crossAxisSpacing: 8,
+              mainAxisExtent: 112 * MediaQuery.textScalerOf(context).scale(1),
+            ),
             shrinkWrap: true,
             physics: const NeverScrollableScrollPhysics(),
-            childAspectRatio: 2.2,
             children: [
               GestureDetector(
                 onTap: () => Navigator.push(
@@ -725,13 +730,15 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
                   letterSpacing: 1.5,
                   fontWeight: FontWeight.bold)),
           const SizedBox(height: 12),
-          GridView.count(
-            crossAxisCount: 2,
-            mainAxisSpacing: 8,
-            crossAxisSpacing: 8,
+          GridView(
+            gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+              crossAxisCount: 2,
+              mainAxisSpacing: 8,
+              crossAxisSpacing: 8,
+              mainAxisExtent: 112 * MediaQuery.textScalerOf(context).scale(1),
+            ),
             shrinkWrap: true,
             physics: const NeverScrollableScrollPhysics(),
-            childAspectRatio: 2.2,
             children: [
               GestureDetector(
                 onTap: () => Navigator.push(
@@ -870,8 +877,8 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
                                     .toUpperCase(),
                                 style: const TextStyle(
                                     fontSize: 14, fontWeight: FontWeight.bold)),
-                            RichText(
-                              text: TextSpan(
+                            Text.rich(
+                              TextSpan(
                                 style: TextStyle(
                                     fontSize: 12,
                                     color: AppTheme.textMediumEmphasis),
@@ -946,26 +953,32 @@ class _JumpCard extends StatelessWidget {
           Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              RichText(
-                textAlign: TextAlign.center,
-                text: TextSpan(
-                  style: TextStyle(color: AppTheme.textHighEmphasis),
-                  children: [
-                    TextSpan(
-                        text: val > 0
-                            ? (unitSystem == 'metric'
-                                ? val.toStringAsFixed(2)
-                                : (val * 0.393701).toStringAsFixed(2))
-                            : '--',
-                        style: const TextStyle(
-                            fontSize: 18, fontWeight: FontWeight.bold)),
-                    TextSpan(
-                        text: unit.isNotEmpty ? ' $unit' : '',
-                        style: TextStyle(
-                            fontSize: 12, color: AppTheme.textMediumEmphasis)),
-                  ],
-                ),
-              ),
+              FittedBox(
+                  fit: BoxFit.scaleDown,
+                  alignment: Alignment.center,
+                  child: RichText(
+                    textAlign: TextAlign.center,
+                    text: TextSpan(
+                      style: TextStyle(
+                          fontFamily: 'Lexend',
+                          color: AppTheme.textHighEmphasis),
+                      children: [
+                        TextSpan(
+                            text: val > 0
+                                ? (unitSystem == 'metric'
+                                    ? val.toStringAsFixed(2)
+                                    : (val * 0.393701).toStringAsFixed(2))
+                                : '--',
+                            style: const TextStyle(
+                                fontSize: 18, fontWeight: FontWeight.bold)),
+                        TextSpan(
+                            text: unit.isNotEmpty ? ' $unit' : '',
+                            style: TextStyle(
+                                fontSize: 12,
+                                color: AppTheme.textMediumEmphasis)),
+                      ],
+                    ),
+                  )),
               const SizedBox(height: 4),
               Text(title,
                   textAlign: TextAlign.center,
@@ -1046,11 +1059,11 @@ class _AllMaxLoadsScreenState extends State<_AllMaxLoadsScreen> {
       ),
       body: GridView.builder(
         padding: const EdgeInsets.all(16),
-        gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+        gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
           crossAxisCount: 2,
           mainAxisSpacing: 12,
           crossAxisSpacing: 12,
-          childAspectRatio: 1.8,
+          mainAxisExtent: 112 * MediaQuery.textScalerOf(context).scale(1),
         ),
         itemCount: exerciseIds.length,
         itemBuilder: (_, index) {
@@ -1221,30 +1234,36 @@ class _MaxLoadCard extends StatelessWidget {
           ),
           const Spacer(),
           Text(title.toUpperCase(),
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
               style: TextStyle(
                   fontSize: 10,
                   fontWeight: FontWeight.bold,
                   color: AppTheme.textMediumEmphasis)),
-          RichText(
-            text: TextSpan(
-              style: TextStyle(color: AppTheme.textHighEmphasis),
-              children: [
+          FittedBox(
+              fit: BoxFit.scaleDown,
+              alignment: Alignment.centerLeft,
+              child: Text.rich(
                 TextSpan(
-                    text: hasPr ? val.toStringAsFixed(decimals) : '--',
-                    style: TextStyle(
-                        fontSize: 24,
-                        fontWeight: FontWeight.w900,
-                        color: hasPr
-                            ? AppTheme.textHighEmphasis
-                            : AppTheme.textMediumEmphasis)),
-                if (hasPr)
-                  TextSpan(
-                      text: ' $unit',
-                      style: TextStyle(
-                          fontSize: 12, color: AppTheme.textMediumEmphasis)),
-              ],
-            ),
-          ),
+                  style: TextStyle(color: AppTheme.textHighEmphasis),
+                  children: [
+                    TextSpan(
+                        text: hasPr ? val.toStringAsFixed(decimals) : '--',
+                        style: TextStyle(
+                            fontSize: 24,
+                            fontWeight: FontWeight.w900,
+                            color: hasPr
+                                ? AppTheme.textHighEmphasis
+                                : AppTheme.textMediumEmphasis)),
+                    if (hasPr)
+                      TextSpan(
+                          text: ' $unit',
+                          style: TextStyle(
+                              fontSize: 12,
+                              color: AppTheme.textMediumEmphasis)),
+                  ],
+                ),
+              )),
         ],
       ),
     );
@@ -1367,8 +1386,7 @@ class _HistorySection extends StatelessWidget {
                     child: Container(
                       padding: const EdgeInsets.symmetric(
                           vertical: 16, horizontal: 16),
-                      decoration: BoxDecoration(
-                        color: AppTheme.surface,
+                      decoration: AppTheme.panelDecoration(
                         borderRadius: BorderRadius.circular(12),
                       ),
                       child: Row(
@@ -1503,8 +1521,8 @@ class _HistorySection extends StatelessWidget {
                 Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    RichText(
-                      text: TextSpan(
+                    Text.rich(
+                      TextSpan(
                         children: [
                           TextSpan(
                               text: displayVal
@@ -1673,8 +1691,8 @@ class _AllSessionsScreen extends StatelessWidget {
                                   .toUpperCase(),
                               style: const TextStyle(
                                   fontSize: 14, fontWeight: FontWeight.bold)),
-                          RichText(
-                            text: TextSpan(
+                          Text.rich(
+                            TextSpan(
                               style: TextStyle(
                                   fontSize: 12,
                                   color: AppTheme.textMediumEmphasis),

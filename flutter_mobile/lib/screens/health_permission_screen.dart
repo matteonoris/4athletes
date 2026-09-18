@@ -110,8 +110,7 @@ class _HealthPermissionScreenState extends State<HealthPermissionScreen> {
               Expanded(
                 child: Container(
                   padding: const EdgeInsets.all(16),
-                  decoration: BoxDecoration(
-                    color: AppTheme.card,
+                  decoration: AppTheme.panelDecoration(
                     borderRadius: BorderRadius.circular(16),
                     border: Border.all(color: AppTheme.subtleBorder),
                   ),

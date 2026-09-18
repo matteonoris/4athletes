@@ -42,8 +42,7 @@ class RunningWorkoutEditor extends StatelessWidget {
         mode == RunningWorkoutMode.intervals;
     return Container(
       key: ValueKey('running_phase_${phase.type}'),
-      decoration: BoxDecoration(
-        color: AppTheme.card,
+      decoration: AppTheme.panelDecoration(
         borderRadius: BorderRadius.circular(16),
         border: Border.all(color: AppTheme.subtleBorder),
       ),
@@ -229,8 +228,7 @@ class RunningWorkoutEditor extends StatelessWidget {
   ) {
     return Container(
       margin: const EdgeInsets.only(bottom: 10),
-      decoration: BoxDecoration(
-        color: AppTheme.surface,
+      decoration: AppTheme.panelDecoration(
         borderRadius: BorderRadius.circular(12),
         border: Border.all(color: AppTheme.subtleBorder),
       ),

@@ -614,11 +614,11 @@ class _SkiActivityScreenState extends State<SkiActivityScreen> {
           const SizedBox(height: 12),
           Row(
             children: [
-              Expanded(child: _dateField()),
+              Expanded(flex: 3, child: _dateField()),
               const SizedBox(width: 8),
-              Expanded(child: _timeField('Inizio', _startTime, true)),
+              Expanded(flex: 2, child: _timeField('Inizio', _startTime, true)),
               const SizedBox(width: 8),
-              Expanded(child: _timeField('Fine', _endTime, false)),
+              Expanded(flex: 2, child: _timeField('Fine', _endTime, false)),
             ],
           ),
           const SizedBox(height: 12),

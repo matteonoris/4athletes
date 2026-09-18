@@ -3,6 +3,7 @@ import 'dart:math' as math;
 import 'algorithm_config.dart';
 import 'math_helpers.dart';
 import 'scoring_types.dart';
+import 'daily_history.dart';
 
 ScoreResult calculateRecoveryScoreResult(
   AthleteProfile profile,
@@ -11,8 +12,8 @@ ScoreResult calculateRecoveryScoreResult(
   ScoreResult todaySleepScore, {
   AlgorithmConfig config = defaultAlgorithmConfig,
 }) {
-  final canonicalHistory = _canonicalHistory(historicalData, today.date);
-  final history = canonicalHistory.takeLast(config.history.rollingWindowDays);
+  final history = previousDailyHistory(historicalData,
+      beforeDate: today.date, windowDays: config.history.rollingWindowDays);
   final warnings = <String>[];
   final adjustedToday = _applyLutealPhaseAdjustment(
     profile,
@@ -43,7 +44,7 @@ ScoreResult calculateRecoveryScoreResult(
       confidence: config.confidence.min,
       components: {
         'historyDays': history.length,
-        'canonicalHistoryDays': canonicalHistory.length,
+        'canonicalHistoryDays': history.length,
         'validAutonomicHistoryDays': validAutonomicHistoryDays,
         'requiredHistoryDays': config.history.minCalibrationDays,
         'hrvMetric': hrvMetric,
@@ -57,12 +58,23 @@ ScoreResult calculateRecoveryScoreResult(
     warnings.add('recovery_partial_autonomic_history');
   }
 
-  final hrv = _calculateHrvComponent(adjustedToday, history, config);
-  final restingHeartRate =
+  final rawHrv = _calculateHrvComponent(adjustedToday, history, config);
+  final rawRestingHeartRate =
       _calculateRestingHeartRateComponent(adjustedToday, history, config);
+  final hrv =
+      _limitConflictingAutonomicBonus(rawHrv, rawRestingHeartRate, config);
+  final restingHeartRate =
+      _limitConflictingAutonomicBonus(rawRestingHeartRate, rawHrv, config);
+  if (hrv.value != rawHrv.value ||
+      restingHeartRate.value != rawRestingHeartRate.value) {
+    warnings.add('conflicting_autonomic_signals_positive_credit_reduced');
+  }
   final skinTemperature =
       _calculateSkinTemperatureComponent(adjustedToday, history, config);
   final sleep = _calculateAbsoluteSleepComponent(todaySleepScore, config);
+  if (sleep.value != null && sleep.warning.isNotEmpty) {
+    warnings.add(sleep.warning);
+  }
   final respiratoryRate =
       _calculateRespiratoryRateComponent(adjustedToday, history, config);
   final spo2 = _calculateSpo2Component(adjustedToday, history, config);
@@ -123,11 +135,29 @@ ScoreResult calculateRecoveryScoreResult(
     config.confidence.min,
     config.confidence.max,
   );
-  final confidence = clampDouble(
-    combined.availableWeight * historyConfidence,
-    config.confidence.min,
-    config.confidence.max,
-  );
+  // Each observed stream needs its own calibration history. A full RHR
+  // history must not make seven HRV observations appear fully calibrated.
+  final componentConfidences = <String, double>{};
+  var confidenceSum = 0.0;
+  for (final entry in combined.components.entries) {
+    final component = entry.value as Map<String, dynamic>;
+    if (component['used'] != true) continue;
+    final details = component['details'] as Map<String, dynamic>;
+    var evidenceConfidence = entry.key == 'sleep'
+        ? todaySleepScore.confidence * historyConfidence
+        : clampDouble(
+            (details['validHistoryDays'] as num).toDouble() /
+                config.history.fullCalibrationDays,
+            0,
+            1);
+    if (entry.key == 'hrv' && hrvMetric == 'unknown') {
+      evidenceConfidence *= config.confidence.partialBaselineMultiplier;
+    }
+    componentConfidences[entry.key] = evidenceConfidence;
+    confidenceSum += (component['weight'] as double) * evidenceConfidence;
+  }
+  final confidence =
+      clampDouble(confidenceSum, config.confidence.min, config.confidence.max);
   final hasMinimumAutonomic =
       autonomicComponents >= config.recoveryScore.minAutonomicComponents;
   final hasMinimumAvailableWeight = combined.availableWeight + 1e-12 >=
@@ -142,9 +172,10 @@ ScoreResult calculateRecoveryScoreResult(
 
   final baseComponents = <String, dynamic>{
     'historyDays': history.length,
-    'canonicalHistoryDays': canonicalHistory.length,
+    'canonicalHistoryDays': history.length,
     'validAutonomicHistoryDays': validAutonomicHistoryDays,
     'historyConfidence': historyConfidence,
+    'componentConfidences': componentConfidences,
     'availableWeight': combined.availableWeight,
     'autonomicComponents': autonomicComponents,
     'requiredAutonomicComponents': config.recoveryScore.minAutonomicComponents,
@@ -184,7 +215,7 @@ ScoreResult calculateRecoveryScoreResult(
   final hasDegradingWarnings =
       unique.any((warning) => !_isInformationalWarning(warning));
   final fullHistory =
-      validAutonomicHistoryDays >= config.history.fullCalibrationDays;
+      componentConfidences.values.every((value) => value >= 1 - 1e-12);
   final fullWeight = combined.availableWeight >= config.confidence.max - 1e-12;
 
   return ScoreResult(
@@ -196,6 +227,9 @@ ScoreResult calculateRecoveryScoreResult(
     components: {
       ...baseComponents,
       'zTotal': zTotal,
+      'neutralRecoveryScore': sigmoid(
+              config.recoveryScore.sigmoidBias, config.recoveryScore.sigmoidK) *
+          config.score.max,
     },
     warnings: unique,
   );
@@ -419,7 +453,12 @@ _ZComponent _calculateAbsoluteSleepComponent(
   final score = todaySleepScore.score;
   if (!isFiniteNumber(score) ||
       score! < config.score.min ||
-      score > config.score.max) {
+      score > config.score.max ||
+      !todaySleepScore.confidence.isFinite ||
+      todaySleepScore.confidence <= 0 ||
+      todaySleepScore.confidence > 1 ||
+      todaySleepScore.status == ScoreStatus.insufficientData ||
+      todaySleepScore.status == ScoreStatus.calibrationPhase) {
     return _ZComponent(
       value: null,
       warning: 'today_sleep_score_unavailable',
@@ -436,8 +475,14 @@ _ZComponent _calculateAbsoluteSleepComponent(
   final contribution = _capFavorableContribution(rawZ, config);
   return _ZComponent(
     value: contribution,
+    warning: todaySleepScore.confidence < 1 ||
+            todaySleepScore.status != ScoreStatus.ok
+        ? 'sleep_component_partial_confidence'
+        : '',
     details: {
       'todaySleepScore': score,
+      'sleepConfidence': todaySleepScore.confidence,
+      'sleepStatus': todaySleepScore.statusCode,
       'normalization': 'absolute',
       'neutralSleepScore': config.recoveryScore.sleepNeutralScore,
       'sleepZScale': config.recoveryScore.sleepZScale,
@@ -620,18 +665,28 @@ DailyWearableData _applyLutealPhaseAdjustment(
   );
 }
 
-List<DailyWearableData> _canonicalHistory(
-  HistoricalDailyData historicalData,
-  String todayDate,
+_ZComponent _limitConflictingAutonomicBonus(
+  _ZComponent component,
+  _ZComponent other,
+  AlgorithmConfig config,
 ) {
-  final byDate = <String, DailyWearableData>{};
-  for (final day in historicalData) {
-    if (day.date.isEmpty || day.date == todayDate) continue;
-    byDate[day.date] = day;
+  if (component.value == null || component.value! <= 0 || other.value == null) {
+    return component;
   }
-  final history = byDate.values.toList(growable: false);
-  history.sort((a, b) => a.date.compareTo(b.date));
-  return history;
+  final settings = config.recoveryScore;
+  final suppression = clampDouble(
+      (-other.value! - settings.autonomicConflictDeadbandZ) /
+          (settings.autonomicConflictFullSuppressionZ -
+              settings.autonomicConflictDeadbandZ),
+      0,
+      1);
+  final contribution = component.value! * (1 - suppression);
+  return _ZComponent(value: contribution, warning: component.warning, details: {
+    ...component.details,
+    'contributionBeforeConflict': component.value,
+    'conflictSuppression': suppression,
+    'contribution': contribution
+  });
 }
 
 int _validAutonomicHistoryDays(
@@ -692,12 +747,4 @@ class _ZComponent {
     this.warning = '',
     this.details = const {},
   });
-}
-
-extension _TakeLast<T> on List<T> {
-  List<T> takeLast(int count) {
-    if (count <= 0) return const [];
-    if (length <= count) return List<T>.from(this);
-    return sublist(length - count);
-  }
 }

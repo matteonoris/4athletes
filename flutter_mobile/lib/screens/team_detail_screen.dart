@@ -312,8 +312,7 @@ class _TeamDetailScreenState extends State<TeamDetailScreen> {
     return Container(
       margin: const EdgeInsets.fromLTRB(16, 4, 16, 16),
       padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: AppTheme.card,
+      decoration: AppTheme.panelDecoration(
         borderRadius: BorderRadius.circular(16),
         border: Border.all(color: AppTheme.subtleBorder),
       ),
@@ -962,8 +961,7 @@ class _TeamDetailScreenState extends State<TeamDetailScreen> {
                                 child: Container(
                                   margin: const EdgeInsets.only(
                                       bottom: 12, left: 16, right: 16),
-                                  decoration: BoxDecoration(
-                                    color: AppTheme.card,
+                                  decoration: AppTheme.panelDecoration(
                                     borderRadius: BorderRadius.circular(16),
                                     border: Border.all(
                                         color: AppTheme.subtleBorder),

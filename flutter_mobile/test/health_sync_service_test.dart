@@ -32,6 +32,8 @@ void main() {
       expect(result['deepSleepMinutes'], 75);
       expect(result['lightSleepMinutes'], 75);
       expect(result['totalSleepMinutes'], 150);
+      expect(result['sleepStageSource'],
+          'googleHealthConnect|test-source|test-device');
     });
 
     test('keeps fractional minutes across individual stages', () {
@@ -83,6 +85,7 @@ void main() {
 
       expect(result['deepSleepMinutes'], 75);
       expect(result['totalSleepMinutes'], 75);
+      expect(result['sleepStageSource'], isNull);
     });
   });
 }

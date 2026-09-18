@@ -16,7 +16,7 @@ publish_to: 'none' # Remove this line if you wish to publish to pub.dev
 # https://developer.apple.com/library/archive/documentation/General/Reference/InfoPlistKeyReference/Articles/CoreFoundationKeys.html
 # In Windows, build-name is used as the major, minor, and patch parts
 # of the product and file versions while build-number is used as the build suffix.
-version: 1.0.3+26
+version: 1.0.3+29
 
 environment:
   sdk: ^3.5.4
@@ -42,14 +42,14 @@ dependencies:
   google_fonts: ^6.3.0
   phosphor_flutter: ^2.1.0
   provider: ^6.1.5+1
-  share_plus: ^12.0.1
+  share_plus: ^13.3.0
   intl: ^0.20.2
   supabase_flutter: ^2.12.4
   flutter_dotenv: ^6.0.1
   google_sign_in: ^6.2.1
   sign_in_with_apple: ^6.1.4
   crypto: ^3.0.6
-  health: ^13.3.1
+  health: ^13.3.2
   permission_handler: ^12.0.1
   image_picker: ^1.2.2
   flutter_local_notifications: 19.5.0
@@ -94,6 +94,18 @@ flutter:
     - .env
     - assets/images/
     - assets/fonts/
+
+  fonts:
+    - family: Lexend
+      fonts:
+        - asset: assets/fonts/Lexend-Regular.ttf
+          weight: 400
+        - asset: assets/fonts/Lexend-Medium.ttf
+          weight: 500
+        - asset: assets/fonts/Lexend-SemiBold.ttf
+          weight: 600
+        - asset: assets/fonts/Lexend-Bold.ttf
+          weight: 700
 
 
   # An image asset can refer to one or more resolution-specific "variants", see

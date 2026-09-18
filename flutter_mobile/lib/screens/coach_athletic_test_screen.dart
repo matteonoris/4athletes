@@ -301,8 +301,7 @@ class _CoachAthleticTestScreenState extends State<CoachAthleticTestScreen> {
           child: Container(
             margin: const EdgeInsets.only(bottom: 12),
             padding: const EdgeInsets.all(16),
-            decoration: BoxDecoration(
-              color: AppTheme.card,
+            decoration: AppTheme.panelDecoration(
               borderRadius: BorderRadius.circular(12),
               border: Border.all(
                 color: a['isPresent']
@@ -347,8 +346,7 @@ class _CoachAthleticTestScreenState extends State<CoachAthleticTestScreen> {
         return Container(
           margin: const EdgeInsets.only(bottom: 16),
           padding: const EdgeInsets.all(16),
-          decoration: BoxDecoration(
-            color: AppTheme.card,
+          decoration: AppTheme.panelDecoration(
             borderRadius: BorderRadius.circular(12),
           ),
           child: Row(

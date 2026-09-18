@@ -101,8 +101,7 @@ class ActivityDetailsScreen extends StatelessWidget {
       String value, String label) {
     return Container(
       padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: AppTheme.card,
+      decoration: AppTheme.panelDecoration(
         borderRadius: BorderRadius.circular(12),
         border: Border.all(color: AppTheme.subtleBorder),
       ),
@@ -741,6 +740,12 @@ class ActivityDetailsScreen extends StatelessWidget {
     return 'Set ${setIndex + 1}: ${parts.join(' x ')}$pctStr';
   }
 
+  Map<String, dynamic> _stringKeyedMap(Map value) {
+    return value.map(
+      (key, nestedValue) => MapEntry(key.toString(), nestedValue),
+    );
+  }
+
   Widget _buildDetailsMap(
       BuildContext context, Map<String, dynamic> data, List<PRLog> prLogs) {
     return Column(
@@ -760,7 +765,9 @@ class ActivityDetailsScreen extends StatelessWidget {
               const SizedBox(height: 8),
               ...laps.asMap().entries.map((entry) {
                 final idx = entry.key;
-                final lap = entry.value as Map<String, dynamic>;
+                final rawLap = entry.value;
+                if (rawLap is! Map) return const SizedBox.shrink();
+                final lap = _stringKeyedMap(rawLap);
                 return Padding(
                   padding: const EdgeInsets.only(bottom: 8.0),
                   child: Container(
@@ -811,7 +818,7 @@ class ActivityDetailsScreen extends StatelessWidget {
                       left: BorderSide(color: AppTheme.secondary, width: 2)),
                 ),
                 child: _buildDetailsMap(
-                    context, e.value as Map<String, dynamic>, prLogs),
+                    context, _stringKeyedMap(e.value as Map), prLogs),
               ),
             ],
           );
@@ -828,9 +835,15 @@ class ActivityDetailsScreen extends StatelessWidget {
                         color: AppTheme.secondary)),
                 const SizedBox(height: 8),
                 ...list.map((item) {
-                  final mapItem = item as Map<String, dynamic>;
-                  if (mapItem.containsKey('name') &&
-                      mapItem.containsKey('sets')) {
+                  if (item is! Map) {
+                    return _buildDetailRow(
+                      context,
+                      '',
+                      item?.toString() ?? 'Nessuno',
+                    );
+                  }
+                  final mapItem = _stringKeyedMap(item);
+                  if (mapItem.containsKey('name') && mapItem['sets'] is List) {
                     final sets = mapItem['sets'] as List;
                     final exerciseId =
                         (mapItem['exerciseId'] ?? mapItem['id'] ?? '')
@@ -848,8 +861,20 @@ class ActivityDetailsScreen extends StatelessWidget {
                                   const TextStyle(fontWeight: FontWeight.bold)),
                           ...sets.asMap().entries.map((setEntry) {
                             final setIdx = setEntry.key;
-                            final setVal =
-                                setEntry.value as Map<String, dynamic>;
+                            final rawSet = setEntry.value;
+                            if (rawSet is! Map) {
+                              return Padding(
+                                padding:
+                                    const EdgeInsets.only(left: 16.0, top: 4.0),
+                                child: Text(
+                                  rawSet?.toString() ?? 'dati non compilati',
+                                  style: TextStyle(
+                                      fontSize: 12,
+                                      color: AppTheme.textMediumEmphasis),
+                                ),
+                              );
+                            }
+                            final setVal = _stringKeyedMap(rawSet);
                             return Padding(
                               padding:
                                   const EdgeInsets.only(left: 16.0, top: 4.0),

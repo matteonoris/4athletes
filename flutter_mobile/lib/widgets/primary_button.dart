@@ -1,8 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
-import '../core/theme.dart';
-
 class PrimaryButton extends StatelessWidget {
   final String text;
   final VoidCallback onPressed;
@@ -31,7 +29,8 @@ class PrimaryButton extends StatelessWidget {
             width: 20,
             child: CircularProgressIndicator(
               strokeWidth: 2,
-              valueColor: AlwaysStoppedAnimation<Color>(AppTheme.background),
+              valueColor: AlwaysStoppedAnimation<Color>(
+                  Theme.of(context).colorScheme.primary),
             ),
           )
         : Row(
@@ -42,14 +41,14 @@ class PrimaryButton extends StatelessWidget {
                 Icon(icon, size: 20),
                 const SizedBox(width: 8),
               ],
-              Text(text),
+              Flexible(child: Text(text, textAlign: TextAlign.center)),
             ],
           );
 
     return isSecondary
         ? OutlinedButton(
             onPressed: isLoading
-                ? () {}
+                ? null
                 : () {
                     HapticFeedback.lightImpact();
                     onPressed();
@@ -58,7 +57,7 @@ class PrimaryButton extends StatelessWidget {
             child: child)
         : ElevatedButton(
             onPressed: isLoading
-                ? () {}
+                ? null
                 : () {
                     HapticFeedback.lightImpact();
                     onPressed();

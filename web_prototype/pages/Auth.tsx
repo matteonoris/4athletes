@@ -321,15 +321,19 @@ const permissionRows: Array<{ key: PermissionKey; label: string; detail: string 
   { key: 'bodyMetrics', label: 'Metriche corporee', detail: 'Peso, altezza, temperatura' },
 ];
 
-const AuthShell = ({ children }: { children: React.ReactNode }) => (
-  <div className="min-h-screen bg-background text-white">
+const AuthShell = ({ children }: { children: React.ReactNode }) => {
+  const [dark, setDark] = useState(() => window.matchMedia('(prefers-color-scheme: dark)').matches);
+  return (
+  <div className="readiness-preview min-h-screen bg-background text-white" data-theme={dark ? 'dark' : 'light'}>
+    <button type="button" className="preview-theme-toggle" onClick={() => setDark(!dark)} aria-label="Cambia tema anteprima">{dark ? 'Tema chiaro' : 'Tema scuro'}</button>
     <div className="pointer-events-none fixed -left-28 -top-28 h-80 w-80 rounded-full bg-secondary/15 blur-3xl" />
     <div className="pointer-events-none fixed -bottom-28 -right-28 h-80 w-80 rounded-full bg-primary/10 blur-3xl" />
     <div className="relative mx-auto min-h-screen w-full max-w-[430px] px-6 py-4 font-sans">
       {children}
     </div>
   </div>
-);
+  );
+};
 
 const SignupHeader = ({ title, currentStep, totalSteps, onBack }: { title: string; currentStep: number; totalSteps: number; onBack: () => void }) => (
   <header className="pb-8 pt-6">

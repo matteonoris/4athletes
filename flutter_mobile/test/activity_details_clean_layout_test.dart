@@ -132,6 +132,38 @@ void main() {
   });
 
   testWidgets(
+      'il dettaglio di una corsa importata accetta mappe native non tipizzate',
+      (tester) async {
+    final session = TrainingSession(
+      id: 'imported-running-session',
+      sportId: 'running',
+      date: '2026-08-20',
+      startTime: '11:30',
+      endTime: '12:20',
+      duration: '50',
+      effort: 5,
+      details: <String, dynamic>{
+        'source': 'health_sync',
+        'distance': '10 km',
+        'laps': <Object?>[
+          <Object?, Object?>{
+            'distance': '1 km',
+            'metrics': <Object?, Object?>{
+              'pace': '5:00 /km',
+            },
+          },
+        ],
+      },
+    );
+
+    await pumpDetails(tester, session);
+
+    expect(find.text('Dettagli Tecnici'), findsOneWidget);
+    expect(find.text('5:00 /km'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets(
       'un weightlifting legacy apre sempre il nuovo editor in chiaro e scuro',
       (tester) async {
     final session = TrainingSession(

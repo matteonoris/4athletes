@@ -1073,8 +1073,7 @@ class _AthleteEventScreenState extends State<AthleteEventScreen> {
           const SizedBox(height: 6),
           Container(
             height: 46,
-            decoration: BoxDecoration(
-              color: AppTheme.card,
+            decoration: AppTheme.panelDecoration(
               borderRadius: BorderRadius.circular(12),
               border: Border.all(color: AppTheme.subtleBorder),
             ),

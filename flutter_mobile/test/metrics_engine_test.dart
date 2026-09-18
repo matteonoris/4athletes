@@ -105,7 +105,7 @@ void main() {
     expect(deviation, lessThanOrEqualTo(10));
   });
 
-  test('sleep regularity applies the v2 30-minute tolerance', () {
+  test('sleep regularity does not dilute a one-hour shift into history', () {
     final history = [
       _makeDay(1),
       _makeDay(2),
@@ -121,11 +121,11 @@ void main() {
     final regularity =
         result.sleepScore.components['circadianRegularity'] as Map;
 
-    expect(regularity['value'], 100);
+    expect(regularity['value'], closeTo(80, 0.000001));
     expect(regularity['details']['windowNightCount'], 4);
     expect(
       regularity['details']['wakeDeviationMinutes'],
-      closeTo(22.5, 0.05),
+      closeTo(60, 0.05),
     );
   });
 
@@ -195,7 +195,7 @@ void main() {
     expect(result.recoveryScore.score, inInclusiveRange(0, 100));
   });
 
-  test('neutral recovery contribution maps to about 70 points', () {
+  test('neutral recovery contribution maps to about 65 points', () {
     final history = _makeHistory(30);
     final today = _makeDay(31);
     final result = calculateRecoveryScoreResult(
@@ -211,7 +211,7 @@ void main() {
       ),
     );
 
-    expect(result.score, closeTo(70, 1));
+    expect(result.score, closeTo(65, 1));
   });
 }
 

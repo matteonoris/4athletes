@@ -1,0 +1,41 @@
+/* Local onboarding review: shared visual language of the Home score card. */
+.readiness-preview.bg-background {
+  --page: #f6f7fb;
+  --ink: #202532;
+  --muted: #636b7b;
+  --edge: rgba(32, 37, 50, .07);
+  --panel: linear-gradient(135deg, #f8f6ff, #fff 52%, #f1faf8);
+  --accent: #7466d7;
+  background: var(--page);
+  color: var(--ink);
+}
+.readiness-preview.bg-background[data-theme="dark"] {
+  --page: #12161d;
+  --ink: #f2f3f7;
+  --muted: #aab2c0;
+  --edge: rgba(242, 243, 247, .09);
+  --panel: linear-gradient(135deg, #252638, #1b252c 52%, #1d242a);
+  --accent: #a99bf5;
+}
+.readiness-preview .bg-card {
+  background: var(--panel);
+  border-color: var(--edge);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, .035);
+}
+.readiness-preview .rounded-\[24px\] { border-radius: 26px; }
+.readiness-preview .text-white { color: var(--ink); }
+.readiness-preview [class*="text-white/"] { color: var(--muted); }
+.readiness-preview [class*="border-white/"] { border-color: var(--edge); }
+.readiness-preview [class*="bg-background/"] { background: var(--page); }
+.readiness-preview .bg-secondary { background: #7466d7; color: white; }
+.readiness-preview .text-secondary { color: var(--accent); }
+.readiness-preview .border-secondary\/70 { border-color: var(--accent); }
+.readiness-preview .border-primary\/70 { border-color: #30bba2; }
+.readiness-preview .shadow-2xl { box-shadow: 0 8px 24px rgba(0, 0, 0, .06); }
+.readiness-preview input:focus { border-color: var(--accent); }
+.preview-theme-toggle {
+  position: fixed; right: 12px; top: 12px; z-index: 50;
+  border: 1px solid var(--edge); border-radius: 14px;
+  background: var(--page); color: var(--ink); padding: 8px 12px;
+  font: 12px Lexend, sans-serif;
+}

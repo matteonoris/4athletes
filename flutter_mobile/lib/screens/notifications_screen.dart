@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 
 import '../core/theme.dart';
 import '../providers/app_state.dart';
+import '../widgets/custom_card.dart';
 import 'athlete_event_screen.dart';
 
 class NotificationsScreen extends StatelessWidget {
@@ -39,18 +40,9 @@ class NotificationsScreen extends StatelessWidget {
               itemBuilder: (context, index) {
                 final notif = notifications[index];
 
-                return Card(
-                  color: notif.isRead
-                      ? AppTheme.card
-                      : AppTheme.card.withValues(alpha: 0.8),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(16),
-                    side: BorderSide(
-                      color:
-                          notif.isRead ? Colors.transparent : AppTheme.primary,
-                      width: 1,
-                    ),
-                  ),
+                return CustomCard(
+                  padding: EdgeInsets.zero,
+                  borderColor: notif.isRead ? null : AppTheme.primary,
                   margin: const EdgeInsets.only(bottom: 12),
                   child: ListTile(
                     contentPadding: const EdgeInsets.all(16),
@@ -68,7 +60,7 @@ class NotificationsScreen extends StatelessWidget {
                       style: TextStyle(
                         fontWeight:
                             notif.isRead ? FontWeight.normal : FontWeight.bold,
-                        color: Colors.white,
+                        color: AppTheme.textHighEmphasis,
                       ),
                     ),
                     subtitle: Padding(

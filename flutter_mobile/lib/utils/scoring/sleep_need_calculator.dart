@@ -3,6 +3,7 @@ import 'dart:math' as math;
 import 'algorithm_config.dart';
 import 'math_helpers.dart';
 import 'scoring_types.dart';
+import 'daily_history.dart';
 
 class BaselineResult {
   final double valueMinutes;
@@ -36,7 +37,8 @@ DailySleepNeedResult calculateDailySleepNeed(
   AthleteProfile? profile,
   AlgorithmConfig config = defaultAlgorithmConfig,
 }) {
-  final history = _excludeToday(historicalData, today.date);
+  final history = previousDailyHistory(historicalData,
+      beforeDate: today.date, windowDays: config.history.rollingWindowDays);
   final warnings = <String>[];
   final validHistoryNights = _validBaselineSleepValues(history, config).length;
 
@@ -55,6 +57,7 @@ DailySleepNeedResult calculateDailySleepNeed(
 
   final sleepDebt = calculateSleepDebt(
     history,
+    beforeDate: today.date,
     profile: profile,
     config: config,
   );
@@ -160,12 +163,17 @@ BaselineResult calculatePersonalBaseline(
 
 SleepDebtResult calculateSleepDebt(
   HistoricalDailyData historicalData, {
+  String? beforeDate,
   AthleteProfile? profile,
   AlgorithmConfig config = defaultAlgorithmConfig,
 }) {
   final warnings = <String>[];
-  final debtWindow =
-      historicalData.takeLast(config.history.sleepDebtWindowDays);
+  final referenceDate = beforeDate ?? dayAfterLatestHistoryDate(historicalData);
+  final debtWindow = referenceDate == null
+      ? <DailyWearableData>[]
+      : previousDailyHistory(historicalData,
+          beforeDate: referenceDate,
+          windowDays: config.history.sleepDebtWindowDays);
   var weightedBalance = config.confidence.min;
   var usedDays = 0;
 
@@ -181,10 +189,8 @@ SleepDebtResult calculateSleepDebt(
       continue;
     }
 
-    final historyBeforeDay = historicalData.sublist(
-      0,
-      historicalData.length - debtWindow.length + index,
-    );
+    final historyBeforeDay = previousDailyHistory(historicalData,
+        beforeDate: day.date, windowDays: config.history.rollingWindowDays);
     final personalBaseline = calculatePersonalBaseline(
       historyBeforeDay,
       profile: profile,
@@ -200,7 +206,10 @@ SleepDebtResult calculateSleepDebt(
     // Signed balance: a surplus is negative and repays older positive
     // deficits. The most recent completed day has age zero and full weight.
     final dailyDeficit = historicalReferenceNeedForDay - actualSleep24h!;
-    final ageInDays = debtWindow.length - 1 - index;
+    final ageInDays = dailyHistoryDate(referenceDate!)!
+            .difference(dailyHistoryDate(day.date)!)
+            .inDays -
+        1;
     weightedBalance += dailyDeficit *
         math.exp(-config.sleepNeed.sleepDebtDecayLambda * ageInDays);
     usedDays++;
@@ -327,25 +336,12 @@ List<double> _validBaselineSleepValues(
   HistoricalDailyData historicalData,
   AlgorithmConfig config,
 ) {
-  return historicalData
-      .takeLast(config.history.rollingWindowDays)
+  final beforeDate = dayAfterLatestHistoryDate(historicalData);
+  if (beforeDate == null) return [];
+  return previousDailyHistory(historicalData,
+          beforeDate: beforeDate, windowDays: config.history.rollingWindowDays)
       .map((day) => day.totalSleepTimeMinutes)
       .where(config.sleepNeed.validBaselineSleepMinutes.contains)
       .map((value) => value!.toDouble())
       .toList(growable: false);
-}
-
-List<DailyWearableData> _excludeToday(
-  HistoricalDailyData historicalData,
-  String todayDate,
-) {
-  return historicalData.where((day) => day.date != todayDate).toList();
-}
-
-extension _TakeLast<T> on List<T> {
-  List<T> takeLast(int count) {
-    if (count <= 0) return const [];
-    if (length <= count) return List<T>.from(this);
-    return sublist(length - count);
-  }
 }

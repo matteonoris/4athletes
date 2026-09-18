@@ -21,6 +21,7 @@ import '../utils/training_metrics_utils.dart';
 import '../utils/time_utils.dart';
 import '../widgets/bottom_nav.dart';
 import '../widgets/custom_card.dart';
+import '../widgets/readiness_overview_card.dart';
 import '../widgets/workout_source_badges.dart';
 import '../models/workout_creation_models.dart';
 
@@ -122,10 +123,11 @@ class _DashboardViewState extends State<_DashboardView> {
   }
 
   Future<void> _syncInitialHealthData() async {
-    final appState = Provider.of<AppState>(context, listen: false);
-    await appState.syncDailyHealthData(_currentDate);
     if (!mounted) return;
-    unawaited(appState.refreshHealthDataIfStale(_currentDate));
+    final appState = Provider.of<AppState>(context, listen: false);
+    final date = _currentDate;
+    await appState.syncDailyHealthData(date);
+    unawaited(appState.refreshHealthDataIfStale(date));
   }
 
   String _getCurrentSeason() {
@@ -168,6 +170,7 @@ class _DashboardViewState extends State<_DashboardView> {
       _currentDate = _currentDate.add(Duration(days: offset));
     });
     WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
       Provider.of<AppState>(context, listen: false)
           .syncDailyHealthData(_currentDate);
     });
@@ -423,7 +426,7 @@ class _DashboardViewState extends State<_DashboardView> {
                   final seasonDropdown = DropdownButton<String>(
                     value: _selectedSeason,
                     dropdownColor: AppTheme.surface,
-                    style: const TextStyle(
+                    style: Theme.of(context).textTheme.labelLarge?.copyWith(
                         color: AppTheme.primary, fontWeight: FontWeight.bold),
                     underline: const SizedBox(),
                     icon: const Icon(Icons.arrow_drop_down,
@@ -1575,10 +1578,11 @@ class _DashboardViewState extends State<_DashboardView> {
     final sleepScore = appState.sleepScoreForDate(_currentDate);
     final strainScore = appState.strainScoreForDate(_currentDate);
     final recoveryScore = appState.recoveryScoreForDate(_currentDate);
+    final isUpdating = appState.isSyncingHealthForDate(_currentDate);
     final hasLastSuccessfulSnapshot =
         sleepScore != null || strainScore != null || recoveryScore != null;
 
-    if (appState.isSyncingHealth && !hasLastSuccessfulSnapshot) {
+    if (isUpdating && !hasLastSuccessfulSnapshot) {
       return Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -1587,34 +1591,12 @@ class _DashboardViewState extends State<_DashboardView> {
                   fontWeight: FontWeight.bold,
                   color: AppTheme.textMediumEmphasis)),
           const SizedBox(height: 12),
-          CustomCard(
-            padding: EdgeInsets.symmetric(vertical: 32, horizontal: 24),
-            child: Center(
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  const _ReadinessSyncIndicator(),
-                  SizedBox(height: 20),
-                  Text(
-                    'Sincronizzazione in Corso',
-                    style: TextStyle(
-                      fontWeight: FontWeight.bold,
-                      color: AppTheme.textHighEmphasis,
-                      fontSize: 16,
-                    ),
-                  ),
-                  SizedBox(height: 8),
-                  Text(
-                    'Sincronizzazione degli allenamenti e analisi dei dati biologici da Health Connect / Apple Health. Ricalcolo dei punteggi in corso...',
-                    textAlign: TextAlign.center,
-                    style: TextStyle(
-                      color: AppTheme.textMediumEmphasis,
-                      fontSize: 13,
-                    ),
-                  ),
-                ],
-              ),
-            ),
+          ReadinessOverviewCard(
+            metrics: ReadinessMetricData.placeholders,
+            readinessLabel: '',
+            insight: '',
+            isLoading: true,
+            progressLabel: appState.healthSyncProgressLabel,
           ),
           const SizedBox(height: 24),
         ],
@@ -1704,7 +1686,7 @@ class _DashboardViewState extends State<_DashboardView> {
         sleepStatus == 'PARTIAL_DATA' || recoveryStatus == 'PARTIAL_DATA';
     final hasRefreshError = appState.healthSyncError != null &&
         appState.healthSyncError != 'CALIBRATION_PHASE';
-    final syncLabel = appState.isSyncingHealth
+    final syncLabel = isUpdating
         ? 'Aggiornamento...'
         : hasRefreshError
             ? 'Ultimo dato valido'
@@ -1715,7 +1697,7 @@ class _DashboardViewState extends State<_DashboardView> {
                     : hasPartialData
                         ? 'Dati parziali'
                         : 'Sincronizzato';
-    final syncColor = appState.isSyncingHealth
+    final syncColor = isUpdating
         ? AppTheme.primary
         : hasRefreshError
             ? const Color(0xFFFF8C42)
@@ -1725,7 +1707,7 @@ class _DashboardViewState extends State<_DashboardView> {
                     ? const Color(0xFFFF8C42)
                     : AppTheme.primary;
     if ((appState.healthSyncCompleted ||
-            appState.isSyncingHealth ||
+            isUpdating ||
             hasLastSuccessfulSnapshot) &&
         (sleepScore != null ||
             strainScore != null ||
@@ -1755,8 +1737,8 @@ class _DashboardViewState extends State<_DashboardView> {
                       color: AppTheme.textMediumEmphasis)),
               Row(
                 children: [
-                  if (appState.isSyncingHealth)
-                    _SpinningSyncIcon(color: syncColor)
+                  if (isUpdating)
+                    ReadinessSyncPulse(color: syncColor)
                   else
                     Icon(
                       hasRefreshError
@@ -1783,8 +1765,10 @@ class _DashboardViewState extends State<_DashboardView> {
             ],
           ),
           const SizedBox(height: 12),
-          _ReadinessOverviewCard(
+          ReadinessOverviewCard(
             readinessLabel: readiness,
+            isRefreshing: isUpdating,
+            progressLabel: appState.healthSyncProgressLabel,
             insight: _readinessInsight(
               isCalibration: isCalibration,
               sleepScore: sleepScore,
@@ -1792,9 +1776,9 @@ class _DashboardViewState extends State<_DashboardView> {
               recoveryScore: recoveryScore,
             ),
             metrics: [
-              _ReadinessMetricData(
+              ReadinessMetricData(
                 icon: Icons.nightlight_round,
-                title: 'Sleep',
+                title: 'Sonno',
                 label:
                     sleepScore == null ? '--' : sleepScore.toStringAsFixed(0),
                 caption: _sleepScoreStatus(sleepScore),
@@ -1820,9 +1804,9 @@ class _DashboardViewState extends State<_DashboardView> {
                         );
                       },
               ),
-              _ReadinessMetricData(
+              ReadinessMetricData(
                 icon: Icons.local_fire_department,
-                title: 'Strain',
+                title: 'Sforzo',
                 value: strainScore == null ? 1.0 : strainScore / 100.0,
                 label:
                     strainScore == null ? '--' : strainScore.toStringAsFixed(0),
@@ -1846,9 +1830,9 @@ class _DashboardViewState extends State<_DashboardView> {
                         );
                       },
               ),
-              _ReadinessMetricData(
+              ReadinessMetricData(
                 icon: Icons.battery_charging_full,
-                title: 'Recovery',
+                title: 'Recupero',
                 value: isCalibration || recoveryScore == null
                     ? 1.0
                     : recoveryScore / 100.0,
@@ -1994,15 +1978,17 @@ class _DashboardViewState extends State<_DashboardView> {
 
   Color _recoveryScoreColor(double? score) {
     if (score == null) return Colors.grey[700]!;
-    if (score <= 33) return const Color(0xFFFF5252);
-    if (score <= 66) return const Color(0xFFFFC857);
+    if (score < 40) return const Color(0xFFFF5252);
+    if (score < 55) return const Color(0xFFFF8C42);
+    if (score < 70) return const Color(0xFFFFC857);
     return const Color(0xFF22C55E);
   }
 
   Color _recoveryScoreHighlight(double? score) {
     if (score == null) return Colors.grey[500]!;
-    if (score <= 33) return const Color(0xFFFF8A80);
-    if (score <= 66) return const Color(0xFFFFE082);
+    if (score < 40) return const Color(0xFFFF8A80);
+    if (score < 55) return const Color(0xFFFFB067);
+    if (score < 70) return const Color(0xFFFFE082);
     return const Color(0xFF86EFAC);
   }
 
@@ -2069,523 +2055,5 @@ class _DashboardViewState extends State<_DashboardView> {
       return '$sleep, $strain, $recovery: quadro intermedio. Usa il trend, non il singolo numero, insieme alle sensazioni.';
     }
     return '$sleep, $strain, $recovery: segnali favorevoli, da confermare con percezione e piano. Non è un via libera automatico.';
-  }
-}
-
-class _ReadinessMetricData {
-  final IconData icon;
-  final String title;
-  final String label;
-  final String caption;
-  final double value;
-  final Color color;
-  final Color secondaryColor;
-  final VoidCallback? onTap;
-
-  const _ReadinessMetricData({
-    required this.icon,
-    required this.title,
-    required this.label,
-    required this.caption,
-    required this.value,
-    required this.color,
-    required this.secondaryColor,
-    this.onTap,
-  });
-}
-
-class _ReadinessOverviewCard extends StatelessWidget {
-  final List<_ReadinessMetricData> metrics;
-  final String readinessLabel;
-  final String insight;
-
-  const _ReadinessOverviewCard({
-    required this.metrics,
-    required this.readinessLabel,
-    required this.insight,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return CustomCard(
-      padding: EdgeInsets.zero,
-      borderColor: AppTheme.subtleBorder,
-      child: Column(
-        children: [
-          Padding(
-            padding: const EdgeInsets.fromLTRB(12, 14, 12, 12),
-            child: Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                for (var i = 0; i < metrics.length; i++) ...[
-                  Expanded(child: _ReadinessMetricTile(data: metrics[i])),
-                  if (i != metrics.length - 1) const _ReadinessDivider(),
-                ],
-              ],
-            ),
-          ),
-          Container(height: 1, color: AppTheme.subtleBorder),
-          Padding(
-            padding: const EdgeInsets.fromLTRB(16, 12, 16, 14),
-            child: Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Container(
-                  width: 28,
-                  height: 28,
-                  decoration: BoxDecoration(
-                    color: AppTheme.selectedSoftFill,
-                    shape: BoxShape.circle,
-                  ),
-                  child: const Icon(
-                    Icons.insights_rounded,
-                    color: AppTheme.primary,
-                    size: 15,
-                  ),
-                ),
-                const SizedBox(width: 10),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        readinessLabel,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                              color: AppTheme.textHighEmphasis,
-                              fontWeight: FontWeight.w800,
-                            ),
-                      ),
-                      const SizedBox(height: 4),
-                      Text(
-                        insight,
-                        maxLines: 2,
-                        overflow: TextOverflow.ellipsis,
-                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                              color: AppTheme.textMediumEmphasis,
-                              height: 1.35,
-                              fontWeight: FontWeight.w500,
-                            ),
-                      ),
-                    ],
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _ReadinessMetricTile extends StatelessWidget {
-  final _ReadinessMetricData data;
-
-  const _ReadinessMetricTile({required this.data});
-
-  @override
-  Widget build(BuildContext context) {
-    return Material(
-      color: Colors.transparent,
-      child: InkWell(
-        onTap: data.onTap,
-        borderRadius: BorderRadius.circular(14),
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 4),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              FittedBox(
-                fit: BoxFit.scaleDown,
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Icon(data.icon, color: data.color, size: 16),
-                    const SizedBox(width: 6),
-                    Text(
-                      data.title,
-                      maxLines: 1,
-                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                            fontWeight: FontWeight.w800,
-                            color: AppTheme.textMediumEmphasis,
-                          ),
-                    ),
-                  ],
-                ),
-              ),
-              const SizedBox(height: 12),
-              _ScoreRing(
-                value: data.value,
-                label: data.label,
-                color: data.color,
-                secondaryColor: data.secondaryColor,
-                size: 76,
-                labelFontSize: 21,
-              ),
-              const SizedBox(height: 10),
-              Text(
-                data.caption,
-                textAlign: TextAlign.center,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                      color: AppTheme.textMediumEmphasis,
-                      fontWeight: FontWeight.w700,
-                      fontSize: 11,
-                    ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class _ReadinessDivider extends StatelessWidget {
-  const _ReadinessDivider();
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      width: 1,
-      height: 124,
-      margin: const EdgeInsets.symmetric(horizontal: 4),
-      color: AppTheme.subtleBorder,
-    );
-  }
-}
-
-class _ScoreRing extends StatelessWidget {
-  final double value;
-  final String label;
-  final Color color;
-  final Color secondaryColor;
-  final double size;
-  final double? labelFontSize;
-
-  const _ScoreRing({
-    required this.value,
-    required this.label,
-    required this.color,
-    required this.secondaryColor,
-    this.size = 88,
-    this.labelFontSize,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return SizedBox(
-      width: size,
-      height: size,
-      child: CustomPaint(
-        painter: _ScoreRingPainter(
-          value: value.clamp(0.0, 1.0).toDouble(),
-          color: color,
-          secondaryColor: secondaryColor,
-        ),
-        child: Center(
-          child: Text(
-            label,
-            style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                  fontWeight: FontWeight.w800,
-                  color: secondaryColor,
-                  fontSize: labelFontSize,
-                ),
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class _ScoreRingPainter extends CustomPainter {
-  final double value;
-  final Color color;
-  final Color secondaryColor;
-
-  const _ScoreRingPainter({
-    required this.value,
-    required this.color,
-    required this.secondaryColor,
-  });
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    final center = size.center(Offset.zero);
-    final radius = (size.shortestSide - 10) / 2;
-    final rect = Rect.fromCircle(center: center, radius: radius);
-    const startAngle = -math.pi / 2;
-    final sweepAngle = math.pi * 2 * value;
-
-    final trackPaint = Paint()
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 9
-      ..strokeCap = StrokeCap.round
-      ..color = AppTheme.isDark ? AppTheme.surface : AppTheme.subtleBorder;
-    canvas.drawCircle(center, radius, trackPaint);
-
-    final glowPaint = Paint()
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 13
-      ..strokeCap = StrokeCap.round
-      ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 6)
-      ..color = color.withValues(alpha: 0.28);
-    canvas.drawArc(rect, startAngle, sweepAngle, false, glowPaint);
-
-    final progressPaint = Paint()
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 9
-      ..strokeCap = StrokeCap.round
-      ..shader = SweepGradient(
-        startAngle: startAngle,
-        endAngle: startAngle + math.pi * 2,
-        colors: [secondaryColor, color, secondaryColor],
-      ).createShader(rect);
-    canvas.drawArc(rect, startAngle, sweepAngle, false, progressPaint);
-
-    final capAngle = startAngle + sweepAngle;
-    canvas.drawCircle(
-      Offset(
-        center.dx + math.cos(capAngle) * radius,
-        center.dy + math.sin(capAngle) * radius,
-      ),
-      4,
-      Paint()
-        ..style = PaintingStyle.fill
-        ..color = secondaryColor,
-    );
-  }
-
-  @override
-  bool shouldRepaint(_ScoreRingPainter oldDelegate) {
-    return oldDelegate.value != value ||
-        oldDelegate.color != color ||
-        oldDelegate.secondaryColor != secondaryColor;
-  }
-}
-
-class _ReadinessSyncIndicator extends StatefulWidget {
-  const _ReadinessSyncIndicator();
-
-  @override
-  State<_ReadinessSyncIndicator> createState() =>
-      _ReadinessSyncIndicatorState();
-}
-
-class _ReadinessSyncIndicatorState extends State<_ReadinessSyncIndicator>
-    with SingleTickerProviderStateMixin {
-  late final AnimationController _controller;
-  late final Animation<double> _pulseAnimation;
-  late final Animation<double> _orbitAnimation;
-
-  @override
-  void initState() {
-    super.initState();
-    _controller = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 1450),
-    )..repeat();
-
-    _pulseAnimation = TweenSequence<double>([
-      TweenSequenceItem(
-        tween: Tween<double>(begin: 1, end: 1.055)
-            .chain(CurveTween(curve: Curves.easeOut)),
-        weight: 50,
-      ),
-      TweenSequenceItem(
-        tween: Tween<double>(begin: 1.055, end: 1)
-            .chain(CurveTween(curve: Curves.easeIn)),
-        weight: 50,
-      ),
-    ]).animate(_controller);
-
-    // The Material sync arrowheads read counter-clockwise. Keep the orbit in
-    // that same direction so the ring never appears to fight the icon.
-    _orbitAnimation = Tween<double>(begin: 0, end: -1).animate(_controller);
-  }
-
-  @override
-  void dispose() {
-    _controller.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    final trackColor = Theme.of(context)
-        .colorScheme
-        .onSurface
-        .withValues(alpha: isDark ? 0.12 : 0.08);
-
-    return Semantics(
-      label: 'Calcolo Daily Readiness in corso',
-      child: SizedBox.square(
-        dimension: 84,
-        child: Stack(
-          alignment: Alignment.center,
-          children: [
-            ScaleTransition(
-              scale: _pulseAnimation,
-              child: Container(
-                width: 76,
-                height: 76,
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  gradient: RadialGradient(
-                    colors: [
-                      AppTheme.primary.withValues(alpha: isDark ? 0.16 : 0.12),
-                      AppTheme.primary.withValues(alpha: 0.025),
-                    ],
-                  ),
-                ),
-              ),
-            ),
-            RotationTransition(
-              turns: _orbitAnimation,
-              child: CustomPaint(
-                size: const Size.square(76),
-                painter: _SyncOrbitPainter(
-                  trackColor: trackColor,
-                  primaryColor: AppTheme.primary,
-                  accentColor: AppTheme.secondary,
-                ),
-              ),
-            ),
-            Container(
-              width: 48,
-              height: 48,
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                color: AppTheme.primary.withValues(alpha: isDark ? 0.16 : 0.1),
-                border: Border.all(
-                  color: AppTheme.primary.withValues(alpha: 0.3),
-                ),
-                boxShadow: [
-                  BoxShadow(
-                    color: AppTheme.primary.withValues(
-                      alpha: isDark ? 0.18 : 0.12,
-                    ),
-                    blurRadius: 14,
-                    spreadRadius: 1,
-                  ),
-                ],
-              ),
-              child: const Icon(
-                Icons.sync_rounded,
-                color: AppTheme.primary,
-                size: 28,
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class _SyncOrbitPainter extends CustomPainter {
-  final Color trackColor;
-  final Color primaryColor;
-  final Color accentColor;
-
-  const _SyncOrbitPainter({
-    required this.trackColor,
-    required this.primaryColor,
-    required this.accentColor,
-  });
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    final center = size.center(Offset.zero);
-    final radius = size.shortestSide / 2 - 4;
-    final orbit = Rect.fromCircle(center: center, radius: radius);
-
-    canvas.drawCircle(
-      center,
-      radius,
-      Paint()
-        ..color = trackColor
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = 3,
-    );
-
-    final orbitPaint = Paint()
-      ..shader = SweepGradient(
-        colors: [
-          primaryColor.withValues(alpha: 0.12),
-          primaryColor,
-          accentColor,
-        ],
-        stops: const [0, 0.72, 1],
-        transform: const GradientRotation(-math.pi / 2),
-      ).createShader(orbit)
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 4
-      ..strokeCap = StrokeCap.round;
-    const startAngle = -math.pi / 2;
-    const sweepAngle = math.pi * 1.38;
-    canvas.drawArc(orbit, startAngle, sweepAngle, false, orbitPaint);
-
-    const endAngle = startAngle + sweepAngle;
-    final markerCenter = Offset(
-      center.dx + math.cos(endAngle) * radius,
-      center.dy + math.sin(endAngle) * radius,
-    );
-    canvas.drawCircle(
-      markerCenter,
-      3.5,
-      Paint()
-        ..color = accentColor
-        ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 3),
-    );
-    canvas.drawCircle(markerCenter, 2.25, Paint()..color = accentColor);
-  }
-
-  @override
-  bool shouldRepaint(_SyncOrbitPainter oldDelegate) {
-    return oldDelegate.trackColor != trackColor ||
-        oldDelegate.primaryColor != primaryColor ||
-        oldDelegate.accentColor != accentColor;
-  }
-}
-
-class _SpinningSyncIcon extends StatefulWidget {
-  final Color color;
-
-  const _SpinningSyncIcon({required this.color});
-
-  @override
-  State<_SpinningSyncIcon> createState() => _SpinningSyncIconState();
-}
-
-class _SpinningSyncIconState extends State<_SpinningSyncIcon>
-    with SingleTickerProviderStateMixin {
-  late final AnimationController _controller;
-
-  @override
-  void initState() {
-    super.initState();
-    _controller = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 1100),
-    )..repeat();
-  }
-
-  @override
-  void dispose() {
-    _controller.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return RotationTransition(
-      turns: Tween<double>(begin: 0, end: -1).animate(_controller),
-      child: Icon(Icons.sync_rounded, color: widget.color, size: 16),
-    );
   }
 }

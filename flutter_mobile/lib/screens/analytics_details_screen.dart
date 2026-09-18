@@ -7,6 +7,7 @@ import '../core/theme.dart';
 import '../providers/app_state.dart';
 import '../models/models.dart';
 import '../widgets/custom_card.dart';
+import '../utils/health_display_utils.dart';
 
 class AnalyticsDetailsScreen extends StatefulWidget {
   final String title;
@@ -47,6 +48,8 @@ class _AnalyticsDetailsScreenState extends State<AnalyticsDetailsScreen> {
 
   bool get _isDropJumpDetail =>
       widget.type == 'jump' && widget.exerciseId == 'drop_jump';
+  bool get _isWellnessScore =>
+      widget.type == 'body' && isWellnessScoreType(widget.exerciseId);
 
   int _decimalPlacesFor(String exerciseId, String type) {
     final integerMetrics = {
@@ -423,9 +426,10 @@ class _AnalyticsDetailsScreenState extends State<AnalyticsDetailsScreen> {
             .where((l) => l.exerciseId == widget.exerciseId)
             .toList();
       } else if (widget.type == 'body') {
-        allLogs = appState.bodyLogs
-            .where((l) => l.type == widget.exerciseId)
-            .toList();
+        allLogs =
+            (_isWellnessScore ? appState.wellnessScoreLogs : appState.bodyLogs)
+                .where((l) => l.type == widget.exerciseId)
+                .toList();
       } else {
         allLogs = appState.jumpLogs
             .where((l) => l.type == widget.exerciseId)
@@ -433,6 +437,9 @@ class _AnalyticsDetailsScreenState extends State<AnalyticsDetailsScreen> {
       }
     }
 
+    if (_isWellnessScore) {
+      allLogs = canonicalWellnessScoreLogs(allLogs.cast<BodyMetricLog>());
+    }
     allLogs.sort(
         (a, b) => DateTime.parse(a.date).compareTo(DateTime.parse(b.date)));
     List<dynamic> logs = _filterLogsByTimeframe(allLogs);
@@ -470,6 +477,13 @@ class _AnalyticsDetailsScreenState extends State<AnalyticsDetailsScreen> {
         padding: const EdgeInsets.only(bottom: 40),
         children: [
           _buildTimeframeSelector(),
+          if (_isWellnessScore)
+            Padding(
+              padding: const EdgeInsets.fromLTRB(20, 12, 20, 0),
+              child: Text(wellnessScoreHistoryNote,
+                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                      color: Theme.of(context).colorScheme.onSurfaceVariant)),
+            ),
           const SizedBox(height: 16),
           _buildPeriodMaxCard(logs),
           const SizedBox(height: 24),
@@ -507,8 +521,7 @@ class _AnalyticsDetailsScreenState extends State<AnalyticsDetailsScreen> {
       padding: const EdgeInsets.symmetric(horizontal: 20),
       child: Container(
         padding: const EdgeInsets.all(4),
-        decoration: BoxDecoration(
-          color: AppTheme.card,
+        decoration: AppTheme.panelDecoration(
           borderRadius: BorderRadius.circular(12),
         ),
         child: Row(
@@ -747,10 +760,25 @@ class _AnalyticsDetailsScreenState extends State<AnalyticsDetailsScreen> {
 
     List<FlSpot> spots = [];
     double minY = double.infinity, maxY = -double.infinity;
+    final chartStart = DateTime.parse(logs.first.date as String);
+    final scoreDates = <int, DateTime>{};
 
     for (int i = 0; i < logs.length; i++) {
       double val = valueOf(logs[i]);
-      spots.add(FlSpot(i.toDouble(), val));
+      final date = DateTime.parse(logs[i].date as String);
+      final x = _isWellnessScore
+          ? DateTime.utc(date.year, date.month, date.day)
+              .difference(DateTime.utc(
+                  chartStart.year, chartStart.month, chartStart.day))
+              .inDays
+          : i;
+      if (_isWellnessScore) {
+        if (spots.isNotEmpty && x - spots.last.x > 1) {
+          spots.add(FlSpot.nullSpot);
+        }
+        scoreDates[x] = date;
+      }
+      spots.add(FlSpot(x.toDouble(), val));
       if (val < minY) minY = val;
       if (val > maxY) maxY = val;
     }
@@ -761,6 +789,10 @@ class _AnalyticsDetailsScreenState extends State<AnalyticsDetailsScreen> {
         : (range * 0.2).clamp(0.2, 20.0);
     minY = (minY - pad).clamp(0.0, double.infinity);
     maxY = maxY + pad;
+    if (_isWellnessScore) {
+      minY = 0;
+      maxY = 100;
+    }
 
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 20),
@@ -788,6 +820,24 @@ class _AnalyticsDetailsScreenState extends State<AnalyticsDetailsScreen> {
                   getTitlesWidget: (val, meta) {
                     final idx = val.round();
                     if (val != idx.toDouble()) return const SizedBox.shrink();
+                    if (_isWellnessScore) {
+                      final selectedDays = [
+                        scoreDates.keys.first,
+                        scoreDates.keys.elementAt(scoreDates.length ~/ 2),
+                        scoreDates.keys.last
+                      ];
+                      final date = scoreDates[idx];
+                      if (date == null || !selectedDays.contains(idx)) {
+                        return const SizedBox.shrink();
+                      }
+                      return Padding(
+                          padding: const EdgeInsets.only(top: 8),
+                          child: Text(
+                              '${date.day} ${_getMon(date.month).toLowerCase()}',
+                              style: TextStyle(
+                                  color: AppTheme.textMediumEmphasis,
+                                  fontSize: 10)));
+                    }
                     if (idx >= 0 &&
                         idx < logs.length &&
                         (idx == 0 ||

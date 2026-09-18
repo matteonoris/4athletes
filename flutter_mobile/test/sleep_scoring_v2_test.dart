@@ -126,7 +126,7 @@ void main() {
       expect(needWithNap.napsDeductionMinutes, 60);
       expect(durationWithNap['value'], 100);
       expect(durationWithNap['details']['totalSleep24hMinutes'], 500);
-      expect(durationWithoutNap['value'], closeTo(88, 0.000001));
+      expect(durationWithoutNap['value'], closeTo(76, 0.000001));
     });
 
     test('signed balance lets a recent surplus repay an older deficit', () {
@@ -240,7 +240,7 @@ void main() {
     test('efficiency is normalized between configured floor and target', () {
       final targetEfficiencyDay = _day(
         0,
-        totalSleepMinutes: 425,
+        totalSleepMinutes: 475,
         timeInBedMinutes: 500,
       );
       final floorEfficiencyDay = _day(
@@ -268,11 +268,11 @@ void main() {
 
       expect(targetComponent['value'], closeTo(100, 0.000001));
       expect(floorComponent['value'], closeTo(0, 0.000001));
-      expect(targetComponent['details']['efficiencyTarget'], 0.85);
+      expect(targetComponent['details']['efficiencyTarget'], 0.95);
       expect(targetComponent['details']['efficiencyFloor'], 0.60);
     });
 
-    test('architecture is informational and cannot alter the score', () {
+    test('personal architecture can only subtract a bounded penalty', () {
       final history = List.generate(
         14,
         (index) => _day(index, totalSleepMinutes: 500),
@@ -306,9 +306,9 @@ void main() {
       final architecture =
           score.components['architecture'] as Map<String, dynamic>;
 
-      expect(score.score, closeTo(alternateScore.score!, 0.000001));
-      expect(architecture['used'], isFalse);
-      expect(architecture['informationalOnly'], isTrue);
+      expect(score.score! - alternateScore.score!, closeTo(8, 0.000001));
+      expect(architecture['used'], isTrue);
+      expect(architecture['informationalOnly'], isFalse);
       expect(architecture['weight'], 0);
     });
 
@@ -350,6 +350,12 @@ DailyWearableData _day(
     totalSleepTimeMinutes: totalSleepMinutes,
     deepSleepMinutes: deepSleepMinutes,
     remSleepMinutes: remSleepMinutes,
+    lightSleepMinutes: totalSleepMinutes != null &&
+            deepSleepMinutes != null &&
+            remSleepMinutes != null
+        ? totalSleepMinutes - deepSleepMinutes - remSleepMinutes
+        : null,
+    sleepStageSource: 'test-watch',
     timeInBedMinutes: timeInBedMinutes ??
         (totalSleepMinutes == null ? null : totalSleepMinutes + 30),
     sleepOnsetTimestamp: onset,

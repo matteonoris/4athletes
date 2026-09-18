@@ -504,8 +504,7 @@ class _WorkoutFlowScreenState extends State<WorkoutFlowScreen> {
     return Container(
       key: const ValueKey('coach_participants_card'),
       width: double.infinity,
-      decoration: BoxDecoration(
-        color: AppTheme.card,
+      decoration: AppTheme.panelDecoration(
         borderRadius: BorderRadius.circular(14),
         border: Border.all(color: AppTheme.subtleBorder),
       ),
@@ -927,8 +926,7 @@ class _WorkoutFlowScreenState extends State<WorkoutFlowScreen> {
       key: const ValueKey('session_rpe_card'),
       width: double.infinity,
       padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: AppTheme.card,
+      decoration: AppTheme.panelDecoration(
         borderRadius: BorderRadius.circular(16),
         border: Border.all(color: AppTheme.subtleBorder),
       ),
@@ -1154,8 +1152,7 @@ class _WorkoutFlowScreenState extends State<WorkoutFlowScreen> {
 
   Widget _dateTimeCard() {
     return Container(
-      decoration: BoxDecoration(
-        color: AppTheme.card,
+      decoration: AppTheme.panelDecoration(
         borderRadius: BorderRadius.circular(14),
         border: Border.all(color: AppTheme.subtleBorder),
       ),
@@ -1406,8 +1403,7 @@ class _WorkoutFlowScreenState extends State<WorkoutFlowScreen> {
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: AppTheme.card,
+      decoration: AppTheme.panelDecoration(
         borderRadius: BorderRadius.circular(16),
         border: Border.all(color: AppTheme.subtleBorder),
       ),

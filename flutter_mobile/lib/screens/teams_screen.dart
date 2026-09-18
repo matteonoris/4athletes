@@ -121,12 +121,10 @@ class _TeamsScreenState extends State<TeamsScreen> {
                                 borderRadius: BorderRadius.circular(12),
                                 child: Ink(
                                   padding: const EdgeInsets.all(16),
-                                  decoration: BoxDecoration(
-                                    color: AppTheme.card,
+                                  decoration: AppTheme.panelDecoration(
                                     borderRadius: BorderRadius.circular(12),
                                     border: Border.all(
-                                        color: Colors.white
-                                            .withValues(alpha: 0.05)),
+                                        color: AppTheme.subtleBorder),
                                   ),
                                   child: Row(
                                     children: [
@@ -135,13 +133,11 @@ class _TeamsScreenState extends State<TeamsScreen> {
                                         width: 56,
                                         height: 56,
                                         decoration: BoxDecoration(
-                                          color: Colors.white
-                                              .withValues(alpha: 0.05),
+                                          color: AppTheme.subtleFill,
                                           borderRadius:
                                               BorderRadius.circular(8),
                                           border: Border.all(
-                                              color: Colors.white
-                                                  .withValues(alpha: 0.1)),
+                                              color: AppTheme.subtleBorder),
                                           image: team.image.isNotEmpty &&
                                                   team.image.startsWith('http')
                                               ? DecorationImage(
@@ -431,13 +427,12 @@ class _JoinTeamModalState extends State<_JoinTeamModal> {
       child: Container(
         width: double.infinity,
         constraints: const BoxConstraints(maxWidth: 400),
-        decoration: BoxDecoration(
-          color: AppTheme.card,
+        decoration: AppTheme.panelDecoration(
           borderRadius: BorderRadius.circular(24),
           border: Border.all(color: AppTheme.subtleBorder),
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withValues(alpha: 0.5),
+              color: AppTheme.shadow,
               blurRadius: 20,
               offset: const Offset(0, 10),
             ),
@@ -493,8 +488,7 @@ class _JoinTeamModalState extends State<_JoinTeamModal> {
 
             // Input Field
             Container(
-              decoration: BoxDecoration(
-                color: AppTheme.surface,
+              decoration: AppTheme.panelDecoration(
                 borderRadius: BorderRadius.circular(16),
                 border: Border.all(
                   color: _joinStatus == 'error'
@@ -514,12 +508,12 @@ class _JoinTeamModalState extends State<_JoinTeamModal> {
                     enabled:
                         _joinStatus != 'loading' && _joinStatus != 'success',
                     onChanged: (_) => setState(() => _joinStatus = 'idle'),
-                    style: const TextStyle(
+                    style: TextStyle(
                       fontSize: 24,
                       fontFamily: 'monospace',
                       fontWeight: FontWeight.bold,
                       letterSpacing: 4,
-                      color: Colors.white,
+                      color: AppTheme.textHighEmphasis,
                     ),
                     textCapitalization: TextCapitalization.characters,
                     decoration: const InputDecoration(

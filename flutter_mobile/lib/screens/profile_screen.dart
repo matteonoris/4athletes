@@ -544,8 +544,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                         TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
                 const SizedBox(height: 12),
                 Container(
-                  decoration: BoxDecoration(
-                    color: AppTheme.card,
+                  decoration: AppTheme.panelDecoration(
                     borderRadius: BorderRadius.circular(16),
                     border: Border.all(color: AppTheme.subtleBorder),
                   ),
@@ -560,10 +559,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
                           decoration: BoxDecoration(
                               color: AppTheme.secondary.withValues(alpha: 0.1),
                               shape: BoxShape.circle),
-                          child: Icon(
-                              _themeModeIcon(themeMode),
-                              color: AppTheme.secondary,
-                              size: 16),
+                          child: Icon(_themeModeIcon(themeMode),
+                              color: AppTheme.secondary, size: 16),
                         ),
                         title: const Text('Tema',
                             style: TextStyle(
@@ -571,8 +568,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                         trailing: Row(
                           mainAxisSize: MainAxisSize.min,
                           children: [
-                            Text(
-                                _themeModeLabel(themeMode),
+                            Text(_themeModeLabel(themeMode),
                                 style: TextStyle(
                                     fontSize: 12,
                                     color: AppTheme.textMediumEmphasis)),
@@ -592,8 +588,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
                           padding: const EdgeInsets.all(8),
                           child: Column(
                             children: [
-                              _buildRadioItem(AppTheme.systemMode,
-                                  'Automatico', themeMode, (val) {
+                              _buildRadioItem(
+                                  AppTheme.systemMode, 'Automatico', themeMode,
+                                  (val) {
                                 if (val != null) {
                                   _setThemeMode(p, val);
                                 }
@@ -1123,8 +1120,7 @@ class _DeviceManagementModal extends StatelessWidget {
                     return Container(
                       margin: const EdgeInsets.only(bottom: 12),
                       padding: const EdgeInsets.all(16),
-                      decoration: BoxDecoration(
-                          color: AppTheme.surface,
+                      decoration: AppTheme.panelDecoration(
                           borderRadius: BorderRadius.circular(16)),
                       child: Row(
                         children: [
@@ -1258,10 +1254,9 @@ class _DeviceManagementModal extends StatelessWidget {
                     child: Container(
                       margin: const EdgeInsets.only(bottom: 8),
                       padding: const EdgeInsets.all(16),
-                      decoration: BoxDecoration(
+                      decoration: AppTheme.panelDecoration(
                         border: Border.all(color: AppTheme.subtleBorder),
                         borderRadius: BorderRadius.circular(16),
-                        color: AppTheme.card,
                       ),
                       child: Row(
                         children: [

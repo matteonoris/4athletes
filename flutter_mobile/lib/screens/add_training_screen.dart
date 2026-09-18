@@ -843,8 +843,7 @@ class _AddTrainingScreenState extends State<AddTrainingScreen> {
                 color: AppTheme.textMediumEmphasis)),
         const SizedBox(height: 6),
         Container(
-          decoration: BoxDecoration(
-            color: AppTheme.surface,
+          decoration: AppTheme.panelDecoration(
             borderRadius: BorderRadius.circular(12),
             border: Border.all(color: AppTheme.subtleBorder),
           ),
@@ -943,8 +942,7 @@ class _AddTrainingScreenState extends State<AddTrainingScreen> {
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
       padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(
-        color: AppTheme.card,
+      decoration: AppTheme.panelDecoration(
         borderRadius: BorderRadius.circular(16),
         border: Border.all(color: AppTheme.subtleBorder),
       ),
@@ -1427,8 +1425,7 @@ class _AddTrainingScreenState extends State<AddTrainingScreen> {
                     _stretchExercises.isEmpty)
                   Container(
                     padding: const EdgeInsets.all(24),
-                    decoration: BoxDecoration(
-                        color: AppTheme.card,
+                    decoration: AppTheme.panelDecoration(
                         borderRadius: BorderRadius.circular(16)),
                     child: Center(
                         child: Text(
@@ -1740,8 +1737,7 @@ class _AddTrainingScreenState extends State<AddTrainingScreen> {
                   return Container(
                     margin: const EdgeInsets.only(bottom: 12),
                     padding: const EdgeInsets.all(16),
-                    decoration: BoxDecoration(
-                      color: AppTheme.card,
+                    decoration: AppTheme.panelDecoration(
                       borderRadius: BorderRadius.circular(16),
                       border: Border.all(color: AppTheme.subtleBorder),
                     ),
@@ -1780,8 +1776,7 @@ class _AddTrainingScreenState extends State<AddTrainingScreen> {
                                           fontWeight: FontWeight.bold)),
                                   const SizedBox(height: 6),
                                   Container(
-                                    decoration: BoxDecoration(
-                                      color: AppTheme.surface,
+                                    decoration: AppTheme.panelDecoration(
                                       borderRadius: BorderRadius.circular(12),
                                     ),
                                     child: TextFormField(
@@ -1822,8 +1817,7 @@ class _AddTrainingScreenState extends State<AddTrainingScreen> {
                                           fontWeight: FontWeight.bold)),
                                   const SizedBox(height: 6),
                                   Container(
-                                    decoration: BoxDecoration(
-                                      color: AppTheme.surface,
+                                    decoration: AppTheme.panelDecoration(
                                       borderRadius: BorderRadius.circular(12),
                                     ),
                                     child: TextFormField(

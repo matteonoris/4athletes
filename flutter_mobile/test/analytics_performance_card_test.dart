@@ -290,6 +290,10 @@ void main() {
         isNull,
         reason: 'I massimali senza tabella devono restare neutri.',
       );
+      // Populated metric cards must also fit a compact phone width.
+      await tester.binding.setSurfaceSize(const Size(320, 4000));
+      await tester.pumpAndSettle();
+      expect(tester.takeException(), isNull);
     });
   }
 }

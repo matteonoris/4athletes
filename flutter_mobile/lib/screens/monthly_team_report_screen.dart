@@ -284,8 +284,7 @@ class _MonthlyTeamReportScreenState extends State<MonthlyTeamReportScreen> {
 
     return Container(
       padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: AppTheme.card,
+      decoration: AppTheme.panelDecoration(
         borderRadius: BorderRadius.circular(16),
         border: Border.all(color: AppTheme.subtleBorder),
       ),
@@ -525,8 +524,7 @@ class _MonthlyTeamReportScreenState extends State<MonthlyTeamReportScreen> {
   Widget _buildAutomaticSummary(MonthlyTeamReport report) {
     return Container(
       padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: AppTheme.card,
+      decoration: AppTheme.panelDecoration(
         borderRadius: BorderRadius.circular(16),
         border: Border.all(color: AppTheme.subtleBorder),
       ),
@@ -598,8 +596,7 @@ class _MonthlyTeamReportScreenState extends State<MonthlyTeamReportScreen> {
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(
-        color: AppTheme.card,
+      decoration: AppTheme.panelDecoration(
         borderRadius: BorderRadius.circular(16),
         border: Border.all(color: AppTheme.subtleBorder),
       ),
@@ -672,8 +669,7 @@ class _MonthlyTeamReportScreenState extends State<MonthlyTeamReportScreen> {
       child: Container(
         margin: const EdgeInsets.only(bottom: 10),
         padding: const EdgeInsets.all(14),
-        decoration: BoxDecoration(
-          color: AppTheme.card,
+        decoration: AppTheme.panelDecoration(
           borderRadius: BorderRadius.circular(16),
           border: Border.all(color: AppTheme.subtleBorder),
         ),
@@ -885,8 +881,7 @@ class _MonthlyTeamReportScreenState extends State<MonthlyTeamReportScreen> {
     return Container(
       height: 230,
       padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: AppTheme.card,
+      decoration: AppTheme.panelDecoration(
         borderRadius: BorderRadius.circular(16),
         border: Border.all(color: AppTheme.subtleBorder),
       ),
@@ -1127,8 +1122,7 @@ class MonthlyTeamReportKpiCard extends StatelessWidget {
     return Container(
       constraints: const BoxConstraints(minHeight: 112),
       padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(
-        color: AppTheme.card,
+      decoration: AppTheme.panelDecoration(
         borderRadius: BorderRadius.circular(16),
         border: Border.all(color: AppTheme.subtleBorder),
       ),

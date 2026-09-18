@@ -62,14 +62,14 @@ void main() {
     test('confidence increases from seven to twenty-eight valid nights', () {
       final provisional = calculateRecoveryScoreResult(
         profile,
-        _day('2026-02-01'),
-        _history(7),
+        _day('2026-02-01', hrvMetric: 'rmssd'),
+        _history(7, hrvMetric: 'rmssd'),
         _sleep(80),
       );
       final full = calculateRecoveryScoreResult(
         profile,
-        _day('2026-02-01'),
-        _history(28),
+        _day('2026-02-01', hrvMetric: 'rmssd'),
+        _history(28, hrvMetric: 'rmssd'),
         _sleep(80),
       );
 
@@ -100,7 +100,7 @@ void main() {
         ..._history(7, hrvMetric: 'rmssd', hrvStart: 50),
         ..._history(
           7,
-          startDay: 8,
+          startDay: 11,
           hrvMetric: 'sdnn',
           hrvStart: 90,
         ),
@@ -329,7 +329,7 @@ ScoreResult _sleep(double? score) => ScoreResult(
 
 List<DailyWearableData> _history(
   int count, {
-  int startDay = 1,
+  int startDay = 4,
   String hrvMetric = 'unknown',
   double hrvStart = 70,
   bool varyHrv = true,

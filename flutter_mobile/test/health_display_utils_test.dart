@@ -3,6 +3,23 @@ import 'package:flutter_mobile/utils/health_display_utils.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
+  for (final type in ['sleep_score', 'recovery_score']) {
+    test('$type keeps zero, removes invalid revisions and deduplicates dates',
+        () {
+      final series = buildDailySeries(logs: [
+        BodyMetricLog(id: 'old', date: '2026-06-01', type: type, value: 90),
+        BodyMetricLog(id: 'new', date: '2026-06-01', type: type, value: 58),
+        BodyMetricLog(id: 'zero', date: '2026-06-02', type: type, value: 0),
+        BodyMetricLog(
+            id: 'invalid', date: '2026-06-03', type: type, value: 101),
+        BodyMetricLog(id: 'old4', date: '2026-06-04', type: type, value: 95),
+        BodyMetricLog(
+            id: 'invalid4', date: '2026-06-04', type: type, value: double.nan),
+      ], type: type, endDate: DateTime(2026, 6, 5), days: 5);
+      expect(series.map((point) => point.value).toList(),
+          [58, 0, null, null, null]);
+    });
+  }
   test('readiness status follows the requested recovery scale', () {
     expect(readinessStatus(90), 'Molto alto');
     expect(readinessStatus(70), 'Buono');

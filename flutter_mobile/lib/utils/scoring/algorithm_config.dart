@@ -144,7 +144,9 @@ class SleepNeedConfig {
 
 class SleepScoreConfig {
   final SleepScoreWeights weights;
-  final double restorativeRatioTarget;
+  final List<({double ratio, double score})> adequacyAnchors;
+  final double maxDurationCompensationPoints;
+  final SleepArchitectureConfig architecture;
   final int recentAdequacyWindowDays;
   final int recentAdequacyMinDays;
   final double efficiencyTarget;
@@ -156,7 +158,9 @@ class SleepScoreConfig {
 
   const SleepScoreConfig({
     required this.weights,
-    required this.restorativeRatioTarget,
+    required this.adequacyAnchors,
+    required this.maxDurationCompensationPoints,
+    required this.architecture,
     required this.recentAdequacyWindowDays,
     required this.recentAdequacyMinDays,
     required this.efficiencyTarget,
@@ -168,16 +172,36 @@ class SleepScoreConfig {
   });
 }
 
+class SleepArchitectureConfig {
+  final int minBaselineNights;
+  final int fullBaselineNights;
+  final double minStageCoverage;
+  final double maxStageCoverage;
+  final double minRatioStandardDeviation;
+  final double deficitDeadbandZ;
+  final double fullPenaltyZ;
+  final double maxPenaltyPoints;
+
+  const SleepArchitectureConfig({
+    required this.minBaselineNights,
+    required this.fullBaselineNights,
+    required this.minStageCoverage,
+    required this.maxStageCoverage,
+    required this.minRatioStandardDeviation,
+    required this.deficitDeadbandZ,
+    required this.fullPenaltyZ,
+    required this.maxPenaltyPoints,
+  });
+}
+
 class SleepScoreWeights {
   final double duration;
-  final double architecture;
   final double recentAdequacy;
   final double circadianRegularity;
   final double efficiency;
 
   const SleepScoreWeights({
     required this.duration,
-    required this.architecture,
     required this.recentAdequacy,
     required this.circadianRegularity,
     required this.efficiency,
@@ -194,6 +218,8 @@ class RecoveryScoreConfig {
   final double anomalyDeadbandZ;
   final double sleepNeutralScore;
   final double sleepZScale;
+  final double autonomicConflictDeadbandZ;
+  final double autonomicConflictFullSuppressionZ;
   final LutealPhaseAdjustment lutealPhaseAdjustment;
 
   const RecoveryScoreConfig({
@@ -206,6 +232,8 @@ class RecoveryScoreConfig {
     required this.anomalyDeadbandZ,
     required this.sleepNeutralScore,
     required this.sleepZScale,
+    required this.autonomicConflictDeadbandZ,
+    required this.autonomicConflictFullSuppressionZ,
     required this.lutealPhaseAdjustment,
   });
 }
@@ -385,7 +413,7 @@ class TimeConfig {
 }
 
 const defaultAlgorithmConfig = AlgorithmConfig(
-  version: 'wellness-scoring-v2.0.0',
+  version: 'wellness-scoring-v2.2.0',
   score: ScoreConfig(
     min: 0,
     max: 100,
@@ -439,16 +467,35 @@ const defaultAlgorithmConfig = AlgorithmConfig(
   ),
   sleepScore: SleepScoreConfig(
     weights: SleepScoreWeights(
-      duration: 0.50,
-      architecture: 0,
-      recentAdequacy: 0.20,
+      duration: 0.55,
+      recentAdequacy: 0.15,
       circadianRegularity: 0.10,
       efficiency: 0.20,
     ),
-    restorativeRatioTarget: 0.40,
+    // Product calibration anchors, not clinically validated cut-offs.
+    adequacyAnchors: [
+      (ratio: 0, score: 0),
+      (ratio: 0.50, score: 15),
+      (ratio: 0.60, score: 30),
+      (ratio: 0.70, score: 45),
+      (ratio: 0.80, score: 60),
+      (ratio: 0.90, score: 80),
+      (ratio: 1.00, score: 100),
+    ],
+    maxDurationCompensationPoints: 10,
+    architecture: SleepArchitectureConfig(
+      minBaselineNights: 7,
+      fullBaselineNights: 14,
+      minStageCoverage: 0.90,
+      maxStageCoverage: 1.02,
+      minRatioStandardDeviation: 0.03,
+      deficitDeadbandZ: 1,
+      fullPenaltyZ: 3,
+      maxPenaltyPoints: 8,
+    ),
     recentAdequacyWindowDays: 7,
     recentAdequacyMinDays: 3,
-    efficiencyTarget: 0.85,
+    efficiencyTarget: 0.95,
     efficiencyFloor: 0.60,
     circadianWindowDays: 14,
     circadianToleranceMinutes: 30,
@@ -464,14 +511,18 @@ const defaultAlgorithmConfig = AlgorithmConfig(
       respiratoryRate: 0.10,
       spo2: 0.05,
     ),
-    sigmoidK: 0.8,
-    sigmoidBias: 1.06,
+    // Neutral personal physiology maps to 65; consistently favorable inputs
+    // can still exceed 85. These are product calibration parameters.
+    sigmoidK: 1.0,
+    sigmoidBias: 0.6190392084062236,
     minAvailableWeight: 0.45,
     minAutonomicComponents: 1,
     favorableContributionClip: 1.5,
     anomalyDeadbandZ: 0.5,
     sleepNeutralScore: 75,
     sleepZScale: 15,
+    autonomicConflictDeadbandZ: 0.5,
+    autonomicConflictFullSuppressionZ: 2.0,
     lutealPhaseAdjustment: LutealPhaseAdjustment(
       enabled: false,
       restingHeartRateSubtractBpm: 2,

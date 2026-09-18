@@ -4,6 +4,7 @@ import 'package:flutter/foundation.dart';
 import 'package:health/health.dart';
 import 'package:permission_handler/permission_handler.dart';
 import '../models/models.dart';
+import 'daily_health_metric_normalizer.dart';
 import 'health_import_normalizer.dart';
 import 'native_health_service.dart';
 
@@ -30,7 +31,7 @@ class HealthService {
   HealthService._internal();
 
   final Health _health = Health();
-  static const int _healthImportVersion = 6;
+  static const int _healthImportVersion = 7;
 
   final List<HealthDataType> _dataTypes = Platform.isIOS
       ? [
@@ -50,6 +51,7 @@ class HealthService {
           HealthDataType.HEIGHT,
           HealthDataType.DISTANCE_WALKING_RUNNING,
           HealthDataType.DISTANCE_CYCLING,
+          HealthDataType.DISTANCE_SWIMMING,
           HealthDataType.SPEED,
           HealthDataType.FLIGHTS_CLIMBED,
           HealthDataType.BLOOD_OXYGEN,
@@ -855,6 +857,7 @@ class HealthService {
   List<HealthDataType> _distanceTypesForSport(String sportId) {
     if (Platform.isAndroid) return [HealthDataType.DISTANCE_DELTA];
     if (_isCyclingSport(sportId)) return [HealthDataType.DISTANCE_CYCLING];
+    if (sportId == 'swimming') return [HealthDataType.DISTANCE_SWIMMING];
     if (_isRunningSport(sportId) || sportId == 'hiking') {
       return [HealthDataType.DISTANCE_WALKING_RUNNING];
     }
@@ -1277,7 +1280,9 @@ class HealthService {
   }
 
   Future<Map<String, List<BodyMetricLog>>> syncDailyHealthMetrics(
-      {int days = 7, bool requestPermissions = true}) async {
+      {int days = 7,
+      bool requestPermissions = true,
+      DateTime? oxygenHistoryStart}) async {
     Map<String, List<BodyMetricLog>> results = {
       'resting_hr': [],
       'hrv_sdnn': [],
@@ -1291,7 +1296,8 @@ class HealthService {
     try {
       await _health.configure();
       final now = DateTime.now();
-      final startDate = now.subtract(Duration(days: days));
+      // Whole local calendar days, including the first night's HRV samples.
+      final startDate = DateTime(now.year, now.month, now.day - days);
       if (requestPermissions) {
         try {
           await _ensureDailyMetricPermissions();
@@ -1309,6 +1315,7 @@ class HealthService {
           startTime: startDate,
           endTime: now,
           types: [HealthDataType.RESTING_HEART_RATE],
+          preferredUnits: DailyHealthMetricNormalizer.units,
         );
         debugPrint(
             'Health sync: RESTING_HEART_RATE returned ${rhrData.length} points');
@@ -1327,6 +1334,7 @@ class HealthService {
                 ? HealthDataType.HEART_RATE_VARIABILITY_SDNN
                 : HealthDataType.HEART_RATE_VARIABILITY_RMSSD
           ],
+          preferredUnits: DailyHealthMetricNormalizer.units,
         );
         debugPrint('Health sync: HRV returned ${hrvData.length} points');
       } catch (e) {
@@ -1340,6 +1348,7 @@ class HealthService {
           startTime: startDate,
           endTime: now,
           types: [HealthDataType.WEIGHT],
+          preferredUnits: DailyHealthMetricNormalizer.units,
         );
         debugPrint('Health sync: WEIGHT returned ${weightData.length} points');
       } catch (e) {
@@ -1349,7 +1358,10 @@ class HealthService {
       // Fetch optional recovery metrics independently. Health Connect
       // permissions are granular, so one denied metric must not hide the rest.
       final spo2Data = await _fetchDailyMetricPoints(
-        startDate: startDate,
+        startDate:
+            oxygenHistoryStart != null && oxygenHistoryStart.isBefore(startDate)
+                ? oxygenHistoryStart
+                : startDate,
         endDate: now,
         type: HealthDataType.BLOOD_OXYGEN,
         label: 'SpO2',
@@ -1370,87 +1382,14 @@ class HealthService {
         label: 'Night skin/wrist temperature',
       );
 
-      // Helper function to process daily averages
-      void processAverages(List<HealthDataPoint> data,
-          List<HealthDataType> types, String mapKey) {
-        Map<String, List<double>> dailyMap = {};
-        for (var point in data) {
-          if (types.contains(point.type) && point.value is NumericHealthValue) {
-            final val = (point.value as NumericHealthValue).numericValue;
-            final dateStr = point.dateFrom.toIso8601String().split('T')[0];
-            dailyMap.putIfAbsent(dateStr, () => []).add(val.toDouble());
-          }
-        }
-        dailyMap.forEach((dateStr, values) {
-          final avg = values.reduce((a, b) => a + b) / values.length;
-          results[mapKey]!.add(BodyMetricLog(
-            id: '${mapKey}_$dateStr', // Temp ID
-            date: dateStr,
-            type: mapKey,
-            value: avg,
-          ));
-        });
-      }
-
-      processAverages(
-          rhrData, [HealthDataType.RESTING_HEART_RATE], 'resting_hr');
-      processAverages(weightData, [HealthDataType.WEIGHT], 'weight');
-      processAverages(spo2Data, [HealthDataType.BLOOD_OXYGEN], 'spo2');
-      processAverages(respData, [HealthDataType.RESPIRATORY_RATE], 'resp');
-      if (Platform.isIOS) {
-        processAverages(
-          tempData,
-          [HealthDataType.SLEEP_WRIST_TEMPERATURE],
-          'wrist_temp_c',
-        );
-      } else {
-        final dailySkinTemperature = <String, List<double>>{};
-        for (final point in tempData) {
-          final value = point.value;
-          final delta = value is SkinTemperatureHealthValue
-              ? value.temperatureDelta
-              : value is NumericHealthValue
-                  ? value.numericValue.toDouble()
-                  : null;
-          if (delta == null || !delta.isFinite) continue;
-          final dateStr = point.dateFrom.toIso8601String().split('T')[0];
-          dailySkinTemperature.putIfAbsent(dateStr, () => []).add(delta);
-        }
-        dailySkinTemperature.forEach((dateStr, values) {
-          results['skin_temp_delta_c']!.add(BodyMetricLog(
-            id: 'skin_temp_delta_c_$dateStr',
-            date: dateStr,
-            type: 'skin_temp_delta_c',
-            value: values.reduce((a, b) => a + b) / values.length,
-          ));
-        });
-      }
-
-      // Process HRV (Only nighttime/morning: 00:00 to 08:00)
-      Map<String, List<double>> dailyHrv = {};
-      for (var point in hrvData) {
-        if (point.value is NumericHealthValue) {
-          final val = (point.value as NumericHealthValue).numericValue;
-          final hour = point.dateFrom.hour;
-          if (hour >= 0 && hour <= 8) {
-            final dateStr = point.dateFrom.toIso8601String().split('T')[0];
-            dailyHrv.putIfAbsent(dateStr, () => []).add(val.toDouble());
-          }
-        }
-      }
-
-      dailyHrv.forEach((dateStr, values) {
-        final avg = values.reduce((a, b) => a + b) / values.length;
-        final metricKey = Platform.isIOS ? 'hrv_sdnn' : 'hrv_rmssd';
-        results[metricKey]!.add(BodyMetricLog(
-          id: '${metricKey}_$dateStr',
-          date: dateStr,
-          type: metricKey,
-          value: avg,
-        ));
-      });
-
-      return results;
+      return DailyHealthMetricNormalizer.aggregate([
+        ...rhrData,
+        ...hrvData,
+        ...weightData,
+        ...spo2Data,
+        ...respData,
+        ...tempData,
+      ]);
     } catch (e) {
       debugPrint("Error syncing daily health metrics: $e");
       return results;
@@ -1503,6 +1442,7 @@ class HealthService {
         startTime: startDate,
         endTime: endDate,
         types: [type],
+        preferredUnits: DailyHealthMetricNormalizer.units,
       );
       debugPrint('Health sync: $label returned ${points.length} points');
       return points;

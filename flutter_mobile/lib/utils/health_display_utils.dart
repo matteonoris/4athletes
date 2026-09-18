@@ -1,6 +1,38 @@
 import '../models/models.dart';
 
 const String missingValue = '\u2014';
+const String wellnessScoreHistoryNote =
+    'I confronti storici possono includere versioni precedenti del calcolo.';
+
+bool isWellnessScoreType(String type) =>
+    type == 'sleep_score' || type == 'recovery_score';
+
+bool isValidWellnessScore(num? value) =>
+    value != null && value.isFinite && value >= 0 && value <= 100;
+
+/// Last observation wins, including an invalid revision that removes a point.
+/// Used by athlete and coach charts so dates and score ranges agree everywhere.
+List<BodyMetricLog> canonicalWellnessScoreLogs(Iterable<BodyMetricLog> logs) {
+  final byDayAndType = <String, BodyMetricLog>{};
+  final now = DateTime.now();
+  final today = DateTime(now.year, now.month, now.day);
+  for (final log in logs) {
+    if (!isWellnessScoreType(log.type)) continue;
+    final date = DateTime.tryParse(log.date);
+    if (date == null ||
+        date.isAfter(today) ||
+        date.toIso8601String().split('T').first != log.date) {
+      continue;
+    }
+    final key = '${log.type}|${log.date}';
+    if (!isValidWellnessScore(log.value)) {
+      byDayAndType.remove(key);
+    } else {
+      byDayAndType[key] = log;
+    }
+  }
+  return byDayAndType.values.toList()..sort((a, b) => a.date.compareTo(b.date));
+}
 
 class DailyChartPoint {
   final DateTime date;
@@ -75,7 +107,9 @@ List<DailyChartPoint> buildDailySeries({
   bool includeRollingBaseline = false,
 }) {
   final byDate = <String, double>{};
-  for (final log in logs.where((log) => log.type == type)) {
+  final sourceLogs =
+      isWellnessScoreType(type) ? canonicalWellnessScoreLogs(logs) : logs;
+  for (final log in sourceLogs.where((log) => log.type == type)) {
     byDate[log.date] = log.value;
   }
 

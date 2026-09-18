@@ -967,8 +967,7 @@ class _DrylandActivityScreenState extends State<DrylandActivityScreen> {
   Widget _phaseModeToggle() {
     return Container(
       padding: const EdgeInsets.all(4),
-      decoration: BoxDecoration(
-        color: AppTheme.surface,
+      decoration: AppTheme.panelDecoration(
         borderRadius: BorderRadius.circular(12),
         border: Border.all(color: AppTheme.subtleBorder),
       ),
@@ -2297,8 +2296,7 @@ class _DrylandActivityScreenState extends State<DrylandActivityScreen> {
   }
 
   BoxDecoration _inputDecoration() {
-    return BoxDecoration(
-      color: AppTheme.surface,
+    return AppTheme.panelDecoration(
       borderRadius: BorderRadius.circular(12),
       border: Border.all(color: AppTheme.subtleBorder),
     );

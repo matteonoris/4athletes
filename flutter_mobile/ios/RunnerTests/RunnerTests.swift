@@ -1,12 +1,18 @@
 import Flutter
 import UIKit
 import XCTest
+import HealthKit
+@testable import Runner
 
 class RunnerTests: XCTestCase {
 
-  func testExample() {
-    // If you add code to the Runner application, consider adding tests here.
-    // See https://developer.apple.com/documentation/xctest for more information about using XCTest.
+  func testWorkoutDistanceFallbackUsesTheActivityMetric() {
+    XCTAssertEqual(AppDelegate.distanceIdentifier(for: .running), .distanceWalkingRunning)
+    XCTAssertEqual(AppDelegate.distanceIdentifier(for: .hiking), .distanceWalkingRunning)
+    XCTAssertEqual(AppDelegate.distanceIdentifier(for: .cycling), .distanceCycling)
+    XCTAssertEqual(AppDelegate.distanceIdentifier(for: .swimming), .distanceSwimming)
+    XCTAssertNil(AppDelegate.distanceIdentifier(for: .downhillSkiing))
+    XCTAssertNil(AppDelegate.distanceIdentifier(for: .traditionalStrengthTraining))
   }
 
 }

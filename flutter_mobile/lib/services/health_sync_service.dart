@@ -131,6 +131,8 @@ class HealthSyncService {
           totalSleepTimeMinutes: sleep.totalSleepMinutes,
           deepSleepMinutes: sleep.deepSleepMinutes,
           remSleepMinutes: sleep.remSleepMinutes,
+          lightSleepMinutes: sleep.lightSleepMinutes,
+          sleepStageSource: sleep.stageSource,
           timeInBedMinutes: sleep.timeInBedMinutes,
           sleepOnsetTimestamp: sleep.sleepOnset,
           sleepWakeTimestamp: sleep.wakeTime,
@@ -167,6 +169,8 @@ class HealthSyncService {
       totalSleepTimeMinutes: todaySleep.totalSleepMinutes,
       deepSleepMinutes: todaySleep.deepSleepMinutes,
       remSleepMinutes: todaySleep.remSleepMinutes,
+      lightSleepMinutes: todaySleep.lightSleepMinutes,
+      sleepStageSource: todaySleep.stageSource,
       timeInBedMinutes: todaySleep.timeInBedMinutes,
       sleepOnsetTimestamp: todaySleep.sleepOnset,
       sleepWakeTimestamp: todaySleep.wakeTime,
@@ -203,6 +207,9 @@ class HealthSyncService {
     final circadianScore = circadianComponent is Map<String, dynamic>
         ? (circadianComponent['value'] as num?)?.toDouble()
         : null;
+    final architecture =
+        scoringResult.sleepScore.components['architecture'] as Map;
+    final architectureDetails = architecture['details'] as Map;
 
     Map<String, double> dailyMetrics = {
       if (rhrToday != null) 'rhr': rhrToday,
@@ -227,6 +234,15 @@ class HealthSyncService {
       'sleepDebt': scoringResult.dailySleepNeed.sleepDebtMinutes,
       'naps': scoringResult.dailySleepNeed.napsDeductionMinutes,
       'sleepScoreConfidence': scoringResult.sleepScore.confidence,
+      'sleepStageBaselineNights':
+          (architectureDetails['validBaselineNights'] as num).toDouble(),
+      if (architecture['used'] == true) ...{
+        'sleepStagePenalty': scoringResult
+            .sleepScore.components['architecturePenaltyPoints'] as double,
+        for (final stage in ['deep', 'rem', 'light'])
+          '${stage}SleepBaselineMinutes':
+              architectureDetails[stage]['baselineMedianMinutes'] as double,
+      },
       'recoveryScoreConfidence': scoringResult.recoveryScore.confidence,
     };
 
@@ -373,6 +389,7 @@ class HealthSyncService {
     }
 
     return _SleepDayAggregate(
+      stageSource: _sleepStageSource(dayPoints),
       totalSleepMinutes: totalSleep > 0 ? totalSleep : null,
       deepSleepMinutes: deepSleep > 0 ? deepSleep : null,
       remSleepMinutes: remSleep > 0 ? remSleep : null,
@@ -385,6 +402,27 @@ class HealthSyncService {
   }
 
   String _dateKey(DateTime date) => date.toIso8601String().split('T')[0];
+
+  String? _sleepStageSource(List<HealthDataPoint> points) {
+    final stages = points
+        .where((point) =>
+            const {
+              HealthDataType.SLEEP_DEEP,
+              HealthDataType.SLEEP_REM,
+              HealthDataType.SLEEP_LIGHT,
+            }.contains(point.type) &&
+            point.dateTo.isAfter(point.dateFrom))
+        .toList();
+    if (stages.isEmpty ||
+        stages.any((point) => point.sourceId.trim().isEmpty)) {
+      return null;
+    }
+    final sources = stages
+        .map((point) =>
+            '${point.sourcePlatform.name}|${point.sourceId}|${point.sourceDeviceId}')
+        .toSet();
+    return sources.length == 1 ? sources.single : null;
+  }
 
   Sex _sexFromProfile(String? value) {
     switch (value?.trim().toLowerCase()) {
@@ -674,12 +712,13 @@ class HealthSyncService {
   }
 
   @visibleForTesting
-  Map<String, double?> aggregateSleepForTesting(
+  Map<String, dynamic> aggregateSleepForTesting(
     List<HealthDataPoint> data,
     DateTime day,
   ) {
     final aggregate = _aggregateSleepForDate(data, day);
     return {
+      'sleepStageSource': aggregate.stageSource,
       'totalSleepMinutes': aggregate.totalSleepMinutes,
       'deepSleepMinutes': aggregate.deepSleepMinutes,
       'remSleepMinutes': aggregate.remSleepMinutes,
@@ -691,6 +730,7 @@ class HealthSyncService {
 }
 
 class _SleepDayAggregate {
+  final String? stageSource;
   final double? totalSleepMinutes;
   final double? deepSleepMinutes;
   final double? remSleepMinutes;
@@ -701,6 +741,7 @@ class _SleepDayAggregate {
   final DateTime? wakeTime;
 
   const _SleepDayAggregate({
+    this.stageSource,
     this.totalSleepMinutes,
     this.deepSleepMinutes,
     this.remSleepMinutes,

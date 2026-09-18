@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../core/theme.dart';
+import '../widgets/custom_card.dart';
 import '../utils/health_display_utils.dart';
 import '../widgets/sleep_detail_charts.dart';
 import 'metric_trend_screen.dart';
@@ -23,8 +24,8 @@ class DailyReadinessDetailsScreen extends StatelessWidget {
 
   Color _getScoreColor(double? score) {
     if (score == null) return Colors.grey;
-    if (score >= 80) return Colors.green;
-    if (score >= 60) return Colors.yellow[700]!;
+    if (score >= 70) return Colors.green;
+    if (score >= 55) return Colors.yellow[700]!;
     if (score >= 40) return Colors.orange;
     return Colors.red;
   }
@@ -61,6 +62,12 @@ class DailyReadinessDetailsScreen extends StatelessWidget {
               'key': 'remSleep',
               'label': 'Sonno REM',
               'icon': Icons.remove_red_eye,
+              'isDuration': true,
+            },
+            {
+              'key': 'lightSleep',
+              'label': 'Sonno Leggero',
+              'icon': Icons.bedtime_outlined,
               'isDuration': true,
             },
           ]
@@ -136,6 +143,19 @@ class DailyReadinessDetailsScreen extends StatelessWidget {
                   color: Theme.of(context).colorScheme.onSurfaceVariant,
                 ),
           ),
+          if (isSleep &&
+              dailyMetrics.containsKey('sleepStageBaselineNights')) ...[
+            const SizedBox(height: 8),
+            Text(
+              dailyMetrics.containsKey('sleepStagePenalty')
+                  ? 'Fasi confrontate con le tue ultime ${dailyMetrics['sleepStageBaselineNights']!.round()} notti complete. Il sonno leggero non è una fase negativa.'
+                  : 'Il confronto personale delle fasi richiede una notte completa e almeno 7 notti di storico dalla stessa sorgente.',
+              textAlign: TextAlign.center,
+              style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                    color: Theme.of(context).colorScheme.onSurfaceVariant,
+                  ),
+            ),
+          ],
           const SizedBox(height: 32),
           Text('Metriche di oggi',
               style: Theme.of(context)
@@ -153,18 +173,25 @@ class DailyReadinessDetailsScreen extends StatelessWidget {
                 ? formatMinutesAsHours(mVal)
                 : mVal.toStringAsFixed(1);
             final metricHistory = _metricHistoryFor(mKey, isSleep);
+            final baselineMinutes = dailyMetrics['${mKey}BaselineMinutes'];
 
-            return Card(
+            return CustomCard(
+              padding: EdgeInsets.zero,
               margin: const EdgeInsets.only(bottom: 12),
-              color: AppTheme.card,
-              shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(16)),
               child: ListTile(
                 leading: Icon(metric['icon'], color: AppTheme.primary),
                 title: Text(metric['label'],
                     style: TextStyle(
                         color: AppTheme.textHighEmphasis,
                         fontWeight: FontWeight.w600)),
+                subtitle: baselineMinutes == null
+                    ? null
+                    : Text(
+                        'Mediana personale: ${formatMinutesAsHours(baselineMinutes)}',
+                        style: TextStyle(
+                          color: Theme.of(context).colorScheme.onSurfaceVariant,
+                        ),
+                      ),
                 trailing: Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
@@ -215,6 +242,7 @@ class DailyReadinessDetailsScreen extends StatelessWidget {
       'totalSleep' => 'totalSleepMinutes',
       'deepSleep' => 'deepSleepMinutes',
       'remSleep' => 'remSleepMinutes',
+      'lightSleep' => 'lightSleepMinutes',
       _ => null,
     };
     if (sleepHistoryKey == null) return const _MetricHistory(values: []);

@@ -1,5 +1,6 @@
 import Flutter
 import UIKit
+import UserNotifications
 
 import HealthKit
 
@@ -7,11 +8,13 @@ import HealthKit
 @objc class AppDelegate: FlutterAppDelegate, FlutterImplicitEngineDelegate {
   
   let healthStore = HKHealthStore()
+  private var scoreExecutionTask: UIBackgroundTaskIdentifier = .invalid
 
   override func application(
     _ application: UIApplication,
     didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]?
   ) -> Bool {
+    UNUserNotificationCenter.current().delegate = self
     
     if let flutterViewController = window?.rootViewController as? FlutterViewController {
         let healthChannel = FlutterMethodChannel(name: "com.4athletes.health/hrv",
@@ -34,6 +37,33 @@ import HealthKit
 
   func didInitializeImplicitFlutterEngine(_ engineBridge: FlutterImplicitEngineBridge) {
     GeneratedPluginRegistrant.register(with: engineBridge.pluginRegistry)
+    let executionChannel = FlutterMethodChannel(
+      name: "com.4athletes.health/execution",
+      binaryMessenger: engineBridge.applicationRegistrar.messenger())
+    executionChannel.setMethodCallHandler { [weak self] call, result in
+      guard let self = self else { result(nil); return }
+      switch call.method {
+      case "begin":
+        self.endScoreExecution()
+        self.scoreExecutionTask = UIApplication.shared.beginBackgroundTask(
+          withName: "Health score refresh") { [weak self] in
+            self?.endScoreExecution()
+          }
+        result(nil)
+      case "end":
+        self.endScoreExecution()
+        result(nil)
+      default:
+        result(FlutterMethodNotImplemented)
+      }
+    }
+  }
+
+  private func endScoreExecution() {
+    guard scoreExecutionTask != .invalid else { return }
+    let task = scoreExecutionTask
+    scoreExecutionTask = .invalid
+    UIApplication.shared.endBackgroundTask(task)
   }
   
   private func fetchRRIntervals(result: @escaping FlutterResult) {
@@ -108,6 +138,8 @@ import HealthKit
       var readTypes: Set<HKObjectType> = [workoutType, hrType]
       for identifier in [
           HKQuantityTypeIdentifier.distanceWalkingRunning,
+          HKQuantityTypeIdentifier.distanceCycling,
+          HKQuantityTypeIdentifier.distanceSwimming,
           HKQuantityTypeIdentifier.activeEnergyBurned,
           HKQuantityTypeIdentifier.stepCount,
           HKQuantityTypeIdentifier.flightsClimbed
@@ -210,7 +242,8 @@ import HealthKit
       }
 
       if workout.totalDistance == nil,
-         let distanceType = HKObjectType.quantityType(forIdentifier: .distanceWalkingRunning) {
+         let identifier = Self.distanceIdentifier(for: workout.workoutActivityType),
+         let distanceType = HKObjectType.quantityType(forIdentifier: identifier) {
           group.enter()
           fetchQuantitySamples(for: workout, type: distanceType) { samples in
               store("distanceMeters", samples.reduce(0) {
@@ -277,6 +310,21 @@ import HealthKit
           let result = metrics
           lock.unlock()
           completion(result)
+      }
+  }
+
+  static func distanceIdentifier(for activity: HKWorkoutActivityType) -> HKQuantityTypeIdentifier? {
+      switch activity {
+      case .running, .walking, .hiking:
+          return .distanceWalkingRunning
+      case .cycling:
+          return .distanceCycling
+      case .swimming:
+          return .distanceSwimming
+      default:
+          // Unrelated step-based distance is not a fallback for ski, strength,
+          // rowing, etc. Their official workout total remains authoritative.
+          return nil
       }
   }
 

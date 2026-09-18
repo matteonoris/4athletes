@@ -465,8 +465,7 @@ class _AuthScreenState extends State<AuthScreen>
             ),
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
-              decoration: BoxDecoration(
-                color: AppTheme.card,
+              decoration: AppTheme.panelDecoration(
                 borderRadius: BorderRadius.circular(20),
               ),
               child: Text(
@@ -567,8 +566,7 @@ class _AuthScreenState extends State<AuthScreen>
       },
       child: Container(
         padding: const EdgeInsets.all(24),
-        decoration: BoxDecoration(
-          color: AppTheme.card,
+        decoration: AppTheme.panelDecoration(
           borderRadius: BorderRadius.circular(24),
           border: Border.all(
             color: isSelected

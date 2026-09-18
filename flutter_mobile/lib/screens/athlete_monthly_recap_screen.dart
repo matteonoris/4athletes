@@ -23,8 +23,7 @@ class AthleteMonthlyRecapCard extends StatelessWidget {
     return Container(
       key: const ValueKey('athlete_monthly_recap_card'),
       padding: const EdgeInsets.all(18),
-      decoration: BoxDecoration(
-        color: AppTheme.card,
+      decoration: AppTheme.panelDecoration(
         borderRadius: BorderRadius.circular(18),
         border: Border.all(color: AppTheme.subtleBorder),
         boxShadow: [
@@ -420,8 +419,7 @@ class _SummaryCard extends StatelessWidget {
     final period = recap.selected;
     return Container(
       padding: const EdgeInsets.all(18),
-      decoration: BoxDecoration(
-        color: AppTheme.card,
+      decoration: AppTheme.panelDecoration(
         borderRadius: BorderRadius.circular(18),
         border: Border.all(color: AppTheme.subtleBorder),
       ),
@@ -508,8 +506,7 @@ class _ComparisonChart extends StatelessWidget {
     return Container(
       height: 310,
       padding: const EdgeInsets.fromLTRB(14, 16, 14, 12),
-      decoration: BoxDecoration(
-        color: AppTheme.card,
+      decoration: AppTheme.panelDecoration(
         borderRadius: BorderRadius.circular(18),
         border: Border.all(color: AppTheme.subtleBorder),
       ),
@@ -660,8 +657,7 @@ class _BreakdownTile extends StatelessWidget {
     final hasSkiDetails =
         bucket.id == AthleteRecapMacro.ski && period.skiSpecialties.isNotEmpty;
     return Container(
-      decoration: BoxDecoration(
-        color: AppTheme.card,
+      decoration: AppTheme.panelDecoration(
         borderRadius: BorderRadius.circular(16),
         border: Border.all(color: AppTheme.subtleBorder),
       ),
@@ -775,8 +771,7 @@ class _EmptyMonth extends StatelessWidget {
     return Container(
       key: const ValueKey('monthly_recap_empty_state'),
       padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 28),
-      decoration: BoxDecoration(
-        color: AppTheme.card,
+      decoration: AppTheme.panelDecoration(
         borderRadius: BorderRadius.circular(16),
         border: Border.all(color: AppTheme.subtleBorder),
       ),

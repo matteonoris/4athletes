@@ -1,7 +1,10 @@
+import 'dart:math' as math;
+
 import 'algorithm_config.dart';
 import 'math_helpers.dart';
 import 'scoring_types.dart';
 import 'sleep_need_calculator.dart';
+import 'daily_history.dart';
 import 'time_helpers.dart';
 
 ScoreResult calculateSleepScoreResult(
@@ -11,8 +14,11 @@ ScoreResult calculateSleepScoreResult(
   DailySleepNeedResult dailySleepNeed, {
   AlgorithmConfig config = defaultAlgorithmConfig,
 }) {
-  final history =
-      historicalData.where((day) => day.date != today.date).toList();
+  final history = previousDailyHistory(
+    historicalData,
+    beforeDate: today.date,
+    windowDays: config.history.rollingWindowDays,
+  );
   final warnings = <String>[...dailySleepNeed.warnings];
   final validHistoryNights = history
       .where((day) => config.physiology.totalSleepTimeMinutes
@@ -26,7 +32,8 @@ ScoreResult calculateSleepScoreResult(
   }
 
   final duration = _calculateDurationScore(today, dailySleepNeed, config);
-  final architecture = _calculateArchitectureScore(today, config);
+  final architecture = _calculateArchitectureScore(today, history, config);
+  if (architecture.warning.isNotEmpty) warnings.add(architecture.warning);
   final recentAdequacy = _calculateRecentAdequacyScore(
     profile,
     today,
@@ -77,7 +84,8 @@ ScoreResult calculateSleepScoreResult(
   );
   warnings.addAll(combined.warnings);
 
-  if (combined.value == null) {
+  // A previous good week or regular bedtimes cannot score a missing night.
+  if (combined.value == null || duration.value == null) {
     return ScoreResult(
       score: null,
       status: ScoreStatus.insufficientData,
@@ -85,7 +93,7 @@ ScoreResult calculateSleepScoreResult(
       components: {
         'dailySleepNeedMinutes': dailySleepNeed.valueMinutes,
         'availableWeight': combined.availableWeight,
-        'architecture': _informationalArchitectureComponent(architecture),
+        'architecture': _architectureComponent(architecture),
         ...combined.components,
       },
       warnings: uniqueWarnings(warnings),
@@ -93,6 +101,10 @@ ScoreResult calculateSleepScoreResult(
   }
 
   var confidence = combined.availableWeight * dailySleepNeed.confidence;
+  final architectureConfidence =
+      (architecture.details['baselineConfidence'] as double?) ?? 0;
+  confidence *= config.confidence.missingInputMultiplier +
+      (1 - config.confidence.missingInputMultiplier) * architectureConfidence;
   if (validHistoryNights < config.history.minCalibrationDays) {
     confidence *= config.confidence.fallbackSleepBaselineMultiplier;
   } else if (validHistoryNights < config.history.rollingWindowDays) {
@@ -100,8 +112,15 @@ ScoreResult calculateSleepScoreResult(
   }
 
   final unique = uniqueWarnings(warnings);
+  final durationCeiling = math.min(
+    config.score.max,
+    duration.value! + config.sleepScore.maxDurationCompensationPoints,
+  );
+  final scoreBeforeArchitecture = math.min(combined.value!, durationCeiling);
+  final architecturePenalty = architecture.value ?? 0;
   return ScoreResult(
-    score: clampDouble(combined.value!, config.score.min, config.score.max),
+    score: clampDouble(scoreBeforeArchitecture - architecturePenalty,
+        config.score.min, config.score.max),
     status: unique.isEmpty && combined.availableWeight >= config.confidence.max
         ? ScoreStatus.ok
         : ScoreStatus.partialData,
@@ -113,7 +132,12 @@ ScoreResult calculateSleepScoreResult(
     components: {
       'dailySleepNeedMinutes': dailySleepNeed.valueMinutes,
       'availableWeight': combined.availableWeight,
-      'architecture': _informationalArchitectureComponent(architecture),
+      'weightedScoreBeforeLimits': combined.value,
+      'durationCeiling': durationCeiling,
+      'durationCeilingApplied': combined.value! > durationCeiling,
+      'scoreBeforeArchitecture': scoreBeforeArchitecture,
+      'architecturePenaltyPoints': architecturePenalty,
+      'architecture': _architectureComponent(architecture),
       ...combined.components,
     },
     warnings: unique,
@@ -127,7 +151,9 @@ _ComponentScore _calculateDurationScore(
 ) {
   final totalSleep24h = calculateTotalSleep24hMinutes(today, config: config);
   final validNapMinutes = calculateNapsDeduction(today.naps, config: config);
-  if (!isFiniteNumber(totalSleep24h)) {
+  if (!isFiniteNumber(totalSleep24h) ||
+      !dailySleepNeed.valueMinutes.isFinite ||
+      dailySleepNeed.valueMinutes <= 0) {
     return _ComponentScore(
       value: null,
       warning: 'invalid_or_missing_total_sleep_time',
@@ -140,16 +166,13 @@ _ComponentScore _calculateDurationScore(
   }
 
   return _ComponentScore(
-    value: clampDouble(
-      (totalSleep24h! / dailySleepNeed.valueMinutes) * config.score.max,
-      config.score.min,
-      config.score.max,
-    ),
+    value: _adequacyScore(totalSleep24h! / dailySleepNeed.valueMinutes, config),
     details: {
       'totalSleepTimeMinutes': today.totalSleepTimeMinutes,
       'validNapMinutes': validNapMinutes,
       'totalSleep24hMinutes': totalSleep24h,
       'dailySleepNeedMinutes': dailySleepNeed.valueMinutes,
+      'adequacyRatio': totalSleep24h / dailySleepNeed.valueMinutes,
     },
   );
 }
@@ -163,20 +186,22 @@ _ComponentScore _calculateRecentAdequacyScore(
 ) {
   final historyCount =
       _maxInt(0, config.sleepScore.recentAdequacyWindowDays - 1);
-  final recentHistory = historicalData.takeLast(historyCount);
-  final historyStartIndex = historicalData.length - recentHistory.length;
+  final recentHistory = previousDailyHistory(historicalData,
+      beforeDate: today.date, windowDays: historyCount);
   var totalActualMinutes = 0.0;
   var totalNeedMinutes = 0.0;
   var validDayCount = 0;
+  var totalDailyAdequacyScores = 0.0;
 
   for (var index = 0; index < recentHistory.length; index++) {
     final day = recentHistory[index];
     final actualSleep24h = calculateTotalSleep24hMinutes(day, config: config);
     if (!isFiniteNumber(actualSleep24h)) continue;
 
-    final absoluteIndex = historyStartIndex + index;
     final baseline = calculatePersonalBaseline(
-      historicalData.sublist(0, absoluteIndex),
+      historicalData
+          .where((item) => item.date.compareTo(day.date) < 0)
+          .toList(),
       profile: profile,
       config: config,
     );
@@ -187,6 +212,8 @@ _ComponentScore _calculateRecentAdequacyScore(
 
     totalActualMinutes += actualSleep24h!;
     totalNeedMinutes += baseline.valueMinutes;
+    totalDailyAdequacyScores +=
+        _adequacyScore(actualSleep24h / baseline.valueMinutes, config);
     validDayCount++;
   }
 
@@ -196,6 +223,8 @@ _ComponentScore _calculateRecentAdequacyScore(
       todaySleepNeed.personalBaselineMinutes > config.confidence.min) {
     totalActualMinutes += todayActualSleep24h!;
     totalNeedMinutes += todaySleepNeed.personalBaselineMinutes;
+    totalDailyAdequacyScores += _adequacyScore(
+        todayActualSleep24h / todaySleepNeed.personalBaselineMinutes, config);
     validDayCount++;
   }
 
@@ -218,70 +247,143 @@ _ComponentScore _calculateRecentAdequacyScore(
   final adequacyRatio = totalActualMinutes / totalNeedMinutes;
   return _ComponentScore(
     value: clampDouble(
-      adequacyRatio * config.score.max,
+      totalDailyAdequacyScores / validDayCount,
       config.score.min,
       config.score.max,
     ),
     details: {
       ...details,
       'adequacyRatio': adequacyRatio,
+      'method': 'mean_capped_daily_adequacy',
     },
   );
 }
 
 _ComponentScore _calculateArchitectureScore(
   DailyWearableData today,
+  HistoricalDailyData history,
   AlgorithmConfig config,
 ) {
-  final totalSleep = today.totalSleepTimeMinutes;
-  final deepSleep = today.deepSleepMinutes;
-  final remSleep = today.remSleepMinutes;
-
-  if (!config.physiology.totalSleepTimeMinutes.contains(totalSleep) ||
-      !isFiniteNumber(deepSleep) ||
-      !isFiniteNumber(remSleep)) {
+  final settings = config.sleepScore.architecture;
+  final validHistory = history
+      .where((day) =>
+          _hasComparableStages(day, config) &&
+          day.sleepStageSource == today.sleepStageSource)
+      .toList();
+  final baselineConfidence =
+      clampDouble(validHistory.length / settings.fullBaselineNights, 0, 1);
+  final details = <String, dynamic>{
+    'method': 'personal_stage_deficit_penalty',
+    'source': today.sleepStageSource,
+    'validBaselineNights': validHistory.length,
+    'minimumBaselineNights': settings.minBaselineNights,
+    'windowDays': config.history.rollingWindowDays,
+    'maxPenaltyPoints': settings.maxPenaltyPoints,
+    'baselineConfidence': 0.0,
+  };
+  if (!_hasComparableStages(today, config)) {
     return _ComponentScore(
-      value: null,
-      warning: 'sleep_architecture_unavailable',
-      details: {
-        'deepSleepMinutes': deepSleep,
-        'remSleepMinutes': remSleep,
-      },
-    );
+        value: null,
+        warning: 'sleep_architecture_incomplete_invalid_or_unknown_source',
+        details: details);
+  }
+  if (validHistory.length < settings.minBaselineNights) {
+    return _ComponentScore(
+        value: null,
+        warning: 'sleep_architecture_insufficient_personal_history',
+        details: details);
   }
 
-  if (!config.physiology.sleepStageMinutes.contains(deepSleep) ||
-      !config.physiology.sleepStageMinutes.contains(remSleep) ||
-      deepSleep! + remSleep! > totalSleep!) {
-    return _ComponentScore(
-      value: null,
-      warning: 'sleep_architecture_invalid',
-      details: {
-        'totalSleepTimeMinutes': totalSleep,
-        'deepSleepMinutes': deepSleep,
-        'remSleepMinutes': remSleep,
-      },
-    );
+  Map<String, dynamic> compareStage(
+    double Function(DailyWearableData) minutes, {
+    required bool penalizeDeficit,
+  }) {
+    final stats = medianAndRobustStandardDeviation(
+      validHistory
+          .map((day) => minutes(day) / day.totalSleepTimeMinutes!)
+          .toList(),
+      settings.minRatioStandardDeviation,
+    )!;
+    final todayMinutes = minutes(today);
+    final todayRatio = todayMinutes / today.totalSleepTimeMinutes!;
+    final deficitZ =
+        (stats.median - todayRatio) / stats.robustStandardDeviation;
+    final severity = penalizeDeficit
+        ? clampDouble(
+            (deficitZ - settings.deficitDeadbandZ) /
+                (settings.fullPenaltyZ - settings.deficitDeadbandZ),
+            0,
+            1)
+        : 0.0;
+    return {
+      'todayMinutes': todayMinutes,
+      'todayRatio': todayRatio,
+      'baselineMedianMinutes': median(validHistory.map(minutes).toList()),
+      'baselineMedianRatio': stats.median,
+      'expectedMinutesForTonight': stats.median * today.totalSleepTimeMinutes!,
+      'robustRatioStandardDeviation': stats.robustStandardDeviation,
+      'deficitZ': deficitZ,
+      'penaltyPoints':
+          severity * settings.maxPenaltyPoints / 2 * baselineConfidence,
+      'informationalOnly': !penalizeDeficit,
+    };
   }
 
-  final restorativeRatio = (deepSleep + remSleep) / totalSleep;
-  final value = restorativeRatio >= config.sleepScore.restorativeRatioTarget
-      ? config.score.max
-      : clampDouble(
-          (restorativeRatio / config.sleepScore.restorativeRatioTarget) *
-              config.score.max,
-          config.score.min,
-          config.score.max,
-        );
-
+  // Ratios isolate composition from duration, which already has its own score.
+  // Deep and REM cannot cancel each other. Light sleep has no bad/good target.
+  final deep =
+      compareStage((day) => day.deepSleepMinutes!, penalizeDeficit: true);
+  final rem =
+      compareStage((day) => day.remSleepMinutes!, penalizeDeficit: true);
+  final light =
+      compareStage((day) => day.lightSleepMinutes!, penalizeDeficit: false);
   return _ComponentScore(
-    value: value,
+    value: (deep['penaltyPoints'] as double) + (rem['penaltyPoints'] as double),
+    warning: validHistory.length < settings.fullBaselineNights
+        ? 'sleep_architecture_partial_personal_history'
+        : '',
     details: {
-      'restorativeRatio': restorativeRatio,
-      'deepSleepMinutes': deepSleep,
-      'remSleepMinutes': remSleep,
+      ...details,
+      'baselineConfidence': baselineConfidence,
+      'deep': deep,
+      'rem': rem,
+      'light': light
     },
   );
+}
+
+bool _hasComparableStages(DailyWearableData day, AlgorithmConfig config) {
+  final total = day.totalSleepTimeMinutes;
+  final stages = [
+    day.deepSleepMinutes,
+    day.remSleepMinutes,
+    day.lightSleepMinutes
+  ];
+  if (day.sleepStageSource == null ||
+      day.sleepStageSource!.isEmpty ||
+      !config.physiology.totalSleepTimeMinutes.contains(total) ||
+      !stages.every(config.physiology.sleepStageMinutes.contains)) {
+    return false;
+  }
+  if (stages.any((value) => value! > total!)) return false;
+  final coverage =
+      stages.fold<double>(0, (sum, value) => sum + value!) / total!;
+  return coverage >= config.sleepScore.architecture.minStageCoverage &&
+      coverage <= config.sleepScore.architecture.maxStageCoverage;
+}
+
+double _adequacyScore(double ratio, AlgorithmConfig config) {
+  final anchors = config.sleepScore.adequacyAnchors;
+  if (ratio <= anchors.first.ratio) return anchors.first.score;
+  for (var index = 1; index < anchors.length; index++) {
+    final right = anchors[index];
+    if (ratio > right.ratio) continue;
+    final left = anchors[index - 1];
+    final fraction = (ratio - left.ratio) / (right.ratio - left.ratio);
+    return clampDouble(left.score + fraction * (right.score - left.score),
+        config.score.min, config.score.max);
+  }
+  return clampDouble(anchors.last.score, config.score.min, config.score.max);
 }
 
 _ComponentScore _calculateCircadianRegularityScore(
@@ -318,8 +420,9 @@ _ComponentScore _calculateCircadianRegularityScore(
     );
   }
 
-  final historicalNights = historicalData
-      .takeLast(config.sleepScore.circadianWindowDays - 1)
+  final historicalNights = previousDailyHistory(historicalData,
+          beforeDate: today.date,
+          windowDays: config.sleepScore.circadianWindowDays - 1)
       .where((day) => clockMinutes(day.sleepOnsetTimestamp) != null)
       .toList(growable: false);
   final onsetValues = historicalNights
@@ -345,9 +448,22 @@ _ComponentScore _calculateCircadianRegularityScore(
   final todayWake = clockMinutes(today.sleepWakeTimestamp);
   if (todayWake != null) wakeValues.add(todayWake);
 
-  final onsetDeviation = meanCircularDeviation(onsetValues)!;
-  final wakeDeviation =
-      wakeValues.length >= 2 ? meanCircularDeviation(wakeValues) : null;
+  final historicalOnsetMean = circularMeanMinutes(
+      onsetValues.sublist(0, onsetValues.length - 1), config)!;
+  final todayOnsetDeviation = circularAbsoluteDifferenceMinutes(
+      todayOnset, historicalOnsetMean, config);
+  final onsetDeviation =
+      math.max(meanCircularDeviation(onsetValues)!, todayOnsetDeviation);
+  final historicalWakeValues = todayWake == null
+      ? wakeValues
+      : wakeValues.sublist(0, wakeValues.length - 1);
+  final historicalWakeMean = circularMeanMinutes(historicalWakeValues, config);
+  final todayWakeDeviation = todayWake != null && historicalWakeMean != null
+      ? circularAbsoluteDifferenceMinutes(todayWake, historicalWakeMean, config)
+      : null;
+  final wakeDeviation = todayWakeDeviation != null
+      ? math.max(meanCircularDeviation(wakeValues)!, todayWakeDeviation)
+      : null;
   final deviationMinutes = wakeDeviation == null
       ? onsetDeviation
       : (onsetDeviation + wakeDeviation) / 2;
@@ -369,6 +485,8 @@ _ComponentScore _calculateCircadianRegularityScore(
       'deviationMinutes': deviationMinutes,
       'onsetDeviationMinutes': onsetDeviation,
       'wakeDeviationMinutes': wakeDeviation,
+      'todayOnsetDeviationMinutes': todayOnsetDeviation,
+      'todayWakeDeviationMinutes': todayWakeDeviation,
       'windowNightCount': onsetValues.length,
       'windowDays': config.sleepScore.circadianWindowDays,
     },
@@ -436,18 +554,18 @@ _ComponentScore _calculateEfficiencyScore(
   );
 }
 
-Map<String, dynamic> _informationalArchitectureComponent(
+Map<String, dynamic> _architectureComponent(
   _ComponentScore architecture,
 ) {
   return {
-    'used': false,
+    'used': isFiniteNumber(architecture.value),
     'available': isFiniteNumber(architecture.value),
-    'informationalOnly': true,
+    'informationalOnly': !isFiniteNumber(architecture.value),
+    'adjustmentType': 'penalty_points',
     'value': architecture.value,
     'weight': 0.0,
     'effectiveWeight': 0.0,
-    if (architecture.value == null && architecture.warning.isNotEmpty)
-      'warning': architecture.warning,
+    if (architecture.warning.isNotEmpty) 'warning': architecture.warning,
     'details': architecture.details,
   };
 }
@@ -464,12 +582,4 @@ class _ComponentScore {
     this.warning = '',
     this.details = const {},
   });
-}
-
-extension _TakeLast<T> on List<T> {
-  List<T> takeLast(int count) {
-    if (count <= 0) return const [];
-    if (length <= count) return List<T>.from(this);
-    return sublist(length - count);
-  }
 }

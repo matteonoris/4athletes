@@ -85,30 +85,34 @@ class _HealthScreenState extends State<HealthScreen> {
   Widget _buildScoreTrendSection(AppState appState) {
     final now = DateTime.now();
     final sleepSeries = buildDailySeries(
-      logs: appState.bodyLogs,
+      logs: appState.wellnessScoreLogs,
       type: 'sleep_score',
       endDate: now,
       days: _ranges['sleep_score']!,
     );
     final recoverySeries = buildDailySeries(
-      logs: appState.bodyLogs,
+      logs: appState.wellnessScoreLogs,
       type: 'recovery_score',
       endDate: now,
       days: _ranges['recovery_score']!,
     );
 
-    final sleepValue = appState.sleepScoreForDate(now) ??
-        _latestLogValue(appState.bodyLogs, 'sleep_score');
-    final recoveryValue = appState.recoveryScoreForDate(now) ??
-        _latestLogValue(appState.bodyLogs, 'recovery_score');
+    final sleepValue = appState.sleepScoreForDate(now);
+    final recoveryValue = appState.recoveryScoreForDate(now);
 
     return Column(
       children: [
+        Padding(
+          padding: const EdgeInsets.only(bottom: 12),
+          child: Text(wellnessScoreHistoryNote,
+              style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                  color: Theme.of(context).colorScheme.onSurfaceVariant)),
+        ),
         _ScoreTrendCard(
           title: 'Sleep Score',
           value: sleepValue,
           series: sleepSeries,
-          color: const Color(0xFF5C6CFF),
+          color: AppTheme.sleep,
           days: _ranges['sleep_score']!,
           onDaysChanged: (days) => _setRange('sleep_score', days),
           onTap: () => Navigator.push(
@@ -127,7 +131,7 @@ class _HealthScreenState extends State<HealthScreen> {
           title: 'Recovery Score',
           value: recoveryValue,
           series: recoverySeries,
-          color: AppTheme.secondary,
+          color: AppTheme.recovery,
           days: _ranges['recovery_score']!,
           onDaysChanged: (days) => _setRange('recovery_score', days),
           onTap: () => Navigator.push(
@@ -416,11 +420,11 @@ class _HealthScreenState extends State<HealthScreen> {
       itemCount: metrics.length,
       shrinkWrap: true,
       physics: const NeverScrollableScrollPhysics(),
-      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+      gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
         crossAxisCount: 2,
         mainAxisSpacing: 8,
         crossAxisSpacing: 8,
-        childAspectRatio: 2.35,
+        mainAxisExtent: 28 + MediaQuery.textScalerOf(context).scale(72),
       ),
       itemBuilder: (context, index) {
         final metric = metrics[index];
@@ -510,6 +514,7 @@ class _ScoreTrendCard extends StatelessWidget {
                     const SizedBox(height: 6),
                     Text(
                       value == null ? missingValue : value!.toStringAsFixed(0),
+                      key: ValueKey('${title}_today_score'),
                       style:
                           Theme.of(context).textTheme.headlineMedium?.copyWith(
                                 fontWeight: FontWeight.bold,
@@ -2163,14 +2168,9 @@ class _ScoreTrendStats {
     }
 
     final average = list.reduce((a, b) => a + b) / list.length;
-    final latestValue = currentValue ??
-        series.reversed.map((point) => point.value).firstWhere(
-            (value) => value != null && value.isFinite,
-            orElse: () => null);
-
     return _ScoreTrendStats(
       average: average,
-      currentValue: latestValue,
+      currentValue: currentValue,
     );
   }
 
@@ -2255,7 +2255,7 @@ _ScoreBandSpots? _rollingScoreBandSpots(
 LineChartBarData _scoreBandLine(List<FlSpot> spots) {
   return LineChartBarData(
     spots: spots,
-    isCurved: true,
+    isCurved: false,
     curveSmoothness: 0.2,
     preventCurveOverShooting: true,
     color: Colors.transparent,
@@ -2295,8 +2295,7 @@ LineChartBarData _scoreValueBar(
 ) {
   return LineChartBarData(
     spots: spots,
-    isCurved: spots.length > 2,
-    curveSmoothness: 0.24,
+    isCurved: false,
     preventCurveOverShooting: true,
     color: color,
     barWidth: 3.4,
