@@ -138,6 +138,18 @@ The workflow currently uses:
 - Ruby `3.3`
 - Fastlane lane `ios ci_beta`
 
+## Latest Verified Release — 8 October 2026
+
+- Tag: `testflight-v1.0.3+33`
+- Release commit: `64e2c9de934c8211ee4f50213bfa29e86d630d24`
+- [GitHub Actions run 37777710857](https://github.com/matteonoris/4athletes/actions/runs/37777710857): success.
+- Fastlane confirmed successful Apple processing of `1.0.3 (33)` and successful
+  distribution to external testers at 14:43:57 Europe/Rome.
+- The initial build 32 run was cancelled before upload to include app media cache
+  cleanup. Its tag remains published and must not be reused.
+- See [release verification](testflight-release-2026-10-08.md) for the included
+  changes, tests and the immutable release snapshot.
+
 ## Failure Notes
 
 - If `ruby/setup-ruby` cannot infer Ruby, keep `ruby-version: "3.3"` in the
