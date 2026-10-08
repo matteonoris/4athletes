@@ -324,6 +324,9 @@ class Team {
   String inviteCode;
   String? description;
   bool? isPrivate;
+  bool isManager;
+  String membershipStatus;
+  bool get isPending => membershipStatus == 'pending';
 
   Team({
     required this.id,
@@ -334,7 +337,22 @@ class Team {
     required this.inviteCode,
     this.description,
     this.isPrivate,
+    this.isManager = false,
+    this.membershipStatus = 'active',
   });
+
+  factory Team.fromServer(Map<String, dynamic> row) => Team(
+        id: row['id'],
+        name: row['name'],
+        members: (row['members'] as num?)?.toInt() ?? 0,
+        category: row['category'],
+        image: row['image'] ?? '',
+        inviteCode: row['invite_code'] ?? '',
+        description: row['description'],
+        isPrivate: row['is_private'],
+        isManager: row['is_manager'] == true,
+        membershipStatus: row['membership_status'] ?? 'active',
+      );
 
   factory Team.fromJson(Map<String, dynamic> json) {
     return Team(
@@ -346,6 +364,8 @@ class Team {
       inviteCode: json['inviteCode'],
       description: json['description'],
       isPrivate: json['isPrivate'],
+      isManager: json['isManager'] == true,
+      membershipStatus: json['membershipStatus'] ?? 'active',
     );
   }
 
@@ -358,6 +378,8 @@ class Team {
         'inviteCode': inviteCode,
         'description': description,
         'isPrivate': isPrivate,
+        'isManager': isManager,
+        'membershipStatus': membershipStatus,
       };
 }
 

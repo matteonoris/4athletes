@@ -122,6 +122,12 @@ jobs:
           working-directory: flutter_mobile/ios
           bundler-cache: true
 
+      - name: Validate release configuration
+        run: |
+          ruby -c ios/fastlane/Fastfile
+          ruby -e 'require "yaml"; YAML.load_file("../.github/workflows/testflight.yml"); puts "workflow yaml ok"'
+          git diff --check
+
       - name: Create runtime environment file
         run: |
           set -euo pipefail

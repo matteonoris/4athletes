@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../services/team_access_service.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:provider/provider.dart';
 import 'package:phosphor_flutter/phosphor_flutter.dart';
@@ -111,13 +112,20 @@ class _TeamsScreenState extends State<TeamsScreen> {
                             child: Material(
                               color: Colors.transparent,
                               child: InkWell(
-                                onTap: () {
-                                  Navigator.of(context).push(
-                                    MaterialPageRoute(
-                                        builder: (_) =>
-                                            TeamDetailScreen(team: team)),
-                                  );
-                                },
+                                onTap: team.isPending
+                                    ? () {
+                                        ScaffoldMessenger.of(context)
+                                            .showSnackBar(const SnackBar(
+                                                content: Text(
+                                                    'Richiesta inviata. Un responsabile deve approvare il tuo accesso.')));
+                                      }
+                                    : () {
+                                        Navigator.of(context).push(
+                                          MaterialPageRoute(
+                                              builder: (_) =>
+                                                  TeamDetailScreen(team: team)),
+                                        );
+                                      },
                                 borderRadius: BorderRadius.circular(12),
                                 child: Ink(
                                   padding: const EdgeInsets.all(16),
@@ -198,7 +206,11 @@ class _TeamsScreenState extends State<TeamsScreen> {
                                                   .withValues(alpha: 0.2)),
                                         ),
                                         child: Text(
-                                          team.inviteCode,
+                                          team.isPending
+                                              ? 'In attesa di approvazione'
+                                              : team.isManager
+                                                  ? 'Responsabile'
+                                                  : 'Membro',
                                           style: const TextStyle(
                                             color: AppTheme.secondary,
                                             fontSize: 10,
@@ -293,44 +305,47 @@ class _TeamsScreenState extends State<TeamsScreen> {
           ),
 
           // Floating Action Button
-          Positioned(
-            bottom:
-                24, // Keep it above nav bar (bottom nav bar is handled by home scaffold usually)
-            right: 16,
-            child: Material(
-              elevation: 8,
-              shadowColor: AppTheme.shadow,
-              borderRadius: BorderRadius.circular(30),
-              color: AppTheme.primary,
-              child: InkWell(
-                onTap: () {
-                  Navigator.of(context).push(
-                    MaterialPageRoute(builder: (_) => const CreateTeamScreen()),
-                  );
-                },
+          if (appState.userProfile?.role == 'coach')
+            Positioned(
+              bottom:
+                  24, // Keep it above nav bar (bottom nav bar is handled by home scaffold usually)
+              right: 16,
+              child: Material(
+                elevation: 8,
+                shadowColor: AppTheme.shadow,
                 borderRadius: BorderRadius.circular(30),
-                child: Padding(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 24, vertical: 14),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Icon(PhosphorIcons.plus(), size: 20, color: Colors.white),
-                      const SizedBox(width: 8),
-                      const Text(
-                        'CREA TEAM',
-                        style: TextStyle(
-                          color: Colors.white,
-                          fontWeight: FontWeight.bold,
-                          fontSize: 14,
+                color: AppTheme.primary,
+                child: InkWell(
+                  onTap: () {
+                    Navigator.of(context).push(
+                      MaterialPageRoute(
+                          builder: (_) => const CreateTeamScreen()),
+                    );
+                  },
+                  borderRadius: BorderRadius.circular(30),
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 24, vertical: 14),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(PhosphorIcons.plus(),
+                            size: 20, color: Colors.white),
+                        const SizedBox(width: 8),
+                        const Text(
+                          'CREA TEAM',
+                          style: TextStyle(
+                            color: Colors.white,
+                            fontWeight: FontWeight.bold,
+                            fontSize: 14,
+                          ),
                         ),
-                      ),
-                    ],
+                      ],
+                    ),
                   ),
                 ),
               ),
             ),
-          ),
         ],
       ),
     );
@@ -351,6 +366,7 @@ class _JoinTeamModal extends StatefulWidget {
 class _JoinTeamModalState extends State<_JoinTeamModal> {
   final _codeCtrl = TextEditingController();
   String _joinStatus = 'idle'; // idle, loading, success, error
+  bool _awaitingApproval = false;
 
   @override
   void dispose() {
@@ -368,36 +384,20 @@ class _JoinTeamModalState extends State<_JoinTeamModal> {
       final supabase = Supabase.instance.client;
       final appState = Provider.of<AppState>(context, listen: false);
 
-      // 1. Fetch team by invite code
-      final teamResponse = await supabase
-          .from('teams')
-          .select()
-          .eq('invite_code', code)
-          .maybeSingle();
-
-      if (teamResponse == null) {
-        setState(() => _joinStatus = 'error');
-        return;
+      final result = await TeamAccessService(supabase)
+          .operation('join', payload: {'code': code});
+      await appState.refreshTeams();
+      if (result['status'] == 'pending' && mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+            content: Text(
+                'Richiesta inviata. Attendi l’approvazione di un responsabile.')));
       }
 
-      final String teamId = teamResponse['id'];
-      final int currentMembers = teamResponse['members'] ?? 0;
-
-      // 2. Update user profile team_id
-      await supabase
-          .from('profiles')
-          .update({'team_id': teamId}).eq('id', appState.userId);
-
-      // 3. Increment team members count
-      await supabase
-          .from('teams')
-          .update({'members': currentMembers + 1}).eq('id', teamId);
-
-      // 4. Reload app state to sync
-      await appState.init();
-
       if (!mounted) return;
-      setState(() => _joinStatus = 'success');
+      setState(() {
+        _awaitingApproval = result['status'] == 'pending';
+        _joinStatus = 'success';
+      });
       await Future.delayed(const Duration(milliseconds: 1000));
       if (!mounted) return;
       Navigator.of(context).pop();
@@ -413,7 +413,7 @@ class _JoinTeamModalState extends State<_JoinTeamModal> {
       setState(() {
         _codeCtrl.text = data!.text!
             .toUpperCase()
-            .substring(0, data.text!.length > 8 ? 8 : data.text!.length);
+            .substring(0, data.text!.length > 32 ? 32 : data.text!.length);
         _joinStatus = 'idle';
       });
     }
@@ -478,7 +478,7 @@ class _JoinTeamModalState extends State<_JoinTeamModal> {
             ),
             const SizedBox(height: 8),
             Text(
-              "Prova i codici 'ROME88' o 'MIL400'",
+              'Inserisci il codice fornito dal responsabile.',
               style: TextStyle(
                   fontSize: 14,
                   color: AppTheme.textMediumEmphasis.withValues(alpha: 0.8),
@@ -606,7 +606,7 @@ class _JoinTeamModalState extends State<_JoinTeamModal> {
                               Icon(PhosphorIcons.checkCircle(),
                                   color: Colors.white, size: 20),
                               const SizedBox(width: 8),
-                              Text('Benvenuto!',
+                              Text(_awaitingApproval ? 'Richiesta inviata' : 'Benvenuto!',
                                   style: TextStyle(
                                       color: AppTheme.textHighEmphasis,
                                       fontWeight: FontWeight.bold)),

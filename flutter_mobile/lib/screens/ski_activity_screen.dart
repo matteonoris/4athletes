@@ -5,10 +5,12 @@ import 'package:provider/provider.dart';
 
 import '../core/theme.dart';
 import '../models/models.dart';
+import '../models/workout_place.dart';
 import '../models/training_activity_models.dart';
 import '../providers/app_state.dart';
 import '../utils/coach_training_utils.dart';
 import '../widgets/custom_card.dart';
+import '../widgets/workout_location_field.dart';
 
 class _SkiBlockDraft {
   final String id;
@@ -128,6 +130,7 @@ class _SkiActivityScreenState extends State<SkiActivityScreen> {
 
   final _titleCtrl = TextEditingController();
   final _locationCtrl = TextEditingController();
+  WorkoutPlace? _locationPlace;
   final _chronoCtrl = TextEditingController();
   final _painCtrl = TextEditingController();
   final _notesCtrl = TextEditingController();
@@ -154,6 +157,7 @@ class _SkiActivityScreenState extends State<SkiActivityScreen> {
     _titleCtrl.text =
         details['title']?.toString() ?? 'Allenamento Alpine Skiing';
     _locationCtrl.text = details['location']?.toString() ?? '';
+    _locationPlace = WorkoutPlace.tryParse(details['locationPlace']);
     _snowCondition =
         details['snowCondition']?.toString().trim().isNotEmpty == true
             ? details['snowCondition'].toString()
@@ -372,6 +376,7 @@ class _SkiActivityScreenState extends State<SkiActivityScreen> {
           ? 'Allenamento Alpine Skiing'
           : _titleCtrl.text.trim(),
       'location': _locationCtrl.text.trim(),
+      'locationPlace': _locationPlace?.toJson(),
       'specialty': specialties.first,
       'specialties': specialties,
       'qualityRating': _qualityRating,
@@ -622,7 +627,11 @@ class _SkiActivityScreenState extends State<SkiActivityScreen> {
             ],
           ),
           const SizedBox(height: 12),
-          _textInput('Luogo', _locationCtrl, Icons.location_on_outlined),
+          WorkoutLocationField(
+            controller: _locationCtrl,
+            place: _locationPlace,
+            onPlaceChanged: (place) => setState(() => _locationPlace = place),
+          ),
         ],
       ),
     );

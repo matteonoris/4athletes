@@ -21,7 +21,13 @@ import '../services/daily_health_metric_normalizer.dart';
 import '../services/daily_strain_persistence_service.dart';
 import '../services/health_import_normalizer.dart';
 import '../services/health_service.dart';
+import '../services/health_consent_service.dart';
+import '../services/account_deletion_service.dart';
+import '../services/health_read_guard.dart';
 import '../services/native_health_service.dart';
+import '../services/private_avatar_service.dart';
+import '../services/team_access_service.dart';
+import '../core/coach_health_access.dart';
 import '../services/health_sync_service.dart';
 import '../services/training_activity_service.dart';
 import '../services/training_reminder_notification_service.dart';
@@ -33,8 +39,48 @@ import '../utils/metrics_engine.dart';
 import '../utils/strain_session_mapper.dart';
 
 class AppState extends ChangeNotifier {
-  AppState({HealthSyncService? healthSyncService})
-      : _healthSyncService = healthSyncService ?? HealthSyncService();
+  AppState(
+      {HealthSyncService? healthSyncService,
+      HealthConsentRepository? healthConsentRepository})
+      : _healthSyncService = healthSyncService ?? HealthSyncService() {
+    healthConsent = HealthConsentService(
+        healthConsentRepository ?? SupabaseHealthConsentRepository(_supabase));
+    healthConsent.addListener(_onHealthConsentChanged);
+  }
+
+  late final HealthConsentService healthConsent;
+  int _observedConsentRevision = 0;
+  bool get canImportHealthData =>
+      healthConsent.belongsTo(userId) && healthConsent.granted;
+  bool get _mayAttemptHealthImport =>
+      healthConsent.belongsTo(userId) && healthConsent.mayVerify;
+
+  void _onHealthConsentChanged() {
+    if (_observedConsentRevision != healthConsent.revision) {
+      _observedConsentRevision = healthConsent.revision;
+      _healthDataRequestId++;
+      _isSyncingHealth = false;
+    }
+    notifyListeners();
+  }
+
+  Future<void> loadHealthConsent() => healthConsent.load(userId);
+  Future<void> setHealthConsent(HealthConsentDecision decision) =>
+      healthConsent.choose(userId, decision);
+  Future<bool> verifyHealthConsent() => healthConsent.verify(userId);
+
+  bool _healthImportStillAllowed(String owner, int revision) =>
+      owner == userId &&
+      _userProfile?.id == owner &&
+      canImportHealthData &&
+      healthConsent.revision == revision;
+
+  @override
+  void dispose() {
+    healthConsent.removeListener(_onHealthConsentChanged);
+    healthConsent.dispose();
+    super.dispose();
+  }
 
   static const String _healthScoreCachePrefix = 'health_sync_v13_health_units_';
   static const String _lastHealthRefreshPrefix =
@@ -106,6 +152,7 @@ class AppState extends ChangeNotifier {
 
   List<Team> _teams = [];
   List<Team> get teams => _teams;
+  List<Team> get activeTeams => teams.where((team) => !team.isPending).toList();
 
   List<BodyMetricLog> _bodyLogs = [];
   List<BodyMetricLog> get bodyLogs => _bodyLogs;
@@ -418,6 +465,7 @@ class AppState extends ChangeNotifier {
       return;
     }
     // All callers share the app-owned refresh. Routes never own its lifetime.
+    if (!canImportHealthData) return;
     if (healthRequestId == null) {
       await refreshAllHealthData(targetDate,
           requestPermissions: requestPermissions);
@@ -445,12 +493,19 @@ class AppState extends ChangeNotifier {
       if (profile == null) return;
       _healthSyncProgressLabel = 'Calcolo dei tuoi punteggi';
       notifyListeners();
-      final result = await _healthSyncService.fetchAndCalculateScores(
-        profile,
-        _bodyLogs,
-        targetDate: targetDate,
-        requestPermissions: requestPermissions,
-      );
+      final scoreOwner = userId;
+      final scoreConsentRevision = healthConsent.revision;
+      final result = await withHealthReadConsent(
+          () =>
+              canImportHealthData &&
+              userId == scoreOwner &&
+              healthConsent.revision == scoreConsentRevision,
+          () => _healthSyncService.fetchAndCalculateScores(
+                profile,
+                _bodyLogs,
+                targetDate: targetDate,
+                requestPermissions: requestPermissions,
+              ));
 
       if (requestId != _healthDataRequestId) return;
       final effectiveRecoveryScore = result.recoveryScore;
@@ -597,6 +652,17 @@ class AppState extends ChangeNotifier {
     _prefs = await SharedPreferences.getInstance();
     _applyThemeMode(_prefs!.getString(_themeModeKey));
 
+    final deletion = await AccountDeletionService.create();
+    if (deletion.owner != null) {
+      try {
+        if (deletion.accepted || await deletion.status() != null) {
+          await completeAccountDeletion(deletion.owner!);
+        }
+      } catch (_) {
+        // Reconcile the durable receipt on the next connected attempt.
+      }
+    }
+
     final hasSavedLogin =
         !kOnboardingPreviewMode && (_prefs!.getBool('isLoggedIn') ?? false);
     _isLoggedIn = hasSavedLogin && _hasAuthSession;
@@ -619,6 +685,7 @@ class AppState extends ChangeNotifier {
       return;
     }
 
+    await loadHealthConsent();
     await _loadUserProfile();
     await _loadSessions();
     await _loadTeams();
@@ -635,6 +702,7 @@ class AppState extends ChangeNotifier {
   }
 
   void _clearRemoteBackedData() {
+    healthConsent.reset();
     _healthScoreSnapshots.clear();
     _sessions.clear();
     _teams.clear();
@@ -675,7 +743,7 @@ class AppState extends ChangeNotifier {
     notifyListeners();
   }
 
-  void logout() async {
+  Future<void> logout() async {
     // Invalidate the job before awaiting sign-out or any other plugin call.
     _isLoggedIn = false;
     _clearRemoteBackedData();
@@ -693,7 +761,11 @@ class AppState extends ChangeNotifier {
       debugPrint('Error signing out of Google: $e');
     }
 
-    await _supabase.auth.signOut();
+    try {
+      await _supabase.auth.signOut();
+    } catch (_) {
+      // The SDK removes the local session before calling the Auth server.
+    }
     _healthScoreSnapshots.clear();
     _currentHealthDateKey = null;
     _clearCurrentHealthScores();
@@ -710,6 +782,40 @@ class AppState extends ChangeNotifier {
     _workoutTemplates.clear();
     await TrainingReminderNotificationService.instance.cancelAllReminders();
     notifyListeners();
+  }
+
+  /// Runs after server acceptance, even if Auth has already removed the user.
+  Future<void> completeAccountDeletion(String owner) async {
+    final ownedSession = _authUserId == owner || _authUserId == null;
+    if (ownedSession) {
+      _isLoggedIn = false;
+      _clearRemoteBackedData();
+      _userProfile = null;
+      notifyListeners();
+      unawaited(HealthSyncBackgroundExecution.end());
+    }
+    final prefs = _prefs ?? await SharedPreferences.getInstance();
+    await clearDeletedAccountPreferences(prefs, owner,
+        includeUnscoped: ownedSession);
+    if (ownedSession) {
+      try {
+        await _supabase.auth.signOut(scope: SignOutScope.local);
+      } catch (_) {
+        // Local records were cleared first; never restore them on a 404/403.
+      }
+      try {
+        await GoogleSignIn().signOut().timeout(const Duration(seconds: 5));
+      } catch (_) {/* Not all accounts/platforms use Google. */}
+      try {
+        await TrainingReminderNotificationService.instance.cancelAllReminders();
+      } catch (_) {
+        /* The personal notification preference is already erased. */
+      }
+      _clearRemoteBackedData();
+      _userProfile = null;
+      notifyListeners();
+    }
+    await prefs.remove(AccountDeletionService.ownerKey);
   }
 
   Future<AuthResponse?> signInWithEmailAndPassword(
@@ -828,7 +934,8 @@ class AppState extends ChangeNotifier {
             weight: (profileData?['weight'] as num?)?.toDouble() ?? 0.0,
             height: (profileData?['height'] as num?)?.toDouble() ?? 0.0,
             maxHr: profileData?['max_hr'] ?? 0,
-            avatarUrl: profileData?['avatar_url'] ?? googleUser.photoUrl ?? '',
+            avatarUrl: await PrivateAvatarService(_supabase).resolve(
+                profileData?['avatar_url'] ?? googleUser.photoUrl ?? ''),
             skiClub: profileData?['ski_club'],
             gender: storedGender,
             skillLevel: profileData?['skill_level'],
@@ -853,7 +960,8 @@ class AppState extends ChangeNotifier {
             weight: (profileData['weight'] as num?)?.toDouble() ?? 70.0,
             height: (profileData['height'] as num?)?.toDouble() ?? 175.0,
             maxHr: profileData['max_hr'] ?? 190,
-            avatarUrl: profileData['avatar_url'] ?? '',
+            avatarUrl: await PrivateAvatarService(_supabase)
+                .resolve(profileData['avatar_url'] ?? ''),
             skiClub: profileData['ski_club'],
             gender: storedGender,
             skillLevel: profileData['skill_level'],
@@ -964,7 +1072,8 @@ class AppState extends ChangeNotifier {
             weight: (profileData?['weight'] as num?)?.toDouble() ?? 0.0,
             height: (profileData?['height'] as num?)?.toDouble() ?? 0.0,
             maxHr: profileData?['max_hr'] ?? 0,
-            avatarUrl: profileData?['avatar_url'] ?? '',
+            avatarUrl: await PrivateAvatarService(_supabase)
+                .resolve(profileData?['avatar_url'] ?? ''),
             skiClub: profileData?['ski_club'],
             gender: storedGender,
             skillLevel: profileData?['skill_level'],
@@ -989,7 +1098,8 @@ class AppState extends ChangeNotifier {
             weight: (profileData['weight'] as num?)?.toDouble() ?? 70.0,
             height: (profileData['height'] as num?)?.toDouble() ?? 175.0,
             maxHr: profileData['max_hr'] ?? 190,
-            avatarUrl: profileData['avatar_url'] ?? '',
+            avatarUrl: await PrivateAvatarService(_supabase)
+                .resolve(profileData['avatar_url'] ?? ''),
             skiClub: profileData['ski_club'],
             gender: storedGender,
             skillLevel: profileData['skill_level'],
@@ -1127,7 +1237,8 @@ class AppState extends ChangeNotifier {
           weight: (data['weight'] as num?)?.toDouble() ?? 70.0,
           height: (data['height'] as num?)?.toDouble() ?? 175.0,
           maxHr: data['max_hr'] ?? 190,
-          avatarUrl: data['avatar_url'] ?? '',
+          avatarUrl: await PrivateAvatarService(_supabase)
+              .resolve(data['avatar_url'] ?? ''),
           skiClub: data['ski_club'],
           gender: data['gender'],
           skillLevel: data['skill_level'],
@@ -1276,56 +1387,17 @@ class AppState extends ChangeNotifier {
 
   Future<void> _loadTeams() async {
     try {
-      if (_userProfile?.teamId != null && _userProfile!.teamId!.isNotEmpty) {
-        final data = await _supabase
-            .from('teams')
-            .select()
-            .eq('id', _userProfile!.teamId!);
-        final teams = <Team>[];
-        for (final e in data as List) {
-          final teamData = Map<String, dynamic>.from(e as Map);
-          final teamId = teamData['id']?.toString() ?? '';
-          final fallbackMembers = (teamData['members'] as num?)?.toInt() ?? 0;
-          final memberCount = await _loadTeamMemberCount(
-            teamId,
-            fallback: fallbackMembers,
-          );
-
-          teams.add(Team(
-            id: teamId,
-            name: teamData['name'],
-            members: memberCount,
-            category: teamData['category'],
-            image: teamData['image'],
-            inviteCode: teamData['invite_code'],
-            description: teamData['description'],
-            isPrivate: teamData['is_private'],
-          ));
-        }
-        _teams = teams;
-      } else {
-        _teams = [];
-      }
+      _teams = await TeamAccessService(_supabase).teams();
     } catch (e) {
-      debugPrint('Error loading teams: $e');
+      _teams = [];
+      debugPrint('Impossibile verificare le squadre: $e');
     }
   }
 
-  Future<int> _loadTeamMemberCount(
-    String teamId, {
-    required int fallback,
-  }) async {
-    try {
-      final profiles = await _supabase
-          .from('profiles')
-          .select('id')
-          .eq('team_id', teamId)
-          .inFilter('role', ['athlete', 'coach']);
-      return (profiles as List).length;
-    } catch (e) {
-      debugPrint('Error loading team member count: $e');
-      return fallback;
-    }
+  Future<void> refreshTeams() async {
+    await _loadUserProfile();
+    await _loadTeams();
+    notifyListeners();
   }
 
   Future<void> _loadBodyLogs() async {
@@ -1407,10 +1479,7 @@ class AppState extends ChangeNotifier {
 
   Future<void> _loadCoachEvents() async {
     try {
-      final data = await _supabase
-          .from('calendar_events')
-          .select()
-          .order('date', ascending: true);
+      final data = await _supabase.rpc('my_calendar_events');
       _coachEvents = (data as List)
           .map((e) => CalendarEvent(
                 id: e['id'],
@@ -1431,24 +1500,6 @@ class AppState extends ChangeNotifier {
                 status: e['status'] ?? 'planned',
               ))
           .toList();
-
-      if (_userProfile != null && _userProfile!.role == 'athlete') {
-        _coachEvents = _coachEvents.where((e) {
-          final tIds = CoachTrainingUtils.teamIdsForEvent(e);
-          final athleteName =
-              '${_userProfile!.firstName} ${_userProfile!.lastName}'.trim();
-          final attendees = e.attendees ?? [];
-          final isInvited = attendees.any((a) =>
-              a['id'] == userId ||
-              a['id'] == _userProfile!.email ||
-              (athleteName.isNotEmpty && a['name'] == athleteName));
-
-          // New events are visible only to invited athletes. Keep old events
-          // without attendees visible by team for backwards compatibility.
-          return isInvited ||
-              (attendees.isEmpty && tIds.contains(_userProfile!.teamId));
-        }).toList();
-      }
     } catch (e) {
       debugPrint('Error loading coach events: $e');
     }
@@ -1524,8 +1575,7 @@ class AppState extends ChangeNotifier {
     }
     final teamId = template.teamId;
     if (teamId == null || teamId.isEmpty) return false;
-    if (_userProfile?.teamId == teamId) return true;
-    return _teams.any((team) => team.id == teamId);
+    return _teams.any((team) => team.id == teamId && !team.isPending);
   }
 
   Future<void> saveWorkoutTemplate(WorkoutTemplate template) async {
@@ -1578,8 +1628,9 @@ class AppState extends ChangeNotifier {
 
       await _supabase.storage.from('avatars').upload(filePath, file);
 
-      final publicUrl =
-          _supabase.storage.from('avatars').getPublicUrl(filePath);
+      final publicUrl = await _supabase.storage
+          .from('avatars')
+          .createSignedUrl(filePath, 1800);
       return publicUrl;
     } catch (e) {
       debugPrint('Error uploading profile image: $e');
@@ -1610,7 +1661,7 @@ class AppState extends ChangeNotifier {
           'weight': ownedProfile.weight,
           'height': ownedProfile.height,
           'max_hr': ownedProfile.maxHr,
-          'avatar_url': ownedProfile.avatarUrl,
+          'avatar_url': PrivateAvatarService.reference(ownedProfile.avatarUrl),
           'ski_club': ownedProfile.skiClub,
           'gender': ownedProfile.gender,
           'skill_level': ownedProfile.skillLevel,
@@ -1639,101 +1690,21 @@ class AppState extends ChangeNotifier {
   // ==== ACTIONS ====
 
   Future<void> leaveTeam(String teamId) async {
-    try {
-      // 1. Update user profile team_id to null
-      await _supabase
-          .from('profiles')
-          .update({'team_id': null}).eq('id', userId);
-      if (_userProfile != null) {
-        _userProfile!.teamId = null;
-        await _saveUserProfile();
-      }
-
-      // 2. Decrement team members count
-      final teamResponse = await _supabase
-          .from('teams')
-          .select('members')
-          .eq('id', teamId)
-          .maybeSingle();
-      if (teamResponse != null) {
-        final currentMembers = teamResponse['members'] ?? 0;
-        final newMembers = currentMembers > 0 ? currentMembers - 1 : 0;
-        await _supabase
-            .from('teams')
-            .update({'members': newMembers}).eq('id', teamId);
-      }
-
-      // 3. Update local state
-      _teams.removeWhere((t) => t.id == teamId);
-      notifyListeners();
-    } catch (e) {
-      debugPrint('Error leaving team: $e');
-      rethrow;
-    }
+    await TeamAccessService(_supabase).operation('leave', teamId: teamId);
+    await refreshTeams();
   }
 
   Future<void> removeAthleteFromTeam(String athleteId, String teamId) async {
-    try {
-      // 1. Update athlete profile team_id to null
-      await _supabase
-          .from('profiles')
-          .update({'team_id': null}).eq('id', athleteId);
-
-      // 2. Decrement team members count
-      final teamResponse = await _supabase
-          .from('teams')
-          .select('members')
-          .eq('id', teamId)
-          .maybeSingle();
-      if (teamResponse != null) {
-        final currentMembers = teamResponse['members'] ?? 0;
-        final newMembers = currentMembers > 0 ? currentMembers - 1 : 0;
-        await _supabase
-            .from('teams')
-            .update({'members': newMembers}).eq('id', teamId);
-      }
-
-      // Update local team count if it exists locally
-      final teamIndex = _teams.indexWhere((t) => t.id == teamId);
-      if (teamIndex != -1) {
-        final currentMembers = _teams[teamIndex].members;
-        _teams[teamIndex].members = currentMembers > 0 ? currentMembers - 1 : 0;
-      }
-      notifyListeners();
-    } catch (e) {
-      debugPrint('Error removing athlete from team: $e');
-      rethrow;
-    }
+    await TeamAccessService(_supabase)
+        .operation('remove', teamId: teamId, subjectId: athleteId);
+    await refreshTeams();
   }
 
-  void addTeam(Team team) async {
-    try {
-      final response = await _supabase
-          .from('teams')
-          .insert({
-            'name': team.name,
-            'members': team.members,
-            'category': team.category,
-            'image': team.image,
-            'invite_code': team.inviteCode,
-            'description': team.description,
-            'is_private': team.isPrivate,
-          })
-          .select()
-          .single();
-
-      team.id = response['id'];
-      _teams.add(team);
-
-      if (_userProfile != null) {
-        _userProfile!.teamId = team.id;
-        await _saveUserProfile();
-      }
-
-      notifyListeners();
-    } catch (e) {
-      debugPrint('Error adding team: $e');
-    }
+  Future<Team> addTeam(Team team) async {
+    final result = await TeamAccessService(_supabase).operation('create',
+        payload: {'name': team.name, 'category': team.category});
+    await refreshTeams();
+    return _teams.firstWhere((t) => t.id == result['team_id']);
   }
 
   Future<void> addSession(
@@ -1744,6 +1715,7 @@ class AppState extends ChangeNotifier {
     bool notify = true,
   }) async {
     try {
+      if (fromHealthSync && !canImportHealthData) return;
       if (!fromHealthSync) {
         session = _markManualHealthDurationOverrideIfNeeded(session);
       }
@@ -1965,11 +1937,11 @@ class AppState extends ChangeNotifier {
       if (localIndex >= 0) {
         event = _coachEvents[localIndex];
       } else {
-        final data = await _supabase
-            .from('calendar_events')
-            .select()
-            .eq('id', session.eventId!)
-            .maybeSingle();
+        final rows = await _supabase
+            .rpc('my_calendar_events', params: {'event': session.eventId});
+        final data = (rows as List).isEmpty
+            ? null
+            : Map<String, dynamic>.from(rows.first);
         if (data == null) return;
         event = CalendarEvent(
           id: data['id'],
@@ -2039,9 +2011,8 @@ class AppState extends ChangeNotifier {
       attendees[attendeeIndex] = attendee;
       event.attendees = attendees;
 
-      await _supabase
-          .from('calendar_events')
-          .update({'attendees': attendees}).eq('id', event.id);
+      await _supabase.rpc('update_my_event_attendee',
+          params: {'event': event.id, 'patch': attendee});
 
       if (localIndex >= 0) {
         _coachEvents[localIndex] = event;
@@ -2068,11 +2039,11 @@ class AppState extends ChangeNotifier {
       if (localIndex >= 0) {
         event = _coachEvents[localIndex];
       } else {
-        final data = await _supabase
-            .from('calendar_events')
-            .select()
-            .eq('id', session.eventId!)
-            .maybeSingle();
+        final rows = await _supabase
+            .rpc('my_calendar_events', params: {'event': session.eventId});
+        final data = (rows as List).isEmpty
+            ? null
+            : Map<String, dynamic>.from(rows.first);
         if (data == null) return;
         event = CalendarEvent(
           id: data['id'],
@@ -2127,9 +2098,8 @@ class AppState extends ChangeNotifier {
       );
       attendees[attendeeIndex] = attendee;
 
-      await _supabase
-          .from('calendar_events')
-          .update({'attendees': attendees}).eq('id', event.id);
+      await _supabase.rpc('update_my_event_attendee',
+          params: {'event': event.id, 'patch': attendee});
 
       event.attendees = attendees;
       if (localIndex >= 0) _coachEvents[localIndex] = event;
@@ -2163,12 +2133,22 @@ class AppState extends ChangeNotifier {
   /// Load sessions for a specific athlete (used by coaches to view athlete details)
   Future<List<TrainingSession>> loadSessionsForAthlete(String athleteId) async {
     try {
-      final data = await _supabase
-          .from('training_sessions')
-          .select()
-          .eq('user_id', athleteId)
-          .order('date', ascending: false);
-      return (data as List)
+      const pageSize = 500;
+      final rows = <dynamic>[];
+      var offset = 0;
+      while (true) {
+        final page = await _supabase
+            .from('training_sessions')
+            .select()
+            .eq('user_id', athleteId)
+            .order('date', ascending: false)
+            .order('id', ascending: false)
+            .range(offset, offset + pageSize - 1);
+        rows.addAll(page);
+        if (page.length < pageSize) break;
+        offset += page.length;
+      }
+      return rows
           .map((e) => TrainingSession(
                 id: e['id'],
                 sportId: e['sport_id'],
@@ -2189,12 +2169,9 @@ class AppState extends ChangeNotifier {
 
   Future<List<Map<String, dynamic>>> loadAthletesForTeam(String teamId) async {
     try {
-      final data = await _supabase
-          .from('profiles')
-          .select('id, first_name, last_name, email, team_id, role')
-          .eq('team_id', teamId)
-          .eq('role', 'athlete')
-          .order('first_name');
+      final data = (await TeamAccessService(_supabase).directory(teamId))
+          .where((p) => p['role'] == 'athlete')
+          .toList();
       return (data as List).map((row) {
         final profile = Map<String, dynamic>.from(row as Map);
         final firstName = profile['first_name']?.toString() ?? '';
@@ -2299,7 +2276,8 @@ class AppState extends ChangeNotifier {
         weight: (data['weight'] as num?)?.toDouble() ?? 70.0,
         height: (data['height'] as num?)?.toDouble() ?? 175.0,
         maxHr: data['max_hr'] ?? 190,
-        avatarUrl: data['avatar_url'] ?? '',
+        avatarUrl: await PrivateAvatarService(_supabase)
+            .resolve(data['avatar_url'] ?? ''),
         skiClub: data['ski_club'],
         gender: data['gender'],
         skillLevel: data['skill_level'],
@@ -2319,13 +2297,18 @@ class AppState extends ChangeNotifier {
   }
 
   Future<void> syncHealthWorkouts({int days = 7}) async {
+    if (!await verifyHealthConsent()) return;
+    final owner = userId;
+    final revision = healthConsent.revision;
     await _syncHealthWorkoutImports(days: days);
+    if (!_healthImportStillAllowed(owner, revision)) return;
     await syncDailyHealthMetrics();
+    if (!_healthImportStillAllowed(owner, revision)) return;
     await syncDailyStrainScore(DateTime.now(), notify: false);
   }
 
   Future<void> _syncHealthWorkoutImports({int days = 7}) {
-    if (_userProfile == null) return Future.value();
+    if (_userProfile == null || !canImportHealthData) return Future.value();
 
     final runningSync = _healthWorkoutSyncFuture;
     if (runningSync != null) return runningSync;
@@ -2342,15 +2325,19 @@ class AppState extends ChangeNotifier {
   Future<void> _performHealthWorkoutImport({required int days}) async {
     try {
       final syncOwnerId = userId;
+      final consentRevision = healthConsent.revision;
       final syncProfile = _userProfile;
-      if (syncOwnerId.isEmpty || syncProfile == null) return;
-      final healthSessions =
-          await HealthService().fetchRecentWorkouts(syncProfile, days: days);
+      if (syncOwnerId.isEmpty || syncProfile == null || !canImportHealthData) {
+        return;
+      }
+      final healthSessions = await withHealthReadConsent(
+          () => _healthImportStillAllowed(syncOwnerId, consentRevision),
+          () => HealthService().fetchRecentWorkouts(syncProfile, days: days));
 
       final processedExternalIds = <String>{};
 
       for (var session in healthSessions) {
-        if (userId != syncOwnerId || _userProfile?.id != syncOwnerId) return;
+        if (!_healthImportStillAllowed(syncOwnerId, consentRevision)) return;
         final extId = session.details?['external_id']?.toString();
         if (extId != null && processedExternalIds.contains(extId)) {
           continue;
@@ -2599,6 +2586,9 @@ class AppState extends ChangeNotifier {
     Iterable<TrainingSession> candidates,
     TrainingSession imported,
   ) async {
+    final owner = userId;
+    final revision = healthConsent.revision;
+    if (!_healthImportStillAllowed(owner, revision)) return;
     var consolidated = baseSession;
     final duplicates = <String, TrainingSession>{};
     for (final candidate in candidates) {
@@ -2631,6 +2621,7 @@ class AppState extends ChangeNotifier {
     );
 
     final duplicateIds = duplicates.keys.toSet();
+    if (!_healthImportStillAllowed(owner, revision)) return;
     if (duplicateIds.isNotEmpty) {
       await _supabase
           .from('training_sessions')
@@ -2644,6 +2635,7 @@ class AppState extends ChangeNotifier {
       ...duplicates.values.map((session) => session.date),
     };
     for (final dateKey in affectedDates) {
+      if (!_healthImportStillAllowed(owner, revision)) return;
       final date = DateTime.tryParse(dateKey);
       if (date != null) {
         await calculateAndPersistDailyStrainScore(
@@ -2718,6 +2710,7 @@ class AppState extends ChangeNotifier {
     DateTime targetDate, {
     bool requestPermissions = true,
   }) {
+    if (!_mayAttemptHealthImport) return Future.value();
     final dateKey = localDateKey(targetDate);
     final today = localDateKey(DateTime.now());
     if (dateKey.compareTo(today) > 0) return Future.value();
@@ -2753,6 +2746,10 @@ class AppState extends ChangeNotifier {
   }
 
   Future<void> refreshHealthDataIfStale([DateTime? targetDate]) async {
+    if (healthConsent.belongsTo(userId) && healthConsent.revocationPending) {
+      await loadHealthConsent();
+    }
+    if (!_mayAttemptHealthImport) return;
     final profile = _userProfile;
     if (profile == null || profile.role != 'athlete' || !_hasAuthSession) {
       return;
@@ -2796,6 +2793,7 @@ class AppState extends ChangeNotifier {
   }
 
   Future<void> markHealthAccessEnabled() async {
+    if (!canImportHealthData) return;
     await _prefs?.setBool(_healthAccessPreferenceKey, true);
   }
 
@@ -2803,6 +2801,7 @@ class AppState extends ChangeNotifier {
     DateTime targetDate, {
     required bool requestPermissions,
   }) async {
+    if (!await verifyHealthConsent()) return;
     final requestId = ++_healthDataRequestId;
     final pendingKey = _pendingHealthRefreshKey;
     final previousRevision = _healthScoreRevision;
@@ -2848,6 +2847,7 @@ class AppState extends ChangeNotifier {
   }
 
   Future<int> clearHealthScoreCacheAndResync(DateTime targetDate) async {
+    if (!canImportHealthData) return 0;
     final owner = userId;
     await _healthRefreshFuture;
     if (owner != userId) return 0;
@@ -2886,18 +2886,22 @@ class AppState extends ChangeNotifier {
   }
 
   Future<void> syncDailyHealthMetrics({bool requestPermissions = true}) async {
+    if (!await verifyHealthConsent()) return;
     var bodyLogsChanged = false;
     try {
       final syncOwnerId = userId;
+      final consentRevision = healthConsent.revision;
       if (syncOwnerId.isEmpty) return;
-      final results = await HealthService().syncDailyHealthMetrics(
-        days: _healthMetricSyncLookbackDays,
-        requestPermissions: requestPermissions,
-        oxygenHistoryStart: Platform.isIOS
-            ? DailyHealthMetricNormalizer.oxygenHistoryStart(_bodyLogs)
-            : null,
-      );
-      if (userId != syncOwnerId || _userProfile?.id != syncOwnerId) return;
+      final results = await withHealthReadConsent(
+          () => _healthImportStillAllowed(syncOwnerId, consentRevision),
+          () => HealthService().syncDailyHealthMetrics(
+                days: _healthMetricSyncLookbackDays,
+                requestPermissions: requestPermissions,
+                oxygenHistoryStart: Platform.isIOS
+                    ? DailyHealthMetricNormalizer.oxygenHistoryStart(_bodyLogs)
+                    : null,
+              ));
+      if (!_healthImportStillAllowed(syncOwnerId, consentRevision)) return;
 
       // Wearable-owned streams are upserted on every sync because HealthKit
       // and Health Connect can correct an incomplete morning aggregate later.
@@ -2911,7 +2915,7 @@ class AppState extends ChangeNotifier {
       ];
       for (final metricKey in platformMetricKeys) {
         for (final log in results[metricKey] ?? const <BodyMetricLog>[]) {
-          if (userId != syncOwnerId || _userProfile?.id != syncOwnerId) return;
+          if (!_healthImportStillAllowed(syncOwnerId, consentRevision)) return;
           bodyLogsChanged =
               await addBodyLog(log, updateProfile: false, notify: false) ||
                   bodyLogsChanged;
@@ -2920,8 +2924,11 @@ class AppState extends ChangeNotifier {
 
       // Native RR pipeline (currently available on iOS) feeds its own
       // device-specific RMSSD baseline table.
-      final rawRR = await NativeHealthService.getNightlyRRIntervals();
-      if (userId != syncOwnerId || _userProfile?.id != syncOwnerId) return;
+      if (!_healthImportStillAllowed(syncOwnerId, consentRevision)) return;
+      final rawRR = await withHealthReadConsent(
+          () => _healthImportStillAllowed(syncOwnerId, consentRevision),
+          NativeHealthService.getNightlyRRIntervals);
+      if (!_healthImportStillAllowed(syncOwnerId, consentRevision)) return;
       if (rawRR.isNotEmpty) {
         final dateStr = DateTime.now().toIso8601String().split('T')[0];
 
@@ -2933,6 +2940,7 @@ class AppState extends ChangeNotifier {
             .order('date', ascending: true);
 
         final historicalData = List<Map<String, dynamic>>.from(historyRes);
+        if (!_healthImportStillAllowed(syncOwnerId, consentRevision)) return;
         String deviceSource =
             Platform.isIOS ? 'Apple Watch' : 'Health Connect Device';
 
@@ -2965,7 +2973,7 @@ class AppState extends ChangeNotifier {
         results['weight'] ?? const <BodyMetricLog>[],
       )..sort((a, b) => a.date.compareTo(b.date));
       for (final weightLog in weightLogs) {
-        if (userId != syncOwnerId || _userProfile?.id != syncOwnerId) return;
+        if (!_healthImportStillAllowed(syncOwnerId, consentRevision)) return;
         bodyLogsChanged = await addBodyLog(
               weightLog,
               updateProfile: false,
@@ -2973,6 +2981,7 @@ class AppState extends ChangeNotifier {
             ) ||
             bodyLogsChanged;
       }
+      if (!_healthImportStillAllowed(syncOwnerId, consentRevision)) return;
       if (weightLogs.isNotEmpty && _userProfile != null) {
         final newestWeight = weightLogs.last.value;
         if ((_userProfile!.weight - newestWeight).abs() >= 0.000000001) {
@@ -3231,6 +3240,10 @@ class AppState extends ChangeNotifier {
   }
 
   Future<void> addBodyLogForAthlete(BodyMetricLog log, String athleteId) async {
+    if (athleteId != userId && !coachEditableSportsTests.contains(log.type)) {
+      throw StateError(
+          'I dati salute personali sono in sola lettura per gli allenatori.');
+    }
     try {
       final response = await _supabase
           .from('body_metric_logs')
@@ -3272,25 +3285,6 @@ class AppState extends ChangeNotifier {
           .select()
           .single();
       log.id = response['id'];
-      // Update athlete's one_rep_max profile field
-      final profileData = await _supabase
-          .from('profiles')
-          .select('one_rep_max')
-          .eq('id', athleteId)
-          .maybeSingle();
-      if (profileData != null) {
-        final currentMaxMap = profileData['one_rep_max'] != null
-            ? Map<String, dynamic>.from(profileData['one_rep_max'])
-            : <String, dynamic>{};
-        final currentMax =
-            (currentMaxMap[log.exerciseId] as num?)?.toDouble() ?? 0.0;
-        if (log.weight > currentMax) {
-          currentMaxMap[log.exerciseId] = log.weight;
-          await _supabase
-              .from('profiles')
-              .update({'one_rep_max': currentMaxMap}).eq('id', athleteId);
-        }
-      }
     } catch (e) {
       debugPrint('Error adding PR log for athlete: $e');
       rethrow;
@@ -3299,48 +3293,11 @@ class AppState extends ChangeNotifier {
 
   Future<void> deletePRLogForAthlete(
       String id, String exerciseId, String athleteId) async {
-    try {
-      await _supabase.from('pr_logs').delete().eq('id', id);
-
-      final data = await _supabase
-          .from('pr_logs')
-          .select('weight')
-          .eq('user_id', athleteId)
-          .eq('exercise_id', exerciseId);
-
-      double newMax = 0.0;
-      final prLogs = data as List;
-      if (prLogs.isNotEmpty) {
-        newMax = prLogs
-            .map((e) => (e['weight'] as num).toDouble())
-            .reduce((a, b) => a > b ? a : b);
-      }
-
-      final profileData = await _supabase
-          .from('profiles')
-          .select('one_rep_max')
-          .eq('id', athleteId)
-          .maybeSingle();
-
-      if (profileData != null) {
-        final currentMaxMap = profileData['one_rep_max'] != null
-            ? Map<String, dynamic>.from(profileData['one_rep_max'])
-            : <String, dynamic>{};
-
-        if (newMax > 0) {
-          currentMaxMap[exerciseId] = newMax;
-        } else {
-          currentMaxMap.remove(exerciseId);
-        }
-
-        await _supabase
-            .from('profiles')
-            .update({'one_rep_max': currentMaxMap}).eq('id', athleteId);
-      }
-    } catch (e) {
-      debugPrint('Error deleting PR log for athlete: $e');
-      rethrow;
-    }
+    await _supabase
+        .from('pr_logs')
+        .delete()
+        .eq('id', id)
+        .eq('user_id', athleteId);
   }
 
   Future<void> saveCoachEvent(
@@ -3348,6 +3305,31 @@ class AppState extends ChangeNotifier {
     bool rethrowErrors = false,
   }) async {
     try {
+      if (_userProfile?.role == 'athlete') {
+        final own =
+            (event.attendees ?? []).where((a) => a['id'] == userId).firstOrNull;
+        if (own == null) throw StateError('Convocazione personale non trovata');
+        await _supabase.rpc('update_my_event_attendee',
+            params: {'event': event.id, 'patch': own});
+        if (event.status == CoachTrainingUtils.statusCompleted) {
+          final ownEvent = CalendarEvent(
+              id: event.id,
+              teamId: event.teamId,
+              type: event.type,
+              title: event.title,
+              date: event.date,
+              startTime: event.startTime,
+              endTime: event.endTime,
+              sportCategory: event.sportCategory,
+              technicalDetails: event.technicalDetails,
+              attendees: [own],
+              status: event.status);
+          await _generateSessionsForCompletedEvent(ownEvent);
+        }
+        await _loadCoachEvents();
+        notifyListeners();
+        return;
+      }
       final teamIds = CoachTrainingUtils.teamIdsForEvent(event);
       event.teamId = teamIds.isNotEmpty ? teamIds.first : event.teamId;
       event.technicalDetails =
@@ -3404,7 +3386,7 @@ class AppState extends ChangeNotifier {
         await _generateSessionsForCompletedEvent(event);
       }
 
-      _handleFutureEventNotifications(event);
+      // Notifications are generated by the server from validated invitations.
       notifyListeners();
     } catch (e) {
       debugPrint('Error saving coach event: $e');
@@ -3601,63 +3583,6 @@ class AppState extends ChangeNotifier {
     } catch (e) {
       debugPrint('Error in deleteCoachEvent: $e');
     }
-  }
-
-  void _handleFutureEventNotifications(CalendarEvent event) async {
-    final eventDate = DateTime.tryParse(event.date);
-    if (eventDate == null) return;
-
-    final now = DateTime.now();
-    final today = DateTime(now.year, now.month, now.day);
-    final shouldNotify = event.status == CoachTrainingUtils.statusCancelled ||
-        !eventDate.isBefore(today);
-    if (!shouldNotify) return;
-
-    final invitedAthletes = event.attendees ?? [];
-    for (var athlete in invitedAthletes) {
-      try {
-        final notificationPayload = {
-          'user_id': athlete['id'] ?? userId,
-          'title': event.status == CoachTrainingUtils.statusCancelled
-              ? 'Allenamento Annullato'
-              : 'Nuovo Allenamento Pianificato',
-          'message': event.status == CoachTrainingUtils.statusCancelled
-              ? 'Allenamento annullato: ${event.title} del ${event.date}'
-              : 'Sei stato convocato per: ${event.title} il ${event.date} alle ${event.startTime}',
-          'timestamp': DateTime.now().toIso8601String(),
-          'type': 'training',
-          'is_read': false,
-        };
-
-        Map<String, dynamic> response;
-        try {
-          response = await _supabase
-              .from('notifications')
-              .insert({...notificationPayload, 'event_id': event.id})
-              .select()
-              .single();
-        } catch (_) {
-          response = await _supabase
-              .from('notifications')
-              .insert(notificationPayload)
-              .select()
-              .single();
-        }
-
-        final notification = AppNotification(
-          id: response['id'],
-          title: response['title'],
-          message: response['message'],
-          timestamp: response['timestamp'],
-          type: response['type'],
-          isRead: response['is_read'] ?? false,
-        );
-        _notifications.insert(0, notification);
-      } catch (e) {
-        debugPrint('Error saving notification: $e');
-      }
-    }
-    notifyListeners();
   }
 
   Future<void> updateAthleteAttendance(

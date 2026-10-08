@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="health_privacy_title">4athletes · Privacy</string>
+    <string name="health_privacy_close">Chiudi</string>
+    <string name="health_privacy_loading">Caricamento dell’informativa privacy</string>
+    <string name="health_privacy_error">Non è stato possibile caricare l’informativa privacy. Controlla la connessione e riprova, oppure apri la pagina nel browser.</string>
+    <string name="health_privacy_retry">Riprova</string>
+    <string name="health_privacy_browser">Apri nel browser</string>
+    <string name="health_privacy_no_browser">Nessuna app disponibile per aprire questo collegamento.</string>
+</resources>

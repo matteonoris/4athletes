@@ -13,6 +13,7 @@ import '../services/training_activity_service.dart';
 import '../services/workout_draft_service.dart';
 import '../widgets/running_workout_editor.dart';
 import '../widgets/workout_phase_editor.dart';
+import '../widgets/workout_location_field.dart';
 
 class WorkoutFlowScreen extends StatefulWidget {
   final WorkoutActivityDefinition activity;
@@ -465,14 +466,14 @@ class _WorkoutFlowScreenState extends State<WorkoutFlowScreen> {
         ],
         _dateTimeCard(),
         const SizedBox(height: 12),
-        TextField(
+        WorkoutLocationField(
           controller: _locationController,
-          textCapitalization: TextCapitalization.words,
-          onChanged: (_) => _markFormDirty(),
-          decoration: const InputDecoration(
-            labelText: 'Luogo',
-            prefixIcon: Icon(Icons.place_outlined),
-          ),
+          place: _draft.locationPlace,
+          onPlaceChanged: (place) => _updateDraft((draft) => draft.copyWith(
+                location: _locationController.text.trim(),
+                locationPlace: place,
+                clearLocationPlace: place == null,
+              )),
         ),
         const SizedBox(height: 12),
         TextField(

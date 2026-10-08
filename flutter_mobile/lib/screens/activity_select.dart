@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../widgets/health_consent_gate.dart';
 import 'package:provider/provider.dart';
 
 import '../core/theme.dart';
@@ -404,6 +405,7 @@ class _ActivitySelectScreenState extends State<ActivitySelectScreen> {
 
   Future<void> _importAndChoose() async {
     if (_isImporting) return;
+    if (!checkHealthImportEnabled(context)) return;
     setState(() => _isImporting = true);
     try {
       final permission = await HealthService().requestPermissionsDetailed();

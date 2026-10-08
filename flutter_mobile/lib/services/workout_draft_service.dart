@@ -7,6 +7,7 @@ import '../data/workout_catalog.dart';
 import '../models/models.dart';
 import '../models/training_activity_models.dart';
 import '../models/workout_creation_models.dart';
+import '../models/workout_place.dart';
 import '../utils/coach_training_utils.dart';
 import '../utils/health_workout_merge_utils.dart';
 
@@ -106,6 +107,7 @@ class CoachWorkoutEventFactory {
       drylandSpecialty: normalizedDraft.activityCategory,
       technicalDetails: {
         'technicalVersion': WorkoutDraft.schemaVersion,
+        'locationPlace': normalizedDraft.locationPlace?.toJson(),
         'teamIds': [team.id],
         'sessionRpe': normalizedDraft.sessionRpe,
         'qualityRating': normalizedDraft.sessionRpe,
@@ -196,14 +198,18 @@ class WorkoutDraftFactory {
             ),
             WorkoutPhaseDraft(
               type: TrainingPhase.main,
-              blocks: [
-                _initialBlock(
-                  activity,
-                  selectedMode,
-                  protocol,
-                  durationMinutes: isConditioning ? 20 : durationMinutes,
-                ),
-              ],
+              blocks: activity.section == WorkoutCatalogSection.preparation &&
+                      !isConditioning &&
+                      protocol == null
+                  ? const []
+                  : [
+                      _initialBlock(
+                        activity,
+                        selectedMode,
+                        protocol,
+                        durationMinutes: isConditioning ? 20 : durationMinutes,
+                      ),
+                    ],
             ),
             WorkoutPhaseDraft(
               type: TrainingPhase.cooldown,
@@ -308,6 +314,7 @@ class WorkoutDraftFactory {
       plannedDurationMinutes: durationMinutes,
       actualDurationMinutes: durationMinutes,
       location: details['location']?.toString(),
+      locationPlace: WorkoutPlace.tryParse(details['locationPlace']),
       notes: (details['notes'] ?? details['athleteNotes'])?.toString(),
       activityId: activity.id,
       activityName: activity.name,
@@ -479,6 +486,7 @@ class WorkoutDraftFactory {
       'workoutSource',
       'title',
       'location',
+      'locationPlace',
       'notes',
       'rpe',
       'runningSummary',
@@ -788,7 +796,7 @@ class WorkoutDraftFactory {
       kind: WorkoutBlockKind.sport,
       title: activity.name,
       order: 0,
-      fields: const {'durationSeconds': 3600},
+      fields: const {},
     );
   }
 

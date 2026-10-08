@@ -5,9 +5,10 @@ import 'package:share_plus/share_plus.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../core/theme.dart';
+import '../services/team_access_service.dart';
+import 'team_management_screen.dart';
 import '../models/models.dart';
 import '../services/team_leaderboard_calculator.dart';
-import '../utils/coach_training_utils.dart';
 import 'coach_athlete_detail_screen.dart';
 import 'package:provider/provider.dart';
 import '../providers/app_state.dart';
@@ -27,11 +28,18 @@ class _TeamDetailScreenState extends State<TeamDetailScreen> {
       TeamLeaderboardMetric.hoursOutsideAlpineSki;
   bool _showFilters = true;
 
+  Team? get _currentTeam => context
+      .read<AppState>()
+      .teams
+      .where((t) => t.id == widget.team.id)
+      .firstOrNull;
+  bool get _isManager => _currentTeam?.isManager == true;
+  String get _inviteCode => _currentTeam?.inviteCode ?? '';
   bool _isLoading = true;
-  List<Map<String, dynamic>> _rawTeammates = [];
   List<Map<String, dynamic>> _teamCoaches = [];
-  List<TeamLeaderboardSession> _rawSessions = [];
-  List<CalendarEvent> _completedEvents = [];
+  Map<TeamLeaderboardTimeRange, List<TeamLeaderboardAthleteStats>> _summaries =
+      {};
+  String? _loadError;
 
   @override
   void initState() {
@@ -46,118 +54,58 @@ class _TeamDetailScreenState extends State<TeamDetailScreen> {
 
     try {
       final supabase = Supabase.instance.client;
-      final athletesResponse = await supabase
-          .from('profiles')
-          .select(
-              'id, first_name, last_name, email, avatar_url, skill_level, ski_club')
-          .eq('team_id', widget.team.id)
-          .eq('role', 'athlete')
-          .order('last_name', ascending: true);
-
-      final coachesResponse = await supabase
-          .from('profiles')
-          .select('id, first_name, last_name, avatar_url, ski_club')
-          .eq('team_id', widget.team.id)
-          .eq('role', 'coach')
-          .order('last_name', ascending: true);
-
-      final List<Map<String, dynamic>> athletes =
-          List<Map<String, dynamic>>.from(athletesResponse);
-      final List<Map<String, dynamic>> coaches =
-          List<Map<String, dynamic>>.from(coachesResponse);
-
-      List<TeamLeaderboardSession> sessions = [];
-      if (athletes.isNotEmpty) {
-        final athleteIds = athletes.map((a) => a['id'] as String).toList();
-        final now = DateTime.now();
-        final season = TeamLeaderboardPeriod.forRange(
-          TeamLeaderboardTimeRange.thisSeason,
-          now,
-        );
-        final last7Days = TeamLeaderboardPeriod.forRange(
-          TeamLeaderboardTimeRange.last7Days,
-          now,
-        );
-        final loadStart = last7Days.start.isBefore(season.start)
-            ? last7Days.start
-            : season.start;
-        final seasonStart = _dateKey(loadStart);
-        final tomorrow = _dateKey(season.endExclusive);
-        final rows =
-            await TeamLeaderboardPagination.fetchAll<Map<String, dynamic>>(
-          fetchPage: (from, to) async {
-            final response = await supabase
-                .from('training_sessions')
-                .select(
-                  'id, user_id, sport_id, date, start_time, end_time, '
-                  'duration, effort, event_id, details',
-                )
-                .inFilter('user_id', athleteIds)
-                .gte('date', seasonStart)
-                .lt('date', tomorrow)
-                .order('date', ascending: true)
-                .order('id', ascending: true)
-                .range(from, to);
-            return List<Map<String, dynamic>>.from(response);
-          },
-        );
-        sessions = rows.map(_leaderboardSessionFromRow).toList();
-      }
-
-      final now = DateTime.now();
-      final season = TeamLeaderboardPeriod.forRange(
-        TeamLeaderboardTimeRange.thisSeason,
-        now,
-      );
-      final last7Days = TeamLeaderboardPeriod.forRange(
-        TeamLeaderboardTimeRange.last7Days,
-        now,
-      );
-      final loadStart = last7Days.start.isBefore(season.start)
-          ? last7Days.start
-          : season.start;
-      var completedEvents = <CalendarEvent>[];
-      try {
-        final eventRows =
-            await TeamLeaderboardPagination.fetchAll<Map<String, dynamic>>(
-          fetchPage: (from, to) async {
-            final response = await supabase
-                .from('calendar_events')
-                .select(
-                  'id, team_id, type, title, date, start_time, end_time, '
-                  'location, notes, sport_category, dryland_specialty, '
-                  'technical_details, attendees, status',
-                )
-                .eq('status', 'completed')
-                .gte('date', _dateKey(loadStart))
-                .lt('date', _dateKey(season.endExclusive))
-                .order('date', ascending: true)
-                .order('id', ascending: true)
-                .range(from, to);
-            return List<Map<String, dynamic>>.from(response);
-          },
-        );
-        completedEvents = eventRows
-            .map(_calendarEventFromRow)
-            .where(
-              (event) => CoachTrainingUtils.teamIdsForEvent(event)
-                  .contains(widget.team.id),
-            )
-            .toList();
-      } catch (error) {
-        debugPrint('Error loading completed events for leaderboard: $error');
+      final directory =
+          await TeamAccessService(supabase).directory(widget.team.id);
+      final athletes = directory.where((p) => p['role'] == 'athlete').toList();
+      final coaches = directory.where((p) => p['role'] == 'coach').toList();
+      final summaries =
+          <TeamLeaderboardTimeRange, List<TeamLeaderboardAthleteStats>>{};
+      for (final range in TeamLeaderboardTimeRange.values) {
+        final period = TeamLeaderboardPeriod.forRange(range, DateTime.now());
+        final response = await supabase.rpc('team_leaderboard', params: {
+          't': widget.team.id,
+          'starts': _dateKey(period.start),
+          'ends': _dateKey(period.endExclusive)
+        });
+        final totals = {
+          for (final row in response as List)
+            row['id']: Map<String, dynamic>.from(row['values'])
+        };
+        summaries[range] = athletes.map((p) {
+          final values = totals[p['id']] ?? <String, dynamic>{};
+          const skiKeys = {
+            'slPolePasses': 'SL',
+            'gsPolePasses': 'GS',
+            'sgPolePasses': 'SG',
+            'dhPolePasses': 'DH',
+            'sxPolePasses': 'SX'
+          };
+          return TeamLeaderboardAthleteStats(
+              id: p['id'],
+              name:
+                  (p['first_name'].toString() + ' ' + p['last_name'].toString())
+                      .trim(),
+              avatarUrl: p['avatar_url'] ?? '',
+              subtitle: p['skill_level'] ?? 'Atleta',
+              values: {
+                for (final metric in TeamLeaderboardMetric.values)
+                  metric: (values[skiKeys[metric.name] ?? metric.name] as num?)
+                          ?.toDouble() ??
+                      0
+              });
+        }).toList();
       }
 
       if (!mounted) return;
       setState(() {
-        _rawTeammates = athletes;
         _teamCoaches = coaches;
-        _rawSessions = sessions;
-        _completedEvents = completedEvents;
+        _summaries = summaries;
+        _loadError = null;
         _isLoading = false;
       });
     } catch (e) {
       debugPrint('Error loading leaderboard data: $e');
+      _loadError = 'Impossibile caricare i riepiloghi della squadra. Riprova.';
       if (!mounted) return;
       setState(() {
         _isLoading = false;
@@ -169,58 +117,6 @@ class _TeamDetailScreenState extends State<TeamDetailScreen> {
     return '${date.year.toString().padLeft(4, '0')}-'
         '${date.month.toString().padLeft(2, '0')}-'
         '${date.day.toString().padLeft(2, '0')}';
-  }
-
-  TeamLeaderboardSession _leaderboardSessionFromRow(
-    Map<String, dynamic> row,
-  ) {
-    final details = row['details'];
-    return TeamLeaderboardSession(
-      athleteId: row['user_id']?.toString() ?? '',
-      session: TrainingSession(
-        id: row['id']?.toString() ?? '',
-        sportId: row['sport_id']?.toString() ?? '',
-        date: row['date']?.toString() ?? '',
-        startTime: row['start_time']?.toString() ?? '',
-        endTime: row['end_time']?.toString() ?? '',
-        duration: row['duration']?.toString() ?? '0',
-        effort: row['effort'] is num
-            ? (row['effort'] as num).round()
-            : int.tryParse(row['effort']?.toString() ?? '') ?? 0,
-        eventId: row['event_id']?.toString(),
-        details: details is Map
-            ? details.map(
-                (key, value) => MapEntry(key.toString(), value),
-              )
-            : null,
-      ),
-    );
-  }
-
-  CalendarEvent _calendarEventFromRow(Map<String, dynamic> row) {
-    return CalendarEvent(
-      id: row['id']?.toString() ?? '',
-      teamId: row['team_id']?.toString() ?? '',
-      type: row['type']?.toString() ?? '',
-      title: row['title']?.toString() ?? '',
-      date: row['date']?.toString() ?? '',
-      startTime: row['start_time']?.toString() ?? '',
-      endTime: row['end_time']?.toString() ?? '',
-      location: row['location']?.toString(),
-      notes: row['notes']?.toString(),
-      sportCategory: row['sport_category']?.toString(),
-      drylandSpecialty: row['dryland_specialty']?.toString(),
-      technicalDetails: row['technical_details'] is Map
-          ? Map<String, dynamic>.from(row['technical_details'] as Map)
-          : null,
-      attendees: row['attendees'] is List
-          ? (row['attendees'] as List)
-              .whereType<Map>()
-              .map((value) => Map<String, dynamic>.from(value))
-              .toList()
-          : null,
-      status: row['status']?.toString() ?? '',
-    );
   }
 
   double _getCategoryValue(
@@ -458,14 +354,14 @@ class _TeamDetailScreenState extends State<TeamDetailScreen> {
     SharePlus.instance.share(
       ShareParams(
         text:
-            'Unisciti al mio team su 4Athletes! Usa il codice: ${widget.team.inviteCode}',
+            'Unisciti al mio team su 4Athletes! Usa il codice: ${_inviteCode}',
         sharePositionOrigin: origin,
       ),
     );
   }
 
   void _copyCode() {
-    Clipboard.setData(ClipboardData(text: widget.team.inviteCode));
+    Clipboard.setData(ClipboardData(text: _inviteCode));
     ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(
           content: Text('Codice copiato negli appunti!'),
@@ -509,8 +405,10 @@ class _TeamDetailScreenState extends State<TeamDetailScreen> {
                 }
               } catch (e) {
                 if (mounted) {
-                  ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-                      content: Text('Errore durante l\'uscita dal team')));
+                  ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+                      content: Text(e is PostgrestException
+                          ? e.message
+                          : 'Errore durante l’uscita dal team')));
                 }
               }
             },
@@ -567,12 +465,8 @@ class _TeamDetailScreenState extends State<TeamDetailScreen> {
         Provider.of<AppState>(context).userProfile?.role == 'athlete';
     final isCoach = Provider.of<AppState>(context).userProfile?.role == 'coach';
 
-    final sortedAthletes = const TeamLeaderboardCalculator().calculate(
-      athletes: _rawTeammates,
-      sessions: _rawSessions,
-      completedEvents: _completedEvents,
-      timeRange: _timeFilter,
-    );
+    final sortedAthletes =
+        List<TeamLeaderboardAthleteStats>.from(_summaries[_timeFilter] ?? []);
     sortedAthletes.sort((a, b) {
       double valA = _getCategoryValue(a, _categoryFilter);
       double valB = _getCategoryValue(b, _categoryFilter);
@@ -618,7 +512,19 @@ class _TeamDetailScreenState extends State<TeamDetailScreen> {
         ),
         centerTitle: true,
         actions: [
-          if (isAthlete)
+          if (_isManager)
+            IconButton(
+                tooltip: 'Gestisci squadra',
+                icon: const Icon(Icons.manage_accounts),
+                onPressed: () async {
+                  await Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                          builder: (_) =>
+                              TeamManagementScreen(team: widget.team)));
+                  await _loadLeaderboardData();
+                }),
+          if (isAthlete || isCoach)
             IconButton(
               icon: Icon(PhosphorIcons.signOut(), color: Colors.redAccent),
               onPressed: () => _confirmLeaveTeam(context),
@@ -630,74 +536,82 @@ class _TeamDetailScreenState extends State<TeamDetailScreen> {
         child: CustomScrollView(
           physics: const AlwaysScrollableScrollPhysics(),
           slivers: [
+            if (_loadError != null)
+              SliverToBoxAdapter(
+                  child: Padding(
+                      padding: const EdgeInsets.all(16),
+                      child: Text(_loadError!))),
             // "INVITA MEMBRI" Card
-            SliverToBoxAdapter(
-              child: Container(
-                margin:
-                    const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                padding: const EdgeInsets.all(16),
-                decoration: BoxDecoration(
-                  color: AppTheme.secondary.withValues(alpha: 0.10),
-                  borderRadius: BorderRadius.circular(16),
-                  border: Border.all(
-                      color: AppTheme.secondary.withValues(alpha: 0.24),
-                      width: 1.5),
-                ),
-                child: Row(
-                  children: [
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text('INVITA MEMBRI',
-                              style: TextStyle(
-                                  color: AppTheme.secondary,
-                                  fontSize: 10,
-                                  fontWeight: FontWeight.bold,
-                                  letterSpacing: 1.5)),
-                          const SizedBox(height: 8),
-                          GestureDetector(
-                            onTap: _copyCode,
-                            child: Row(
-                              children: [
-                                Text(widget.team.inviteCode,
-                                    style: TextStyle(
-                                        fontSize: 22,
-                                        fontWeight: FontWeight.bold,
-                                        letterSpacing: 2,
-                                        color: AppTheme.textHighEmphasis)),
-                                const SizedBox(width: 8),
-                                Icon(PhosphorIcons.copy(),
-                                    size: 18,
-                                    color: AppTheme.textMediumEmphasis),
-                              ],
+            if (_isManager)
+              SliverToBoxAdapter(
+                child: Container(
+                  margin:
+                      const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                  padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    color: AppTheme.secondary.withValues(alpha: 0.10),
+                    borderRadius: BorderRadius.circular(16),
+                    border: Border.all(
+                        color: AppTheme.secondary.withValues(alpha: 0.24),
+                        width: 1.5),
+                  ),
+                  child: Row(
+                    children: [
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text('INVITA MEMBRI',
+                                style: TextStyle(
+                                    color: AppTheme.secondary,
+                                    fontSize: 10,
+                                    fontWeight: FontWeight.bold,
+                                    letterSpacing: 1.5)),
+                            const SizedBox(height: 8),
+                            GestureDetector(
+                              onTap: _copyCode,
+                              child: Row(
+                                children: [
+                                  Expanded(
+                                      child: Text(_inviteCode,
+                                          style: TextStyle(
+                                              fontSize: 12,
+                                              fontWeight: FontWeight.bold,
+                                              letterSpacing: 2,
+                                              color:
+                                                  AppTheme.textHighEmphasis))),
+                                  const SizedBox(width: 8),
+                                  Icon(PhosphorIcons.copy(),
+                                      size: 18,
+                                      color: AppTheme.textMediumEmphasis),
+                                ],
+                              ),
                             ),
-                          ),
-                        ],
+                          ],
+                        ),
                       ),
-                    ),
-                    ElevatedButton(
-                      key: _shareButtonKey,
-                      onPressed: _shareCode,
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: AppTheme.primary,
-                        foregroundColor: Colors.white,
-                        shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(10)),
-                        padding: const EdgeInsets.symmetric(
-                            horizontal: 16, vertical: 12),
-                        elevation: 0,
+                      ElevatedButton(
+                        key: _shareButtonKey,
+                        onPressed: _shareCode,
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: AppTheme.primary,
+                          foregroundColor: Colors.white,
+                          shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(10)),
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 16, vertical: 12),
+                          elevation: 0,
+                        ),
+                        child: const Text('INVIA LINK',
+                            style: TextStyle(
+                                fontWeight: FontWeight.w900,
+                                fontSize: 12,
+                                letterSpacing: 0.5)),
                       ),
-                      child: const Text('INVIA LINK',
-                          style: TextStyle(
-                              fontWeight: FontWeight.w900,
-                              fontSize: 12,
-                              letterSpacing: 0.5)),
-                    ),
-                  ],
+                    ],
+                  ),
                 ),
               ),
-            ),
 
             SliverToBoxAdapter(
               child: _buildCoachesSection(),
@@ -1117,7 +1031,7 @@ class _TeamDetailScreenState extends State<TeamDetailScreen> {
                                                             .textMediumEmphasis)),
                                               ],
                                             ),
-                                            if (isCoach) ...[
+                                            if (_isManager) ...[
                                               const SizedBox(width: 8),
                                               IconButton(
                                                 icon: Icon(

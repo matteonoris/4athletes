@@ -6,13 +6,21 @@ import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:image_picker/image_picker.dart';
 import 'package:permission_handler/permission_handler.dart';
 
+import '../core/legal_links.dart';
 import '../core/theme.dart';
 import '../models/models.dart';
 import '../providers/app_state.dart';
 import '../services/health_service.dart';
+import '../widgets/apple_health_access_dialog.dart';
 import '../services/training_reminder_notification_service.dart';
 import 'auth_screen.dart';
 import 'hr_zones_screen.dart';
+import 'health_consent_screen.dart';
+import 'health_data_settings_screen.dart';
+import 'account_deletion_screen.dart';
+import '../services/account_deletion_service.dart';
+import '../widgets/health_consent_gate.dart';
+import '../services/health_consent_service.dart';
 
 class ProfileScreen extends StatefulWidget {
   const ProfileScreen({super.key});
@@ -39,6 +47,99 @@ class _ProfileScreenState extends State<ProfileScreen> {
   }
 
   Timer? _debounce;
+
+  Future<void> _deleteAccount() async {
+    final state = context.read<AppState>();
+    final owner = state.userId;
+    final service = await AccountDeletionService.create();
+    if (service.owner != owner) await service.forgetReceipt();
+    if (!mounted) return;
+    void close() => Navigator.of(context).pushAndRemoveUntil(
+        MaterialPageRoute(builder: (_) => const AuthScreen()), (_) => false);
+    await Navigator.push(
+        context,
+        MaterialPageRoute(
+            builder: (_) => AccountDeletionScreen(
+                service: service,
+                userId: owner,
+                onAccepted: () => state.completeAccountDeletion(owner),
+                onLogin: () async {
+                  // Clear the local session, then use the existing Google/Apple flow.
+                  await state.logout();
+                  if (mounted) close();
+                },
+                onClose: close)));
+  }
+
+  Future<void> _manageHealthData() async {
+    final state = context.read<AppState>();
+    await state.loadHealthConsent();
+    if (!mounted) return;
+    await Navigator.push(
+        context,
+        MaterialPageRoute(
+            builder: (settingsContext) => HealthDataSettingsScreen(
+                  providerName: healthProviderName,
+                  consentGranted: state.canImportHealthData,
+                  revocationPending: state.healthConsent.revocationPending,
+                  onRevoke: () =>
+                      state.setHealthConsent(HealthConsentDecision.revoked),
+                  onEnable: () async {
+                    await Navigator.push<bool>(
+                        settingsContext,
+                        MaterialPageRoute(
+                            builder: (consentContext) => HealthConsentScreen(
+                                providerName: healthProviderName,
+                                allowBack: true,
+                                onAccept: () async {
+                                  await acceptHealthConsent(
+                                      state, consentContext);
+                                  if (consentContext.mounted) {
+                                    Navigator.pop(consentContext, true);
+                                  }
+                                },
+                                onDecline: () async {
+                                  await state.setHealthConsent(
+                                      HealthConsentDecision.declined);
+                                  if (consentContext.mounted) {
+                                    Navigator.pop(consentContext, false);
+                                  }
+                                })));
+                    return state.canImportHealthData;
+                  },
+                  onRequestDeletion: () => openLegalPage(
+                      settingsContext,
+                      Uri(
+                          scheme: 'mailto',
+                          path: 'matte.noris@gmail.com',
+                          queryParameters: {
+                            'subject':
+                                '4athletes - richiesta cancellazione dati salute',
+                            'body': 'Chiedo la cancellazione dei dati salute associati al mio account '
+                                '${state.userProfile?.email ?? ''}. Desidero mantenere l’account. '
+                                'Contattatemi per verificare la richiesta.',
+                          }).toString()),
+                )));
+  }
+
+  Future<void> _manageHealthPermissions() async {
+    if (!checkHealthImportEnabled(context)) return;
+    final result = await HealthService().requestPermissionsDetailed();
+    if (!mounted) return;
+    if (result.isGranted) {
+      await context.read<AppState>().markHealthAccessEnabled();
+      if (!mounted) return;
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: Text(result.message ?? 'Richiesta di accesso non completata.'),
+      ));
+    }
+    if (Platform.isIOS) {
+      await showAppleHealthAccessDialog(context);
+    } else {
+      await openAppSettings();
+    }
+  }
 
   @override
   void dispose() {
@@ -197,7 +298,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
           }
           return;
         }
-      } else {
+      } else if (Platform.isIOS) {
         await Permission.photos.request();
       }
     }
@@ -377,9 +478,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 Row(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    Icon(Icons.check_circle,
+                    const Icon(Icons.check_circle,
                         color: AppTheme.secondary, size: 16),
-                    SizedBox(width: 4),
+                    const SizedBox(width: 4),
                     Text('PRO MEMBER',
                         style: TextStyle(
                             fontSize: 12,
@@ -778,12 +879,16 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
                         // Health Permissions (Apple Health / Google Health Connect)
                         ListTile(
-                          onTap: () async {
-                            // Ask for permissions which will also initialize the service
-                            await HealthService().requestPermissions();
-                            // Open app settings since OS-level permissions usually need manual toggling after first time
-                            openAppSettings();
-                          },
+                          onTap: _manageHealthData,
+                          leading: const Icon(Icons.shield_outlined),
+                          title: const Text('Gestisci dati salute'),
+                          subtitle:
+                              const Text('Consenso, revoca e cancellazione'),
+                          trailing: const Icon(Icons.chevron_right),
+                        ),
+                        Divider(color: AppTheme.divider, height: 1),
+                        ListTile(
+                          onTap: _manageHealthPermissions,
                           leading: Container(
                             padding: const EdgeInsets.all(8),
                             decoration: BoxDecoration(
@@ -793,7 +898,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                             child: const Icon(Icons.health_and_safety_outlined,
                                 color: AppTheme.secondary, size: 16),
                           ),
-                          title: const Text('Consensi Salute',
+                          title: const Text('Permessi del dispositivo',
                               style: TextStyle(
                                   fontWeight: FontWeight.w500, fontSize: 14)),
                           subtitle: Text(
@@ -876,7 +981,37 @@ class _ProfileScreenState extends State<ProfileScreen> {
             ),
           ),
 
-          const SizedBox(height: 48),
+          const SizedBox(height: 24),
+
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16),
+            child: Container(
+              decoration: AppTheme.panelDecoration(
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(color: AppTheme.subtleBorder),
+              ),
+              clipBehavior: Clip.antiAlias,
+              child: Column(
+                children: [
+                  ListTile(
+                    leading: const Icon(Icons.privacy_tip_outlined),
+                    title: const Text('Informativa privacy'),
+                    trailing: const Icon(Icons.open_in_new, size: 18),
+                    onTap: () => openLegalPage(context, privacyPolicyUrl),
+                  ),
+                  Divider(color: AppTheme.divider, height: 1),
+                  ListTile(
+                    leading: const Icon(Icons.person_remove_outlined),
+                    title: const Text('Elimina account'),
+                    trailing: const Icon(Icons.chevron_right, size: 18),
+                    onTap: _deleteAccount,
+                  ),
+                ],
+              ),
+            ),
+          ),
+
+          const SizedBox(height: 24),
 
           // Logout Button
           Center(
@@ -947,6 +1082,7 @@ class _DeviceManagementModal extends StatelessWidget {
   void _connectDevice(
       BuildContext context, String provider, String name, String type) async {
     if (provider == 'health_connect') {
+      if (!checkHealthImportEnabled(context)) return;
       bool success = await HealthService().requestPermissions();
 
       if (!context.mounted) return;
@@ -1064,7 +1200,7 @@ class _DeviceManagementModal extends StatelessWidget {
     return Container(
       decoration: BoxDecoration(
         color: AppTheme.background,
-        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+        borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
       ),
       constraints:
           BoxConstraints(maxHeight: MediaQuery.of(context).size.height * 0.8),

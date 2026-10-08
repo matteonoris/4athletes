@@ -76,7 +76,7 @@ class _CoachBodyMetricDetailScreenState
     final logs = _filterByTimeframe(sorted);
 
     return Scaffold(
-      backgroundColor: const Color(0xFF111418),
+      backgroundColor: AppTheme.background,
       appBar: AppBar(
         leading: IconButton(
           icon: const Icon(Icons.arrow_back),
@@ -179,7 +179,7 @@ class _CoachBodyMetricDetailScreenState
       child: Container(
         padding: const EdgeInsets.all(4),
         decoration: BoxDecoration(
-          color: const Color(0xFF1B1D22),
+          color: AppTheme.surface,
           borderRadius: BorderRadius.circular(12),
         ),
         child: Row(
@@ -218,7 +218,7 @@ class _CoachBodyMetricDetailScreenState
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 20),
       child: CustomCard(
-        color: const Color(0xFF22282D),
+        color: AppTheme.card,
         padding: const EdgeInsets.all(24),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -235,10 +235,10 @@ class _CoachBodyMetricDetailScreenState
               textBaseline: TextBaseline.alphabetic,
               children: [
                 Text(latest.value.toStringAsFixed(1),
-                    style: const TextStyle(
+                    style: TextStyle(
                         fontSize: 48,
                         fontWeight: FontWeight.w900,
-                        color: Colors.white,
+                        color: AppTheme.textHighEmphasis,
                         height: 1)),
                 const SizedBox(width: 8),
                 Text(_unit(),
@@ -263,7 +263,7 @@ class _CoachBodyMetricDetailScreenState
       return Padding(
         padding: EdgeInsets.symmetric(horizontal: 20),
         child: CustomCard(
-          color: Color(0xFF22282D),
+          color: AppTheme.card,
           height: 250,
           child: Center(
             child: Text('Nessun dato per il grafico',
@@ -291,7 +291,7 @@ class _CoachBodyMetricDetailScreenState
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 20),
       child: CustomCard(
-        color: const Color(0xFF22282D),
+        color: AppTheme.card,
         height: 260,
         padding:
             const EdgeInsets.only(top: 32, bottom: 16, left: 16, right: 32),
@@ -366,7 +366,7 @@ class _CoachBodyMetricDetailScreenState
                     radius: 3.5,
                     color: lineColor,
                     strokeWidth: 2,
-                    strokeColor: const Color(0xFF22282D),
+                    strokeColor: AppTheme.card,
                   ),
                 ),
                 belowBarData: BarAreaData(
@@ -404,13 +404,13 @@ class _CoachBodyMetricDetailScreenState
     return Padding(
       padding: const EdgeInsets.only(bottom: 12, left: 20, right: 20),
       child: CustomCard(
-        color: const Color(0xFF22282D),
+        color: AppTheme.card,
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
         child: Row(
           children: [
             Expanded(
               child: Text('$giornoStr ${date.day} $meseStr',
-                  style: const TextStyle(
+                  style: TextStyle(
                       fontWeight: FontWeight.bold,
                       fontSize: 14,
                       color: Colors.white)),

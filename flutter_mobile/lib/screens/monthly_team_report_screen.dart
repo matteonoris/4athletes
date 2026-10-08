@@ -42,7 +42,7 @@ class _MonthlyTeamReportScreenState extends State<MonthlyTeamReportScreen> {
     if (_didInit) return;
     _didInit = true;
 
-    final teams = context.read<AppState>().teams;
+    final teams = context.read<AppState>().activeTeams;
     _selectedTeamId =
         widget.initialTeam?.id ?? (teams.isNotEmpty ? teams.first.id : null);
     if (_selectedTeamId != null) {
@@ -63,7 +63,7 @@ class _MonthlyTeamReportScreenState extends State<MonthlyTeamReportScreen> {
       });
       return;
     }
-    if (!appState.teams.any((team) => team.id == teamId)) {
+    if (!appState.activeTeams.any((team) => team.id == teamId)) {
       setState(() {
         _error = 'Team non disponibile o non autorizzato.';
         _isLoading = false;
@@ -209,7 +209,7 @@ class _MonthlyTeamReportScreenState extends State<MonthlyTeamReportScreen> {
   @override
   Widget build(BuildContext context) {
     final appState = context.watch<AppState>();
-    final teams = appState.teams;
+    final teams = appState.activeTeams;
 
     return Scaffold(
       backgroundColor: AppTheme.background,

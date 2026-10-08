@@ -73,6 +73,38 @@ DEX, Flutter engine and Dart kernel entries were verified. The importer source
 files and dependency manifests match the workspace by SHA-256. The isolated
 build avoided temporary shader output conflicts in the shared build directory.
 
+## Permission location review — 2026-09-30
+
+The reported user can already import sleep; the missing switches were in
+Settings → Apps → 4athletes. This is not evidence of missing HealthKit read
+authorization. Manage the categories in Health → Summary → profile picture →
+Privacy → Apps (or Apps and Services) → 4athletes, including Sleep.
+
+The project requests READ access for sleep (including stages), resting heart
+rate, HRV SDNN, oxygen saturation, respiratory rate and sleeping wrist
+temperature. HealthKit entitlement and both usage descriptions are present.
+The plugin already filters unsupported platform types before the general
+authorization request. Read authorization cannot be verified through iOS
+`hasPermissions`; an empty query can mean denied access or missing samples.
+
+The iOS onboarding help and Profile → Consensi Salute now explain the Health
+app route instead of opening the app's generic settings. Enabling access from
+the profile also records the existing local flag used for subsequent automatic
+refreshes. Android retains its settings flow. The help dialog uses the app's
+light/dark dialog and text themes. No importer, native iOS code or signing
+configuration was changed for this review, and no release was triggered.
+
+Actual device verification remains necessary for the installed build; the
+Windows host cannot run HealthKit. See Apple's
+[permission management instructions](https://support.apple.com/it-it/104997)
+and [authorization behavior](https://developer.apple.com/documentation/healthkit/authorizing-access-to-health-data).
+
+Validation: targeted static analysis of the changed Dart UI files reported no
+errors and four existing `prefer_const_constructors` suggestions in the
+profile screen. Diff whitespace checks passed. The existing sleep/daily-metric/
+workout normalizer test run stalled while loading its first test and was
+stopped; no test success is claimed for this review.
+
 ## References
 
 - [Apple: HKUnit.percent](https://developer.apple.com/documentation/healthkit/hkunit/percent())

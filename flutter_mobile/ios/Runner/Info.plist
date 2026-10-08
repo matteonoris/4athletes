@@ -44,7 +44,7 @@
 	<key>LSRequiresIPhoneOS</key>
 	<true/>
 	<key>NSCameraUsageDescription</key>
-	<string>Ci serve accedere alla tua fotocamera per farti scattare foto per il profilo e i caricamenti.</string>
+	<string>Ci serve accedere alla tua fotocamera per scattare foto per il profilo e importare le schede di allenamento.</string>
 	<key>NSHealthShareUsageDescription</key>
 	<string>We will sync your data with the Apple Health app to give you better insights</string>
 	<key>NSHealthUpdateUsageDescription</key>
@@ -52,7 +52,7 @@
 	<key>NSMicrophoneUsageDescription</key>
 	<string>Ci serve accedere al tuo microfono nel caso tu debba registrare video da caricare.</string>
 	<key>NSPhotoLibraryUsageDescription</key>
-	<string>Ci serve accedere alla tua libreria foto per farti caricare immagini nel tuo profilo.</string>
+	<string>Ci serve accedere alla tua libreria foto per scegliere immagini del profilo e importare le schede di allenamento.</string>
 	<key>UIApplicationSceneManifest</key>
 	<dict>
 		<key>UIApplicationSupportsMultipleScenes</key>

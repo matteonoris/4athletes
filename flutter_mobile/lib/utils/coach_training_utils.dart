@@ -325,6 +325,8 @@ class CoachTrainingUtils {
         specialties.isEmpty ? eventSpecialty(event) : specialties.first;
     final details = <String, dynamic>{
       'from_calendar': true,
+      'location': event.location,
+      'locationPlace': tech['locationPlace'],
       'specialty': specialty,
       'specialties': specialties,
       'snowCondition': tech['snowCondition'],

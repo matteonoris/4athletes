@@ -3,6 +3,7 @@ import 'package:flutter/foundation.dart';
 import 'package:health/health.dart';
 import '../models/models.dart';
 import '../utils/metrics_engine.dart';
+import 'health_read_guard.dart';
 
 class HealthSyncResult {
   final double sleepScore;
@@ -36,6 +37,7 @@ class HealthSyncService {
     DateTime? targetDate,
     bool requestPermissions = true,
   }) async {
+    if (!healthReadAllowed) throw StateError('Health consent unavailable');
     await _health.configure();
 
     // Definizione dei tipi di dati da richiedere per le misurazioni orarie/giornaliere (es. sonno)
@@ -45,7 +47,9 @@ class HealthSyncService {
     // Verifica permessi
     bool? hasPermissions =
         await _health.hasPermissions(types, permissions: permissions);
-    if (requestPermissions && (hasPermissions == null || !hasPermissions)) {
+    if (healthReadAllowed &&
+        requestPermissions &&
+        (hasPermissions == null || !hasPermissions)) {
       bool authorized =
           await _health.requestAuthorization(types, permissions: permissions);
       if (!authorized) {
@@ -277,12 +281,14 @@ class HealthSyncService {
     final points = <HealthDataPoint>[];
 
     for (final type in types) {
+      if (!healthReadAllowed) return [];
       try {
         final typePoints = await _health.getHealthDataFromTypes(
           startTime: startTime,
           endTime: endTime,
           types: [type],
         );
+        if (!healthReadAllowed) return [];
         points.addAll(typePoints);
         // Keep this lightweight but visible in debug logs; it is the fastest way
         // to diagnose Health Connect source/permission gaps on real devices.

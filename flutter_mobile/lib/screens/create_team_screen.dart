@@ -1,4 +1,3 @@
-import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:phosphor_flutter/phosphor_flutter.dart';
@@ -20,6 +19,7 @@ class _CreateTeamScreenState extends State<CreateTeamScreen> {
   final _categoryCtrl = TextEditingController(text: 'Skiing');
   bool _isCreated = false;
   String _generatedCode = '';
+  bool _creating = false;
 
   @override
   void dispose() {
@@ -28,34 +28,29 @@ class _CreateTeamScreenState extends State<CreateTeamScreen> {
     super.dispose();
   }
 
-  String _generateRandomCode() {
-    const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
-    final rand = Random();
-    return List.generate(6, (index) => chars[rand.nextInt(chars.length)])
-        .join();
-  }
-
-  void _handleCreate() {
-    if (_nameCtrl.text.trim().isEmpty) return;
-
-    final appState = Provider.of<AppState>(context, listen: false);
-    final code = _generateRandomCode();
-
-    final newTeam = Team(
-      id: 'team_${DateTime.now().millisecondsSinceEpoch}',
-      name: _nameCtrl.text.trim(),
-      members: 1, // At least the creator
-      category: _categoryCtrl.text.trim(),
-      image: '', // Can be updated later
-      inviteCode: code,
-    );
-
-    appState.addTeam(newTeam);
-
-    setState(() {
-      _generatedCode = code;
-      _isCreated = true;
-    });
+  Future<void> _handleCreate() async {
+    if (_creating || _nameCtrl.text.trim().isEmpty) return;
+    setState(() => _creating = true);
+    try {
+      final team = await context.read<AppState>().addTeam(Team(
+          id: '',
+          name: _nameCtrl.text.trim(),
+          members: 0,
+          category: _categoryCtrl.text.trim(),
+          image: '',
+          inviteCode: ''));
+      if (mounted)
+        setState(() {
+          _generatedCode = team.inviteCode;
+          _isCreated = true;
+        });
+    } catch (e) {
+      if (mounted)
+        ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Creazione non riuscita. Riprova.')));
+    } finally {
+      if (mounted) setState(() => _creating = false);
+    }
   }
 
   void _copyCode() {
@@ -127,7 +122,9 @@ class _CreateTeamScreenState extends State<CreateTeamScreen> {
         ),
         const Spacer(),
         ElevatedButton(
-          onPressed: _nameCtrl.text.trim().length >= 3 ? _handleCreate : null,
+          onPressed: !_creating && _nameCtrl.text.trim().length >= 3
+              ? _handleCreate
+              : null,
           style: ElevatedButton.styleFrom(
             backgroundColor: AppTheme.primary,
             foregroundColor: Colors.white,
@@ -189,10 +186,11 @@ class _CreateTeamScreenState extends State<CreateTeamScreen> {
             children: [
               Text(
                 _generatedCode,
+                textAlign: TextAlign.center,
                 style: const TextStyle(
-                  fontSize: 40,
+                  fontSize: 14,
                   fontWeight: FontWeight.bold,
-                  letterSpacing: 8,
+                  letterSpacing: 1,
                   fontFamily: 'monospace',
                   color: AppTheme.secondary,
                 ),
@@ -217,7 +215,7 @@ class _CreateTeamScreenState extends State<CreateTeamScreen> {
           onPressed: () => Navigator.of(context).pop(),
           style: ElevatedButton.styleFrom(
             backgroundColor: AppTheme.card,
-            foregroundColor: Colors.white,
+            foregroundColor: AppTheme.textHighEmphasis,
             minimumSize: const Size(double.infinity, 56),
             shape: RoundedRectangleBorder(
               borderRadius: BorderRadius.circular(12),

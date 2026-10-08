@@ -4,9 +4,10 @@ import 'package:phosphor_flutter/phosphor_flutter.dart';
 import 'package:provider/provider.dart';
 
 import '../core/theme.dart';
-import '../data/dryland_prep_types.dart';
 import '../data/workout_catalog.dart';
 import '../models/models.dart';
+import '../models/workout_place.dart';
+import '../widgets/workout_location_preview.dart';
 import '../models/training_activity_models.dart';
 import '../models/workout_creation_models.dart';
 import '../utils/time_utils.dart';
@@ -18,6 +19,7 @@ import '../services/workout_draft_service.dart';
 import '../providers/app_state.dart';
 import '../widgets/custom_card.dart';
 import '../widgets/workout_source_badges.dart';
+import '../widgets/workout_type_field.dart';
 import 'athlete_event_screen.dart';
 import 'ski_activity_screen.dart';
 import 'workout_flow_screen.dart';
@@ -920,6 +922,78 @@ class ActivityDetailsScreen extends StatelessWidget {
     );
   }
 
+  Widget _buildRecordedWorkoutContent(BuildContext context) {
+    if (_workoutDraft != null) return const SizedBox.shrink();
+    final details = session.details ?? const <String, dynamic>{};
+    final content = <String, dynamic>{};
+    final exercises = details['exercises'];
+    if (exercises is List) {
+      final recorded = exercises
+          .whereType<Map>()
+          .where((exercise) =>
+              exercise['name'] != null && exercise['sets'] is List)
+          .map((exercise) => {
+                'name': exercise['name'],
+                'exerciseId': exercise['exerciseId'] ?? exercise['id'],
+                'sets': exercise['sets'],
+              })
+          .toList();
+      if (recorded.isNotEmpty) content['exercises'] = recorded;
+    }
+    final laps = details['laps'];
+    if (laps is List) {
+      final recorded = laps
+          .whereType<Map>()
+          .map((lap) {
+            final values = <String, dynamic>{};
+            for (final key in [
+              'distance',
+              'time',
+              'duration',
+              'pace',
+              'speed'
+            ]) {
+              if (lap[key] != null) values[key] = lap[key];
+            }
+            final metrics = lap['metrics'];
+            if (metrics is Map) {
+              for (final key in ['pace', 'speed']) {
+                if (metrics[key] != null) values[key] = metrics[key];
+              }
+            }
+            return values;
+          })
+          .where((lap) => lap.isNotEmpty)
+          .toList();
+      if (recorded.isNotEmpty) content['laps'] = recorded;
+    }
+    final notes = details['notes']?.toString().trim() ?? '';
+    final location = details['location']?.toString().trim() ?? '';
+    if (content.isEmpty && notes.isEmpty && location.isEmpty) {
+      return const SizedBox.shrink();
+    }
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 24),
+      child: CustomCard(
+        padding: const EdgeInsets.all(20),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            if (location.isNotEmpty)
+              _buildDetailRow(context, 'Luogo', location),
+            if (notes.isNotEmpty) _buildDetailRow(context, 'Note', notes),
+            if (content['exercises'] != null)
+              _buildDetailsMap(context, {'esercizi': content['exercises']},
+                  _effectivePrLogs(context)),
+            if (content['laps'] != null)
+              _buildDetailsMap(
+                  context, {'giri e intervalli': content['laps']}, const []),
+          ],
+        ),
+      ),
+    );
+  }
+
   bool get _isAlpineSkiSession => session.sportId == 'alpine_skiing';
 
   WorkoutDraft? get _workoutDraft {
@@ -965,6 +1039,8 @@ class ActivityDetailsScreen extends StatelessWidget {
             if (location.isNotEmpty) ...[
               const SizedBox(height: 16),
               _buildDetailRow(context, 'Luogo', location),
+              if (draft.locationPlace case final place?)
+                WorkoutLocationPreview(place: place),
             ],
             for (final phase in phases) ...[
               const SizedBox(height: 16),
@@ -1255,12 +1331,19 @@ class ActivityDetailsScreen extends StatelessWidget {
                   _compactBadge('Modificato da te', AppTheme.success),
                 ],
                 const SizedBox(height: 18),
+                WorkoutTypeField(session: session, readOnly: readOnly),
                 _buildDetailRow(context, 'Specialità e data',
                     '$specialtyLabel · ${session.date}'),
                 _buildDetailRow(context, 'Orario',
                     '${session.startTime} - ${session.endTime}'),
                 _buildDetailRow(context, 'Durata',
                     TimeUtils.formatDuration(session.duration)),
+                if ((details['location']?.toString() ?? '').isNotEmpty)
+                  _buildDetailRow(
+                      context, 'Luogo', details['location'].toString()),
+                if (WorkoutPlace.tryParse(details['locationPlace'])
+                    case final place?)
+                  WorkoutLocationPreview(place: place),
               ],
             ),
           ),
@@ -1383,7 +1466,7 @@ class ActivityDetailsScreen extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text('Dettagli tecnici',
+          const Text('Piste e passaggi',
               style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
           const SizedBox(height: 16),
           for (final entry in freeBySpecialty.entries)
@@ -1662,14 +1745,7 @@ class ActivityDetailsScreen extends StatelessWidget {
                 const SizedBox(height: 16),
                 Divider(color: AppTheme.divider),
                 const SizedBox(height: 16),
-                _buildDetailRow(context, 'Categoria',
-                    _drylandCategoryLabel(activity.category)),
-                if (activity.prepType != null)
-                  _buildDetailRow(
-                    context,
-                    'Tipo',
-                    DrylandPrepTypes.byId(activity.prepType).title,
-                  ),
+                WorkoutTypeField(session: session, readOnly: readOnly),
                 _buildDetailRow(context, 'Data', session.date),
                 _buildDetailRow(context, 'Orario',
                     '${session.startTime} - ${session.endTime}'),
@@ -1680,6 +1756,8 @@ class ActivityDetailsScreen extends StatelessWidget {
                 ),
                 if ((activity.location ?? '').isNotEmpty)
                   _buildDetailRow(context, 'Luogo', activity.location!),
+                if (activity.locationPlace case final place?)
+                  WorkoutLocationPreview(place: place),
                 _buildDetailRow(
                   context,
                   'Origine',
@@ -2194,33 +2272,6 @@ class ActivityDetailsScreen extends StatelessWidget {
     }
   }
 
-  String _drylandCategoryLabel(String category) {
-    switch (category) {
-      case ActivityCategory.strength:
-        return 'Forza';
-      case ActivityCategory.athleticPrep:
-        return 'Preparazione atletica';
-      case ActivityCategory.plyometrics:
-        return 'Pliometria';
-      case ActivityCategory.speedAgility:
-        return 'Velocità/agilità';
-      case ActivityCategory.endurance:
-        return 'Resistenza';
-      case ActivityCategory.mobility:
-        return 'Mobilita';
-      case ActivityCategory.core:
-        return 'Core';
-      case ActivityCategory.circuit:
-        return 'Circuito';
-      case ActivityCategory.sport:
-        return 'Sport';
-      case ActivityCategory.test:
-        return 'Test';
-      default:
-        return 'Altro';
-    }
-  }
-
   @override
   Widget build(BuildContext context) {
     final latestSession = context.select<AppState, TrainingSession?>(
@@ -2235,7 +2286,7 @@ class ActivityDetailsScreen extends StatelessWidget {
     if (latestSession != null && !identical(latestSession, session)) {
       return ActivityDetailsScreen(
         session: latestSession,
-        sportName: sportName,
+        sportName: latestSession.sportId == session.sportId ? sportName : null,
         prLogs: prLogs,
         readOnly: readOnly,
       );
@@ -2246,13 +2297,16 @@ class ActivityDetailsScreen extends StatelessWidget {
         (session.details!['painZones'] as List).isNotEmpty;
 
     final storedTitle = session.details?['title']?.toString().trim();
-    final displayName = sportName ??
-        (storedTitle != null && storedTitle.isNotEmpty
-            ? (WorkoutCatalog.maybeById(storedTitle) != null ||
-                    storedTitle == session.sportId
-                ? WorkoutCatalog.displayName(storedTitle)
-                : storedTitle)
-            : WorkoutCatalog.displayName(session.sportId));
+    final displayName =
+        (session.details?['activity_type_user_overridden'] == true
+                ? null
+                : sportName) ??
+            (storedTitle != null && storedTitle.isNotEmpty
+                ? (WorkoutCatalog.maybeById(storedTitle) != null ||
+                        storedTitle == session.sportId
+                    ? WorkoutCatalog.displayName(storedTitle)
+                    : storedTitle)
+                : WorkoutCatalog.displayName(session.sportId));
 
     if (_isAlpineSkiSession) {
       return _buildCoachSkiSession(context, displayName);
@@ -2383,6 +2437,7 @@ class ActivityDetailsScreen extends StatelessWidget {
                 const SizedBox(height: 16),
                 Divider(color: AppTheme.divider),
                 const SizedBox(height: 16),
+                WorkoutTypeField(session: session, readOnly: readOnly),
                 _buildDetailRow(context, 'Data', session.date),
                 _buildDetailRow(context, 'Orario',
                     '${session.startTime} - ${session.endTime}'),
@@ -2583,120 +2638,7 @@ class ActivityDetailsScreen extends StatelessWidget {
               ),
           ],
 
-          // Sport Specific Details
-          if (session.details != null) ...[
-            Builder(builder: (ctx) {
-              Map<String, dynamic> filteredDetails = Map.from(session.details!)
-                ..removeWhere((k, v) => [
-                      'painZones',
-                      'schemaVersion',
-                      'workoutDraft',
-                      'activityDomain',
-                      'activityCategory',
-                      'activityMode',
-                      'protocolId',
-                      'protocolName',
-                      'structureMode',
-                      'usesPhases',
-                      'status',
-                      'workoutSource',
-                      'title',
-                      'location',
-                      'notes',
-                      'plannedDurationMinutes',
-                      'actualDurationMinutes',
-                      'plannedStartTime',
-                      'plannedEndTime',
-                      'actualStartTime',
-                      'actualEndTime',
-                      'participants',
-                      'externalLink',
-                      'legacyActivityType',
-                      'blocks',
-                      'prescription',
-                      'actual',
-                      'source',
-                      'external_id',
-                      'hr_zones',
-                      'avg_hr',
-                      'avgHeartRate',
-                      'speed',
-                      'pace',
-                      'distance',
-                      'calories',
-                      'max_hr',
-                      'maxHeartRate',
-                      'elevation',
-                      'elevationGain',
-                      'cadence',
-                      'avgCadence',
-                      'surface',
-                      'terrain',
-                      'technicalDetails',
-                      'source_name',
-                      'source_id',
-                      'total_duration',
-                      'total_duration_minutes',
-                      'active_duration',
-                      'active_duration_minutes',
-                      'duration_source',
-                      'distance_meters',
-                      'energy_total_kcal',
-                      'avg_pace_sec_per_km',
-                      'avg_speed_kmh',
-                      'hr_samples',
-                      'hr_samples_full',
-                      'hr_coverage_minutes',
-                      'hr_zone_boundaries',
-                      'elevation_source',
-                      'health_import_version',
-                      'hr_zone_calculation_version',
-                      'workout_start_ms',
-                      'workout_end_ms',
-                      'hr_source_id',
-                      'hr_source_sample_count',
-                      'hr_source_max_bpm',
-                      'total_duration_seconds',
-                      'active_duration_seconds',
-                      'moving_duration_seconds',
-                      'elevation_meters',
-                      'hr_reliable',
-                      'hr_sample_count',
-                      'hr_coverage_seconds',
-                      'hr_zones_seconds',
-                      'dominant_hr_zone',
-                      'merged_source_workout_ids',
-                      'source_part_count',
-                      'duration_user_overridden'
-                    ].contains(k));
-
-              if (filteredDetails.isEmpty) return const SizedBox();
-
-              return Column(
-                children: [
-                  CustomCard(
-                    padding: const EdgeInsets.all(24),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        const Text('Dettagli Tecnici',
-                            style: TextStyle(
-                                fontWeight: FontWeight.bold, fontSize: 16)),
-                        const SizedBox(height: 16),
-                        _buildDetailsMap(
-                            context,
-                            filteredDetails,
-                            prLogs ??
-                                Provider.of<AppState>(context, listen: false)
-                                    .prLogs),
-                      ],
-                    ),
-                  ),
-                  const SizedBox(height: 24),
-                ],
-              );
-            }),
-          ],
+          _buildRecordedWorkoutContent(context),
 
           // Pain Zones
           if (hasPainZones)

@@ -2,6 +2,10 @@
 
 A new Flutter project.
 
+## Release Android
+
+Prima di pubblicare su Google Play, segui la [checklist Android](docs/android-release.md).
+
 ## Release TestFlight
 
 Le build iOS per TestFlight possono essere lanciate da GitHub Actions con un

@@ -1,4 +1,5 @@
 import 'models.dart';
+import 'workout_place.dart';
 import 'training_activity_models.dart';
 
 class WorkoutStructureMode {
@@ -396,6 +397,7 @@ class WorkoutDraft {
   final int? plannedDurationMinutes;
   final int? actualDurationMinutes;
   final String? location;
+  final WorkoutPlace? locationPlace;
   final String? notes;
   final String activityId;
   final String activityName;
@@ -431,6 +433,7 @@ class WorkoutDraft {
     this.plannedDurationMinutes,
     this.actualDurationMinutes,
     this.location,
+    this.locationPlace,
     this.notes,
     required this.activityId,
     required this.activityName,
@@ -614,6 +617,8 @@ class WorkoutDraft {
     int? actualDurationMinutes,
     String? location,
     bool clearLocation = false,
+    WorkoutPlace? locationPlace,
+    bool clearLocationPlace = false,
     String? notes,
     bool clearNotes = false,
     String? activityId,
@@ -656,6 +661,10 @@ class WorkoutDraft {
       actualDurationMinutes:
           actualDurationMinutes ?? this.actualDurationMinutes,
       location: clearLocation ? null : location ?? this.location,
+      locationPlace: clearLocation || clearLocationPlace ||
+              (location != null && location != this.location && locationPlace == null)
+          ? null
+          : locationPlace ?? this.locationPlace,
       notes: clearNotes ? null : notes ?? this.notes,
       activityId: activityId ?? this.activityId,
       activityName: activityName ?? this.activityName,
@@ -713,6 +722,7 @@ class WorkoutDraft {
       plannedDurationMinutes: _asInt(json['plannedDurationMinutes']),
       actualDurationMinutes: _asInt(json['actualDurationMinutes']),
       location: json['location']?.toString(),
+      locationPlace: WorkoutPlace.tryParse(json['locationPlace']),
       notes: json['notes']?.toString(),
       activityId: activityId,
       activityName: json['activityName']?.toString() ?? 'Altro',
@@ -760,6 +770,7 @@ class WorkoutDraft {
         'plannedDurationMinutes': plannedDurationMinutes,
         'actualDurationMinutes': actualDurationMinutes,
         'location': location,
+        'locationPlace': locationPlace?.toJson(),
         'notes': notes,
         'activityId': activityId,
         'activityName': activityName,
@@ -870,6 +881,7 @@ class WorkoutDraft {
       'source': externalLink == null ? source : 'health_sync',
       'title': title,
       'location': location,
+      'locationPlace': locationPlace?.toJson(),
       'notes': notes,
       'rpe': sessionRpe,
       'plannedDurationMinutes': plannedDurationMinutes,

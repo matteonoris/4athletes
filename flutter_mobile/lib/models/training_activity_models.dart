@@ -1,4 +1,5 @@
 import 'models.dart';
+import 'workout_place.dart';
 
 class ActivitySource {
   static const coach = 'coach';
@@ -791,6 +792,7 @@ class TrainingActivity {
   final String endTime;
   final String duration;
   final String? location;
+  final WorkoutPlace? locationPlace;
   final int? rpe;
   final String? pain;
   final String? notes;
@@ -817,6 +819,7 @@ class TrainingActivity {
     required this.endTime,
     required this.duration,
     this.location,
+    this.locationPlace,
     this.rpe,
     this.pain,
     this.notes,
@@ -848,6 +851,7 @@ class TrainingActivity {
       endTime: json['endTime']?.toString() ?? '',
       duration: json['duration']?.toString() ?? '0',
       location: _string(json['location']),
+      locationPlace: WorkoutPlace.tryParse(json['locationPlace']),
       rpe: _int(json['rpe']),
       pain: _string(json['pain']),
       notes: _string(json['notes']),
@@ -901,6 +905,7 @@ class TrainingActivity {
       endTime: session.endTime,
       duration: session.duration,
       location: _string(details['location']),
+      locationPlace: WorkoutPlace.tryParse(details['locationPlace']),
       rpe: _int(details['rpe']) ?? session.effort,
       pain: _string(details['pain']),
       notes: _string(details['notes'] ?? details['athleteNotes']),
@@ -931,6 +936,8 @@ class TrainingActivity {
     String? endTime,
     String? duration,
     String? location,
+    WorkoutPlace? locationPlace,
+    bool clearLocationPlace = false,
     int? rpe,
     String? pain,
     String? notes,
@@ -957,6 +964,10 @@ class TrainingActivity {
       endTime: endTime ?? this.endTime,
       duration: duration ?? this.duration,
       location: location ?? this.location,
+      locationPlace: clearLocationPlace ||
+              (location != null && location != this.location && locationPlace == null)
+          ? null
+          : locationPlace ?? this.locationPlace,
       rpe: rpe ?? this.rpe,
       pain: pain ?? this.pain,
       notes: notes ?? this.notes,
@@ -980,6 +991,7 @@ class TrainingActivity {
       'status': status,
       'title': title,
       'location': location,
+      'locationPlace': locationPlace?.toJson(),
       'rpe': rpe,
       'pain': pain,
       'notes': notes,
@@ -1010,6 +1022,7 @@ class TrainingActivity {
         'endTime': endTime,
         'duration': duration,
         'location': location,
+        'locationPlace': locationPlace?.toJson(),
         'rpe': rpe,
         'pain': pain,
         'notes': notes,

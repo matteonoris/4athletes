@@ -3,6 +3,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../models/models.dart';
 import '../models/monthly_team_report_models.dart';
 import 'monthly_team_report_calculator.dart';
+import 'private_avatar_service.dart';
 
 class MonthlyTeamReportService {
   final SupabaseClient _supabase;
@@ -22,8 +23,11 @@ class MonthlyTeamReportService {
     final historyStart = DateTime(month.year, month.month - 6);
     final endExclusive = DateTime(month.year, month.month + 1);
 
-    final teamData =
-        await _supabase.from('teams').select().eq('id', teamId).maybeSingle();
+    final teamData = await _supabase
+        .from('teams')
+        .select('id,name,category,image,members,description,is_private')
+        .eq('id', teamId)
+        .maybeSingle();
     if (teamData == null) {
       throw StateError('Team non trovato o non autorizzato.');
     }
@@ -36,10 +40,13 @@ class MonthlyTeamReportService {
         .eq('role', 'athlete')
         .order('last_name', ascending: true);
 
-    final athleteProfiles = (profilesData as List)
-        .whereType<Map>()
-        .map((row) => _profileFromSupabase(Map<String, dynamic>.from(row)))
-        .toList();
+    final athleteProfiles = <TeamReportAthleteProfile>[];
+    for (final row in profilesData as List) {
+      final data = Map<String, dynamic>.from(row);
+      data['avatar_url'] = await PrivateAvatarService(_supabase)
+          .resolve(data['avatar_url'] ?? '');
+      athleteProfiles.add(_profileFromSupabase(data));
+    }
     final athleteIds = athleteProfiles.map((profile) => profile.id).toList();
 
     final sessions = athleteIds.isEmpty

@@ -92,6 +92,11 @@ void main() {
           ),
         );
         await tester.pump();
+        await tester.scrollUntilVisible(
+          find.byType(LineChart),
+          200,
+          scrollable: find.byType(Scrollable).first,
+        );
 
         final chart = tester.widget<LineChart>(find.byType(LineChart));
         expect(chart.data.minX, 0);

@@ -21,7 +21,7 @@ class HealthWorkoutMergeUtils {
 
       final existingIds = _externalWorkoutIds(details);
       if (importedIds.intersection(existingIds).isNotEmpty) return true;
-      if (!_sameSportFamily(existing.sportId, imported.sportId)) return false;
+      if (!_sameImportSportFamily(existing, imported)) return false;
 
       final existingRange = _sessionDateTimeRange(existing);
       if (existingRange == null) return false;
@@ -110,6 +110,26 @@ class HealthWorkoutMergeUtils {
     final preservedDetails = Map<String, dynamic>.from(existing.details ?? {});
     preservedDetails.removeWhere((key, _) => _healthManagedKeys.contains(key));
     preservedDetails.addAll(imported.details ?? {});
+    if (existing.details?['activity_type_user_overridden'] == true) {
+      for (final key in const [
+        'activity_type_user_overridden',
+        'activity_type_original_sport_id',
+        'activityCategory',
+        'activityDomain',
+        'prepType',
+        'title',
+        'activityMode',
+        'legacyActivityMode',
+        'protocolId',
+        'protocolName',
+        'workoutDraft',
+      ]) {
+        preservedDetails.remove(key);
+        if (existing.details!.containsKey(key)) {
+          preservedDetails[key] = existing.details![key];
+        }
+      }
+    }
     final mergedExternalIds = _mergedExternalWorkoutIds(
       existing.details,
       imported.details,
@@ -122,7 +142,9 @@ class HealthWorkoutMergeUtils {
 
     final merged = TrainingSession(
       id: existing.id,
-      sportId: _mergedSportId(existing.sportId, imported.sportId),
+      sportId: existing.details?['activity_type_user_overridden'] == true
+          ? existing.sportId
+          : _mergedSportId(existing.sportId, imported.sportId),
       date: mergedRange?.date ?? imported.date,
       startTime: mergedRange != null
           ? _formatSessionClock(mergedRange.start)
@@ -244,7 +266,7 @@ class HealthWorkoutMergeUtils {
     required _SessionDateTimeRange importedRange,
   }) {
     final details = existing.details ?? const <String, dynamic>{};
-    if (!_sameSportFamily(existing.sportId, imported.sportId)) return false;
+    if (!_sameImportSportFamily(existing, imported)) return false;
 
     if (startDeltaSeconds <= startTimeMergeTolerance.inSeconds) return true;
 
@@ -283,6 +305,16 @@ class HealthWorkoutMergeUtils {
 
   static bool _sameSportFamily(String a, String b) {
     return _sportFamily(a) == _sportFamily(b);
+  }
+
+  static bool _sameImportSportFamily(
+      TrainingSession existing, TrainingSession imported) {
+    if (_sameSportFamily(existing.sportId, imported.sportId)) return true;
+    final originalSportId =
+        existing.details?['activity_type_original_sport_id'];
+    return existing.details?['activity_type_user_overridden'] == true &&
+        originalSportId is String &&
+        _sameSportFamily(originalSportId, imported.sportId);
   }
 
   static String sportFamily(String sportId) => _sportFamily(sportId);

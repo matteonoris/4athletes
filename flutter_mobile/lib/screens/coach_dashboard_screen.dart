@@ -9,7 +9,7 @@ import '../data/workout_catalog.dart';
 import '../providers/app_state.dart';
 import '../models/models.dart';
 import '../utils/coach_training_utils.dart';
-import '../utils/time_utils.dart';
+import '../utils/coach_athlete_report_utils.dart';
 import 'coach_event_details_screen.dart';
 import 'coach_athlete_detail_screen.dart';
 import 'coach_athletic_test_screen.dart';
@@ -61,7 +61,7 @@ class _CoachDashboardScreenState extends State<CoachDashboardScreen> {
             coachTeam: team,
             initialDate: _selectedDay,
           );
-    if (appState.teams.isEmpty) {
+    if (appState.activeTeams.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
             content: Text(
@@ -69,7 +69,7 @@ class _CoachDashboardScreenState extends State<CoachDashboardScreen> {
       );
       return;
     }
-    if (appState.teams.length > 1) {
+    if (appState.activeTeams.length > 1) {
       showDialog(
         context: context,
         builder: (ctx) => AlertDialog(
@@ -82,7 +82,7 @@ class _CoachDashboardScreenState extends State<CoachDashboardScreen> {
                   fontWeight: FontWeight.bold)),
           content: Column(
             mainAxisSize: MainAxisSize.min,
-            children: appState.teams
+            children: appState.activeTeams
                 .map((t) => ListTile(
                     title: Text(t.name,
                         style: TextStyle(color: AppTheme.textHighEmphasis)),
@@ -100,7 +100,7 @@ class _CoachDashboardScreenState extends State<CoachDashboardScreen> {
         ),
       );
     } else {
-      final dest = destinationFor(appState.teams.first);
+      final dest = destinationFor(appState.activeTeams.first);
       Navigator.push(context, MaterialPageRoute(builder: (_) => dest));
     }
   }
@@ -108,7 +108,7 @@ class _CoachDashboardScreenState extends State<CoachDashboardScreen> {
   void _showTeamSelectionForTest(
       BuildContext context, String testId, String testTitle, String category) {
     final appState = Provider.of<AppState>(context, listen: false);
-    if (appState.teams.isEmpty) {
+    if (appState.activeTeams.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
             content: Text(
@@ -129,7 +129,7 @@ class _CoachDashboardScreenState extends State<CoachDashboardScreen> {
                   )));
     }
 
-    if (appState.teams.length > 1) {
+    if (appState.activeTeams.length > 1) {
       showDialog(
         context: context,
         builder: (ctx) => AlertDialog(
@@ -142,7 +142,7 @@ class _CoachDashboardScreenState extends State<CoachDashboardScreen> {
                   fontWeight: FontWeight.bold)),
           content: Column(
             mainAxisSize: MainAxisSize.min,
-            children: appState.teams
+            children: appState.activeTeams
                 .map((t) => ListTile(
                     title: Text(t.name,
                         style: TextStyle(color: AppTheme.textHighEmphasis)),
@@ -158,7 +158,7 @@ class _CoachDashboardScreenState extends State<CoachDashboardScreen> {
         ),
       );
     } else {
-      navigateToTest(appState.teams.first);
+      navigateToTest(appState.activeTeams.first);
     }
   }
 
@@ -728,7 +728,7 @@ class _CoachHomeViewState extends State<_CoachHomeView> {
     try {
       final ids = CoachTrainingUtils.teamIdsForEvent(event);
       final names = ids.map((id) {
-        return appState.teams.firstWhere((t) => t.id == id.trim()).name;
+        return appState.activeTeams.firstWhere((t) => t.id == id.trim()).name;
       }).toList();
       if (names.isNotEmpty) teamName = names.join(', ');
     } catch (_) {}
@@ -1003,10 +1003,11 @@ class _CoachReportViewState extends State<_CoachReportView> {
   }
 
   Future<void> _loadAthletes() async {
+    if (mounted) setState(() => _isLoading = true);
     try {
       final supabase = Supabase.instance.client;
       final appState = Provider.of<AppState>(context, listen: false);
-      final teamIds = appState.teams.map((team) => team.id).toList();
+      final teamIds = appState.activeTeams.map((team) => team.id).toList();
 
       if (teamIds.isEmpty) {
         if (mounted) {
@@ -1018,28 +1019,46 @@ class _CoachReportViewState extends State<_CoachReportView> {
         return;
       }
 
-      final allEvents = appState.coachEvents.where((event) {
-        final eventTeamIds = CoachTrainingUtils.teamIdsForEvent(event);
-        return eventTeamIds.any(teamIds.contains);
-      }).toList();
-
       // 1. Carica solo gli atleti dei team del coach
       final profilesData = await supabase
           .from('profiles')
-          .select('id, first_name, last_name, role')
+          .select('id, first_name, last_name, role, team_id')
           .eq('role', 'athlete')
           .inFilter('team_id', teamIds);
 
       final athleteIds =
           (profilesData as List).map((p) => p['id'] as String).toList();
 
-      final sessionsData = athleteIds.isEmpty
-          ? <dynamic>[]
-          : await supabase
+      const pageSize = 500;
+      final sessionsData = <dynamic>[];
+      if (athleteIds.isNotEmpty) {
+        var offset = 0;
+        while (true) {
+          final page = await supabase
               .from('training_sessions')
-              .select('user_id, sport_id, duration')
-              .neq('sport_id', 'alpine_skiing')
-              .inFilter('user_id', athleteIds);
+              .select('id, user_id, sport_id, duration, details')
+              .inFilter('user_id', athleteIds)
+              .order('id')
+              .range(offset, offset + pageSize - 1);
+          sessionsData.addAll(page);
+          if (page.length < pageSize) break;
+          offset += page.length;
+        }
+      }
+
+      final preparationMinutesByAthlete = <String, int>{};
+      for (final session in sessionsData) {
+        final athleteId = session['user_id'] as String;
+        final minutes = CoachAthleteReportUtils.preparationMinutes(
+          sportId: session['sport_id']?.toString() ?? '',
+          duration: session['duration'],
+          details: session['details'] is Map
+              ? Map<String, dynamic>.from(session['details'] as Map)
+              : null,
+        );
+        preparationMinutesByAthlete[athleteId] =
+            (preparationMinutesByAthlete[athleteId] ?? 0) + minutes;
+      }
 
       if (mounted) {
         setState(() {
@@ -1052,53 +1071,21 @@ class _CoachReportViewState extends State<_CoachReportView> {
                     : 'A')
                 .toUpperCase();
 
-            // Calcola % presenze sci
-            final skiEvents =
-                allEvents.where((e) => e.sportCategory == 'ski').toList();
-            int skiPresences = 0;
-            for (final event in skiEvents) {
-              final attendees = event.attendees ?? [];
-              final found = attendees.any((a) =>
-                  (a['id'] == athleteId || a['name'] == name) &&
-                  CoachTrainingUtils.isAttendeePresent(a));
-              if (found) skiPresences++;
-            }
-            final skiPresencePercent = skiEvents.isNotEmpty
-                ? (skiPresences / skiEvents.length * 100).round()
-                : 0;
-
-            // Calcola % presenze atletica
-            final athleticEvents =
-                allEvents.where((e) => e.sportCategory != 'ski').toList();
-            int athleticPresences = 0;
-            for (final event in athleticEvents) {
-              final attendees = event.attendees ?? [];
-              final found = attendees.any((a) =>
-                  (a['id'] == athleteId || a['name'] == name) &&
-                  CoachTrainingUtils.isAttendeePresent(a));
-              if (found) athleticPresences++;
-            }
-            final athleticPresencePercent = athleticEvents.isNotEmpty
-                ? (athleticPresences / athleticEvents.length * 100).round()
-                : 0;
-
-            // Calcola ore di preparazione atletica
-            int totalMinutes = 0;
-            for (final session in sessionsData) {
-              if (session['user_id'] == athleteId) {
-                totalMinutes +=
-                    TimeUtils.parseDurationToMinutes(session['duration']);
-              }
-            }
-            final prepHours = (totalMinutes / 60).ceil();
+            final presence = CoachAthleteReportUtils.presence(
+              events: appState.coachEvents,
+              athleteId: athleteId,
+              athleteName: name,
+              teamId: p['team_id']?.toString(),
+            );
+            final prepMinutes = preparationMinutesByAthlete[athleteId] ?? 0;
 
             return {
               'id': athleteId,
               'name': name,
               'initial': initial,
-              'skiPresencePercent': skiPresencePercent,
-              'athleticPresencePercent': athleticPresencePercent,
-              'prepHours': prepHours,
+              'skiPresencePercent': presence.skiPercent,
+              'athleticPresencePercent': presence.athleticPercent,
+              'prepMinutes': prepMinutes,
             };
           }).toList();
           _isLoading = false;
@@ -1222,7 +1209,7 @@ class _CoachReportViewState extends State<_CoachReportView> {
   }
 
   Widget _buildMonthlyTeamReportEntry(AppState appState) {
-    final canOpen = appState.teams.isNotEmpty;
+    final canOpen = appState.activeTeams.isNotEmpty;
     return InkWell(
       borderRadius: BorderRadius.circular(16),
       onTap: canOpen
@@ -1232,7 +1219,7 @@ class _CoachReportViewState extends State<_CoachReportView> {
                 context,
                 MaterialPageRoute(
                   builder: (_) => MonthlyTeamReportScreen(
-                    initialTeam: appState.teams.first,
+                    initialTeam: appState.activeTeams.first,
                   ),
                 ),
               );
@@ -1307,7 +1294,7 @@ class _CoachReportViewState extends State<_CoachReportView> {
         a['id'] as String,
         a['skiPresencePercent'] as int,
         a['athleticPresencePercent'] as int,
-        a['prepHours'] as int,
+        a['prepMinutes'] as int,
       );
     }).toList();
   }
@@ -1319,12 +1306,14 @@ class _CoachReportViewState extends State<_CoachReportView> {
     String athleteId,
     int skiPresencePercent,
     int athleticPresencePercent,
-    int prepHours,
+    int prepMinutes,
   ) {
+    final prepHours =
+        CoachAthleteReportUtils.preparationHoursLabel(prepMinutes);
     return GestureDetector(
-      onTap: () {
+      onTap: () async {
         HapticFeedback.lightImpact();
-        Navigator.push(
+        await Navigator.push(
             context,
             MaterialPageRoute(
                 builder: (_) => CoachAthleteDetailScreen(
@@ -1332,6 +1321,7 @@ class _CoachReportViewState extends State<_CoachReportView> {
                       initial: initial,
                       athleteId: athleteId,
                     )));
+        if (mounted) _loadAthletes();
       },
       child: Container(
         margin: const EdgeInsets.only(bottom: 12),
@@ -1365,7 +1355,7 @@ class _CoachReportViewState extends State<_CoachReportView> {
                       Icon(Icons.fitness_center,
                           color: AppTheme.textMediumEmphasis, size: 12),
                       const SizedBox(width: 4),
-                      Text('${prepHours}h Extra',
+                      Text('Prep. $prepHours',
                           style: TextStyle(
                               color: AppTheme.textMediumEmphasis,
                               fontSize: 12,
@@ -1397,7 +1387,7 @@ class _CoachReportViewState extends State<_CoachReportView> {
               ),
             ),
             const SizedBox(width: 12),
-            Text('${prepHours}h',
+            Text(prepHours,
                 style: TextStyle(
                     color: AppTheme.textHighEmphasis,
                     fontWeight: FontWeight.bold,
@@ -1635,7 +1625,7 @@ class _CoachTrainingViewState extends State<_CoachTrainingView> {
         ? 'N/A'
         : eventTeamIds.map((id) {
             try {
-              return appState.teams.firstWhere((t) => t.id == id).name;
+              return appState.activeTeams.firstWhere((t) => t.id == id).name;
             } catch (_) {
               return 'N/A';
             }

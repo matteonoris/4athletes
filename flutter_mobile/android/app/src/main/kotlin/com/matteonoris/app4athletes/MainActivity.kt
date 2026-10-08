@@ -25,6 +25,7 @@ class MainActivity: FlutterFragmentActivity() {
 
     override fun configureFlutterEngine(@NonNull flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
+        WorkoutDocumentReader.register(applicationContext, flutterEngine.dartExecutor.binaryMessenger)
         MethodChannel(flutterEngine.dartExecutor.binaryMessenger,
             "com.4athletes.health/execution").setMethodCallHandler { call, result ->
             val serviceIntent = android.content.Intent(this, HealthSyncExecutionService::class.java)

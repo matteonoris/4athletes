@@ -11,6 +11,32 @@ import 'package:flutter_mobile/models/workout_creation_models.dart';
 import 'package:flutter_mobile/providers/app_state.dart';
 import 'package:flutter_mobile/screens/activity_details_screen.dart';
 
+class _EditableSessionsState extends AppState {
+  final List<TrainingSession> recorded;
+  final bool failSave;
+  int saves = 0;
+
+  _EditableSessionsState(TrainingSession session, {this.failSave = false})
+      : recorded = [session];
+
+  @override
+  List<TrainingSession> get sessions => recorded;
+
+  @override
+  Future<void> addSession(
+    TrainingSession session, {
+    bool fromHealthSync = false,
+    bool rethrowErrors = false,
+    bool recalculateStrain = true,
+    bool notify = true,
+  }) async {
+    saves++;
+    if (failSave) throw StateError('Offline');
+    recorded[0] = session;
+    if (notify) notifyListeners();
+  }
+}
+
 void main() {
   setUpAll(() async {
     SharedPreferences.setMockInitialValues({});
@@ -33,6 +59,9 @@ void main() {
     WidgetTester tester,
     TrainingSession session, {
     ThemeMode themeMode = ThemeMode.dark,
+    AppState? appState,
+    bool readOnly = false,
+    String? sportName,
   }) async {
     await tester.binding.setSurfaceSize(const Size(360, 780));
     AppTheme.setThemeMode(
@@ -42,17 +71,124 @@ void main() {
     );
     await tester.pumpWidget(
       ChangeNotifierProvider(
-        create: (_) => AppState(),
+        create: (_) => appState ?? AppState(),
         child: MaterialApp(
           theme: AppTheme.lightTheme,
           darkTheme: AppTheme.darkTheme,
           themeMode: themeMode,
-          home: ActivityDetailsScreen(session: session, prLogs: const []),
+          home: ActivityDetailsScreen(
+              session: session,
+              prLogs: const [],
+              readOnly: readOnly,
+              sportName: sportName),
         ),
       ),
     );
     await tester.pumpAndSettle();
   }
+
+  TrainingSession importedPreparation() => TrainingSession(
+        id: 'imported-preparation',
+        sportId: 'athletic_prep',
+        date: '2026-10-05',
+        startTime: '10:00',
+        endTime: '11:00',
+        duration: '60',
+        effort: 5,
+        details: const {
+          'source': 'health_sync',
+          'external_id': 'watch-workout',
+          'rpe': 5,
+          'source_device_id': 'internal-device-id',
+          'unrecognized_provider_metadata': 'internal-value',
+        },
+      );
+
+  testWidgets('tipologia importata modificabile in tema chiaro e scuro',
+      (tester) async {
+    for (final themeMode in [ThemeMode.light, ThemeMode.dark]) {
+      final session = importedPreparation();
+      final state = _EditableSessionsState(session);
+      await pumpDetails(tester, session,
+          appState: state,
+          themeMode: themeMode,
+          sportName: 'Preparazione atletica');
+      expect(find.text('Dettagli Tecnici'), findsNothing);
+      expect(find.text('internal-device-id'), findsNothing);
+      expect(find.text('internal-value'), findsNothing);
+      await tester.tap(find.byTooltip('Modifica tipologia'));
+      await tester.pumpAndSettle();
+      await tester.tap(
+          find.byKey(const ValueKey('workout_type_dryland_speed_agility')));
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const ValueKey('save_workout_type')));
+      await tester.pumpAndSettle();
+      expect(state.saves, 1);
+      expect(state.recorded.single.sportId, 'dryland_speed_agility');
+      expect(state.recorded.single.details?['external_id'], 'watch-workout');
+      expect(find.text('Velocità e agilità'), findsWidgets);
+      expect(find.text('Preparazione atletica'), findsNothing);
+      expect(find.text('Tipologia aggiornata.'), findsOneWidget);
+      expect(tester.takeException(), isNull);
+      await tester.pumpWidget(const SizedBox.shrink());
+    }
+  });
+
+  testWidgets('annullare e fallire il salvataggio conservano la tipologia',
+      (tester) async {
+    final session = importedPreparation();
+    final state = _EditableSessionsState(session, failSave: true);
+    await pumpDetails(tester, session, appState: state);
+    await tester.tap(find.byTooltip('Modifica tipologia'));
+    await tester.pumpAndSettle();
+    await tester
+        .tap(find.byKey(const ValueKey('workout_type_dryland_speed_agility')));
+    await tester.tap(find.text('Annulla'));
+    await tester.pumpAndSettle();
+    expect(state.saves, 0);
+    expect(state.recorded.single.sportId, 'athletic_prep');
+    await tester.tap(find.byTooltip('Modifica tipologia'));
+    await tester.pumpAndSettle();
+    await tester
+        .tap(find.byKey(const ValueKey('workout_type_dryland_speed_agility')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const ValueKey('save_workout_type')));
+    await tester.pumpAndSettle();
+    expect(state.saves, 1);
+    expect(state.recorded.single.sportId, 'athletic_prep');
+    expect(find.text('Impossibile salvare la tipologia. Riprova.'),
+        findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('ricerca tipologia e tastiera funzionano su schermo compatto',
+      (tester) async {
+    final session = importedPreparation();
+    await pumpDetails(tester, session);
+    await tester.tap(find.byTooltip('Modifica tipologia'));
+    await tester.pumpAndSettle();
+    tester.view.viewInsets = const FakeViewPadding(bottom: 300);
+    addTearDown(tester.view.resetViewInsets);
+    await tester.enterText(
+        find.byKey(const ValueKey('workout_type_search')), 'velocità');
+    await tester.pumpAndSettle();
+    expect(find.byKey(const ValueKey('workout_type_dryland_speed_agility')),
+        findsOneWidget);
+    expect(find.byKey(const ValueKey('workout_type_dryland_strength')),
+        findsNothing);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('il dettaglio in sola lettura non consente di cambiare tipologia',
+      (tester) async {
+    await pumpDetails(tester, importedPreparation(), readOnly: true);
+    expect(find.text('Tipologia'), findsOneWidget);
+    expect(find.byTooltip('Modifica tipologia'), findsNothing);
+    await tester.tap(find.byKey(const ValueKey('workout_type_field')));
+    await tester.pumpAndSettle();
+    expect(find.text('Tipologia allenamento'), findsNothing);
+    expect(tester.takeException(), isNull);
+  });
 
   testWidgets('il dettaglio tennis mostra un riepilogo pulito senza metadati',
       (tester) async {
@@ -93,7 +229,7 @@ void main() {
 
     await pumpDetails(tester, draft.toTrainingSession());
 
-    expect(find.text('Tennis'), findsOneWidget);
+    expect(find.text('Tennis'), findsNWidgets(2));
     expect(find.text('Allenamento'), findsOneWidget);
     expect(find.text('Lallio'), findsOneWidget);
     expect(find.text('Partita'), findsOneWidget);
@@ -158,7 +294,13 @@ void main() {
 
     await pumpDetails(tester, session);
 
-    expect(find.text('Dettagli Tecnici'), findsOneWidget);
+    expect(find.text('Dettagli Tecnici'), findsNothing);
+    await tester.scrollUntilVisible(
+      find.text('Giri e intervalli'),
+      200,
+      scrollable: find.byType(Scrollable).first,
+    );
+    expect(find.text('Giri e intervalli'), findsOneWidget);
     expect(find.text('5:00 /km'), findsOneWidget);
     expect(tester.takeException(), isNull);
   });

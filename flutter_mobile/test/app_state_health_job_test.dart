@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter_mobile/models/models.dart';
 import 'package:flutter_mobile/providers/app_state.dart';
 import 'package:flutter_mobile/services/health_sync_service.dart';
+import 'package:flutter_mobile/services/health_consent_service.dart';
 import 'package:flutter_mobile/utils/metrics_engine.dart';
 import 'package:flutter_mobile/services/daily_strain_persistence_service.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -124,6 +125,34 @@ void main() {
     expect(state.lastHealthScoreUpdate?.revision, 2);
     expect(state.isSyncingHealth, isFalse);
   });
+
+  test('revoking while scores load prevents saving the late result', () async {
+    final source = _DelayedScores();
+    final state = _TestState(source);
+    await state.init();
+    final job = state.refreshAllHealthData(DateTime.now());
+    await source.waitForCall(1);
+    await state.setHealthConsent(HealthConsentDecision.revoked);
+    expect(state.canImportHealthData, isFalse);
+    source.requests.single.complete(_result());
+    await job;
+    expect(state.bodyLogs, isEmpty);
+    expect(state.lastHealthScoreUpdate, isNull);
+    await state.refreshAllHealthData(DateTime.now());
+    expect(source.requests, hasLength(1));
+  });
+
+  test('missing or declined consent starts no device job', () async {
+    final source = _DelayedScores();
+    final state = _TestState(source, _ConsentRepository(null));
+    await state.init();
+    await state.refreshAllHealthData(DateTime.now());
+    await state.syncHealthWorkouts();
+    expect(source.requests, isEmpty);
+    await state.setHealthConsent(HealthConsentDecision.declined);
+    await state.refreshAllHealthData(DateTime.now());
+    expect(source.requests, isEmpty);
+  });
 }
 
 class _DelayedScores extends HealthSyncService {
@@ -146,7 +175,18 @@ class _DelayedScores extends HealthSyncService {
 }
 
 class _TestState extends AppState {
-  _TestState(HealthSyncService service) : super(healthSyncService: service);
+  _TestState(HealthSyncService service, [HealthConsentRepository? repository])
+      : super(
+            healthSyncService: service,
+            healthConsentRepository: repository ?? _ConsentRepository());
+  @override
+  String get userId => 'test-account';
+  @override
+  Future<void> init() async {
+    await super.init();
+    await loadHealthConsent();
+  }
+
   @override
   UserProfile get userProfile => UserProfile(
       firstName: 'Test',
@@ -172,6 +212,17 @@ class _TestState extends AppState {
       {bool updateProfile = true, bool notify = true}) async {
     addLocalBodyLog(log);
     return true;
+  }
+}
+
+class _ConsentRepository implements HealthConsentRepository {
+  _ConsentRepository([this.decision = HealthConsentDecision.granted]);
+  HealthConsentDecision? decision;
+  @override
+  Future<HealthConsentDecision?> latest(String owner) async => decision;
+  @override
+  Future<void> record(String owner, HealthConsentDecision choice) async {
+    decision = choice;
   }
 }
 

@@ -4,6 +4,7 @@ import 'package:phosphor_flutter/phosphor_flutter.dart';
 import 'package:provider/provider.dart';
 
 import '../core/theme.dart';
+import '../core/coach_health_access.dart';
 import '../providers/app_state.dart';
 import '../models/models.dart';
 import '../widgets/custom_card.dart';
@@ -34,12 +35,18 @@ class AnalyticsDetailsScreen extends StatefulWidget {
 }
 
 class _AnalyticsDetailsScreenState extends State<AnalyticsDetailsScreen> {
+  bool get _isReadOnly =>
+      widget.isReadOnly ||
+      (widget.athleteId != null &&
+          widget.type == 'body' &&
+          !coachEditableSportsTests.contains(widget.exerciseId));
+
   String _selectedTimeframe = '1M'; // '1M' | '3M' | '6M' | '1Y' | 'ALL'
 
   @override
   void initState() {
     super.initState();
-    if (widget.openAddOnStart && !widget.isReadOnly) {
+    if (widget.openAddOnStart && !_isReadOnly) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (mounted) _showAddOrEditLogDialog();
       });
@@ -455,7 +462,7 @@ class _AnalyticsDetailsScreenState extends State<AnalyticsDetailsScreen> {
         centerTitle: true,
         backgroundColor: AppTheme.surface,
         actions: [
-          if (!widget.isReadOnly)
+          if (!_isReadOnly)
             Padding(
               padding: const EdgeInsets.only(right: 16.0),
               child: GestureDetector(
@@ -946,7 +953,7 @@ class _AnalyticsDetailsScreenState extends State<AnalyticsDetailsScreen> {
     return Padding(
       padding: const EdgeInsets.only(bottom: 12, left: 20, right: 20),
       child: GestureDetector(
-        onTap: widget.isReadOnly
+        onTap: _isReadOnly
             ? null
             : () => _showAddOrEditLogDialog(existingLog: log),
         child: CustomCard(
@@ -990,7 +997,7 @@ class _AnalyticsDetailsScreenState extends State<AnalyticsDetailsScreen> {
                       color: AppTheme.textMediumEmphasis,
                       fontSize: 12,
                       fontWeight: FontWeight.w600)),
-              if (!widget.isReadOnly) ...[
+              if (!_isReadOnly) ...[
                 const SizedBox(width: 24),
                 GestureDetector(
                   onTap: () async {

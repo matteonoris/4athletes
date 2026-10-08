@@ -4,12 +4,13 @@ import 'package:provider/provider.dart';
 import 'package:phosphor_flutter/phosphor_flutter.dart';
 
 import '../core/theme.dart';
+import '../core/coach_health_access.dart';
 import '../models/models.dart';
 import '../models/training_activity_models.dart';
 import '../providers/app_state.dart';
 import '../utils/coach_training_utils.dart';
+import '../utils/coach_athlete_report_utils.dart';
 import '../utils/training_metrics_utils.dart';
-import '../utils/time_utils.dart';
 import '../utils/health_display_utils.dart';
 import 'activity_details_screen.dart';
 import 'analytics_details_screen.dart';
@@ -46,7 +47,7 @@ class _CoachAthleteDetailScreenState extends State<CoachAthleteDetailScreen> {
   // Presenze (from coach events)
   int _skiPresencePercent = 0;
   int _athleticPresencePercent = 0;
-  int _extraSciMinutes = 0;
+  int _preparationMinutes = 0;
   int _totalCambi = 0;
   Map<String, int> _cambiBySpecialty = {};
   Map<String, Map<String, int>> _cambiByMonthAndSpecialty = {};
@@ -69,11 +70,12 @@ class _CoachAthleteDetailScreenState extends State<CoachAthleteDetailScreen> {
       ]);
 
       final sessions = results[1] as List<TrainingSession>;
-      _computePresence(appState, sessions);
+      final profile = results[0] as UserProfile?;
+      _computePresence(appState, sessions, profile?.teamId);
 
       if (mounted) {
         setState(() {
-          _profile = results[0] as UserProfile?;
+          _profile = profile;
           _sessions = sessions;
           _bodyLogs = results[2] as List<BodyMetricLog>;
           _jumpLogs = results[3] as List<JumpLog>;
@@ -91,41 +93,25 @@ class _CoachAthleteDetailScreenState extends State<CoachAthleteDetailScreen> {
     }
   }
 
-  void _computePresence(AppState appState, List<TrainingSession> sessions) {
+  void _computePresence(
+      AppState appState, List<TrainingSession> sessions, String? teamId) {
     final allEvents = appState.coachEvents
-        .where((e) => e.status != CoachTrainingUtils.statusCancelled)
+        .where((e) =>
+            e.status != CoachTrainingUtils.statusCancelled &&
+            (teamId == null ||
+                teamId.isEmpty ||
+                CoachTrainingUtils.teamIdsForEvent(e).contains(teamId)))
         .toList();
+    final presence = CoachAthleteReportUtils.presence(
+      events: allEvents,
+      athleteId: widget.athleteId,
+      athleteName: widget.athleteName,
+      teamId: teamId,
+    );
+    _skiPresencePercent = presence.skiPercent;
+    _athleticPresencePercent = presence.athleticPercent;
 
-    // Ski presence
     final skiEvents = allEvents.where((e) => e.sportCategory == 'ski').toList();
-    int skiPresent = 0;
-    for (final ev in skiEvents) {
-      final attendees = ev.attendees ?? [];
-      if (attendees.any((a) =>
-          (a['id'] == widget.athleteId || a['name'] == widget.athleteName) &&
-          CoachTrainingUtils.isAttendeePresent(a))) {
-        skiPresent++;
-      }
-    }
-    _skiPresencePercent = skiEvents.isNotEmpty
-        ? (skiPresent / skiEvents.length * 100).round()
-        : 0;
-
-    // Athletic presence
-    final athleticEvents =
-        allEvents.where((e) => e.sportCategory != 'ski').toList();
-    int athleticPresent = 0;
-    for (final ev in athleticEvents) {
-      final attendees = ev.attendees ?? [];
-      if (attendees.any((a) =>
-          (a['id'] == widget.athleteId || a['name'] == widget.athleteName) &&
-          CoachTrainingUtils.isAttendeePresent(a))) {
-        athleticPresent++;
-      }
-    }
-    _athleticPresencePercent = athleticEvents.isNotEmpty
-        ? (athleticPresent / athleticEvents.length * 100).round()
-        : 0;
 
     int extraMin = 0;
     int cambi = 0;
@@ -170,11 +156,12 @@ class _CoachAthleteDetailScreenState extends State<CoachAthleteDetailScreen> {
       if (s.eventId != null && s.eventId!.isNotEmpty) {
         sessionEventIds.add(s.eventId!);
       }
-      if (s.sportId != 'alpine_skiing' &&
-          s.sportId != 'ski' &&
-          s.sportId != 'skiing' &&
-          s.sportId != 'snowboarding') {
-        extraMin += TimeUtils.parseDurationToMinutes(s.duration);
+      if (CoachAthleteReportUtils.isPreparationSport(s.sportId)) {
+        extraMin += CoachAthleteReportUtils.preparationMinutes(
+          sportId: s.sportId,
+          duration: s.duration,
+          details: s.details,
+        );
       } else {
         final summary = CoachTrainingUtils.volumeFromDetails(s.details);
         addSummary(s.date, summary);
@@ -198,7 +185,7 @@ class _CoachAthleteDetailScreenState extends State<CoachAthleteDetailScreen> {
       }
     }
 
-    _extraSciMinutes = extraMin;
+    _preparationMinutes = extraMin;
     _totalCambi = cambi;
     _cambiBySpecialty = bySpecialty;
     _cambiByMonthAndSpecialty = byMonthAndSpecialty;
@@ -225,10 +212,6 @@ class _CoachAthleteDetailScreenState extends State<CoachAthleteDetailScreen> {
       .where((l) => l.type == type)
       .toList()
     ..sort((a, b) => DateTime.parse(a.date).compareTo(DateTime.parse(b.date)));
-
-  String _formatDuration(int minutes) {
-    return TimeUtils.formatDuration(minutes);
-  }
 
   @override
   Widget build(BuildContext context) {
@@ -474,10 +457,7 @@ class _CoachAthleteDetailScreenState extends State<CoachAthleteDetailScreen> {
   // ─── Stats Row ─────────────────────────────────────────────────
   Widget _buildDrylandPrepCard() {
     final drylandSessions = _sessions.where((session) =>
-        session.sportId != 'alpine_skiing' &&
-        session.sportId != 'ski' &&
-        session.sportId != 'skiing' &&
-        session.sportId != 'snowboarding');
+        CoachAthleteReportUtils.isPreparationSport(session.sportId));
     final activities = drylandSessions
         .map((session) => TrainingActivity.fromTrainingSession(session))
         .where((activity) => activity.status != ActivityStatus.cancelled)
@@ -535,7 +515,7 @@ class _CoachAthleteDetailScreenState extends State<CoachAthleteDetailScreen> {
             spacing: 8,
             runSpacing: 8,
             children: [
-              _prepMetric('Ore', (_extraSciMinutes / 60).toStringAsFixed(1)),
+              _prepMetric('Ore', (_preparationMinutes / 60).toStringAsFixed(1)),
               if (strength.volumeKg > 0)
                 _prepMetric('Volume kg', strength.volumeKg.round().toString()),
               if (strength.totalSets > 0)
@@ -599,7 +579,8 @@ class _CoachAthleteDetailScreenState extends State<CoachAthleteDetailScreen> {
   }
 
   Widget _buildStatsRow() {
-    final extraLabel = _formatDuration(_extraSciMinutes);
+    final prepLabel =
+        CoachAthleteReportUtils.preparationHoursLabel(_preparationMinutes);
     return Row(children: [
       Expanded(
           child: Container(
@@ -625,8 +606,8 @@ class _CoachAthleteDetailScreenState extends State<CoachAthleteDetailScreen> {
       )),
       const SizedBox(width: 10),
       Expanded(
-          child:
-              _buildStatCard('EXTRA SCI', extraLabel, const Color(0xFFFF7A00))),
+          child: _buildStatCard(
+              'PREPARAZIONE', prepLabel, const Color(0xFFFF7A00))),
     ]);
   }
 
@@ -1067,7 +1048,7 @@ class _CoachAthleteDetailScreenState extends State<CoachAthleteDetailScreen> {
                   type: 'body',
                   exerciseId: t,
                   preloadedLogs: _bodyLogs,
-                  isReadOnly: false,
+                  isReadOnly: !coachEditableSportsTests.contains(t),
                   athleteId: widget.athleteId,
                 ),
               )),

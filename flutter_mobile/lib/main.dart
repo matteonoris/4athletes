@@ -14,6 +14,7 @@ import 'screens/auth_screen.dart';
 import 'screens/home_screen.dart';
 import 'screens/health_screen.dart';
 import 'widgets/health_score_notice_host.dart';
+import 'widgets/health_consent_gate.dart';
 import 'screens/coach_dashboard_screen.dart';
 import 'services/training_reminder_notification_service.dart';
 
@@ -160,9 +161,10 @@ class _FourAthletesAppState extends State<FourAthletesApp>
       home: kOnboardingPreviewMode
           ? const AuthScreen()
           : isLoggedIn
-              ? (userRole == 'coach'
-                  ? const CoachDashboardScreen()
-                  : const HomeScreen())
+              ? HealthConsentGate(
+                  child: (userRole == 'coach'
+                      ? const CoachDashboardScreen()
+                      : const HomeScreen()))
               : const AuthScreen(),
     );
   }

@@ -73,6 +73,39 @@ void main() {
     expect(session.details?['actualDurationMinutes'], 64);
   });
 
+  test(
+      'preparazione atletica inizia senza blocchi precompilati per entrambi i ruoli',
+      () {
+    for (final activityId in const [
+      'dryland_strength',
+      'dryland_plyometrics',
+      'dryland_speed_agility',
+    ]) {
+      for (final role in const ['athlete', 'coach']) {
+        final workout = WorkoutDraftFactory.create(
+          activity: WorkoutCatalog.byId(activityId),
+          userId: 'user_1',
+          creatorRole: role,
+          now: DateTime(2026, 7, 15, 9),
+        );
+        final main = workout.phases.singleWhere(
+          (phase) => phase.type == TrainingPhase.main,
+        );
+
+        expect(main.blocks, isEmpty, reason: '$activityId / $role');
+        expect(workout.structureMode, WorkoutStructureMode.simple);
+        expect(
+          workout
+              .copyWith(structureMode: WorkoutStructureMode.phased)
+              .phases
+              .singleWhere((phase) => phase.type == TrainingPhase.main)
+              .blocks,
+          isEmpty,
+        );
+      }
+    }
+  });
+
   test('ora di fine determina la durata senza campo minuti separato', () {
     final workout = draft().copyWith(
       actualStartTime: '23:30',

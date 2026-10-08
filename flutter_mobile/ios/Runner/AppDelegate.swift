@@ -1,6 +1,9 @@
 import Flutter
 import UIKit
 import UserNotifications
+import Vision
+import PDFKit
+import ImageIO
 
 import HealthKit
 
@@ -37,6 +40,7 @@ import HealthKit
 
   func didInitializeImplicitFlutterEngine(_ engineBridge: FlutterImplicitEngineBridge) {
     GeneratedPluginRegistrant.register(with: engineBridge.pluginRegistry)
+    WorkoutDocumentReader.register(messenger: engineBridge.applicationRegistrar.messenger())
     let executionChannel = FlutterMethodChannel(
       name: "com.4athletes.health/execution",
       binaryMessenger: engineBridge.applicationRegistrar.messenger())
@@ -563,4 +567,111 @@ import HealthKit
           return "HKWORKOUT_\(type.rawValue)"
       }
   }
+}
+
+// Native OCR keeps workout documents on the device and works with scanned PDFs.
+private enum WorkoutDocumentReader {
+    static func register(messenger: FlutterBinaryMessenger) {
+        let channel = FlutterMethodChannel(name: "com.4athletes/workout_document", binaryMessenger: messenger)
+        var busy = false
+        channel.setMethodCallHandler { call, result in
+            guard call.method == "recognize" else { result(FlutterMethodNotImplemented); return }
+            guard !busy, let args = call.arguments as? [String: Any],
+                  let path = args["path"] as? String else {
+                result(FlutterError(code: "UNAVAILABLE", message: "Lettura non disponibile. Riprova.", details: nil))
+                return
+            }
+            busy = true
+            DispatchQueue.global(qos: .userInitiated).async {
+                do {
+                    let pages = try read(path: path, isPDF: args["isPdf"] as? Bool == true)
+                    DispatchQueue.main.async { busy = false; result(pages) }
+                } catch {
+                    DispatchQueue.main.async {
+                        busy = false
+                        result(FlutterError(code: "READ_FAILED", message: error.localizedDescription, details: nil))
+                    }
+                }
+            }
+        }
+    }
+
+    private static func failure(_ message: String) -> NSError {
+        NSError(domain: "WorkoutDocument", code: 1, userInfo: [NSLocalizedDescriptionKey: message])
+    }
+
+    private static func read(path: String, isPDF: Bool) throws -> [[[String: Any]]] {
+        let url = URL(fileURLWithPath: path)
+        let size = try url.resourceValues(forKeys: [.fileSizeKey]).fileSize ?? 0
+        guard size > 0, size <= 15 * 1024 * 1024 else {
+            throw failure("Scegli un documento di massimo 15 MB.")
+        }
+        if isPDF {
+            guard let document = PDFDocument(url: url), !document.isLocked else {
+                throw failure("PDF non leggibile o protetto da password.")
+            }
+            guard (1...6).contains(document.pageCount) else {
+                throw failure("Scegli un PDF di massimo 6 pagine.")
+            }
+            return try (0..<document.pageCount).map { index in
+                try autoreleasepool {
+                    guard let page = document.page(at: index) else { throw failure("Pagina non leggibile.") }
+                    let bounds = page.bounds(for: .mediaBox)
+                    guard bounds.width > 0, bounds.height > 0 else { throw failure("Pagina non valida.") }
+                    let scale = min(3, 2400 / max(bounds.width, bounds.height))
+                    let size = CGSize(width: bounds.width * scale, height: bounds.height * scale)
+                    guard let image = page.thumbnail(of: size, for: .mediaBox).cgImage else {
+                        throw failure("Pagina non leggibile.")
+                    }
+                    return try recognize(image: image)
+                }
+            }
+        }
+        guard let source = CGImageSourceCreateWithURL(url as CFURL, nil),
+              let image = CGImageSourceCreateThumbnailAtIndex(source, 0, [
+                kCGImageSourceCreateThumbnailFromImageAlways: true,
+                kCGImageSourceCreateThumbnailWithTransform: true,
+                kCGImageSourceThumbnailMaxPixelSize: 2400
+              ] as CFDictionary) else { throw failure("Immagine non leggibile.") }
+        return [try recognize(image: image)]
+    }
+
+    private static func recognize(image: CGImage) throws -> [[String: Any]] {
+        // Normalize transparent screenshots/PNG documents before OCR.
+        guard let canvas = CGContext(data: nil, width: image.width, height: image.height,
+                                     bitsPerComponent: 8, bytesPerRow: 0,
+                                     space: CGColorSpaceCreateDeviceRGB(),
+                                     bitmapInfo: CGImageAlphaInfo.noneSkipLast.rawValue) else {
+            throw failure("Immagine non leggibile.")
+        }
+        let bounds = CGRect(x: 0, y: 0, width: CGFloat(image.width), height: CGFloat(image.height))
+        canvas.setFillColor(UIColor.white.cgColor)
+        canvas.fill(bounds)
+        canvas.draw(image, in: bounds)
+        guard let opaqueImage = canvas.makeImage() else { throw failure("Immagine non leggibile.") }
+        let request = VNRecognizeTextRequest()
+        request.recognitionLevel = .accurate
+        request.recognitionLanguages = ["it-IT", "en-US"]
+        request.usesLanguageCorrection = false // Preserve exercise names and numeric prescriptions.
+        try VNImageRequestHandler(cgImage: opaqueImage, options: [:]).perform([request])
+        let tokens = try NSRegularExpression(pattern: "\\S+")
+        func span(_ text: String, _ rect: CGRect) -> [String: Any] {
+            return ["text": text, "left": Double(rect.minX) * Double(image.width),
+                    "top": (1 - Double(rect.maxY)) * Double(image.height),
+                    "width": Double(rect.width) * Double(image.width),
+                    "height": Double(rect.height) * Double(image.height)]
+        }
+        return (request.results ?? []).compactMap { observation in
+            guard let candidate = observation.topCandidates(1).first else { return nil }
+            let text = candidate.string
+            var line = span(text, observation.boundingBox)
+            line["words"] = tokens.matches(in: text, range: NSRange(text.startIndex..., in: text))
+                .compactMap { match -> [String: Any]? in
+                    guard let range = Range(match.range, in: text),
+                          let box = try? candidate.boundingBox(for: range) else { return nil }
+                    return span(String(text[range]), box.boundingBox)
+                }
+            return line
+        }
+    }
 }

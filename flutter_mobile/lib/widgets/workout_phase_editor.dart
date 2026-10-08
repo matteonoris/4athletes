@@ -7,6 +7,8 @@ import '../data/workout_catalog.dart';
 import '../models/training_activity_models.dart';
 import '../models/workout_creation_models.dart';
 import '../providers/app_state.dart';
+import '../screens/workout_document_import_screen.dart';
+import '../services/workout_document_service.dart';
 import '../utils/strength_pr_utils.dart';
 
 class WorkoutPhaseEditor extends StatelessWidget {
@@ -134,6 +136,16 @@ class WorkoutPhaseEditor extends StatelessWidget {
                     entry.key,
                   ),
                 ),
+            if (primaryIsExercise && WorkoutDocumentService.isSupported)
+              Padding(
+                padding: const EdgeInsets.fromLTRB(12, 8, 12, 0),
+                child: TextButton.icon(
+                  key: ValueKey('import_document_${phase.type}'),
+                  onPressed: () => _importDocument(context, phase, phaseIndex),
+                  icon: const Icon(Icons.document_scanner_outlined, size: 20),
+                  label: const Text('Importa da foto o PDF'),
+                ),
+              ),
             Padding(
               padding: const EdgeInsets.fromLTRB(12, 10, 12, 12),
               child: Row(
@@ -530,10 +542,31 @@ class WorkoutPhaseEditor extends StatelessWidget {
     final rir = _displayNumber(set['rir']);
     final rest = _displayNumber(set['restSeconds']);
     final side = set['side']?.toString() ?? TrainingSide.none;
+    if (set['durationSeconds'] != null) {
+      details.add('${_displayNumber(set['durationSeconds'])}s');
+    }
+    if (set['distanceMeters'] != null) {
+      details.add('${_displayNumber(set['distanceMeters'])}m');
+    }
     if (rir.isNotEmpty) details.add('RIR $rir');
     if (rest.isNotEmpty) details.add('${rest}s rec');
     if (side != TrainingSide.none) details.add(_sideLabel(side));
     return details.isEmpty ? 'Modifica' : details.join(' · ');
+  }
+
+  Widget _documentMetrics(String key, Map<String, dynamic> set) {
+    return Column(children: [
+      for (final field in const [
+        ('durationSeconds', 'Durata (s)'),
+        ('distanceMeters', 'Distanza (m)')
+      ])
+        if (set.containsKey(field.$1))
+          Padding(
+            padding: const EdgeInsets.only(top: 8),
+            child: _numberField('${key}_${field.$1}', set[field.$1], field.$2,
+                (value) => set[field.$1] = value),
+          ),
+    ]);
   }
 
   Future<void> _editSingleSet(
@@ -665,6 +698,7 @@ class WorkoutPhaseEditor extends StatelessWidget {
                     ],
                   ),
                   const SizedBox(height: 12),
+                  _documentMetrics('${block.id}_${setIndex}_single', editedSet),
                   DropdownButtonFormField<String>(
                     key: ValueKey('${block.id}_${setIndex}_single_side'),
                     initialValue:
@@ -870,6 +904,38 @@ class WorkoutPhaseEditor extends StatelessWidget {
       phaseIndex,
       phase.copyWith(blocks: [...phase.blocks, edited]),
     );
+  }
+
+  Future<void> _importDocument(
+      BuildContext context, WorkoutPhaseDraft phase, int phaseIndex) async {
+    final imported = await Navigator.of(context).push<List<WorkoutBlockDraft>>(
+      MaterialPageRoute(builder: (_) => const WorkoutDocumentImportScreen()),
+    );
+    if (!context.mounted || imported == null || imported.isEmpty) return;
+    if (editorKind == WorkoutEditorKind.circuit &&
+        phase.type == TrainingPhase.main) {
+      final groupIndex = phase.blocks.indexWhere((block) =>
+          block.kind == WorkoutBlockKind.circuit ||
+          block.kind == WorkoutBlockKind.interval);
+      if (groupIndex >= 0) {
+        final blocks = [...phase.blocks];
+        final group = blocks[groupIndex];
+        blocks[groupIndex] = group.copyWith(children: [
+          ...group.children,
+          for (var index = 0; index < imported.length; index++)
+            imported[index].copyWith(order: group.children.length + index),
+        ]);
+        _replacePhase(phaseIndex, phase.copyWith(blocks: blocks));
+        return;
+      }
+    }
+    _replacePhase(
+        phaseIndex,
+        phase.copyWith(blocks: [
+          ...phase.blocks,
+          for (var index = 0; index < imported.length; index++)
+            imported[index].copyWith(order: phase.blocks.length + index),
+        ]));
   }
 
   Future<ExerciseDef?> _pickExercise(
@@ -1553,6 +1619,7 @@ class WorkoutPhaseEditor extends StatelessWidget {
               ),
             ),
           ],
+          _documentMetrics('${blockId}_$index', set),
           if (showAdvanced) ...[
             const SizedBox(height: 8),
             Row(
@@ -2095,7 +2162,7 @@ class WorkoutPhaseEditor extends StatelessWidget {
             'rounds': 4,
             'recoverySeconds': 60,
           },
-        WorkoutBlockKind.sport => const {'durationSeconds': 3600},
+        WorkoutBlockKind.sport => const {},
         WorkoutBlockKind.timed || WorkoutBlockKind.recovery => const {
             'durationSeconds': 60,
           },

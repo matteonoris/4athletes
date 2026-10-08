@@ -1,7 +1,7 @@
-This update refreshes the entire app around the Daily Readiness experience.
+This update restores team visibility with the protected team access system and adds new workout tools.
 
-- Brings the Sleep, Strain, and Recovery card's visual language to athlete and coach screens.
-- Adds clearer light and dark themes, a redesigned navigation bar, improved cards, controls, and typography.
-- Improves health-data refresh and background synchronization with clearer progress and completion feedback.
-- Refines sleep and recovery scoring, calibration, daily history, and wellness charts.
-- Preserves dedicated alpine-skiing entry and improves compact-screen layouts across Analytics and training flows.
+- Restores existing teams, member lists, invitations, attendance and team reports in the updated app.
+- Adds manager controls for coach approval and team membership, with personal health measurements read-only for coaches.
+- Adds health-data consent and revocation controls, clearer Apple Health access guidance and account deletion from the profile.
+- Imports exercises from photos and PDFs on the device, with review before adding them to a workout and matching to the exercise catalog.
+- Adds workout place suggestions and map previews, improves athlete reports and activity details, and preserves the dedicated alpine-skiing workflow.

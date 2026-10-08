@@ -5,6 +5,8 @@ import 'package:flutter_mobile/models/models.dart';
 import 'package:flutter_mobile/models/workout_creation_models.dart';
 import 'package:flutter_mobile/providers/app_state.dart';
 import 'package:flutter_mobile/screens/workout_flow_screen.dart';
+import 'package:flutter_mobile/services/workout_draft_service.dart';
+import 'package:flutter_mobile/utils/workout_document_parser.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -20,6 +22,17 @@ class _AppStateWithPr extends AppState {
 }
 
 void main() {
+  Future<void> addExercise(WidgetTester tester, String name) async {
+    final addButton = find.byKey(const ValueKey('add_block_main'));
+    await tester.ensureVisible(addButton);
+    await tester.tap(addButton);
+    await tester.pumpAndSettle();
+    await tester.tap(find.widgetWithText(ListTile, name).last);
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const ValueKey('save_block_button')));
+    await tester.pumpAndSettle();
+  }
+
   setUpAll(() async {
     SharedPreferences.setMockInitialValues({});
     try {
@@ -130,7 +143,7 @@ void main() {
 
     await tester.tap(find.widgetWithText(ListTile, 'Back Squat').last);
     await tester.pumpAndSettle();
-    expect(find.text('KG'), findsNWidgets(2));
+    expect(find.text('KG'), findsOneWidget);
     expect(find.text('RIPETIZIONI'), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
@@ -156,6 +169,8 @@ void main() {
       ),
     );
     await tester.pump();
+
+    await addExercise(tester, 'Back Squat');
 
     final exerciseCard = find.byWidgetPredicate(
       (widget) =>
@@ -252,6 +267,8 @@ void main() {
     );
     await tester.pump();
 
+    await addExercise(tester, 'Back Squat');
+
     expect(find.text('SERIE'), findsOneWidget);
     expect(find.text('KG'), findsOneWidget);
     expect(find.text('REP'), findsOneWidget);
@@ -303,6 +320,57 @@ void main() {
     );
   });
 
+  for (final dark in [false, true]) {
+    testWidgets(
+        'imported Squat uses catalogue history and max percentage (${dark ? 'dark' : 'light'})',
+        (tester) async {
+      SharedPreferences.setMockInitialValues({});
+      AppTheme.setThemeMode(dark ? AppTheme.darkMode : AppTheme.lightMode,
+          platformBrightness: dark ? Brightness.dark : Brightness.light);
+      await tester.binding.setSurfaceSize(const Size(430, 900));
+      addTearDown(() => tester.binding.setSurfaceSize(null));
+      final block = WorkoutDocumentParser.parse('Squat 3x8 60kg')
+          .exercises
+          .single
+          .toBlock(id: 'imported_squat', order: 0);
+      final activity = WorkoutCatalog.byId('dryland_strength');
+      final draft = WorkoutDraftFactory.create(
+              activity: activity, userId: 'test', creatorRole: 'athlete')
+          .copyWith(phases: [
+        WorkoutPhaseDraft(type: 'main', blocks: [block]),
+      ]);
+      expect(draft.toLegacyBlocks().single.exercises.single.exerciseId,
+          'back_squat');
+      final state = _AppStateWithPr([
+        PRLog(
+            id: 'squat',
+            exerciseId: 'back_squat',
+            date: '2026-09-01',
+            weight: 120),
+        PRLog(id: 'bench', exerciseId: 'bp', date: '2026-09-02', weight: 80),
+      ]);
+      addTearDown(state.dispose);
+      await tester.pumpWidget(ChangeNotifierProvider<AppState>.value(
+        value: state,
+        child: MaterialApp(
+          theme: dark ? AppTheme.darkTheme : AppTheme.lightTheme,
+          home: WorkoutFlowScreen(activity: activity, initialDraft: draft),
+        ),
+      ));
+      await tester.pumpAndSettle();
+      final set = find.byKey(const ValueKey('workout_set_imported_squat_0'));
+      await tester.ensureVisible(set);
+      await tester.tap(set);
+      await tester.pumpAndSettle();
+      expect(find.text('50.0% del massimale (120 kg)'), findsOneWidget);
+      await tester.enterText(
+          find.byKey(const ValueKey('imported_squat_0_single_kg')), '90');
+      await tester.pump();
+      expect(find.text('75.0% del massimale (120 kg)'), findsOneWidget);
+      expect(tester.takeException(), isNull);
+    });
+  }
+
   testWidgets('peso serie mostra percentuale dell ultimo massimale',
       (tester) async {
     SharedPreferences.setMockInitialValues({});
@@ -332,6 +400,8 @@ void main() {
       ),
     );
     await tester.pump();
+
+    await addExercise(tester, 'Back Squat');
 
     final exerciseCard = find.byWidgetPredicate(
       (widget) =>
@@ -463,6 +533,8 @@ void main() {
         ),
       );
       await tester.pump();
+
+      await addExercise(tester, 'Falling Start Sprint');
 
       expect(find.text('PROVA'), findsOneWidget);
       expect(find.text('DIST. M'), findsOneWidget);

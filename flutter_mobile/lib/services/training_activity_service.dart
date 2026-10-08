@@ -139,6 +139,8 @@ class TrainingActivityService {
     final category = _categoryFromEvent(event, planned);
     final plannedMap =
         planned is Map ? Map<String, dynamic>.from(planned) : null;
+    final actualMap = actual is Map ? Map<String, dynamic>.from(actual) : null;
+    final hasActualLocation = actualMap?.containsKey('location') == true;
     final rawWorkoutDraft = technicalDetails['workoutDraft'];
     final workoutDraft = rawWorkoutDraft is Map
         ? Map<String, dynamic>.from(rawWorkoutDraft)
@@ -171,6 +173,11 @@ class TrainingActivityService {
       'from_calendar': true,
       'status': ActivityStatus.completed,
       'title': event.title,
+      'location': hasActualLocation ? actualMap!['location'] : event.location,
+      'locationPlace': hasActualLocation
+          ? actualMap!['locationPlace']
+          : technicalDetails['locationPlace'] ??
+              workoutDraft?['locationPlace'] ?? plannedMap?['locationPlace'],
       'specialty': event.drylandSpecialty,
       'technicalDetails': technicalDetails,
       'plannedDrylandSession': planned,

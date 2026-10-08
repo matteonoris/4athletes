@@ -9,12 +9,17 @@ import 'package:phosphor_flutter/phosphor_flutter.dart';
 import 'package:provider/provider.dart';
 
 import '../core/dev_flags.dart';
+import '../core/legal_links.dart';
+import '../core/signup_age.dart';
 import '../core/theme.dart';
 import '../models/models.dart';
 import '../providers/app_state.dart';
 import 'coach_dashboard_screen.dart';
 import 'health_permission_screen.dart';
 import 'home_screen.dart';
+import '../widgets/health_consent_gate.dart';
+import '../services/account_deletion_service.dart';
+import 'account_deletion_screen.dart';
 
 enum _SignupStep { role, personal, physical, photo }
 
@@ -33,6 +38,7 @@ class _AuthScreenState extends State<AuthScreen>
   String _role = 'athlete';
   String? _gender;
   File? _pickedAvatarFile;
+  bool _hasDeletionReceipt = false;
 
   final _emailCtrl = TextEditingController();
   final _firstNameCtrl = TextEditingController();
@@ -79,6 +85,13 @@ class _AuthScreenState extends State<AuthScreen>
     }
 
     _animationController.forward();
+    if (!kOnboardingPreviewMode) {
+      AccountDeletionService.create().then((service) {
+        if (mounted) {
+          setState(() => _hasDeletionReceipt = service.receipt != null);
+        }
+      });
+    }
   }
 
   @override
@@ -94,6 +107,7 @@ class _AuthScreenState extends State<AuthScreen>
   }
 
   Future<void> _handleGoogleSignIn() async {
+    if (!_validateBirthDate()) return;
     if (kOnboardingPreviewMode) {
       _startSocialSignup();
       return;
@@ -115,6 +129,7 @@ class _AuthScreenState extends State<AuthScreen>
   }
 
   Future<void> _handleAppleSignIn() async {
+    if (!_validateBirthDate()) return;
     if (kOnboardingPreviewMode) {
       _startSocialSignup();
       return;
@@ -185,6 +200,7 @@ class _AuthScreenState extends State<AuthScreen>
 
   void _goNext() {
     HapticFeedback.lightImpact();
+    if (_signupStep == _SignupStep.personal && !_validateBirthDate()) return;
     if (_signupStep == _SignupStep.personal && _gender == null) {
       _showError('Seleziona il sesso prima di continuare.');
       return;
@@ -209,7 +225,7 @@ class _AuthScreenState extends State<AuthScreen>
         _showError('Permesso fotocamera negato.');
         return;
       }
-    } else {
+    } else if (Platform.isIOS) {
       await Permission.photos.request();
     }
 
@@ -227,7 +243,13 @@ class _AuthScreenState extends State<AuthScreen>
   }
 
   Future<void> _selectBirthDate() async {
-    final initial = DateTime.tryParse(_dobCtrl.text) ?? DateTime(2000, 1, 1);
+    final now = DateTime.now();
+    final parsed = DateTime.tryParse(_dobCtrl.text);
+    final initial = parsed != null &&
+            !parsed.isAfter(now) &&
+            !parsed.isBefore(DateTime(1920))
+        ? parsed
+        : now;
     final selected = await showDatePicker(
       context: context,
       initialDate: initial,
@@ -253,6 +275,7 @@ class _AuthScreenState extends State<AuthScreen>
   }
 
   Future<void> _submitSignup() async {
+    if (!_validateBirthDate()) return;
     final appState = Provider.of<AppState>(context, listen: false);
     final weight = double.tryParse(_weightCtrl.text) ?? 0.0;
     final height = double.tryParse(_heightCtrl.text) ?? 0.0;
@@ -273,7 +296,7 @@ class _AuthScreenState extends State<AuthScreen>
           _firstNameCtrl.text.isNotEmpty ? _firstNameCtrl.text : 'Utente',
       lastName: _lastNameCtrl.text.isNotEmpty ? _lastNameCtrl.text : 'Nuovo',
       email: _emailCtrl.text,
-      birthDate: _dobCtrl.text.isNotEmpty ? _dobCtrl.text : '2000-01-01',
+      birthDate: _dobCtrl.text.trim(),
       role: _role,
       skiClub: '',
       gender: gender,
@@ -324,6 +347,10 @@ class _AuthScreenState extends State<AuthScreen>
     } else if (isNewAthleteSignUp) {
       nextScreen = const HealthPermissionScreen();
     }
+    if (!isNewAthleteSignUp) {
+      nextScreen =
+          HealthConsentGate(existingUser: !_isSocialSignup, child: nextScreen);
+    }
     if (!mounted) return;
     Navigator.of(context)
         .pushReplacement(MaterialPageRoute(builder: (_) => nextScreen));
@@ -334,6 +361,30 @@ class _AuthScreenState extends State<AuthScreen>
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(content: Text(message), backgroundColor: AppTheme.card),
     );
+  }
+
+  Future<void> _checkAccountDeletion() async {
+    final service = await AccountDeletionService.create();
+    if (!mounted) return;
+    final state = context.read<AppState>();
+    await Navigator.push(
+        context,
+        MaterialPageRoute(
+            builder: (_) => AccountDeletionScreen(
+                service: service,
+                onAccepted: () async {
+                  final owner = service.owner;
+                  if (owner != null) await state.completeAccountDeletion(owner);
+                },
+                onLogin: () async {},
+                onClose: () => Navigator.of(context).pop())));
+  }
+
+  bool _validateBirthDate() {
+    final error = signupBirthDateError(_dobCtrl.text);
+    if (error == null) return true;
+    _showError(error);
+    return false;
   }
 
   void _showError(String message) {
@@ -379,7 +430,25 @@ class _AuthScreenState extends State<AuthScreen>
               .titleMedium
               ?.copyWith(color: AppTheme.textMediumEmphasis),
         ),
-        const SizedBox(height: 64),
+        const SizedBox(height: 32),
+        _buildLabeledField(
+          'DATA DI NASCITA',
+          _dobCtrl,
+          'Seleziona giorno, mese e anno',
+          preIcon: Icons.calendar_today_outlined,
+          readOnly: true,
+          onTap: _selectBirthDate,
+        ),
+        if (_hasDeletionReceipt)
+          TextButton(
+              onPressed: _checkAccountDeletion,
+              child: const Text('Verifica richiesta di eliminazione account')),
+        const SizedBox(height: 8),
+        Text(
+          '4athletes è disponibile dai 14 anni. Indica la tua data di nascita prima di continuare.',
+          style: TextStyle(color: AppTheme.textMediumEmphasis, fontSize: 12),
+        ),
+        const SizedBox(height: 24),
         ElevatedButton.icon(
           onPressed: () {
             HapticFeedback.lightImpact();
@@ -436,6 +505,11 @@ class _AuthScreenState extends State<AuthScreen>
             ),
           ),
         ],
+        const SizedBox(height: 20),
+        TextButton(
+          onPressed: () => openLegalPage(context, privacyPolicyUrl),
+          child: const Text('Informativa privacy'),
+        ),
         const Spacer(flex: 2),
       ],
     );
@@ -631,6 +705,11 @@ class _AuthScreenState extends State<AuthScreen>
           preIcon: Icons.calendar_today_outlined,
           readOnly: true,
           onTap: _selectBirthDate,
+        ),
+        const SizedBox(height: 8),
+        Text(
+          'Per iscriverti devi aver compiuto 14 anni.',
+          style: TextStyle(color: AppTheme.textMediumEmphasis, fontSize: 12),
         ),
         const SizedBox(height: 24),
         Text(

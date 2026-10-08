@@ -6,6 +6,8 @@ import '../core/theme.dart';
 import '../data/dryland_prep_types.dart';
 import '../data/exercises.dart';
 import '../models/models.dart';
+import '../models/workout_place.dart';
+import '../widgets/workout_location_field.dart';
 import '../models/training_activity_models.dart';
 import '../providers/app_state.dart';
 import '../services/training_activity_service.dart';
@@ -46,6 +48,7 @@ class _DrylandActivityScreenState extends State<DrylandActivityScreen> {
   String _activePhase = TrainingPhase.main;
 
   final _locationCtrl = TextEditingController();
+  WorkoutPlace? _locationPlace;
   final _notesCtrl = TextEditingController();
   final _painCtrl = TextEditingController();
   double _rpe = 5;
@@ -101,8 +104,6 @@ class _DrylandActivityScreenState extends State<DrylandActivityScreen> {
       _loadFromActivity(TrainingActivity.fromTrainingSession(initial));
     } else if (widget.initialTemplate != null) {
       _applyTemplate(widget.initialTemplate!);
-    } else if (_isEndurance) {
-      _endurance['durationSeconds'] = _calculateDuration() * 60;
     }
   }
 
@@ -125,6 +126,7 @@ class _DrylandActivityScreenState extends State<DrylandActivityScreen> {
     _usesPhases = activity.usesPhases ??
         activity.blocks.any((block) => block.metrics['phase'] != null);
     _locationCtrl.text = activity.location ?? '';
+    _locationPlace = activity.locationPlace;
     _notesCtrl.text = activity.notes ?? '';
     _painCtrl.text = activity.pain ?? '';
     _rpe = (activity.rpe ?? 5).toDouble().clamp(0, 10);
@@ -543,6 +545,7 @@ class _DrylandActivityScreenState extends State<DrylandActivityScreen> {
       endTime: _formatTime(_endTime),
       duration: _calculateDuration().toString(),
       location: _locationCtrl.text.trim(),
+      locationPlace: _locationPlace,
       rpe: _rpe.round(),
       pain: _painCtrl.text.trim(),
       notes: _notesCtrl.text.trim(),
@@ -755,10 +758,10 @@ class _DrylandActivityScreenState extends State<DrylandActivityScreen> {
             ],
           ),
           const SizedBox(height: 12),
-          _textInput(
-            'Luogo',
+          WorkoutLocationField(
             controller: _locationCtrl,
-            icon: Icons.location_on_outlined,
+            place: _locationPlace,
+            onPlaceChanged: (place) => setState(() => _locationPlace = place),
           ),
         ],
       ),

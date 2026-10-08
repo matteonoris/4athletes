@@ -184,8 +184,8 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
         );
 
     // Initialize selected team if null and teams exist
-    if (_selectedTeamId == null && appState.teams.isNotEmpty) {
-      _selectedTeamId = appState.teams.first.id;
+    if (_selectedTeamId == null && appState.activeTeams.isNotEmpty) {
+      _selectedTeamId = appState.activeTeams.first.id;
     }
 
     final jumpUnit = unitSystem == 'metric' ? 'cm' : 'in';
@@ -241,7 +241,7 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
       body: ListView(
         padding: const EdgeInsets.all(16),
         children: [
-          if (appState.teams.length > 1) ...[
+          if (appState.activeTeams.length > 1) ...[
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 16),
               decoration: AppTheme.panelDecoration(
@@ -257,7 +257,7 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
                   dropdownColor: AppTheme.card,
                   icon: Icon(Icons.arrow_drop_down,
                       color: AppTheme.textMediumEmphasis),
-                  items: appState.teams.map((team) {
+                  items: appState.activeTeams.map((team) {
                     return DropdownMenuItem<String>(
                       value: team.id,
                       child: Text(

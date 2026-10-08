@@ -7,6 +7,7 @@ import '../models/models.dart';
 import 'daily_health_metric_normalizer.dart';
 import 'health_import_normalizer.dart';
 import 'native_health_service.dart';
+import 'health_read_guard.dart';
 
 enum HealthPermissionRequestStatus {
   granted,
@@ -31,6 +32,21 @@ class HealthService {
   HealthService._internal();
 
   final Health _health = Health();
+  Future<List<HealthDataPoint>> _readHealthData({
+    required DateTime startTime,
+    required DateTime endTime,
+    required List<HealthDataType> types,
+    Map<HealthDataType, HealthDataUnit>? preferredUnits,
+  }) async {
+    if (!healthReadAllowed) return [];
+    final points = await _health.getHealthDataFromTypes(
+        startTime: startTime,
+        endTime: endTime,
+        types: types,
+        preferredUnits: preferredUnits);
+    return healthReadAllowed ? points : [];
+  }
+
   static const int _healthImportVersion = 7;
 
   final List<HealthDataType> _dataTypes = Platform.isIOS
@@ -83,7 +99,6 @@ class HealthService {
           HealthDataType.BLOOD_OXYGEN,
           HealthDataType.RESPIRATORY_RATE,
           HealthDataType.SKIN_TEMPERATURE,
-          HealthDataType.MENSTRUATION_FLOW,
         ];
 
   Future<bool> requestPermissions() async {
@@ -190,7 +205,7 @@ class HealthService {
       final now = DateTime.now();
       final startDate = now.subtract(Duration(days: days));
 
-      final healthData = await _health.getHealthDataFromTypes(
+      final healthData = await _readHealthData(
         startTime: startDate,
         endTime: now,
         types: [HealthDataType.WORKOUT],
@@ -756,7 +771,7 @@ class HealthService {
     bool preferDenseSamples = false,
   }) async {
     try {
-      final points = await _health.getHealthDataFromTypes(
+      final points = await _readHealthData(
         startTime: workout.dateFrom,
         endTime: workout.dateTo,
         types: types,
@@ -1115,7 +1130,7 @@ class HealthService {
     }
 
     try {
-      final points = await _health.getHealthDataFromTypes(
+      final points = await _readHealthData(
         startTime: workout.dateFrom,
         endTime: workout.dateTo,
         types: [HealthDataType.FLIGHTS_CLIMBED],
@@ -1298,7 +1313,7 @@ class HealthService {
       final now = DateTime.now();
       // Whole local calendar days, including the first night's HRV samples.
       final startDate = DateTime(now.year, now.month, now.day - days);
-      if (requestPermissions) {
+      if (requestPermissions && healthReadAllowed) {
         try {
           await _ensureDailyMetricPermissions();
         } catch (e) {
@@ -1311,7 +1326,7 @@ class HealthService {
       // Fetch Resting Heart Rate
       List<HealthDataPoint> rhrData = [];
       try {
-        rhrData = await _health.getHealthDataFromTypes(
+        rhrData = await _readHealthData(
           startTime: startDate,
           endTime: now,
           types: [HealthDataType.RESTING_HEART_RATE],
@@ -1326,7 +1341,7 @@ class HealthService {
       // Fetch HRV (SDNN for iOS, RMSSD for Android)
       List<HealthDataPoint> hrvData = [];
       try {
-        hrvData = await _health.getHealthDataFromTypes(
+        hrvData = await _readHealthData(
           startTime: startDate,
           endTime: now,
           types: [
@@ -1344,7 +1359,7 @@ class HealthService {
       // Fetch Weight
       List<HealthDataPoint> weightData = [];
       try {
-        weightData = await _health.getHealthDataFromTypes(
+        weightData = await _readHealthData(
           startTime: startDate,
           endTime: now,
           types: [HealthDataType.WEIGHT],
@@ -1438,7 +1453,7 @@ class HealthService {
     required String label,
   }) async {
     try {
-      final points = await _health.getHealthDataFromTypes(
+      final points = await _readHealthData(
         startTime: startDate,
         endTime: endDate,
         types: [type],

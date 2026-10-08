@@ -116,10 +116,21 @@ const List<ExerciseDef> exerciseDatabase = [
   // ═══════════════════════════════════════
   // PETTO - CHEST
   // ═══════════════════════════════════════
-  ExerciseDef('bp', 'Bench Press', 'Petto', 'barbell'),
-  ExerciseDef('bp_inc', 'Incline Bench Press', 'Petto Alto', 'barbell'),
-  ExerciseDef('bp_dec', 'Decline Bench Press', 'Petto Basso', 'barbell'),
-  ExerciseDef('db_bp', 'Dumbbell Bench Press', 'Petto', 'dumbbell'),
+  ExerciseDef('bp', 'Bench Press', 'Petto', 'barbell', aliases: [
+    'panca piana',
+    'panca piana bilanciere',
+    'panca piana con bilanciere',
+    'flat bench press'
+  ]),
+  ExerciseDef('bp_inc', 'Incline Bench Press', 'Petto Alto', 'barbell',
+      aliases: ['panca inclinata', 'panca inclinata bilanciere']),
+  ExerciseDef('bp_dec', 'Decline Bench Press', 'Petto Basso', 'barbell',
+      aliases: ['panca declinata', 'panca declinata bilanciere']),
+  ExerciseDef('db_bp', 'Dumbbell Bench Press', 'Petto', 'dumbbell', aliases: [
+    'panca piana manubri',
+    'panca piana con manubri',
+    'distensioni manubri panca piana'
+  ]),
   ExerciseDef('db_bp_inc', 'Incline Dumbbell Press', 'Petto Alto', 'dumbbell'),
   ExerciseDef('db_fly', 'Dumbbell Fly', 'Petto', 'dumbbell'),
   ExerciseDef('db_fly_inc', 'Incline Dumbbell Fly', 'Petto Alto', 'dumbbell'),
@@ -129,7 +140,8 @@ const List<ExerciseDef> exerciseDatabase = [
       'cable_fly_high', 'Cable High-to-Low Fly', 'Petto Basso', 'cable'),
   ExerciseDef('chest_press_m', 'Chest Press Machine', 'Petto', 'machine'),
   ExerciseDef('pec_dec', 'Pec Deck / Butterfly', 'Petto', 'machine'),
-  ExerciseDef('pushup', 'Push-Up', 'Petto', 'bodyweight'),
+  ExerciseDef('pushup', 'Push-Up', 'Petto', 'bodyweight',
+      aliases: ['piegamenti sulle braccia', 'flessioni']),
   ExerciseDef('pushup_inc', 'Incline Push-Up', 'Petto Alto', 'bodyweight'),
   ExerciseDef('pushup_dec', 'Decline Push-Up', 'Petto Basso', 'bodyweight'),
   ExerciseDef('pushup_wide', 'Wide-Grip Push-Up', 'Petto', 'bodyweight'),
@@ -138,10 +150,21 @@ const List<ExerciseDef> exerciseDatabase = [
   // ═══════════════════════════════════════
   // SPALLE - SHOULDERS
   // ═══════════════════════════════════════
-  ExerciseDef('ohp', 'Overhead Press (Barbell)', 'Spalle', 'barbell'),
+  ExerciseDef('ohp', 'Overhead Press (Barbell)', 'Spalle', 'barbell', aliases: [
+    'military press',
+    'overhead press',
+    'lento avanti bilanciere',
+    'lento avanti con bilanciere'
+  ]),
   ExerciseDef('push_press', 'Push Press', 'Spalle', 'barbell'),
-  ExerciseDef('db_ohp', 'Dumbbell Shoulder Press', 'Spalle', 'dumbbell'),
-  ExerciseDef('db_lat_raise', 'Lateral Raise', 'Deltoide Lat.', 'dumbbell'),
+  ExerciseDef('db_ohp', 'Dumbbell Shoulder Press', 'Spalle', 'dumbbell',
+      aliases: [
+        'lento avanti manubri',
+        'lento avanti con manubri',
+        'shoulder press manubri'
+      ]),
+  ExerciseDef('db_lat_raise', 'Lateral Raise', 'Deltoide Lat.', 'dumbbell',
+      aliases: ['alzate laterali manubri', 'alzate laterali con manubri']),
   ExerciseDef('db_front_raise', 'Front Raise', 'Deltoide Ant.', 'dumbbell'),
   ExerciseDef('db_bent_raise', 'Bent-Over Rear Delt Raise', 'Deltoide Post.',
       'dumbbell'),
@@ -161,23 +184,39 @@ const List<ExerciseDef> exerciseDatabase = [
   // ═══════════════════════════════════════
   // SCHIENA - BACK
   // ═══════════════════════════════════════
-  ExerciseDef('back_squat', 'Back Squat', 'Quadricipiti', 'barbell'),
-  ExerciseDef('deadlift', 'Deadlift', 'Schiena / Gambe', 'barbell'),
-  ExerciseDef('sumo_dl', 'Sumo Deadlift', 'Schiena / Gambe', 'barbell'),
-  ExerciseDef('bent_row', 'Barbell Bent-Over Row', 'Dorsali', 'barbell'),
+  ExerciseDef('back_squat', 'Back Squat', 'Quadricipiti', 'barbell', aliases: [
+    'squat',
+    'squat bilanciere',
+    'squat con bilanciere',
+    'squat posteriore'
+  ]),
+  ExerciseDef('deadlift', 'Deadlift', 'Schiena / Gambe', 'barbell', aliases: [
+    'stacco',
+    'stacco da terra',
+    'stacchi da terra',
+    'stacco convenzionale'
+  ]),
+  ExerciseDef('sumo_dl', 'Sumo Deadlift', 'Schiena / Gambe', 'barbell',
+      aliases: ['stacco sumo', 'stacchi sumo']),
+  ExerciseDef('bent_row', 'Barbell Bent-Over Row', 'Dorsali', 'barbell',
+      aliases: ['rematore bilanciere', 'rematore con bilanciere']),
   ExerciseDef('pendlay_row', 'Pendlay Row', 'Dorsali', 'barbell'),
-  ExerciseDef('db_row', 'Dumbbell Row', 'Dorsali', 'dumbbell'),
+  ExerciseDef('db_row', 'Dumbbell Row', 'Dorsali', 'dumbbell',
+      aliases: ['rematore manubrio', 'rematore con manubrio']),
   ExerciseDef('db_pullover', 'Dumbbell Pullover', 'Dorsali', 'dumbbell'),
-  ExerciseDef('pullup', 'Pull-Up', 'Dorsali', 'bodyweight'),
+  ExerciseDef('pullup', 'Pull-Up', 'Dorsali', 'bodyweight',
+      aliases: ['trazioni', 'trazioni alla sbarra', 'trazioni presa prona']),
   ExerciseDef('chinup', 'Chin-Up', 'Dorsali / Bicipiti', 'bodyweight'),
   ExerciseDef(
       'neutral_pullup', 'Neutral-Grip Pull-Up', 'Dorsali', 'bodyweight'),
   ExerciseDef(
       'inverted_row', 'Inverted Row (Bodyweight)', 'Dorsali', 'bodyweight'),
   ExerciseDef(
-      'lat_pulldown', 'Lat Pulldown (Presa Larga)', 'Dorsali', 'machine'),
+      'lat_pulldown', 'Lat Pulldown (Presa Larga)', 'Dorsali', 'machine',
+      aliases: ['lat machine', 'lat machine presa larga']),
   ExerciseDef(
-      'lat_pd_close', 'Lat Pulldown Presa Stretta', 'Dorsali', 'machine'),
+      'lat_pd_close', 'Lat Pulldown Presa Stretta', 'Dorsali', 'machine',
+      aliases: ['lat machine presa stretta']),
   ExerciseDef('seat_row', 'Seated Cable Row', 'Dorsali', 'cable'),
   ExerciseDef(
       'seat_row_wide', 'Seated Cable Row (Presa Larga)', 'Dorsali', 'cable'),
@@ -224,14 +263,17 @@ const List<ExerciseDef> exerciseDatabase = [
   // ═══════════════════════════════════════
   // GAMBE - LEGS
   // ═══════════════════════════════════════
-  ExerciseDef('front_squat', 'Front Squat', 'Quadricipiti', 'barbell'),
+  ExerciseDef('front_squat', 'Front Squat', 'Quadricipiti', 'barbell',
+      aliases: ['squat frontale']),
   ExerciseDef('box_squat', 'Box Squat', 'Quadricipiti', 'barbell'),
   ExerciseDef('hack_squat', 'Hack Squat', 'Quadricipiti', 'machine'),
-  ExerciseDef('leg_press', 'Leg Press', 'Quadricipiti', 'machine'),
+  ExerciseDef('leg_press', 'Leg Press', 'Quadricipiti', 'machine',
+      aliases: ['pressa', 'pressa gambe']),
   ExerciseDef('leg_ext', 'Leg Extension', 'Quadricipiti', 'machine'),
   ExerciseDef('leg_curl', 'Leg Curl (Lying)', 'Femorali', 'machine'),
   ExerciseDef('seat_leg_curl', 'Leg Curl (Seated)', 'Femorali', 'machine'),
-  ExerciseDef('rdl', 'Romanian Deadlift (RDL)', 'Femorali', 'barbell'),
+  ExerciseDef('rdl', 'Romanian Deadlift (RDL)', 'Femorali', 'barbell',
+      aliases: ['stacco rumeno', 'stacchi rumeni', 'romanian deadlift']),
   ExerciseDef('single_rdl', 'Single-Leg RDL', 'Femorali', 'dumbbell'),
   ExerciseDef('stiff_dl', 'Stiff-Leg Deadlift', 'Femorali', 'barbell'),
   ExerciseDef('hip_thrust', 'Hip Thrust', 'Glutei', 'barbell'),

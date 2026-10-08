@@ -10,6 +10,9 @@ import '../data/dryland_prep_types.dart';
 import '../data/exercises.dart';
 import '../data/workout_catalog.dart';
 import '../models/models.dart';
+import '../models/workout_place.dart';
+import '../widgets/workout_location_field.dart';
+import '../widgets/workout_location_preview.dart';
 import '../models/training_activity_models.dart';
 import '../providers/app_state.dart';
 import '../services/training_activity_service.dart';
@@ -127,6 +130,7 @@ class _CoachEventDetailsScreenState extends State<CoachEventDetailsScreen> {
   late TextEditingController _startCtrl;
   late TextEditingController _endCtrl;
   late TextEditingController _locationCtrl;
+  WorkoutPlace? _locationPlace;
   late TextEditingController _notesCtrl;
   late TextEditingController _snowCtrl;
   late TextEditingController _weatherCtrl;
@@ -230,6 +234,7 @@ class _CoachEventDetailsScreenState extends State<CoachEventDetailsScreen> {
     _endCtrl = TextEditingController(text: event?.endTime ?? '12:00');
     _locationCtrl =
         TextEditingController(text: event?.location ?? 'Pista/Palestra');
+    _locationPlace = WorkoutPlace.tryParse(tech['locationPlace']);
     _notesCtrl = TextEditingController(text: event?.notes ?? '');
     _snowCtrl =
         TextEditingController(text: tech['snowCondition'] ?? 'Compatta');
@@ -624,6 +629,7 @@ class _CoachEventDetailsScreenState extends State<CoachEventDetailsScreen> {
       endTime: _endCtrl.text,
       duration: _calculateEventDurationMinutes().toString(),
       location: _locationCtrl.text.trim(),
+      locationPlace: _locationPlace,
       notes: _notesCtrl.text.trim(),
       createdByCoach: true,
       linkedCoachEventId: widget.event?.id,
@@ -662,7 +668,7 @@ class _CoachEventDetailsScreenState extends State<CoachEventDetailsScreen> {
       final teamIds = CoachTrainingUtils.teamIdsForEvent(event);
       for (final id in teamIds) {
         try {
-          final team = appState.teams.firstWhere((t) => t.id == id);
+          final team = appState.activeTeams.firstWhere((t) => t.id == id);
           if (!_selectedTeams.any((t) => t.id == team.id)) {
             _selectedTeams.add(team);
           }
@@ -977,7 +983,13 @@ class _CoachEventDetailsScreenState extends State<CoachEventDetailsScreen> {
             ],
           ),
           const SizedBox(height: 14),
-          _input('Luogo', _locationCtrl, icon: Icons.location_on_outlined),
+          WorkoutLocationField(
+            controller: _locationCtrl,
+            place: _locationPlace,
+            onPlaceChanged: (place) => setState(() => _locationPlace = place),
+          ),
+          if (_locationPlace case final place?)
+            WorkoutLocationPreview(place: place),
         ],
       ),
     );
@@ -1814,10 +1826,6 @@ class _CoachEventDetailsScreenState extends State<CoachEventDetailsScreen> {
   }
 
   Widget _coachEnduranceEditor() {
-    _endurance.putIfAbsent(
-      'durationSeconds',
-      () => _calculateEventDurationMinutes() * 60,
-    );
     return Container(
       padding: const EdgeInsets.all(12),
       decoration: _drylandPanelDecoration(),
@@ -2361,7 +2369,7 @@ class _CoachEventDetailsScreenState extends State<CoachEventDetailsScreen> {
   }
 
   Widget _buildTeamSection() {
-    final teams = Provider.of<AppState>(context, listen: false).teams;
+    final teams = Provider.of<AppState>(context, listen: false).activeTeams;
     return _sectionCard(
       title: 'Team',
       icon: Icons.groups_outlined,
@@ -3517,6 +3525,7 @@ class _CoachEventDetailsScreenState extends State<CoachEventDetailsScreen> {
     if (!_isSki) {
       return {
         'technicalVersion': 2,
+        'locationPlace': _locationPlace?.toJson(),
         'teamIds': _selectedTeams.map((team) => team.id).toList(),
         'plannedDrylandSession': _buildPlannedDrylandSession(),
       };
@@ -3526,6 +3535,7 @@ class _CoachEventDetailsScreenState extends State<CoachEventDetailsScreen> {
     if (activeDrafts.isEmpty) {
       return {
         'technicalVersion': 3,
+        'locationPlace': _locationPlace?.toJson(),
         'teamIds': _selectedTeams.map((team) => team.id).toList(),
         'qualityRating': _qualityRating,
         'snowCondition': _snowCtrl.text,
@@ -3562,6 +3572,7 @@ class _CoachEventDetailsScreenState extends State<CoachEventDetailsScreen> {
 
     final details = <String, dynamic>{
       'technicalVersion': 3,
+      'locationPlace': _locationPlace?.toJson(),
       'teamIds': _selectedTeams.map((team) => team.id).toList(),
       'qualityRating': _qualityRating,
       'snowCondition': _snowCtrl.text,
