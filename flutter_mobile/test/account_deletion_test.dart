@@ -1,8 +1,10 @@
 import 'dart:async';
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter_mobile/core/theme.dart';
 import 'package:flutter_mobile/screens/account_deletion_screen.dart';
 import 'package:flutter_mobile/services/account_deletion_service.dart';
+import 'package:flutter_mobile/services/account_deletion_cache.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -110,6 +112,7 @@ void main() {
   });
 
   for (final brightness in Brightness.values) {
+    // Both themes exercise the same destructive confirmation and status flow.
     testWidgets('confirmation and verified completion in $brightness',
         (tester) async {
       final repository = _Repository();
@@ -160,6 +163,29 @@ void main() {
       await tester.pumpWidget(const SizedBox());
     });
   }
+  test('erases app cache media copies, preserving other files and originals',
+      () async {
+    final fixture =
+        await Directory.systemTemp.createTemp('4athletes-deletion-cache-');
+    final cache = await Directory('${fixture.path}/cache').create();
+    final original =
+        await File('${fixture.path}/original.jpg').writeAsString('original');
+    final photo = await File('${cache.path}/picked.png').writeAsString('photo');
+    final other = await File('${cache.path}/engine.bin').writeAsString('cache');
+    try {
+      await clearTemporaryAccountMedia(cache);
+      expect(await photo.exists(), isFalse);
+      expect(await original.exists(), isTrue);
+      expect(await other.exists(), isTrue);
+    } finally {
+      // Every target was created inside this unique fixture directory.
+      if (await photo.exists()) await photo.delete();
+      await other.delete();
+      await original.delete();
+      await cache.delete();
+      await fixture.delete();
+    }
+  });
   testWidgets('requires re-login without deleting or claiming success',
       (tester) async {
     final repository = _Repository()

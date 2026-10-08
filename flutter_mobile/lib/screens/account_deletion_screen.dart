@@ -82,7 +82,10 @@ class _AccountDeletionScreenState extends State<AccountDeletionScreen> {
 
   void _updateStatus(String status) {
     final changed = _status != status;
-    setState(() { _status = status; _error = null; });
+    setState(() {
+      _status = status;
+      _error = null;
+    });
     if (changed) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (mounted && _scroll.hasClients) _scroll.jumpTo(0);

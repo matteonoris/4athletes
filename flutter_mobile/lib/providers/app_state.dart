@@ -23,6 +23,7 @@ import '../services/health_import_normalizer.dart';
 import '../services/health_service.dart';
 import '../services/health_consent_service.dart';
 import '../services/account_deletion_service.dart';
+import '../services/account_deletion_cache.dart';
 import '../services/health_read_guard.dart';
 import '../services/native_health_service.dart';
 import '../services/private_avatar_service.dart';
@@ -814,6 +815,7 @@ class AppState extends ChangeNotifier {
       _clearRemoteBackedData();
       _userProfile = null;
       notifyListeners();
+      await clearDeletedAccountDeviceCache();
     }
     await prefs.remove(AccountDeletionService.ownerKey);
   }
