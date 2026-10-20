@@ -1,5 +1,12 @@
 # AGENTS.md
 
+## iOS permission audit and TestFlight — 20 October 2026
+
+- Apple source is `1.0.4+37`. The iOS audit removed unused microphone and menstrual-flow access plus the legacy heartbeat-series/RR pipeline, whose separate persisted RMSSD output had no screen or wellness-score consumer. Keep the active Apple HRV SDNN import/chart/recovery path; do not describe SDNN as RMSSD. No historical server records were deleted. See `flutter_mobile/docs/ios-permissions-audit.md` for all 16 retained HealthKit read categories and app permission consumers.
+- Register the native HealthKit workout channel in `didInitializeImplicitFlutterEngine`, not the launch-time window, because the app uses UIScene. iOS running speed uses the native HealthKit path; the health plugin's generic `SPEED` enum is Android-only.
+- `NSHealthUpdateUsageDescription` remains as compatibility metadata with explicit read-only wording. It is not a write authorization: Dart requests READ, the Swift request uses `toShare: nil`, and no Apple Health writing is implemented. The TestFlight lane verifies the signed IPA's usage keys, HealthKit/Apple sign-in entitlements and version/build before upload.
+- The final source passed all 522 Flutter tests and static analysis of 26 changed/new Dart files; 58 focused regressions also passed. Physical iPhone/Apple Watch comparisons and partial/denied OS-access checks remain pending. Release tag `testflight-v1.0.4+37` is published and points to `58fae10c9f988387281a91cc45843b7f23e9fec8`. At 19:52 Europe/Rome, GitHub Actions run `39466615149` was still in progress with no failed step; the initial iOS app build succeeded, but signed-IPA verification, upload, Apple processing and external distribution were not yet confirmed. Check the run and `flutter_mobile/docs/testflight-release-2026-10-20.md` before claiming TestFlight availability; never reuse the tag for a retry. No App Store production review was requested. The current signed Android AAB remains `1.0.4+36` with its previously recorded hash.
+
 ## Project Memory
 
 - For backend work involving Supabase, use the project's Supabase MCP server instead of guessing schema, data, or project state.
