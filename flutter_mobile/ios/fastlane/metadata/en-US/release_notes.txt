@@ -1,7 +1,7 @@
-This update restores team visibility with the protected team access system and adds new workout tools.
+This update improves Apple Health imports and daily movement tracking.
 
-- Restores existing teams, member lists, invitations, attendance and team reports in the updated app.
-- Adds manager controls for coach approval and team membership, with personal health measurements read-only for coaches.
-- Adds health-data consent and revocation controls, clearer Apple Health access guidance and account deletion from the profile.
-- Imports exercises from photos and PDFs on the device, with review before adding them to a workout and matching to the exercise catalog.
-- Adds workout place suggestions and map previews, improves athlete reports and activity details, and preserves the dedicated alpine-skiing workflow.
+- Removes unused microphone, menstrual-flow and heartbeat-series access; HRV continues to use Apple Health SDNN.
+- Restores the native Apple Health connection for workout details with the current iOS lifecycle and clarifies why health data is read.
+- Shows daily steps and steps outside workouts, with a limited contribution to daily strain and clear unavailable-data states.
+- Improves navigation from health-score notifications and adds email/password sign-in alongside Google and Apple.
+- Preserves health-data consent, revocation and account-deletion controls.

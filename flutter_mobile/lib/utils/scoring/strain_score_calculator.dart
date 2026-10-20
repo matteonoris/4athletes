@@ -150,6 +150,79 @@ DailyStrainResult calculateDailyStrain(
   List<WorkoutSessionInput> sessions,
   AthleteStrainProfile profile,
   List<HistoricalDailyStrainLoad> historicalLoads, {
+  DailyMovementInput? dailyMovement,
+  AlgorithmConfig config = defaultAlgorithmConfig,
+}) {
+  final training = _calculateTrainingStrain(
+      date, sessions, profile, historicalLoads,
+      config: config);
+  return dailyMovement == null
+      ? training
+      : applyDailyMovementToStrain(training, dailyMovement, config: config);
+}
+
+/// Product calibration: 1 point per 1,000 non-workout steps, capped at 20.
+/// Training baselines stay session-only; this is not a cardiac-load estimate.
+DailyStrainResult applyDailyMovementToStrain(
+    DailyStrainResult training, DailyMovementInput movement,
+    {AlgorithmConfig config = defaultAlgorithmConfig}) {
+  final total = movement.totalSteps;
+  final outside = movement.outsideWorkoutSteps;
+  final available = total != null &&
+      total >= 0 &&
+      total <= 200000 &&
+      outside != null &&
+      outside >= 0 &&
+      outside <= total;
+  final movementScore = available
+      ? math.min(config.strainScore.maxDailyMovementScore,
+          outside / config.strainScore.stepsPerMovementPoint)
+      : null;
+  final noTraining = (training.components['sessionCount'] as num? ?? 0) == 0;
+  final base = training.score;
+  final score = base == null || (!available && noTraining)
+      ? null
+      : base +
+          (config.score.max - base) * (movementScore ?? 0) / config.score.max;
+  final warnings = <String>[
+    ...training.warnings,
+    if (!available) movement.unavailableReason ?? 'daily_steps_unavailable',
+    if (available && movementScore! > 0) 'daily_steps_load_estimated',
+    if (movement.isPartialDay) 'daily_steps_partial_day',
+  ];
+  return DailyStrainResult(
+      score: score,
+      status: score == null
+          ? StrainScoreStatus.insufficientData
+          : training.status == StrainScoreStatus.calibrationPhase
+              ? training.status
+              : warnings.isNotEmpty
+                  ? StrainScoreStatus.partialData
+                  : training.status,
+      confidence: score == null
+          ? 0
+          : available && movementScore! > 0
+              ? math.min(training.confidence, 0.5)
+              : training.confidence,
+      components: {
+        ...training.components,
+        'trainingScore': base,
+        'dailyMovement': {
+          'totalSteps': total,
+          'outsideWorkoutSteps': available ? outside : null,
+          'score': movementScore,
+          'isPartialDay': movement.isPartialDay,
+          'method': 'non_workout_steps_capped_v1'
+        }
+      },
+      warnings: uniqueWarnings(warnings));
+}
+
+DailyStrainResult _calculateTrainingStrain(
+  String date,
+  List<WorkoutSessionInput> sessions,
+  AthleteStrainProfile profile,
+  List<HistoricalDailyStrainLoad> historicalLoads, {
   AlgorithmConfig config = defaultAlgorithmConfig,
 }) {
   final daySessions =

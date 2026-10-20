@@ -261,6 +261,19 @@ class SessionStrainResult {
   });
 }
 
+class DailyMovementInput {
+  final int? totalSteps;
+  final int? outsideWorkoutSteps;
+  final bool isPartialDay;
+  final String? unavailableReason;
+
+  const DailyMovementInput(
+      {this.totalSteps,
+      this.outsideWorkoutSteps,
+      this.isPartialDay = false,
+      this.unavailableReason});
+}
+
 class DailyStrainResult {
   final double? score;
   final StrainScoreStatus status;

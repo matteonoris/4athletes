@@ -1,7 +1,7 @@
-Questo aggiornamento ripristina la visibilità delle squadre con il sistema di accesso protetto e aggiunge nuovi strumenti per gli allenamenti.
+Questo aggiornamento migliora l’importazione da Apple Salute e il monitoraggio del movimento quotidiano.
 
-- Ripristina squadre esistenti, elenchi membri, inviti, presenze e report nella nuova versione dell'app.
-- Aggiunge i controlli dei responsabili per approvare gli allenatori e gestire i membri; le misurazioni salute personali restano in sola lettura per i coach.
-- Aggiunge consenso e revoca per i dati salute, indicazioni più chiare per Apple Salute ed eliminazione dell'account dal profilo.
-- Importa esercizi da foto e PDF sul dispositivo, con revisione prima di aggiungerli all'allenamento e associazione al catalogo esercizi.
-- Aggiunge suggerimenti dei luoghi e anteprime delle mappe, migliora report atleta e dettagli attività e mantiene il modulo dedicato allo sci alpino.
+- Rimuove gli accessi inutilizzati a microfono, flusso mestruale e serie di battiti; l’HRV continua a usare il valore SDNN di Apple Salute.
+- Ripristina il collegamento nativo ad Apple Salute per i dettagli degli allenamenti con l’attuale ciclo di avvio iOS e chiarisce perché vengono letti i dati salute.
+- Mostra passi giornalieri e passi fuori dagli allenamenti, con un contributo limitato al carico quotidiano e indicazioni quando i dati non sono disponibili.
+- Migliora la navigazione dalle notifiche dei punteggi salute e aggiunge l’accesso con email e password accanto a Google e Apple.
+- Mantiene i controlli di consenso, revoca ed eliminazione dell’account.

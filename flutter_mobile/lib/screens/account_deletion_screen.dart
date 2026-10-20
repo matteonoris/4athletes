@@ -178,7 +178,8 @@ class _AccountDeletionScreenState extends State<AccountDeletionScreen> {
             const SizedBox(height: 16),
             const Text(
                 'I dati degli altri atleti e le attività condivise della '
-                'squadra restano disponibili, senza i tuoi riferimenti personali. '
+                'squadra restano disponibili, senza le tue risposte e i '
+                'collegamenti al tuo account. '
                 'Se sei l’ultimo responsabile, la squadra resterà da riassegnare. '
                 'Puoi nominare prima un altro responsabile dalla squadra.'),
             const SizedBox(height: 16),

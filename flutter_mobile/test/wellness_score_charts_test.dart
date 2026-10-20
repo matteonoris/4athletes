@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_mobile/core/theme.dart';
 import 'package:flutter_mobile/models/models.dart';
 import 'package:flutter_mobile/providers/app_state.dart';
+import 'package:flutter_mobile/services/daily_steps_service.dart';
 import 'package:flutter_mobile/screens/analytics_details_screen.dart';
 import 'package:flutter_mobile/screens/health_screen.dart';
 import 'package:flutter_mobile/utils/health_display_utils.dart';
@@ -29,6 +30,38 @@ void main() {
   });
 
   for (final brightness in Brightness.values) {
+    testWidgets(
+        'daily steps distinguish observed zero and missing in ${brightness.name}',
+        (tester) async {
+      for (final count in [null, 0, 12000]) {
+        final state = AppState();
+        final now = DateTime.now();
+        if (count != null) {
+          final plan = DailyStepsPlan.forDay(now, now, []);
+          state.addLocalBodyLog(DailyStepsSnapshot(
+                  date: now.toIso8601String().split('T').first,
+                  totalSteps: count,
+                  outsideWorkoutSteps: count,
+                  source: 'synthetic',
+                  observedUntil: now,
+                  exclusionKey: plan.exclusionKey)
+              .toLog());
+        }
+        await _mount(tester, state, brightness, const HealthScreen());
+        expect(find.text('Passi di oggi'), findsOneWidget);
+        expect(find.text('Fuori dagli allenamenti'), findsOneWidget);
+        if (count == null) {
+          expect(find.text('Nessun dato sui passi disponibile per oggi.'),
+              findsOneWidget);
+        } else {
+          expect(find.text(count == 0 ? '0' : '12.000'), findsNWidgets(2));
+        }
+        expect(tester.takeException(), isNull);
+        await tester.pumpWidget(const SizedBox());
+        state.dispose();
+      }
+    });
+
     for (final type in ['sleep_score', 'recovery_score']) {
       testWidgets(
           '$type athlete and coach detail keep 0–100 and calendar gaps in ${brightness.name}',

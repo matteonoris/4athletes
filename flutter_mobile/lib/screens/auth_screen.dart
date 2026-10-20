@@ -20,6 +20,7 @@ import 'home_screen.dart';
 import '../widgets/health_consent_gate.dart';
 import '../services/account_deletion_service.dart';
 import 'account_deletion_screen.dart';
+import 'email_login_screen.dart';
 
 enum _SignupStep { role, personal, physical, photo }
 
@@ -356,6 +357,16 @@ class _AuthScreenState extends State<AuthScreen>
         .pushReplacement(MaterialPageRoute(builder: (_) => nextScreen));
   }
 
+  Future<void> _handleEmailSignIn() async {
+    final appState = context.read<AppState>();
+    final signedIn = await Navigator.of(context).push<bool>(MaterialPageRoute(
+      builder: (_) => EmailLoginScreen(onSignIn: (email, password) async {
+        await appState.signInWithEmailAndPassword(email, password);
+      }),
+    ));
+    if (mounted && signedIn == true) _navigateToNext();
+  }
+
   void _showMessage(String message) {
     if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
@@ -505,7 +516,19 @@ class _AuthScreenState extends State<AuthScreen>
             ),
           ),
         ],
-        const SizedBox(height: 20),
+        const SizedBox(height: 16),
+        OutlinedButton.icon(
+          onPressed: _handleEmailSignIn,
+          icon: const Icon(Icons.mail_outline),
+          label: const Text('Accedi con email'),
+          style: OutlinedButton.styleFrom(
+            foregroundColor: Theme.of(context).colorScheme.onSurface,
+            padding: const EdgeInsets.symmetric(vertical: 16),
+            shape:
+                RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          ),
+        ),
+        const SizedBox(height: 12),
         TextButton(
           onPressed: () => openLegalPage(context, privacyPolicyUrl),
           child: const Text('Informativa privacy'),

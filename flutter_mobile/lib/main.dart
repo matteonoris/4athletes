@@ -12,7 +12,6 @@ import 'core/theme.dart';
 import 'providers/app_state.dart';
 import 'screens/auth_screen.dart';
 import 'screens/home_screen.dart';
-import 'screens/health_screen.dart';
 import 'widgets/health_score_notice_host.dart';
 import 'widgets/health_consent_gate.dart';
 import 'screens/coach_dashboard_screen.dart';
@@ -76,12 +75,13 @@ class _FourAthletesAppState extends State<FourAthletesApp>
     with WidgetsBindingObserver {
   final _navigatorKey = GlobalKey<NavigatorState>();
 
-  Future<void> _openHealthScores() async {
+  void _openHealthScores() {
     final state = context.read<AppState>();
-    await state.syncDailyHealthData(DateTime.now());
-    if (!mounted || !state.isLoggedIn) return;
-    await _navigatorKey.currentState
-        ?.push(MaterialPageRoute(builder: (_) => const HealthScreen()));
+    if (!state.isLoggedIn || state.userProfile?.role != 'athlete') return;
+    // Reopen the app root, including its login/consent gates, with a fresh Home
+    // tab, date and scroll position. Login may have replaced the initial route.
+    _navigatorKey.currentState?.pushNamedAndRemoveUntil<void>(
+        Navigator.defaultRouteName, (_) => false);
   }
 
   @override
@@ -143,7 +143,7 @@ class _FourAthletesAppState extends State<FourAthletesApp>
       navigatorKey: _navigatorKey,
       builder: (context, child) => HealthScoreNoticeHost(
         state: context.read<AppState>(),
-        onOpenScores: () => unawaited(_openHealthScores()),
+        onOpenScores: _openHealthScores,
         child: child ?? const SizedBox.shrink(),
       ),
       title: '4athletes',

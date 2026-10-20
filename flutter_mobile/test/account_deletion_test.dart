@@ -1,4 +1,3 @@
-import 'dart:async';
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter_mobile/core/theme.dart';
@@ -204,8 +203,11 @@ void main() {
             onLogin: () async => login++,
             onClose: () {})));
     await tester.pumpAndSettle();
+    await tester.scrollUntilVisible(find.byType(TextField), 150,
+        scrollable: find.byType(Scrollable).first);
     await tester.enterText(find.byType(TextField), 'ELIMINA');
-    await tester.ensureVisible(find.text('Elimina definitivamente'));
+    await tester.scrollUntilVisible(find.text('Elimina definitivamente'), 150,
+        scrollable: find.byType(Scrollable).first);
     await tester.pumpAndSettle();
     await tester.tap(find.text('Elimina definitivamente'));
     await tester.pumpAndSettle();

@@ -10,7 +10,9 @@ import 'package:google_sign_in/google_sign_in.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:sign_in_with_apple/sign_in_with_apple.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:uuid/uuid.dart';
 import '../core/dev_flags.dart';
+import '../core/signup_age.dart';
 import '../core/theme.dart';
 import '../data/workout_catalog.dart';
 import '../models/models.dart';
@@ -19,13 +21,13 @@ import '../services/health_sync_background_execution.dart';
 import '../models/training_activity_models.dart';
 import '../services/daily_health_metric_normalizer.dart';
 import '../services/daily_strain_persistence_service.dart';
+import '../services/daily_steps_service.dart';
 import '../services/health_import_normalizer.dart';
 import '../services/health_service.dart';
 import '../services/health_consent_service.dart';
 import '../services/account_deletion_service.dart';
 import '../services/account_deletion_cache.dart';
 import '../services/health_read_guard.dart';
-import '../services/native_health_service.dart';
 import '../services/private_avatar_service.dart';
 import '../services/team_access_service.dart';
 import '../core/coach_health_access.dart';
@@ -35,15 +37,16 @@ import '../services/training_reminder_notification_service.dart';
 import '../utils/coach_training_utils.dart';
 import '../utils/health_workout_merge_utils.dart';
 import '../utils/health_display_utils.dart';
-import '../utils/hrv_engine.dart';
 import '../utils/metrics_engine.dart';
 import '../utils/strain_session_mapper.dart';
 
 class AppState extends ChangeNotifier {
   AppState(
       {HealthSyncService? healthSyncService,
+      DailyStepsService? dailyStepsService,
       HealthConsentRepository? healthConsentRepository})
-      : _healthSyncService = healthSyncService ?? HealthSyncService() {
+      : _healthSyncService = healthSyncService ?? HealthSyncService(),
+        _dailyStepsService = dailyStepsService ?? DailyStepsService() {
     healthConsent = HealthConsentService(
         healthConsentRepository ?? SupabaseHealthConsentRepository(_supabase));
     healthConsent.addListener(_onHealthConsentChanged);
@@ -90,6 +93,12 @@ class AppState extends ChangeNotifier {
   static const String _themeModeKey = 'themeMode';
 
   SharedPreferences? _prefs;
+  int _remoteDataRevision = 0;
+  bool _emailLoginPending = false;
+  bool _mayApplyRemoteData(String owner, int revision) =>
+      owner.isNotEmpty &&
+      _authUserId == owner &&
+      revision == _remoteDataRevision;
   final _supabase = Supabase.instance.client;
 
   String? get _authUserId => _supabase.auth.currentUser?.id;
@@ -222,6 +231,7 @@ class AppState extends ChangeNotifier {
   List<WorkoutTemplate> get workoutTemplates => _workoutTemplates;
 
   final HealthSyncService _healthSyncService;
+  final DailyStepsService _dailyStepsService;
   final TrainingActivityService _trainingActivityService =
       const TrainingActivityService();
 
@@ -483,8 +493,14 @@ class AppState extends ChangeNotifier {
       // Assicuriamoci che i log corporei locali (Temp, SpO2, Resp) siano aggiornati prima di calcolare
       await syncDailyHealthMetrics(requestPermissions: requestPermissions);
       if (requestId != _healthDataRequestId) return;
+      final previousDay =
+          DateTime(targetDate.year, targetDate.month, targetDate.day - 1);
+      await syncDailyStepCounts(previousDay);
+      if (requestId != _healthDataRequestId) return;
+      await syncDailyStepCounts(targetDate);
+      if (requestId != _healthDataRequestId) return;
       await syncDailyStrainScore(
-        targetDate.subtract(const Duration(days: 1)),
+        previousDay,
         notify: false,
       );
       await syncDailyStrainScore(targetDate, notify: false);
@@ -680,14 +696,17 @@ class AppState extends ChangeNotifier {
     notifyListeners();
   }
 
-  Future<void> _loadAllData() async {
+  Future<void> _loadAllData({bool requireEligibleProfile = false}) async {
+    final owner = userId;
+    final revision = _remoteDataRevision;
     if (!_hasAuthSession) {
       _clearRemoteBackedData();
       return;
     }
 
     await loadHealthConsent();
-    await _loadUserProfile();
+    if (!_mayApplyRemoteData(owner, revision)) return;
+    await _loadUserProfile(requireEligibleProfile: requireEligibleProfile);
     await _loadSessions();
     await _loadTeams();
     await _loadBodyLogs();
@@ -696,6 +715,7 @@ class AppState extends ChangeNotifier {
     await _loadCoachEvents();
     await _loadNotifications();
     await _loadWorkoutTemplates();
+    if (!_mayApplyRemoteData(owner, revision)) return;
     await TrainingReminderNotificationService.instance.syncForProfile(
       _userProfile,
       bodyLogs: _bodyLogs,
@@ -703,6 +723,7 @@ class AppState extends ChangeNotifier {
   }
 
   void _clearRemoteBackedData() {
+    _remoteDataRevision++;
     healthConsent.reset();
     _healthScoreSnapshots.clear();
     _sessions.clear();
@@ -822,21 +843,58 @@ class AppState extends ChangeNotifier {
 
   Future<AuthResponse?> signInWithEmailAndPassword(
       String email, String password) async {
+    if (_emailLoginPending) throw const AuthException('Accesso già in corso.');
+    _emailLoginPending = true;
+    _isLoggedIn = false;
+    _userProfile = null;
+    _clearRemoteBackedData();
+    final revision = _remoteDataRevision;
+    String? owner;
     try {
+      _prefs ??= await SharedPreferences.getInstance();
+      await _prefs!.remove('isLoggedIn');
       final response = await _supabase.auth.signInWithPassword(
-        email: email,
+        email: email.trim().toLowerCase(),
         password: password,
       );
-      if (response.user != null) {
-        _isLoggedIn = true;
-        _prefs!.setBool('isLoggedIn', true);
-        await _loadAllData();
-        notifyListeners();
+      owner = response.user?.id;
+      if (owner == null ||
+          response.session == null ||
+          !_mayApplyRemoteData(owner, revision)) {
+        throw const AuthException('Accesso interrotto.');
       }
+      await _loadAllData(requireEligibleProfile: true);
+      if (!_mayApplyRemoteData(owner, revision) || _userProfile?.id != owner) {
+        throw const AuthException('Accesso interrotto.');
+      }
+      await _prefs!.setBool('isLoggedIn', true);
+      if (!_mayApplyRemoteData(owner, revision)) {
+        await _prefs!.remove('isLoggedIn');
+        throw const AuthException('Accesso interrotto.');
+      }
+      _isLoggedIn = true;
+      notifyListeners();
       return response;
-    } catch (e) {
-      debugPrint('Error signing in with Email/Password: $e');
+    } catch (_) {
+      // Do not overwrite another account or a newer logout/deletion operation.
+      if (revision == _remoteDataRevision) {
+        _isLoggedIn = false;
+        _userProfile = null;
+        _clearRemoteBackedData();
+        await _prefs?.remove('isLoggedIn');
+        try {
+          await _supabase.auth.signOut(scope: SignOutScope.local);
+        } catch (_) {/* Local state is already cleared. */}
+        notifyListeners();
+      } else if (owner != null && _authUserId == owner && !_isLoggedIn) {
+        // A password response that arrived after logout must not retain a session.
+        try {
+          await _supabase.auth.signOut(scope: SignOutScope.local);
+        } catch (_) {/* Preserve the newer cleared state. */}
+      }
       rethrow;
+    } finally {
+      _emailLoginPending = false;
     }
   }
 
@@ -1218,7 +1276,8 @@ class AppState extends ChangeNotifier {
 
   // ==== SUPABASE LOADERS ====
 
-  Future<void> _loadUserProfile() async {
+  Future<void> _loadUserProfile({bool requireEligibleProfile = false}) async {
+    final revision = _remoteDataRevision;
     try {
       final authUser = _supabase.auth.currentUser;
       if (authUser == null) return;
@@ -1228,8 +1287,25 @@ class AppState extends ChangeNotifier {
           .select()
           .eq('id', authUser.id)
           .maybeSingle();
+      if (!_mayApplyRemoteData(authUser.id, revision)) return;
+      if (requireEligibleProfile) {
+        if (data == null ||
+            data['id'] != authUser.id ||
+            !['athlete', 'coach'].contains(data['role'])) {
+          throw const AuthException('Profilo non disponibile.',
+              code: 'profile_unavailable');
+        }
+        final birthError =
+            signupBirthDateError(data['birth_date']?.toString() ?? '');
+        if (birthError != null) {
+          throw AuthException(birthError,
+              code: birthError == minimumSignupAgeMessage
+                  ? 'age_restricted'
+                  : 'profile_unavailable');
+        }
+      }
       if (data != null) {
-        _userProfile = UserProfile(
+        final loadedProfile = UserProfile(
           id: data['id']?.toString() ?? authUser.id,
           firstName: data['first_name'] ?? 'Utente',
           lastName: data['last_name'] ?? 'User',
@@ -1265,22 +1341,29 @@ class AppState extends ChangeNotifier {
                   .toList()
               : null,
         );
+        if (!_mayApplyRemoteData(authUser.id, revision)) return;
+        _userProfile = loadedProfile;
       } else if (_userProfile?.id != authUser.id) {
         _userProfile = null;
         debugPrint('No profile row found for signed-in user ${authUser.id}.');
       }
     } catch (e) {
+      if (requireEligibleProfile) rethrow;
       debugPrint('Error loading profile: $e');
     }
   }
 
   Future<void> _loadSessions() async {
+    final owner = userId;
+    final revision = _remoteDataRevision;
+    if (!_mayApplyRemoteData(owner, revision)) return;
     try {
       final data = await _supabase
           .from('training_sessions')
           .select()
           .eq('user_id', userId)
           .order('date', ascending: false);
+      if (!_mayApplyRemoteData(owner, revision)) return;
       _sessions = (data as List)
           .map((e) => TrainingSession(
                 id: e['id'],
@@ -1388,9 +1471,15 @@ class AppState extends ChangeNotifier {
   }
 
   Future<void> _loadTeams() async {
+    final owner = userId;
+    final revision = _remoteDataRevision;
+    if (!_mayApplyRemoteData(owner, revision)) return;
     try {
-      _teams = await TeamAccessService(_supabase).teams();
+      final teams = await TeamAccessService(_supabase).teams();
+      if (!_mayApplyRemoteData(owner, revision)) return;
+      _teams = teams;
     } catch (e) {
+      if (!_mayApplyRemoteData(owner, revision)) return;
       _teams = [];
       debugPrint('Impossibile verificare le squadre: $e');
     }
@@ -1403,6 +1492,9 @@ class AppState extends ChangeNotifier {
   }
 
   Future<void> _loadBodyLogs() async {
+    final owner = userId;
+    final revision = _remoteDataRevision;
+    if (!_mayApplyRemoteData(owner, revision)) return;
     try {
       const requestedPageSize = 500;
       final rows = <dynamic>[];
@@ -1415,6 +1507,7 @@ class AppState extends ChangeNotifier {
             .order('date', ascending: false)
             .order('id', ascending: false)
             .range(offset, offset + requestedPageSize - 1);
+        if (!_mayApplyRemoteData(owner, revision)) return;
         final pageRows = page as List;
         if (pageRows.isEmpty) break;
         rows.addAll(pageRows);
@@ -1427,6 +1520,8 @@ class AppState extends ChangeNotifier {
                 date: e['date'],
                 type: e['type'],
                 value: (e['value'] as num).toDouble(),
+                metadata:
+                    Map<String, dynamic>.from(e['metadata'] as Map? ?? {}),
               ))
           .toList()
         ..sort((a, b) {
@@ -1439,12 +1534,16 @@ class AppState extends ChangeNotifier {
   }
 
   Future<void> _loadPrLogs() async {
+    final owner = userId;
+    final revision = _remoteDataRevision;
+    if (!_mayApplyRemoteData(owner, revision)) return;
     try {
       final data = await _supabase
           .from('pr_logs')
           .select()
           .eq('user_id', userId)
           .order('date', ascending: true);
+      if (!_mayApplyRemoteData(owner, revision)) return;
       _prLogs = (data as List)
           .map((e) => PRLog(
                 id: e['id'],
@@ -1460,12 +1559,16 @@ class AppState extends ChangeNotifier {
   }
 
   Future<void> _loadJumpLogs() async {
+    final owner = userId;
+    final revision = _remoteDataRevision;
+    if (!_mayApplyRemoteData(owner, revision)) return;
     try {
       final data = await _supabase
           .from('jump_logs')
           .select()
           .eq('user_id', userId)
           .order('date', ascending: true);
+      if (!_mayApplyRemoteData(owner, revision)) return;
       _jumpLogs = (data as List)
           .map((e) => JumpLog(
                 id: e['id'],
@@ -1480,8 +1583,12 @@ class AppState extends ChangeNotifier {
   }
 
   Future<void> _loadCoachEvents() async {
+    final owner = userId;
+    final revision = _remoteDataRevision;
+    if (!_mayApplyRemoteData(owner, revision)) return;
     try {
       final data = await _supabase.rpc('my_calendar_events');
+      if (!_mayApplyRemoteData(owner, revision)) return;
       _coachEvents = (data as List)
           .map((e) => CalendarEvent(
                 id: e['id'],
@@ -1508,12 +1615,16 @@ class AppState extends ChangeNotifier {
   }
 
   Future<void> _loadNotifications() async {
+    final owner = userId;
+    final revision = _remoteDataRevision;
+    if (!_mayApplyRemoteData(owner, revision)) return;
     try {
       final data = await _supabase
           .from('notifications')
           .select()
           .eq('user_id', userId)
           .order('timestamp', ascending: false);
+      if (!_mayApplyRemoteData(owner, revision)) return;
       _notifications = (data as List)
           .map((e) => AppNotification(
                 id: e['id'],
@@ -1530,12 +1641,16 @@ class AppState extends ChangeNotifier {
   }
 
   Future<void> _loadWorkoutTemplates() async {
+    final owner = userId;
+    final revision = _remoteDataRevision;
+    if (!_mayApplyRemoteData(owner, revision)) return;
     try {
       final data = await _supabase
           .from('workout_templates')
           .select()
           .eq('is_archived', false)
           .order('updated_at', ascending: false);
+      if (!_mayApplyRemoteData(owner, revision)) return;
       _workoutTemplates = (data as List)
           .whereType<Map>()
           .map((item) =>
@@ -1547,6 +1662,7 @@ class AppState extends ChangeNotifier {
       debugPrint('Error loading workout templates from Supabase: $e');
     }
 
+    if (!_mayApplyRemoteData(owner, revision)) return;
     try {
       final raw = _prefs?.getString('workoutTemplates');
       if (raw == null || raw.isEmpty) {
@@ -2206,6 +2322,8 @@ class AppState extends ChangeNotifier {
                 date: e['date'],
                 type: e['type'],
                 value: (e['value'] as num).toDouble(),
+                metadata:
+                    Map<String, dynamic>.from(e['metadata'] as Map? ?? {}),
               ))
           .toList();
     } catch (e) {
@@ -2305,6 +2423,8 @@ class AppState extends ChangeNotifier {
     await _syncHealthWorkoutImports(days: days);
     if (!_healthImportStillAllowed(owner, revision)) return;
     await syncDailyHealthMetrics();
+    if (!_healthImportStillAllowed(owner, revision)) return;
+    await syncDailyStepCounts(DateTime.now());
     if (!_healthImportStillAllowed(owner, revision)) return;
     await syncDailyStrainScore(DateTime.now(), notify: false);
   }
@@ -2448,6 +2568,7 @@ class AppState extends ChangeNotifier {
         bodyMassKg: _userProfile!.weight,
       ),
       _historicalStrainLoadsForDate(targetDate, inputs),
+      dailyMovement: dailyMovementForDate(targetDate, inputs: inputs),
       config: defaultAlgorithmConfig,
     );
 
@@ -2457,15 +2578,6 @@ class AppState extends ChangeNotifier {
       result: result,
       algorithmVersion: defaultAlgorithmConfig.version,
     );
-    try {
-      await upsertDailyStrainScore(
-        supabase: _supabase,
-        payload: payload,
-      );
-    } catch (e) {
-      debugPrint('Error upserting daily strain score: $e');
-    }
-
     if (result.score == null) {
       await _removeBodyMetricLogForDate('strain_score', dateKey);
       if (notify) notifyListeners();
@@ -2477,6 +2589,7 @@ class AppState extends ChangeNotifier {
       date: dateKey,
       type: 'strain_score',
       value: result.score!,
+      metadata: {...payload, 'components': result.components},
     ));
 
     if (_currentDailyMetrics != null && _currentHealthDateKey == dateKey) {
@@ -2487,6 +2600,40 @@ class AppState extends ChangeNotifier {
     }
     if (notify) notifyListeners();
     return result;
+  }
+
+  DailyStepsSnapshot? dailyStepsForDate(DateTime date) {
+    final key = localDateKey(date);
+    for (final log in _bodyLogs.reversed) {
+      if (log.type == 'daily_steps' && log.date == key) {
+        return DailyStepsSnapshot.fromLog(log);
+      }
+    }
+    return null;
+  }
+
+  DailyMovementInput dailyMovementForDate(DateTime date,
+      {List<WorkoutSessionInput>? inputs}) {
+    final snapshot = dailyStepsForDate(date);
+    return snapshot?.forSessions(inputs ??
+            workoutInputsFromTrainingSessions(_sessions, athleteId: userId)) ??
+        const DailyMovementInput();
+  }
+
+  Future<void> syncDailyStepCounts(DateTime date) async {
+    final owner = userId;
+    final revision = healthConsent.revision;
+    if (!_healthImportStillAllowed(owner, revision)) return;
+    final inputs =
+        workoutInputsFromTrainingSessions(_sessions, athleteId: owner);
+    final snapshot = await withHealthReadConsent(
+        () => _healthImportStillAllowed(owner, revision),
+        () => _dailyStepsService.fetchDay(date, inputs));
+    if (snapshot == null || !_healthImportStillAllowed(owner, revision)) return;
+    final log = snapshot.toLog()
+      ..id = const Uuid().v5(
+          Namespace.url.value, '4athletes:$owner:daily_steps:${snapshot.date}');
+    await addBodyLog(log, updateProfile: false, notify: false);
   }
 
   Future<void> _removeBodyMetricLogForDate(String type, String dateKey) async {
@@ -2924,51 +3071,6 @@ class AppState extends ChangeNotifier {
         }
       }
 
-      // Native RR pipeline (currently available on iOS) feeds its own
-      // device-specific RMSSD baseline table.
-      if (!_healthImportStillAllowed(syncOwnerId, consentRevision)) return;
-      final rawRR = await withHealthReadConsent(
-          () => _healthImportStillAllowed(syncOwnerId, consentRevision),
-          NativeHealthService.getNightlyRRIntervals);
-      if (!_healthImportStillAllowed(syncOwnerId, consentRevision)) return;
-      if (rawRR.isNotEmpty) {
-        final dateStr = DateTime.now().toIso8601String().split('T')[0];
-
-        // Fetch historical HRV baselines
-        final historyRes = await _supabase
-            .from('hrv_baselines')
-            .select()
-            .eq('user_id', userId)
-            .order('date', ascending: true);
-
-        final historicalData = List<Map<String, dynamic>>.from(historyRes);
-        if (!_healthImportStillAllowed(syncOwnerId, consentRevision)) return;
-        String deviceSource =
-            Platform.isIOS ? 'Apple Watch' : 'Health Connect Device';
-
-        final hrvResult = HrvEngine.processNightlyHrv(
-          rawRRIntervals: rawRR,
-          deviceSource: deviceSource,
-          historicalData: historicalData,
-          measurementDate: dateStr,
-        );
-
-        if (hrvResult['rmssd'] > 0) {
-          // Salva su hrv_baselines
-          await _supabase.from('hrv_baselines').upsert({
-            'user_id': userId,
-            'date': dateStr,
-            'rmssd': hrvResult['rmssd'],
-            'device_source': hrvResult['device_source'],
-            'rolling_7d': hrvResult['rolling_7d'],
-            'rolling_30d': hrvResult['rolling_30d'],
-            'rolling_180d': hrvResult['rolling_180d'],
-            'rolling_365d': hrvResult['rolling_365d'],
-            'needs_calibration': hrvResult['needs_calibration'],
-          });
-        }
-      }
-
       // Health sources can correct an earlier daily weight. Persist every
       // changed aggregate, then update the profile once from the newest day.
       final weightLogs = List<BodyMetricLog>.from(
@@ -3008,13 +3110,18 @@ class AppState extends ChangeNotifier {
     bool updateProfile = true,
     bool notify = true,
   }) async {
+    final owner = userId;
+    final remoteRevision = _remoteDataRevision;
+    bool stillCurrent() =>
+        userId == owner && _remoteDataRevision == remoteRevision;
     final metricKey = '${log.type}|${log.date}';
     final existingIndex =
         _bodyLogs.indexWhere((l) => l.type == log.type && l.date == log.date);
     final existingLog = existingIndex >= 0 ? _bodyLogs[existingIndex] : null;
     final persistedId = existingLog?.id ?? log.id;
     final valueUnchanged = existingLog != null &&
-        (existingLog.value - log.value).abs() < 0.000000001;
+        (existingLog.value - log.value).abs() < 0.000000001 &&
+        jsonEncode(existingLog.metadata) == jsonEncode(log.metadata);
 
     // A normal refresh re-reads up to 90 days. Stable, already-persisted daily
     // aggregates must be true no-ops rather than SELECT + UPDATE pairs.
@@ -3026,6 +3133,7 @@ class AppState extends ChangeNotifier {
 
     if (existingIndex >= 0) {
       _bodyLogs[existingIndex].value = log.value;
+      _bodyLogs[existingIndex].metadata = log.metadata;
       log.id = _bodyLogs[existingIndex].id;
     } else {
       _bodyLogs.add(log);
@@ -3048,6 +3156,7 @@ class AppState extends ChangeNotifier {
     if (profileChanged) {
       await _saveUserProfile();
     }
+    if (!stillCurrent()) return false;
     if (notify && !valueUnchanged) notifyListeners();
 
     try {
@@ -3055,48 +3164,57 @@ class AppState extends ChangeNotifier {
       if (_isValidUuid(persistedId)) {
         existingData = await _supabase
             .from('body_metric_logs')
-            .update({'value': log.value})
+            .update({'value': log.value, 'metadata': log.metadata})
             .eq('id', persistedId)
+            .eq('user_id', owner)
             .select('id')
             .maybeSingle();
       } else {
         existingData = await _supabase
             .from('body_metric_logs')
             .select('id')
-            .eq('user_id', userId)
+            .eq('user_id', owner)
             .eq('date', log.date)
             .eq('type', log.type)
             .maybeSingle();
       }
 
+      if (!stillCurrent()) return false;
       if (existingData != null) {
         if (!_isValidUuid(persistedId)) {
           await _supabase
               .from('body_metric_logs')
-              .update({'value': log.value}).eq('id', existingData['id']);
+              .update({'value': log.value, 'metadata': log.metadata})
+              .eq('id', existingData['id'])
+              .eq('user_id', owner);
         }
+        if (!stillCurrent()) return false;
         final idx = _bodyLogs
             .indexWhere((l) => l.type == log.type && l.date == log.date);
         if (idx >= 0) _bodyLogs[idx].id = existingData['id'].toString();
       } else {
-        final response = await _supabase
-            .from('body_metric_logs')
-            .insert({
-              'user_id': userId,
-              'date': log.date,
-              'type': log.type,
-              'value': log.value,
-            })
+        final row = {
+          'user_id': owner,
+          'date': log.date,
+          'type': log.type,
+          'value': log.value,
+          'metadata': log.metadata,
+        };
+        final response = await (log.type == 'daily_steps'
+                ? _supabase
+                    .from('body_metric_logs')
+                    .upsert({...row, 'id': persistedId}, onConflict: 'id')
+                : _supabase.from('body_metric_logs').insert(row))
             .select()
             .single();
-
+        if (!stillCurrent()) return false;
         final idx = _bodyLogs
             .indexWhere((l) => l.type == log.type && l.date == log.date);
         if (idx >= 0) _bodyLogs[idx].id = response['id'].toString();
       }
       _dirtyBodyMetricKeys.remove(metricKey);
     } catch (e) {
-      _dirtyBodyMetricKeys.add(metricKey);
+      if (stillCurrent()) _dirtyBodyMetricKeys.add(metricKey);
       debugPrint('Error adding body log: $e');
     }
     return !valueUnchanged;

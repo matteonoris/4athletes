@@ -62,6 +62,7 @@ class _HealthScoreNoticeHostState extends State<HealthScoreNoticeHost>
     _notifications.healthScoreNotificationTap.value = null;
     if (widget.state.isLoggedIn &&
         widget.state.userProfile?.role == 'athlete') {
+      _dismiss();
       widget.onOpenScores();
     }
   }

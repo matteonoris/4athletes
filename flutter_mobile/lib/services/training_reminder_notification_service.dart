@@ -8,6 +8,7 @@ import 'package:timezone/timezone.dart' as tz;
 
 import '../models/models.dart';
 import '../models/health_score_update.dart';
+import 'health_sync_background_execution.dart';
 
 class TrainingReminderNotificationService {
   TrainingReminderNotificationService._();
@@ -65,6 +66,9 @@ class TrainingReminderNotificationService {
             true) {
       healthScoreNotificationTap.value = launch!.notificationResponse!.payload;
     }
+    await HealthSyncBackgroundExecution.initializeNotificationTapHandling(() {
+      healthScoreNotificationTap.value = 'health_scores_sync';
+    });
     _initialized = true;
   }
 

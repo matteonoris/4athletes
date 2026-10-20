@@ -17,9 +17,8 @@ void main() {
     TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
         .setMockMethodCallHandler(channel, (_) async {
       calls++;
-      return <double>[30];
+      return <Map<String, dynamic>>[{'id': 'workout'}];
     });
-    expect(await NativeHealthService.getNightlyRRIntervals(), isEmpty);
     expect(await NativeHealthService.getNormalizedWorkouts(), isEmpty);
     expect(calls, 0);
   });
@@ -28,21 +27,21 @@ void main() {
       () async {
     var allowed = true;
     var calls = 0;
-    final pending = Completer<List<double>>();
+    final pending = Completer<List<Map<String, dynamic>>>();
     TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
         .setMockMethodCallHandler(channel, (_) {
       calls++;
       return pending.future;
     });
     final reading = withHealthReadConsent(
-        () => allowed, NativeHealthService.getNightlyRRIntervals);
+        () => allowed, NativeHealthService.getNormalizedWorkouts);
     await Future<void>.delayed(Duration.zero);
     allowed = false;
-    pending.complete([1000]);
+    pending.complete([{'id': 'late-workout'}]);
     expect(await reading, isEmpty);
     expect(
         await withHealthReadConsent(
-            () => allowed, NativeHealthService.getNightlyRRIntervals),
+            () => allowed, NativeHealthService.getNormalizedWorkouts),
         isEmpty);
     expect(calls, 1);
   });

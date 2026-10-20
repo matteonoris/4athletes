@@ -197,6 +197,9 @@ def build_ios_ipa(version_name, build_number)
   ipa_path = Dir.glob(File.join(PROJECT_ROOT, "build", "ios", "ipa", "*.ipa")).first
   raise "No IPA found in build/ios/ipa/" unless ipa_path
 
+  sh("python3", File.join(PROJECT_ROOT, "tool", "verify_ios_permissions.py"),
+    "--ipa", ipa_path, "--version", version_name, "--build", build_number.to_s)
+
   ipa_path
 end
 

@@ -2,7 +2,6 @@ import 'dart:io';
 import 'dart:math' as math;
 import 'package:flutter/foundation.dart';
 import 'package:health/health.dart';
-import 'package:permission_handler/permission_handler.dart';
 import '../models/models.dart';
 import 'daily_health_metric_normalizer.dart';
 import 'health_import_normalizer.dart';
@@ -64,16 +63,15 @@ class HealthService {
           HealthDataType.RESTING_HEART_RATE,
           HealthDataType.HEART_RATE_VARIABILITY_SDNN,
           HealthDataType.WEIGHT,
-          HealthDataType.HEIGHT,
           HealthDataType.DISTANCE_WALKING_RUNNING,
           HealthDataType.DISTANCE_CYCLING,
           HealthDataType.DISTANCE_SWIMMING,
-          HealthDataType.SPEED,
+          // iOS running speed is requested/read by the native HealthKit path;
+          // the health plugin's SPEED type is available only on Android.
           HealthDataType.FLIGHTS_CLIMBED,
           HealthDataType.BLOOD_OXYGEN,
           HealthDataType.RESPIRATORY_RATE,
           HealthDataType.SLEEP_WRIST_TEMPERATURE,
-          HealthDataType.MENSTRUATION_FLOW,
         ]
       : [
           HealthDataType.WORKOUT,
@@ -95,7 +93,6 @@ class HealthService {
           HealthDataType.RESTING_HEART_RATE,
           HealthDataType.HEART_RATE_VARIABILITY_RMSSD,
           HealthDataType.WEIGHT,
-          HealthDataType.HEIGHT,
           HealthDataType.BLOOD_OXYGEN,
           HealthDataType.RESPIRATORY_RATE,
           HealthDataType.SKIN_TEMPERATURE,
@@ -130,17 +127,6 @@ class HealthService {
             HealthPermissionRequestStatus.healthConnectUnavailable,
             message:
                 'Health Connect non e disponibile su questo dispositivo Android.',
-          );
-        }
-
-        // Request Activity Recognition FIRST on Android
-        final activityStatus = await Permission.activityRecognition.request();
-        if (activityStatus.isDenied || activityStatus.isPermanentlyDenied) {
-          debugPrint("Activity Recognition permission denied.");
-          return const HealthPermissionRequestResult(
-            HealthPermissionRequestStatus.denied,
-            message:
-                'Permesso rilevamento attivita negato. Puoi abilitarlo dalle impostazioni.',
           );
         }
       }

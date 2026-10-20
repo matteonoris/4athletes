@@ -271,6 +271,8 @@ class LutealPhaseAdjustment {
 }
 
 class StrainScoreConfig {
+  final double stepsPerMovementPoint;
+  final double maxDailyMovementScore;
   final int historyWindowDays;
   final int minPersonalBaselineDays;
   final int fullPersonalBaselineDays;
@@ -296,6 +298,8 @@ class StrainScoreConfig {
   final StrainAbsoluteAnchors absoluteAnchors;
 
   const StrainScoreConfig({
+    this.stepsPerMovementPoint = 1000,
+    this.maxDailyMovementScore = 20,
     required this.historyWindowDays,
     required this.minPersonalBaselineDays,
     required this.fullPersonalBaselineDays,
@@ -413,7 +417,7 @@ class TimeConfig {
 }
 
 const defaultAlgorithmConfig = AlgorithmConfig(
-  version: 'wellness-scoring-v2.2.0',
+  version: 'wellness-scoring-v2.3.0',
   score: ScoreConfig(
     min: 0,
     max: 100,

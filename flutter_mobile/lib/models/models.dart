@@ -226,12 +226,14 @@ class BodyMetricLog {
   String date;
   String type; // Body, health, score, or coach-defined metric key.
   double value;
+  Map<String, dynamic> metadata;
 
   BodyMetricLog({
     required this.id,
     required this.date,
     required this.type,
     required this.value,
+    this.metadata = const {},
   });
 
   factory BodyMetricLog.fromJson(Map<String, dynamic> json) {
@@ -240,6 +242,7 @@ class BodyMetricLog {
       date: json['date'],
       type: json['type'],
       value: (json['value'] as num).toDouble(),
+      metadata: Map<String, dynamic>.from(json['metadata'] as Map? ?? {}),
     );
   }
 
@@ -248,6 +251,7 @@ class BodyMetricLog {
         'date': date,
         'type': type,
         'value': value,
+        'metadata': metadata,
       };
 }
 

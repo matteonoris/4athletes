@@ -65,6 +65,9 @@ class _HealthScreenState extends State<HealthScreen> {
           physics: const AlwaysScrollableScrollPhysics(),
           padding: const EdgeInsets.fromLTRB(16, 8, 16, 32),
           children: [
+            _sectionTitle('Attività quotidiana'),
+            _buildDailyStepsSection(appState),
+            const SizedBox(height: 28),
             _sectionTitle('Composizione corporea'),
             _buildBodyCompositionSection(appState, profile),
             const SizedBox(height: 28),
@@ -147,6 +150,31 @@ class _HealthScreenState extends State<HealthScreen> {
         ),
       ],
     );
+  }
+
+  Widget _buildDailyStepsSection(AppState state) {
+    final now = DateTime.now();
+    final snapshot = state.dailyStepsForDate(now);
+    final movement = state.dailyMovementForDate(now);
+    String count(int? value) => value == null
+        ? missingValue
+        : NumberFormat.decimalPattern('it').format(value);
+    return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+      _metricGrid([
+        _MetricData('Passi di oggi', count(snapshot?.totalSteps)),
+        _MetricData(
+            'Fuori dagli allenamenti', count(movement.outsideWorkoutSteps)),
+      ]),
+      const SizedBox(height: 8),
+      Text(
+          snapshot == null
+              ? 'Nessun dato sui passi disponibile per oggi.'
+              : movement.outsideWorkoutSteps == null
+                  ? 'Passi esclusi dallo strain finché non è possibile separarli dagli allenamenti. Aggiorna i dati dopo aver completato gli orari delle sessioni.'
+                  : 'Lo strain include i passi fuori dagli allenamenti. Dati aggiornati alle ${DateFormat.Hm('it').format(snapshot.observedUntil)}.',
+          style: Theme.of(context).textTheme.bodySmall?.copyWith(
+              color: Theme.of(context).colorScheme.onSurfaceVariant)),
+    ]);
   }
 
   Widget _buildSleepSection(AppState appState) {
