@@ -80,3 +80,11 @@ provided a ready-to-forward message with the exact App Store Connect sections.
 Do not claim a production submission or publication before it actually happens.
 
 Additional auth/signup and manual-location widget checks at 1024x1366 in both themes passed in a 19-test batch including existing map regressions. These are Flutter layout tests, not physical iPad verification.
+
+## Medical status resolved
+
+Authenticated App Information UI now explicitly states the app is not considered
+a regulated medical device in any country or region. The earlier warning is
+absent. This status was observed after the owner's administrator-side actions;
+the agent did not change regulatory status or accept agreements. DSA/agreements
+remain unverified and the iPhone test result is still pending.
