@@ -39,3 +39,44 @@ supported. Minimum signup age remains 14 on client/server. No backend migration.
 Secrets and private App Review notes are deliberately excluded from this report.
 CI status, signed artifact verification and any final submission must be recorded
 only after observed success. No production submission has occurred at this point.
+
+## Verified build and staging — 1 November 2026
+
+- Workflow 41323538015 completed successfully for commit
+  8c1768112fc844a648c45fa8a04b0b1d9bbc8b35, tag testflight-v1.0.4+38.
+- CI signed-IPA permission/entitlement/version verifier passed. Apple processing
+  finished and external TestFlight distribution succeeded at 16:10 UTC (17:10
+  Europe/Rome). Build ID: 290adfca-b78f-4ab9-8c4a-f07f3aeee51f.
+- Apple state VALID, APP_STORE_ELIGIBLE, not expired, non-exempt encryption false
+  flag (usesNonExemptEncryption=false); External Testers membership explicit,
+  external state IN_BETA_TESTING.
+- Downloaded IPA: 28,648,337 bytes; SHA-256
+  E4D4FB552907CF7E686F3BC6EC00FFFB6673F424811144BA74A31773D47827CD.
+  Local plist inspection confirms bundle, 1.0.4 (38), iPhone/iPad family [1,2].
+- Only GoogleSignIn's manifest in the IPA declares collected data. Its eight
+  declared types/purposes match the prepared labels, linked=true/tracking=false.
+  This manifest check is not a full runtime traffic audit of every provider.
+- Stage dry-run matched the plan; confirmed stage attached build 38 with zero
+  metadata changes. Validate with the actual IPA and URL checks has zero errors,
+  one first-version What's New warning and two information-only findings.
+- Private App Review notes now reference build 38 and manual locations. Contact,
+  demo username/password/required flag and private coach instructions preserved;
+  no credentials were printed or saved to these reports.
+- Matteo expressly confirmed Apple's accuracy/compliance attestation. App Privacy
+  was published through the authenticated UI and the publication confirmation
+  was visibly verified. Search History is excluded for the new manual-only flow;
+  historical location/map data remain declared as appropriate.
+- Standard metadata dry-run is empty. App Store version remains
+  PREPARE_FOR_SUBMISSION / NOT_SUBMITTED; release remains MANUAL.
+- The tested release commit is now also on remote main. The original local dirty
+  checkout was not reset or pulled; unrelated local changes remain untouched.
+
+## Remaining human gates
+
+Matteo has agreed to test on iPhone, but has not yet reported the result.
+Physical iPad/Apple Watch testing is not verified. Alberto has not yet confirmed
+agreements/DSA or the regulated-medical-device status declaration. The owner was
+provided a ready-to-forward message with the exact App Store Connect sections.
+Do not claim a production submission or publication before it actually happens.
+
+Additional auth/signup and manual-location widget checks at 1024x1366 in both themes passed in a 19-test batch including existing map regressions. These are Flutter layout tests, not physical iPad verification.
