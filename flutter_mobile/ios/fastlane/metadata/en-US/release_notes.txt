@@ -1,7 +1,7 @@
-This update improves Apple Health imports and daily movement tracking.
+4Athletes 1.0.4 (38)
 
-- Removes unused microphone, menstrual-flow and heartbeat-series access; HRV continues to use Apple Health SDNN.
-- Restores the native Apple Health connection for workout details with the current iOS lifecycle and clarifies why health data is read.
-- Shows daily steps and steps outside workouts, with a limited contribution to daily strain and clear unavailable-data states.
-- Improves navigation from health-score notifications and adds email/password sign-in alongside Google and Apple.
-- Preserves health-data consent, revocation and account-deletion controls.
+- Location entry is now manual; typing a workout venue no longer sends searches to Photon.
+- Existing saved locations remain available; editing a venue clears its previous coordinates.
+- Returning users can sign in with Apple, Google or email without entering a birth date again.
+- New users still provide a birth date during signup; the minimum age remains 14.
+- Please verify sign-in, manual locations, Apple Health consent and optional permissions on iPhone and iPad.

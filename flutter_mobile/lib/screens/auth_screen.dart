@@ -108,7 +108,6 @@ class _AuthScreenState extends State<AuthScreen>
   }
 
   Future<void> _handleGoogleSignIn() async {
-    if (!_validateBirthDate()) return;
     if (kOnboardingPreviewMode) {
       _startSocialSignup();
       return;
@@ -130,7 +129,6 @@ class _AuthScreenState extends State<AuthScreen>
   }
 
   Future<void> _handleAppleSignIn() async {
-    if (!_validateBirthDate()) return;
     if (kOnboardingPreviewMode) {
       _startSocialSignup();
       return;
@@ -442,24 +440,10 @@ class _AuthScreenState extends State<AuthScreen>
               ?.copyWith(color: AppTheme.textMediumEmphasis),
         ),
         const SizedBox(height: 32),
-        _buildLabeledField(
-          'DATA DI NASCITA',
-          _dobCtrl,
-          'Seleziona giorno, mese e anno',
-          preIcon: Icons.calendar_today_outlined,
-          readOnly: true,
-          onTap: _selectBirthDate,
-        ),
         if (_hasDeletionReceipt)
           TextButton(
               onPressed: _checkAccountDeletion,
               child: const Text('Verifica richiesta di eliminazione account')),
-        const SizedBox(height: 8),
-        Text(
-          '4athletes è disponibile dai 14 anni. Indica la tua data di nascita prima di continuare.',
-          style: TextStyle(color: AppTheme.textMediumEmphasis, fontSize: 12),
-        ),
-        const SizedBox(height: 24),
         ElevatedButton.icon(
           onPressed: () {
             HapticFeedback.lightImpact();

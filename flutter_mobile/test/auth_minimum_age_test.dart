@@ -4,6 +4,8 @@ import 'package:flutter_mobile/core/theme.dart';
 import 'package:flutter_mobile/models/models.dart';
 import 'package:flutter_mobile/providers/app_state.dart';
 import 'package:flutter_mobile/screens/auth_screen.dart';
+import 'package:flutter_mobile/screens/email_login_screen.dart';
+import 'package:flutter_mobile/widgets/health_consent_gate.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -13,15 +15,16 @@ class _SignupState extends AppState {
   int googleCalls = 0;
   int appleCalls = 0;
   int profileSaves = 0;
+  bool isNewUser = true;
 
   @override
   bool get isAppleSignInAvailable => true;
 
   @override
-  bool get isNewGoogleUser => true;
+  bool get isNewGoogleUser => isNewUser;
 
   @override
-  bool get isNewAppleUser => true;
+  bool get isNewAppleUser => isNewUser;
 
   AuthResponse get response => AuthResponse(
         user: User(
@@ -73,13 +76,14 @@ void main() {
   });
 
   for (final brightness in Brightness.values) {
-    Future<_SignupState> openAuth(WidgetTester tester) async {
+    Future<_SignupState> openAuth(WidgetTester tester,
+        {bool isNewUser = true}) async {
       AppTheme.setThemeMode(brightness == Brightness.dark
           ? AppTheme.darkMode
           : AppTheme.lightMode);
       await tester.binding.setSurfaceSize(const Size(390, 844));
       addTearDown(() => tester.binding.setSurfaceSize(null));
-      final state = _SignupState();
+      final state = _SignupState()..isNewUser = isNewUser;
       await tester.pumpWidget(ChangeNotifierProvider<AppState>.value(
         value: state,
         child: MaterialApp(
@@ -102,74 +106,142 @@ void main() {
       await tester.pumpAndSettle();
     }
 
-    testWidgets('missing birth date never starts OAuth ($brightness)',
+    testWidgets('email login is available without a birth date ($brightness)',
         (tester) async {
       final state = await openAuth(tester);
-      await tapText(tester, 'Continua con Google');
-      expect(
-          find.text('Seleziona una data di nascita valida.'), findsOneWidget);
-      await tapText(tester, 'Continua con Apple');
+      expect(find.text('DATA DI NASCITA'), findsNothing);
+      expect(find.byType(TextFormField), findsNothing);
+      await tapText(tester, 'Accedi con email');
+      expect(find.byType(EmailLoginScreen), findsOneWidget);
+      expect(find.byKey(const Key('email-login-email')), findsOneWidget);
+      expect(find.byKey(const Key('email-login-password')), findsOneWidget);
+      expect(find.text('DATA DI NASCITA'), findsNothing);
       expect(state.googleCalls + state.appleCalls, 0);
       expect(state.profileSaves, 0);
       expect(tester.takeException(), isNull);
     });
 
-    testWidgets('under-14 users never start either OAuth flow ($brightness)',
-        (tester) async {
-      final state = await openAuth(tester);
-      tester
-          .widget<TextFormField>(find.byType(TextFormField))
-          .controller!
-          .text = _dateAtAge(13);
-      await tapText(tester, 'Continua con Google');
-      expect(find.text(minimumSignupAgeMessage), findsOneWidget);
-      await tapText(tester, 'Continua con Apple');
-      expect(state.googleCalls + state.appleCalls, 0);
-      expect(state.profileSaves, 0);
-      expect(find.text('Chi sei?'), findsNothing);
-      expect(tester.takeException(), isNull);
-    });
+    for (final provider in ['Google', 'Apple']) {
+      testWidgets(
+          '$provider starts signup without a birth date and checks it in personal details ($brightness)',
+          (tester) async {
+        final state = await openAuth(tester);
+        expect(find.byType(TextFormField), findsNothing);
+        await tapText(tester, 'Continua con $provider');
+        expect(state.googleCalls, provider == 'Google' ? 1 : 0);
+        expect(state.appleCalls, provider == 'Apple' ? 1 : 0);
+        expect(find.text('Chi sei?'), findsOneWidget);
+        expect(find.text('DATA DI NASCITA'), findsNothing);
+        await tapText(tester, 'Avanti');
+        expect(find.text('I tuoi dati'), findsOneWidget);
+        expect(find.text('DATA DI NASCITA'), findsOneWidget);
+        await tapText(tester, 'M');
+        await tapText(tester, 'Avanti');
+        expect(
+            find.text('Seleziona una data di nascita valida.'), findsOneWidget);
+        expect(find.text('I tuoi dati'), findsOneWidget);
 
-    testWidgets('14th birthday passes and age is checked again ($brightness)',
-        (tester) async {
-      final state = await openAuth(tester);
-      final birthController =
-          tester.widget<TextFormField>(find.byType(TextFormField)).controller!;
-      birthController.text = _dateAtAge(14);
-      await tapText(tester, 'Continua con Google');
-      expect(state.googleCalls, 1);
-      expect(find.text('Chi sei?'), findsOneWidget);
-      await tapText(tester, 'Allenatore');
-      await tapText(tester, 'Avanti');
-      await tapText(tester, 'M');
+        tester
+            .state<ScaffoldMessengerState>(find.byType(ScaffoldMessenger))
+            .removeCurrentSnackBar();
+        await tester.pumpAndSettle();
+        tester
+            .widget<TextFormField>(find.ancestor(
+                of: find.byWidgetPredicate(
+                    (widget) => widget is TextField && widget.readOnly),
+                matching: find.byType(TextFormField)))
+            .controller!
+            .text = _dateAtAge(13);
+        await tapText(tester, 'Avanti');
+        expect(find.text(minimumSignupAgeMessage), findsOneWidget);
+        expect(find.text('I tuoi dati'), findsOneWidget);
+        expect(state.profileSaves, 0);
+        expect(tester.takeException(), isNull);
+      });
 
-      birthController.text = _dateAtAge(13);
-      await tapText(tester, 'Avanti');
-      expect(find.text('I tuoi dati'), findsOneWidget);
-      expect(find.text(minimumSignupAgeMessage), findsOneWidget);
-      expect(state.profileSaves, 0);
+      testWidgets('$provider existing users skip signup ($brightness)',
+          (tester) async {
+        final state = await openAuth(tester, isNewUser: false);
+        await tester.tap(find.text('Continua con $provider'));
+        await tester.pump();
+        await tester.pump(const Duration(milliseconds: 500));
+        expect(state.googleCalls, provider == 'Google' ? 1 : 0);
+        expect(state.appleCalls, provider == 'Apple' ? 1 : 0);
+        expect(find.byType(AuthScreen), findsNothing);
+        expect(find.text('Chi sei?'), findsNothing);
+        expect(find.text('DATA DI NASCITA'), findsNothing);
+        expect(find.byType(HealthConsentGate), findsOneWidget);
+        expect(
+            tester
+                .widget<HealthConsentGate>(find.byType(HealthConsentGate))
+                .existingUser,
+            isTrue);
+        expect(state.profileSaves, 0);
+        expect(tester.takeException(), isNull);
+      });
+    }
 
-      tester
-          .state<ScaffoldMessengerState>(find.byType(ScaffoldMessenger))
-          .removeCurrentSnackBar();
-      await tester.pumpAndSettle();
+    for (final role in ['Atleta', 'Allenatore']) {
+      testWidgets(
+          '14th birthday passes and age is checked again for $role ($brightness)',
+          (tester) async {
+        final state = await openAuth(tester);
+        await tapText(tester, 'Continua con Google');
+        expect(state.googleCalls, 1);
+        expect(find.text('Chi sei?'), findsOneWidget);
+        await tapText(tester, role);
+        await tapText(tester, 'Avanti');
+        await tapText(tester, 'M');
+        final birthController = tester
+            .widget<TextFormField>(find.ancestor(
+                of: find.byWidgetPredicate(
+                    (widget) => widget is TextField && widget.readOnly),
+                matching: find.byType(TextFormField)))
+            .controller!;
 
-      birthController.text = _dateAtAge(14);
-      await tapText(tester, 'Avanti');
-      birthController.text = '';
-      await tapText(tester, 'Completa');
-      expect(state.profileSaves, 0);
-      expect(
-          find.text('Seleziona una data di nascita valida.'), findsOneWidget);
-      tester
-          .state<ScaffoldMessengerState>(find.byType(ScaffoldMessenger))
-          .removeCurrentSnackBar();
-      await tester.pumpAndSettle();
-      await tapText(tester, 'Salta per ora');
-      expect(state.profileSaves, 0);
-      expect(
-          find.text('Seleziona una data di nascita valida.'), findsOneWidget);
-      expect(tester.takeException(), isNull);
-    });
+        birthController.text = _dateAtAge(13);
+        await tapText(tester, 'Avanti');
+        expect(find.text('I tuoi dati'), findsOneWidget);
+        expect(find.text(minimumSignupAgeMessage), findsOneWidget);
+        expect(state.profileSaves, 0);
+
+        tester
+            .state<ScaffoldMessengerState>(find.byType(ScaffoldMessenger))
+            .removeCurrentSnackBar();
+        await tester.pumpAndSettle();
+
+        birthController.text = _dateAtAge(14);
+        await tapText(tester, 'Avanti');
+        if (role == 'Atleta') {
+          await tapText(tester, 'Salta per ora');
+        }
+        expect(find.text('Foto profilo'), findsOneWidget);
+        final completeLabel = role == 'Allenatore' ? 'Completa' : 'Avanti';
+        birthController.text = _dateAtAge(13);
+        for (final label in [completeLabel, 'Salta per ora']) {
+          await tapText(tester, label);
+          expect(state.profileSaves, 0);
+          expect(find.text(minimumSignupAgeMessage), findsOneWidget);
+          tester
+              .state<ScaffoldMessengerState>(find.byType(ScaffoldMessenger))
+              .removeCurrentSnackBar();
+          await tester.pumpAndSettle();
+        }
+        birthController.text = '';
+        await tapText(tester, completeLabel);
+        expect(state.profileSaves, 0);
+        expect(
+            find.text('Seleziona una data di nascita valida.'), findsOneWidget);
+        tester
+            .state<ScaffoldMessengerState>(find.byType(ScaffoldMessenger))
+            .removeCurrentSnackBar();
+        await tester.pumpAndSettle();
+        await tapText(tester, 'Salta per ora');
+        expect(state.profileSaves, 0);
+        expect(
+            find.text('Seleziona una data di nascita valida.'), findsOneWidget);
+        expect(tester.takeException(), isNull);
+      });
+    }
   }
 }

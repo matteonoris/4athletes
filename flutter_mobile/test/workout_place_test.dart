@@ -24,6 +24,28 @@ void main() {
         creatorRole: 'athlete',
       ).copyWith(location: place.label, locationPlace: place);
 
+  test('manual location survives save, restore and activity conversion', () async {
+    SharedPreferences.setMockInitialValues({});
+    final store = WorkoutDraftStore(await SharedPreferences.getInstance());
+    final manual = draft().copyWith(location: 'Palestra comunale');
+    await store.save('athlete', manual);
+    final restored = store.load('athlete')!;
+    expect(restored.location, 'Palestra comunale');
+    expect(restored.locationPlace, isNull);
+    final session = restored.toTrainingSession();
+    expect(session.details!['location'], 'Palestra comunale');
+    expect(session.details!.containsKey('locationPlace'), isFalse);
+    final activity = TrainingActivity.fromTrainingSession(session);
+    expect(activity.location, 'Palestra comunale');
+    expect(activity.locationPlace, isNull);
+    final converted = WorkoutDraftFactory.fromTrainingSession(
+        session: session,
+        activity: WorkoutCatalog.byId('running'),
+        userId: 'athlete');
+    expect(converted.location, 'Palestra comunale');
+    expect(converted.locationPlace, isNull);
+  });
+
   test('preserves selection through draft, session, activity and local restore',
       () async {
     SharedPreferences.setMockInitialValues({});
