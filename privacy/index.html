@@ -26,7 +26,7 @@
       <ul>
         <li><strong>Account e profilo:</strong> indirizzo email, nome, cognome, data di nascita, sesso, ruolo atleta o allenatore, squadra, eventuale foto del profilo e preferenze.</li>
         <li><strong>Allenamenti e attività sportive:</strong> sessioni, esercizi, tempi, carichi, note, risultati, record personali, eventi e report di squadra. Il luogo può essere inserito come testo manuale. Le versioni precedenti offrivano anche una ricerca di luoghi con nome, indirizzo e coordinate: i luoghi già salvati possono conservare questi dati.</li>
-        <li><strong>Metriche fisiche e dati salute:</strong> misure inserite nell'app e, solo se attivi l'integrazione, dati supportati da Health Connect o Apple Health, tra cui attività, passi, frequenza cardiaca, sonno, consumo energetico, peso e altri parametri disponibili sul dispositivo. L'app usa questi dati per mostrare storico, analisi di allenamento, sonno e recupero.</li>
+        <li><strong>Metriche fisiche e dati salute:</strong> misure inserite nell'app e, solo se attivi l'integrazione, dati supportati da Health Connect o Apple Health, tra cui attività, passi, frequenza cardiaca, sonno, consumo energetico, peso e altri parametri disponibili sul dispositivo. L'app usa questi dati per mostrare storico, analisi di allenamento, sonno e recupero e indicazioni di benessere personalizzate. Questi indicatori non forniscono diagnosi o trattamenti medici.</li>
         <li><strong>Dati tecnici:</strong> informazioni necessarie al funzionamento, alla sicurezza e alla risoluzione di errori, gestite dall'app e dai fornitori tecnici.</li>
         <li><strong>Scelte sui dati salute:</strong> accettazione, rifiuto o revoca dell'importazione, associati all'account, con data registrata dal server e versione dell'informazione presentata.</li>
       </ul>
@@ -56,7 +56,7 @@
       <h2 id="fornitori">5. Servizi esterni</h2>
       <ul>
         <li><strong>Supabase:</strong> autenticazione, banca dati e archiviazione della foto profilo e dei dati salvati nell'app.</li>
-        <li><strong>Google o Apple:</strong> autenticazione, solo se scegli il relativo metodo di accesso.</li>
+        <li><strong>Google o Apple:</strong> autenticazione, solo se scegli il relativo metodo di accesso. Il componente Google Sign-In incluso nella build iOS dichiara anche la raccolta di nome, email, numero di telefono, posizione approssimativa, identificativi utente e dispositivo, altri dati di utilizzo e altri dati. Le finalità dichiarate sono autenticazione e funzionalità del servizio e, per alcuni identificativi e dati di utilizzo, analisi del servizio. Questi dati non sono necessariamente restituiti a 4athletes come campi del profilo. Il manifesto del componente li dichiara collegati all'utente e non usati per tracciamento pubblicitario tra app.</li>
         <li><strong>Photon/Komoot nelle versioni precedenti:</strong> fino alla build iOS 1.0.4 (37), la ricerca del luogo inviava il testo cercato a Photon, insieme ai dati di connessione. Il fornitore dichiarava una conservazione temporanea dei registri per il funzionamento del servizio; la durata attuale non è confermata. Dalla build iOS 1.0.4 (38) il campo Luogo è solo manuale e non invia ricerche a Photon. Le altre versioni possono ancora usare la ricerca finché non vengono aggiornate. Non viene richiesta la posizione GPS del dispositivo per questa funzione.</li>
         <li><strong>OpenStreetMap:</strong> se apri l'anteprima della mappa, il dispositivo richiede le immagini della mappa al relativo servizio.</li>
       </ul>
