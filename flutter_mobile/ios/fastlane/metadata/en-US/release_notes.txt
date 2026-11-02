@@ -1,4 +1,7 @@
-4Athletes 1.0.4 (38)
+4Athletes 1.0.4 (39)
+
+- Fixed returning Google and Apple sign-in for existing accounts without a saved gender: signup no longer restarts, and the saved birth date is retained.
+- Please test logout followed by sign-in with the same account; new users must still complete signup.
 
 - Location entry is now manual; typing a workout venue no longer sends searches to Photon.
 - Existing saved locations remain available; editing a venue clears its previous coordinates.

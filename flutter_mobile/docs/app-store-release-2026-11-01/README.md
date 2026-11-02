@@ -1,5 +1,66 @@
 # App Store release preparation — 1 November 2026
 
+## Returning social login fix — 2 November 2026
+
+Matteo's iPhone test exposed a release blocker in build 38: Google login after
+logout incorrectly restarted signup for an existing account. A targeted,
+read-only backend diagnostic confirmed an existing profile with eligible saved
+age/role but no gender value. No account data was changed; identifying query
+inputs and personal profile values are deliberately excluded from this report.
+
+Both Google and Apple classified any profile without normalized gender as new.
+Signup now applies to an absent profile or a trigger-created row with no saved
+birth date. Existing profiles use the same strict owner/age/role checks as email
+login, without requiring optional gender or overwriting saved information.
+Logout clears social-signup flags; delayed profile/authentication responses
+cannot restore login or retain a local session after logout. Health consent is
+still handled by the existing consent gate; this fix does not grant consent.
+
+Focused auth/signup suite: 57 passed, including 22 new real-state social-login
+regressions with mocked provider channels and synthetic HTTP data. Coverage
+includes logout/login without gender, genuine new/incomplete accounts, invalid
+and under-14 profiles, account ownership, delayed responses and both themes.
+Full Flutter suite: 550 passed. Dart analysis of the changed source/test found
+no issues; iOS source permission verification and git diff --check passed.
+Fastfile/workflow/signing are unchanged; CI validates Ruby/YAML as before.
+App Store Connect's next-build-number check returned 39. Build 39 upload will be
+recorded after completion. Production submission remains blocked pending the
+corrected build's physical-device retest.
+
+## Current update — 2 November 2026
+
+Matteo supplied Alberto's messages dated 1 November 18:34/18:38: Free Apps and
+Paid Apps agreements active (updated 30 October), DSA trader active with verified
+contacts and applied to 4Athletes, Italy-only availability without automatic
+territories, medical status No, and Matteo's access restricted to 4Athletes with
+App Manager/customer-support capabilities and individual API keys. These
+administrative statements are Alberto's confirmation, not an independent
+account-wide audit by this agent. No other apps were enumerated to test scope.
+
+Read-only API checks on 2 November confirm build **38** is already attached to
+version 1.0.4 and the private reviewer notes already reference build 38 and
+manual locations. Athlete credentials and private coach instructions are still
+present. Validation: zero blocking errors, one first-version What's New warning.
+Production state remains PREPARE_FOR_SUBMISSION / NOT_SUBMITTED, manual release.
+
+Alberto's remarks about a build-37 attachment/notes and unpublished privacy do
+not describe the current verified preparation. App Privacy was published on
+1 November after Matteo's explicit attestation; saved authenticated UI proof
+exists in the original checkout. The Apple browser session expired by the
+2 November follow-up, so publication was not newly reverified in that session.
+
+The 17 privacy categories were checked against the release source/IPA. Contacts
+describes the stored athlete/coach/team social graph, not device address-book
+access. Precise Location remains relevant to historical saved coordinate-bearing
+locations retained and re-saved in workout/session payloads and map previews;
+manual entry does not read device GPS. Photon search collection is removed from
+build 38. Removing these two categories would require a separate functional/data
+review, not merely hiding optional OS permissions.
+
+Remaining: Matteo's physical iPhone test result. Physical iPad/Apple Watch checks
+remain unverified. No new release, build, workflow, privacy publication or
+production submission was performed during this follow-up.
+
 Target: 4Athletes, app 6771865051, com.thestolenspot.4athletes, iOS 1.0.4 (38).
 Owner authorized continuing toward App Store publication today, subject to actual
 readiness and Apple review. No approval time is promised.

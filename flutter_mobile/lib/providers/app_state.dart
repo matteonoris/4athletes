@@ -724,6 +724,8 @@ class AppState extends ChangeNotifier {
 
   void _clearRemoteBackedData() {
     _remoteDataRevision++;
+    _isNewGoogleUser = false;
+    _isNewAppleUser = false;
     healthConsent.reset();
     _healthScoreSnapshots.clear();
     _sessions.clear();
@@ -925,7 +927,65 @@ class AppState extends ChangeNotifier {
     }
   }
 
+  // Legacy accounts may lack optional profile details such as gender. A saved
+  // birth date distinguishes completed registration from a trigger-created row;
+  // existing accounts still pass the same age/role checks as email login.
+  bool _requiresSocialSignup(Map<String, dynamic>? data) =>
+      data == null || (data['birth_date']?.toString().trim().isEmpty ?? true);
+
+  void _checkSocialLoginAttempt(String owner, int revision,
+      {Map<String, dynamic>? profile}) {
+    if (!_mayApplyRemoteData(owner, revision)) {
+      throw const AuthException('Accesso interrotto.');
+    }
+    if (profile != null && profile['id'] != owner) {
+      throw const AuthException('Profilo non disponibile.',
+          code: 'profile_unavailable');
+    }
+  }
+
+  Future<void> _finishExistingSocialLogin(String owner, int revision) async {
+    _checkSocialLoginAttempt(owner, revision);
+    await _loadAllData(requireEligibleProfile: true);
+    _checkSocialLoginAttempt(owner, revision);
+    if (_userProfile?.id != owner) {
+      throw const AuthException('Profilo non disponibile.',
+          code: 'profile_unavailable');
+    }
+    await _prefs!.setBool('isLoggedIn', true);
+    if (!_mayApplyRemoteData(owner, revision)) {
+      await _prefs!.remove('isLoggedIn');
+      throw const AuthException('Accesso interrotto.');
+    }
+    _isLoggedIn = true;
+  }
+
+  Future<void> _clearFailedSocialLogin(String? owner, int revision) async {
+    if (owner == null) return;
+    if (!_mayApplyRemoteData(owner, revision)) {
+      if (_authUserId == owner && !_isLoggedIn) {
+        // An OAuth response that arrives after logout must not retain a session.
+        try {
+          await _supabase.auth.signOut(scope: SignOutScope.local);
+        } catch (_) {/* Preserve the newer cleared state. */}
+      }
+      return;
+    }
+    _isLoggedIn = false;
+    _userProfile = null;
+    _clearRemoteBackedData();
+    await _prefs?.remove('isLoggedIn');
+    try {
+      await _supabase.auth.signOut(scope: SignOutScope.local);
+    } catch (_) {/* Local state is already cleared. */}
+    notifyListeners();
+  }
+
   Future<AuthResponse?> signInWithGoogle() async {
+    final revision = _remoteDataRevision;
+    String? owner;
+    _isNewGoogleUser = false;
+    _isNewAppleUser = false;
     try {
       final webClientId = dotenv.env['GOOGLE_WEB_CLIENT_ID'];
       final iosClientId = dotenv.env['GOOGLE_IOS_CLIENT_ID'];
@@ -967,18 +1027,20 @@ class AppState extends ChangeNotifier {
       if (response.user != null) {
         // Fetch or create profile
         final userId = response.user!.id;
+        owner = userId;
+        _checkSocialLoginAttempt(userId, revision);
         final profileData = await _supabase
             .from('profiles')
             .select()
             .eq('id', userId)
             .maybeSingle();
+        _checkSocialLoginAttempt(userId, revision, profile: profileData);
         final storedGender = _normalizePersistedGender(profileData?['gender']);
 
-        if (profileData == null || storedGender == null) {
-          _isNewGoogleUser = true;
+        if (_requiresSocialSignup(profileData)) {
           // A Supabase trigger may already have created an incomplete row.
-          // Keep its data, but require onboarding until gender is present.
-          _userProfile = UserProfile(
+          // Keep its data while signup collects the missing birth date.
+          final signupProfile = UserProfile(
             id: userId,
             firstName: profileData?['first_name'] ??
                 googleUser.displayName?.split(' ').first ??
@@ -1006,49 +1068,19 @@ class AppState extends ChangeNotifier {
             connectedDevices: [],
             oneRepMax: {},
           );
+          _checkSocialLoginAttempt(userId, revision);
+          _userProfile = signupProfile;
+          _isNewGoogleUser = true;
           // Do NOT save to db or set isLoggedIn=true yet
         } else {
-          _isNewGoogleUser = false;
-          // Load existing profile
-          _userProfile = UserProfile(
-            id: profileData['id']?.toString() ?? userId,
-            firstName: profileData['first_name'] ?? '',
-            lastName: profileData['last_name'] ?? '',
-            email: profileData['email'] ?? '',
-            birthDate: profileData['birth_date'] ?? '2000-01-01',
-            role: profileData['role'] ?? 'athlete',
-            weight: (profileData['weight'] as num?)?.toDouble() ?? 70.0,
-            height: (profileData['height'] as num?)?.toDouble() ?? 175.0,
-            maxHr: profileData['max_hr'] ?? 190,
-            avatarUrl: await PrivateAvatarService(_supabase)
-                .resolve(profileData['avatar_url'] ?? ''),
-            skiClub: profileData['ski_club'],
-            gender: storedGender,
-            skillLevel: profileData['skill_level'],
-            unitSystem: _prefs!.getString('unitSystem') ?? 'metric',
-            language: _prefs!.getString('language') ?? 'it',
-            themeMode: _themeMode,
-            notificationsEnabled:
-                _prefs!.getBool('notificationsEnabled') ?? false,
-            connectedDevices: [],
-            oneRepMax: {},
-            teamId: profileData['team_id'],
-            hrZoneMode: profileData['hr_zone_mode'] ?? 'standard',
-            customHrZones: profileData['custom_hr_zones'] != null
-                ? (profileData['custom_hr_zones'] as List)
-                    .map((e) => Map<String, int>.from(e as Map))
-                    .toList()
-                : null,
-          );
-          _isLoggedIn = true;
-          _prefs!.setBool('isLoggedIn', true);
-          await _loadAllData();
+          await _finishExistingSocialLogin(userId, revision);
         }
         notifyListeners();
       }
 
       return response;
     } catch (e) {
+      await _clearFailedSocialLogin(owner, revision);
       debugPrint('Error signing in with Google: $e');
       rethrow;
     }
@@ -1066,8 +1098,12 @@ class AppState extends ChangeNotifier {
   }
 
   Future<AuthResponse?> signInWithApple() async {
+    final revision = _remoteDataRevision;
+    String? owner;
+    _isNewGoogleUser = false;
+    _isNewAppleUser = false;
     try {
-      if (!kIsWeb && !(Platform.isIOS || Platform.isMacOS)) {
+      if (!isAppleSignInAvailable && !(kIsWeb || Platform.isMacOS)) {
         throw 'Sign in with Apple è disponibile solo su iOS, macOS e Web.';
       }
 
@@ -1097,11 +1133,14 @@ class AppState extends ChangeNotifier {
 
       if (response.user != null) {
         final userId = response.user!.id;
+        owner = userId;
+        _checkSocialLoginAttempt(userId, revision);
         final profileData = await _supabase
             .from('profiles')
             .select()
             .eq('id', userId)
             .maybeSingle();
+        _checkSocialLoginAttempt(userId, revision, profile: profileData);
         final storedGender = _normalizePersistedGender(profileData?['gender']);
 
         // Apple only returns givenName / familyName / email on the FIRST
@@ -1113,9 +1152,8 @@ class AppState extends ChangeNotifier {
             (meta['family_name'] ?? meta['last_name'] ?? '') as String;
         final fallbackEmail = response.user!.email ?? '';
 
-        if (profileData == null || storedGender == null) {
-          _isNewAppleUser = true;
-          _userProfile = UserProfile(
+        if (_requiresSocialSignup(profileData)) {
+          final signupProfile = UserProfile(
             id: userId,
             firstName: profileData?['first_name'] ??
                 credential.givenName ??
@@ -1144,43 +1182,13 @@ class AppState extends ChangeNotifier {
             connectedDevices: [],
             oneRepMax: {},
           );
+          _checkSocialLoginAttempt(userId, revision);
+          _userProfile = signupProfile;
+          _isNewAppleUser = true;
           // Do NOT mark logged in yet — auth_screen will collect missing fields
           // and then call login() to persist the completed profile.
         } else {
-          _isNewAppleUser = false;
-          _userProfile = UserProfile(
-            id: profileData['id']?.toString() ?? userId,
-            firstName: profileData['first_name'] ?? '',
-            lastName: profileData['last_name'] ?? '',
-            email: profileData['email'] ?? '',
-            birthDate: profileData['birth_date'] ?? '2000-01-01',
-            role: profileData['role'] ?? 'athlete',
-            weight: (profileData['weight'] as num?)?.toDouble() ?? 70.0,
-            height: (profileData['height'] as num?)?.toDouble() ?? 175.0,
-            maxHr: profileData['max_hr'] ?? 190,
-            avatarUrl: await PrivateAvatarService(_supabase)
-                .resolve(profileData['avatar_url'] ?? ''),
-            skiClub: profileData['ski_club'],
-            gender: storedGender,
-            skillLevel: profileData['skill_level'],
-            unitSystem: _prefs!.getString('unitSystem') ?? 'metric',
-            language: _prefs!.getString('language') ?? 'it',
-            themeMode: _themeMode,
-            notificationsEnabled:
-                _prefs!.getBool('notificationsEnabled') ?? false,
-            connectedDevices: [],
-            oneRepMax: {},
-            teamId: profileData['team_id'],
-            hrZoneMode: profileData['hr_zone_mode'] ?? 'standard',
-            customHrZones: profileData['custom_hr_zones'] != null
-                ? (profileData['custom_hr_zones'] as List)
-                    .map((e) => Map<String, int>.from(e as Map))
-                    .toList()
-                : null,
-          );
-          _isLoggedIn = true;
-          _prefs!.setBool('isLoggedIn', true);
-          await _loadAllData();
+          await _finishExistingSocialLogin(userId, revision);
         }
         notifyListeners();
       }
@@ -1194,12 +1202,14 @@ class AppState extends ChangeNotifier {
       debugPrint('Apple authorization error: ${e.code} – ${e.message}');
       rethrow;
     } on AuthException catch (e) {
+      await _clearFailedSocialLogin(owner, revision);
       if (e.code == 'provider_disabled') {
         throw 'Accesso con Apple non ancora abilitato. Abilita il provider Apple in Supabase Auth.';
       }
       debugPrint('Supabase Apple auth error: ${e.code} - ${e.message}');
       rethrow;
     } catch (e) {
+      await _clearFailedSocialLogin(owner, revision);
       debugPrint('Error signing in with Apple: $e');
       rethrow;
     }

@@ -1,4 +1,7 @@
-4Athletes 1.0.4 (38)
+4Athletes 1.0.4 (39)
+
+- Corretto il nuovo accesso con Google e Apple per gli account esistenti senza il campo sesso: non riparte l’iscrizione e resta valida la data di nascita salvata.
+- Verificare logout e nuovo accesso con lo stesso account; i nuovi utenti devono ancora completare l’iscrizione.
 
 - Il campo Luogo è manuale: digitare un luogo non invia più ricerche a Photon.
 - I luoghi già salvati restano disponibili; modificando il testo si eliminano le coordinate precedenti.
