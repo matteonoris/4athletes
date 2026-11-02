@@ -23,11 +23,44 @@ and under-14 profiles, account ownership, delayed responses and both themes.
 Full Flutter suite: 550 passed. Dart analysis of the changed source/test found
 no issues; iOS source permission verification and git diff --check passed.
 Fastfile/workflow/signing are unchanged; CI validates Ruby/YAML as before.
-App Store Connect's next-build-number check returned 39. Build 39 upload will be
-recorded after completion. Production submission remains blocked pending the
-corrected build's physical-device retest.
+App Store Connect's next-build-number check returned 39. The immutable tag is
+`testflight-v1.0.4+39`, source commit `e4bbf17af22633aa561765ef2f9dd659f23aa860`.
+[Workflow 41413050161](https://github.com/matteonoris/4athletes/actions/runs/41413050161)
+completed successfully. CI logs confirm Ruby/YAML checks, signed-IPA permission
+verification, upload and external distribution. Apple build
+`5693d92b-4aeb-4c26-a9f2-332d4d27301f` is VALID, APP_STORE_ELIGIBLE,
+usesNonExemptEncryption=false and IN_BETA_TESTING, explicitly assigned to
+External Testers.
 
-## Current update — 2 November 2026
+Downloaded IPA: 28,650,116 bytes; SHA-256
+`3BC040E0D8B1ADE1C402DBE7B58BD01C72927C8943D0876B4C1206351C843C73`.
+Local plist inspection confirms the correct bundle, 1.0.4 (39) and device family
+[1,2]. All 19 bundled privacy manifests match build 38 byte-for-byte; none
+declares tracking. No new privacy category or permission was introduced.
+
+Stage dry-run matched the plan; confirmed stage attached build 39 with zero
+metadata changes. The private reviewer-note header now says 39; every other
+note and contact/demo credential field was preserved, verified in memory without
+printing sensitive values. Validation with the actual IPA and bounded public
+URL checks has zero errors, one existing first-version What's New warning and
+two informational findings (manual release and API-unverifiable privacy state).
+App Privacy publication remains supported by the earlier authenticated proof;
+the API cannot independently attest it. No production review submission was made.
+
+Device feedback during the build: Matteo confirmed manual location entry works.
+He initially reported missing Health/activity fields under iOS Settings >
+4athletes; after checking Health > profile > Privacy > Apps, he confirmed
+4athletes is present with read switches enabled. HealthKit permissions live in
+Health; this source does not request the separate Core Motion permission.
+This verified the reported OS-switch state, not an actual data import. After
+updating to build 39 without uninstalling, Matteo explicitly confirmed both
+checks work: logout followed by Google login opens the existing account without
+signup, and a recent known Apple Health workout is imported into the app.
+No personal health values were requested or recorded. Physical Apple/email
+login, granular permission denial and iPad/Watch comparisons are not newly
+verified by this report.
+
+## Earlier administrative check — 2 November 2026
 
 Matteo supplied Alberto's messages dated 1 November 18:34/18:38: Free Apps and
 Paid Apps agreements active (updated 30 October), DSA trader active with verified
