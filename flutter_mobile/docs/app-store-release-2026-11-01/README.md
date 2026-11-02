@@ -1,5 +1,35 @@
 # App Store release preparation — 1 November 2026
 
+## Submitted for App Review — 2 November 2026
+
+Matteo explicitly authorized submitting 4Athletes 1.0.4 (39) for App Store review
+while retaining manual release. Final validation with the actual IPA and public
+URL checks had zero blocking errors; the known first-version What's New warning
+remained. No existing review submission was present. The submission dry run
+matched the selected iOS version/build and the already-attached build.
+
+`asc review submit --confirm` completed at 16:26 Europe/Rome on 2 November 2026
+(Apple submittedDate `2026-11-02T15:26:01.782Z`). Subsequent read-only API checks
+confirmed both the submission and App Store version are **WAITING_FOR_REVIEW**,
+the attached build is **39**, and releaseType remains **MANUAL**. The submission
+contains the intended App Store version. No production release was requested.
+
+- App: `6771865051`, bundle `com.thestolenspot.4athletes`, platform IOS.
+- Version: `98ea4b7a-4640-4378-86cf-f27dacab9be7`, 1.0.4.
+- Build: `5693d92b-4aeb-4c26-a9f2-332d4d27301f`, 39.
+- Review submission: `4cf63f5a-744b-4963-97d4-fb7ec2e10ea9`.
+
+Read-only monitoring with the existing individual-key profile:
+
+```powershell
+asc --profile 4athletes-matteo --strict-auth --read-only review submissions-get --id 4cf63f5a-744b-4963-97d4-fb7ec2e10ea9 --output table
+asc --profile 4athletes-matteo --strict-auth --read-only review status --app 6771865051 --version-id 98ea4b7a-4640-4378-86cf-f27dacab9be7 --output table
+```
+
+Wait for Apple's review outcome. Approval does not publish this version
+automatically: manual release still requires a separate action. Do not create
+another submission or withdraw this one merely to repeat a readiness check.
+
 ## Returning social login fix — 2 November 2026
 
 Matteo's iPhone test exposed a release blocker in build 38: Google login after
