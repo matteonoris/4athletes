@@ -34,9 +34,12 @@ References: [Apple's Sign in with Apple guidelines](https://developer.apple.com/
 
 ## Build preparation
 
-App Store Connect returned next build number 40. Validation results, source tag,
-CI run, signed artifact and TestFlight availability will be recorded after
-observed completion. Never reuse an uploaded release tag.
+App Store Connect returned next build number 40. Immutable tag
+`testflight-v1.0.4+40` points to source `437f5339924f242a7325b65fcee1aed165d26c0f`.
+[Workflow 42466961670](https://github.com/matteonoris/4athletes/actions/runs/42466961670)
+succeeded, including Swift compilation, Ruby/YAML syntax checks, signed-IPA
+permission/entitlement verification, upload, Apple processing and external
+TestFlight distribution. Never reuse this release tag.
 
 Local verification: 41 focused button/auth tests passed, followed by all 555
 tests in the full Flutter suite. Two additional actual AuthScreen iPad-layout
@@ -46,10 +49,34 @@ permission verification and whitespace checks passed. Dart analysis of all six
 changed/new Dart files is clean. Native Swift compilation
 and signed-IPA verification run in the existing macOS GitHub Actions lane.
 
-The existing rejected submission is preserved. No reviewer reply, resubmission
-or production release has been sent during preparation. Keep release MANUAL.
-Private review contacts/demo credentials remain outside this report.
+- Apple build: `238ec3f4-e875-44b2-8195-6b7fd71a6d3f`, 1.0.4 (40), VALID,
+  APP_STORE_ELIGIBLE, usesNonExemptEncryption=false, not expired.
+- TestFlight: IN_BETA_TESTING, explicitly assigned to External Testers.
+- Downloaded IPA: 28,665,499 bytes; SHA-256
+  `FF97F0772AF63CB6076AB6C3C95A3D08A056800C7635254E9C54E1B933D3D63F`.
+- Actual IPA inspection confirms the correct bundle/version, iPhone/iPad family
+  [1,2], and executable references to ASAuthorizationAppleIDButton and the new
+  native bridge. All 19 privacy manifests are byte-identical to build 39;
+  none declares tracking. This is not a full runtime traffic audit.
+- Stage dry-run matched the plan. Confirmed staging attached build 40 to the
+  existing App Store version `98ea4b7a-4640-4378-86cf-f27dacab9be7` with no
+  localization changes. Final API checks show PREPARE_FOR_SUBMISSION and MANUAL.
+- Private reviewer notes now reference build 40 and explain the native Apple
+  button fix. Every other existing note and contact/demo credential field was
+  preserved; sensitive values were compared in memory and not printed.
+- Validation with the actual IPA and public URL checks: zero errors, the known
+  first-version What's New warning and two informational findings (manual
+  release and App Privacy state not verifiable through the public API).
+
+The original submission `4cf63f5a-744b-4963-97d4-fb7ec2e10ea9` remains
+UNRESOLVED_ISSUES, preserving the build-39 rejection history. No reviewer reply,
+resubmission or production release was sent during this preparation. Do not
+create a duplicate submission for retry. Private review contacts/demo
+credentials remain outside this report.
 
 Flutter widget tests can verify bridge callbacks, layout sizes and theme
 selection, but do not render UIKit artwork. Physical iPhone/iPad verification
-of the native appearance and press still needs the new TestFlight build.
+was requested on build 40; Matteo replied positively to the requested native
+appearance/tap checks. He did not separately identify an iPad test, so no
+physical iPad verification is claimed. Earlier full health/Watch/partial-denial
+limitations remain outside this focused button fix.
