@@ -3,6 +3,36 @@
 App: 4Athletes (`6771865051`, `com.thestolenspot.4athletes`), iOS 1.0.4.
 Existing submission: `4cf63f5a-744b-4963-97d4-fb7ec2e10ea9`.
 
+## Resubmitted — 8 November 2026
+
+Matteo explicitly authorized resubmitting 1.0.4 (40) using the existing review
+submission and retaining manual release. Fresh read-only checks confirmed build
+40 attached to version `98ea4b7a-4640-4378-86cf-f27dacab9be7`, MANUAL release
+and zero blocking validation errors with the actual IPA/URL checks.
+
+The existing rejected version item
+`NGNmNjNmNWEtNzQ0Yi00OTYzLTk3ZDQtZmI3ZWMyZTEwZWE5fDZ8ODg1OTc4Njk1`
+was marked resolved, returning it to READY_FOR_REVIEW. The existing submission
+`4cf63f5a-744b-4963-97d4-fb7ec2e10ea9` was then submitted again with
+`asc review submissions-submit --confirm`; no new submission was created.
+
+Apple accepted the resubmission at **11:01 Europe/Rome, 8 November 2026**
+(`2026-11-08T10:01:29.647Z`). Subsequent API reads confirm submission and
+version WAITING_FOR_REVIEW, build `238ec3f4-e875-44b2-8195-6b7fd71a6d3f`
+(40) attached, releaseType MANUAL and the same sole version item. The earlier
+build-39 rejection remains part of this submission's history. No production
+release or separate reviewer reply was sent.
+
+Read-only monitoring:
+
+```powershell
+asc --profile 4athletes-matteo --strict-auth --read-only review submissions-get --id 4cf63f5a-744b-4963-97d4-fb7ec2e10ea9 --output table
+asc --profile 4athletes-matteo --strict-auth --read-only versions view --version-id 98ea4b7a-4640-4378-86cf-f27dacab9be7 --include-build --output table
+```
+
+Approval will still require a separate manual release action. Do not create
+a duplicate submission or resubmit again while this review is pending.
+
 ## Observed rejection
 
 Apple's message dated 5 November, 16:25, reports Guideline 4 — Design: the
