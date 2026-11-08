@@ -1,4 +1,7 @@
-4Athletes 1.0.4 (39)
+4Athletes 1.0.4 (40)
+
+- Replaced the custom Apple logo/button with Apple's native ASAuthorizationAppleIDButton, following the Guideline 4 review feedback.
+- Please check the Apple sign-in button in light/dark appearance on iPhone and iPad, and verify it opens the usual sign-in flow.
 
 - Fixed returning Google and Apple sign-in for existing accounts without a saved gender: signup no longer restarts, and the saved birth date is retained.
 - Please test logout followed by sign-in with the same account; new users must still complete signup.

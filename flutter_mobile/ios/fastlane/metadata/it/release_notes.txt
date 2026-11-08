@@ -1,4 +1,7 @@
-4Athletes 1.0.4 (39)
+4Athletes 1.0.4 (40)
+
+- Sostituito il pulsante/logo Apple personalizzato con ASAuthorizationAppleIDButton nativo, secondo la segnalazione della verifica sulla linea guida 4.
+- Verificare il pulsante Apple in tema chiaro/scuro su iPhone e iPad e l'apertura del normale flusso di accesso.
 
 - Corretto il nuovo accesso con Google e Apple per gli account esistenti senza il campo sesso: non riparte l’iscrizione e resta valida la data di nascita salvata.
 - Verificare logout e nuovo accesso con lo stesso account; i nuovi utenti devono ancora completare l’iscrizione.

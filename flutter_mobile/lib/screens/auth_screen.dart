@@ -18,6 +18,7 @@ import 'coach_dashboard_screen.dart';
 import 'health_permission_screen.dart';
 import 'home_screen.dart';
 import '../widgets/health_consent_gate.dart';
+import '../widgets/official_apple_sign_in_button.dart';
 import '../services/account_deletion_service.dart';
 import 'account_deletion_screen.dart';
 import 'email_login_screen.dart';
@@ -469,35 +470,11 @@ class _AuthScreenState extends State<AuthScreen>
         if (Provider.of<AppState>(context, listen: false)
             .isAppleSignInAvailable) ...[
           const SizedBox(height: 16),
-          ElevatedButton.icon(
+          OfficialAppleSignInButton(
             onPressed: () {
               HapticFeedback.lightImpact();
               _handleAppleSignIn();
             },
-            icon: Icon(
-              PhosphorIcons.appleLogo(PhosphorIconsStyle.fill),
-              color: AppTheme.textHighEmphasis,
-              size: 24,
-            ),
-            label: Text(
-              'Continua con Apple',
-              style: TextStyle(
-                color: AppTheme.textHighEmphasis,
-                fontWeight: FontWeight.bold,
-                fontSize: 16,
-              ),
-            ),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: AppTheme.card,
-              padding: const EdgeInsets.symmetric(vertical: 16),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(16),
-                side: BorderSide(
-                  color: AppTheme.textLowEmphasis.withValues(alpha: 0.2),
-                ),
-              ),
-              elevation: 0,
-            ),
           ),
         ],
         const SizedBox(height: 16),

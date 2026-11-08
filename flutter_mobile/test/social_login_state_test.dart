@@ -17,6 +17,7 @@ import 'package:http/testing.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:provider/provider.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'support/native_apple_button.dart';
 
 class _Consent implements HealthConsentRepository {
   @override
@@ -255,6 +256,7 @@ void main() {
     for (final brightness in Brightness.values) {
       testWidgets('$provider legacy account skips signup in $brightness',
           (tester) async {
+        mockNativeAppleButton();
         final state = await setup(legacy);
         AppTheme.setThemeMode(brightness == Brightness.dark
             ? AppTheme.darkMode
@@ -273,8 +275,12 @@ void main() {
                             child: Text('Authenticated content'))
                         : const AuthScreen()))));
         await tester.pumpAndSettle();
-        await tester.ensureVisible(find.text('Continua con $provider'));
-        await tester.tap(find.text('Continua con $provider'));
+        if (provider == 'Apple') {
+          await pressNativeAppleButton(tester);
+        } else {
+          await tester.ensureVisible(find.text('Continua con $provider'));
+          await tester.tap(find.text('Continua con $provider'));
+        }
         await tester.pumpAndSettle();
         expect(state.isLoggedIn, isTrue);
         expect(state.isNewSocialUser, isFalse);

@@ -24,6 +24,10 @@ import HealthKit
 
   func didInitializeImplicitFlutterEngine(_ engineBridge: FlutterImplicitEngineBridge) {
     GeneratedPluginRegistrant.register(with: engineBridge.pluginRegistry)
+    let appRegistrar = engineBridge.applicationRegistrar
+    appRegistrar.register(
+      OfficialAppleSignInButtonFactory(messenger: appRegistrar.messenger()),
+      withId: "com.4athletes.auth/apple_button")
     WorkoutDocumentReader.register(messenger: engineBridge.applicationRegistrar.messenger())
     // UIScene creates the window after didFinishLaunchingWithOptions. Register
     // HealthKit with the engine so the workout reader is reachable on iOS.

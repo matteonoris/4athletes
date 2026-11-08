@@ -10,6 +10,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'support/native_apple_button.dart';
 
 class _SignupState extends AppState {
   int googleCalls = 0;
@@ -77,11 +78,12 @@ void main() {
 
   for (final brightness in Brightness.values) {
     Future<_SignupState> openAuth(WidgetTester tester,
-        {bool isNewUser = true}) async {
+        {bool isNewUser = true, Size viewport = const Size(390, 844)}) async {
+      mockNativeAppleButton();
       AppTheme.setThemeMode(brightness == Brightness.dark
           ? AppTheme.darkMode
           : AppTheme.lightMode);
-      await tester.binding.setSurfaceSize(const Size(390, 844));
+      await tester.binding.setSurfaceSize(viewport);
       addTearDown(() => tester.binding.setSurfaceSize(null));
       final state = _SignupState()..isNewUser = isNewUser;
       await tester.pumpWidget(ChangeNotifierProvider<AppState>.value(
@@ -106,6 +108,21 @@ void main() {
       await tester.pumpAndSettle();
     }
 
+    testWidgets('iPad Apple button is as prominent as Google ($brightness)',
+        (tester) async {
+      final state = await openAuth(tester, viewport: const Size(834, 1194));
+      final google = find.widgetWithText(ElevatedButton, 'Continua con Google');
+      final apple = find.byType(UiKitView);
+      expect(tester.getSize(apple).width, tester.getSize(google).width);
+      expect(tester.getSize(apple).height,
+          greaterThanOrEqualTo(tester.getSize(google).height));
+      await pressNativeAppleButton(tester);
+      await tester.pumpAndSettle();
+      expect(state.appleCalls, 1);
+      expect(find.text('Chi sei?'), findsOneWidget);
+      expect(tester.takeException(), isNull);
+    });
+
     testWidgets('email login is available without a birth date ($brightness)',
         (tester) async {
       final state = await openAuth(tester);
@@ -127,7 +144,12 @@ void main() {
           (tester) async {
         final state = await openAuth(tester);
         expect(find.byType(TextFormField), findsNothing);
-        await tapText(tester, 'Continua con $provider');
+        if (provider == 'Apple') {
+          await pressNativeAppleButton(tester);
+          await tester.pumpAndSettle();
+        } else {
+          await tapText(tester, 'Continua con $provider');
+        }
         expect(state.googleCalls, provider == 'Google' ? 1 : 0);
         expect(state.appleCalls, provider == 'Apple' ? 1 : 0);
         expect(find.text('Chi sei?'), findsOneWidget);
@@ -162,7 +184,11 @@ void main() {
       testWidgets('$provider existing users skip signup ($brightness)',
           (tester) async {
         final state = await openAuth(tester, isNewUser: false);
-        await tester.tap(find.text('Continua con $provider'));
+        if (provider == 'Apple') {
+          await pressNativeAppleButton(tester);
+        } else {
+          await tester.tap(find.text('Continua con $provider'));
+        }
         await tester.pump();
         await tester.pump(const Duration(milliseconds: 500));
         expect(state.googleCalls, provider == 'Google' ? 1 : 0);
