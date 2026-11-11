@@ -3,6 +3,12 @@
 App: 4Athletes (`6771865051`, `com.thestolenspot.4athletes`), iOS 1.0.4.
 Existing submission: `4cf63f5a-744b-4963-97d4-fb7ec2e10ea9`.
 
+**Latest state — 11 November:** review approved and manual release completed at
+Matteo's explicit request. Build 40 is READY_FOR_DISTRIBUTION; Italy is AVAILABLE,
+free, and the public Italian App Store page is verified. See the
+[publication record](../app-store-release-2026-11-11/README.md). The sections below
+retain the earlier preparation and review history.
+
 ## Resubmitted — 8 November 2026
 
 Matteo explicitly authorized resubmitting 1.0.4 (40) using the existing review
